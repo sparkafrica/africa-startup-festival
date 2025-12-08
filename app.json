@@ -1,12 +1,11 @@
 {
   "expo": {
     "name": "Spark",
-    "slug": "Spark",
+    "slug": "spark",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -25,6 +24,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "87d58ced-aedb-42bd-aab1-962dc873eacc"
+      }
+    },
+    "owner": "unkn0wnt"
   }
 }
