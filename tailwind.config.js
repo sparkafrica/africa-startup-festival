@@ -1,5 +1,10 @@
 /** @type {import('tailwindcss').Config} */
-const { colors, spacing, borderRadius, typography } = require("./src/theme/theme.js");
+const {
+  colors,
+  spacing,
+  borderRadius,
+  typography,
+} = require("./src/theme/theme.js");
 
 module.exports = {
   content: ["./App.{js,jsx,ts,tsx}", "./src/**/*.{js,jsx,ts,tsx}"],
@@ -19,6 +24,7 @@ module.exports = {
       },
       spacing: spacing,
       borderRadius: borderRadius,
+      fontFamily: typography.fontFamily,
       fontSize: typography.fontSize,
       fontWeight: typography.fontWeight,
       lineHeight: typography.lineHeight,

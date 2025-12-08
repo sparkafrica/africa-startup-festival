@@ -95,3 +95,11 @@ export function ArrowRightIcon({ size = 16, color = '#FFFFFF' }: IconProps) {
   );
 }
 
+export function ArrowUpRightIcon({ size = 16, color = '#FFFFFF' }: IconProps) {
+  return (
+    <Text style={{ fontSize: size, color }}>
+      ↗
+    </Text>
+  );
+}
+

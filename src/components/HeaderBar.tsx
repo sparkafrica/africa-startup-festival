@@ -23,7 +23,7 @@ export default function HeaderBar({
         <View className="flex-row items-center">
           <Pressable
             onPress={onScanPress}
-            className="flex-row items-center bg-[#fefefe] rounded-full h-10 px-3 mr-3 border border-[#D6E5FB]"
+            className="flex-row items-center bg-[#fefefe] rounded-full h-10 px-3 mr-3 border border-[#c6c6c6]"
             style={{
               shadowColor: "#fefefe",
               shadowOffset: { width: 0, height: 1 },
@@ -40,7 +40,7 @@ export default function HeaderBar({
           </Pressable>
           <Pressable
             onPress={onNotificationPress}
-            className="w-10 h-10 rounded-full bg-[#fefefe] border border-[#D6E5FB] items-center justify-center"
+            className="w-10 h-10 rounded-full bg-[#fefefe] border border-[#c6c6c6] items-center justify-center"
             style={{
               shadowColor: "#2762C7",
               shadowOffset: { width: 0, height: 1 },
@@ -68,7 +68,16 @@ export default function HeaderBar({
           </Pressable>
         </View>
         <Pressable onPress={onMenuPress} className="p-2">
-          <MenuIcon size={20} color="#404040" />
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: "#c6c6c6",
+              borderRadius: 9999,
+              padding: 6,
+            }}
+          >
+            <MenuIcon size={20} color="#404040" />
+          </View>
         </Pressable>
       </View>
     </SafeAreaView>

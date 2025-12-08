@@ -1,7 +1,13 @@
-import React from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowRightIcon } from './icons';
+import React from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  Image,
+  ImageSourcePropType,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { ArrowRightIcon } from "./icons";
 
 interface BannerCardProps {
   badge?: string;
@@ -9,6 +15,7 @@ interface BannerCardProps {
   description: string;
   buttonText: string;
   gradient: string[];
+  backgroundImage?: ImageSourcePropType;
   onPress?: () => void;
 }
 
@@ -18,44 +25,54 @@ export default function BannerCard({
   description,
   buttonText,
   gradient,
+  backgroundImage,
   onPress,
 }: BannerCardProps) {
   return (
-    <View className="mr-4 w-80 rounded-2xl overflow-hidden" style={{
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 3,
-    }}>
+    <Pressable
+      onPress={onPress}
+      className="mr-4 w-80 rounded-3xl overflow-hidden"
+    >
+      {/* Top Image */}
+      {backgroundImage && (
+        <Image
+          source={backgroundImage}
+          className="w-full h-[180px] rounded-t-3xl"
+          resizeMode="cover"
+        />
+      )}
+
+      {/* Gradient Content Section */}
       <LinearGradient
-        colors={gradient}
+        colors={gradient as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        className="p-6"
+        className="p-5 rounded-b-3xl"
       >
         {badge && (
-          <Text className="text-xs font-semibold text-white/80 mb-2 uppercase tracking-wide">
+          <Text className="text-[11px] text-white/70 uppercase tracking-wide mb-2">
             {badge}
           </Text>
         )}
-        <Text className="text-2xl font-bold text-white mb-2 leading-tight">
+
+        <Text className="text-[20px] text-white font-semibold leading-tight mb-2">
           {title}
         </Text>
-        <Text className="text-sm text-white/90 mb-4 leading-5">
+
+        <Text className="text-[14px] text-white/90 leading-[20px] mb-5">
           {description}
         </Text>
+
         <Pressable
           onPress={onPress}
-          className="bg-white/20 rounded-full px-4 py-2 flex-row items-center self-start"
+          className="w-full bg-white/10 border border-white/20 py-3 rounded-2xl flex-row items-center justify-center"
         >
-          <Text className="text-sm font-semibold text-white mr-2">
+          <Text className="text-white text-[14px] font-medium mr-2">
             {buttonText}
           </Text>
-          <ArrowRightIcon size={16} color="#FFFFFF" />
+          <ArrowRightIcon size={18} color="#FFFFFF" />
         </Pressable>
       </LinearGradient>
-    </View>
+    </Pressable>
   );
 }
-

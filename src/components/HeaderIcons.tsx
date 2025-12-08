@@ -56,7 +56,7 @@ export function MenuIcon({ size = 20, color = "#404040" }: IconProps) {
         strokeLinejoin="round"
       />
       <Path
-        d="M3 10H17"
+        d="M3 10H10"
         stroke={color}
         strokeWidth={2}
         strokeLinecap="round"

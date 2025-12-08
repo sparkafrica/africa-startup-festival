@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Pressable, Text } from 'react-native';
+import React from "react";
+import { View, Pressable, Text } from "react-native";
 
 interface BottomNavItem {
   icon: (active: boolean) => React.ReactNode;
@@ -32,7 +32,7 @@ export default function BottomNavigation({
               {item.icon(isActive)}
               <Text
                 className={`text-xs mt-1 ${
-                  isActive ? 'text-primary-600' : 'text-neutral-400'
+                  isActive ? "text-black" : "text-neutral-400"
                 }`}
               >
                 {item.label}
@@ -44,4 +44,3 @@ export default function BottomNavigation({
     </View>
   );
 }
-

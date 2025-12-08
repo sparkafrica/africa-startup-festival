@@ -9,6 +9,8 @@ export { default as HeaderBar } from './HeaderBar';
 export { default as Menu } from './Menu';
 export { default as NotificationItem } from './NotificationItem';
 export { default as AttendeeCard } from './AttendeeCard';
+export { default as PartnerCard } from './PartnerCard';
+export { default as SpeakerCard } from './SpeakerCard';
 export * from './icons';
 export * from './BottomNavIcons';
 export * from './HeaderIcons';

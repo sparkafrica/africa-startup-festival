@@ -169,7 +169,7 @@ export default function AttendeesScreen() {
     {
       icon: (active: boolean) =>
         active ? (
-          <HomeIconFilled size={24} color="#0284C7" />
+          <HomeIconFilled size={24} color="#000000" />
         ) : (
           <HomeIcon size={24} color="#A3A3A3" />
         ),
@@ -179,7 +179,7 @@ export default function AttendeesScreen() {
     {
       icon: (active: boolean) =>
         active ? (
-          <PeopleIconFilled size={24} color="#0284C7" />
+          <PeopleIconFilled size={24} color="#000000" />
         ) : (
           <PeopleIcon size={24} color="#A3A3A3" />
         ),
@@ -189,7 +189,7 @@ export default function AttendeesScreen() {
     {
       icon: (active: boolean) =>
         active ? (
-          <CalendarIconFilled size={24} color="#0284C7" />
+          <CalendarIconFilled size={24} color="#000000" />
         ) : (
           <CalendarIcon size={24} color="#A3A3A3" />
         ),
@@ -199,7 +199,7 @@ export default function AttendeesScreen() {
     {
       icon: (active: boolean) =>
         active ? (
-          <ClockIconFilled size={24} color="#0284C7" />
+          <ClockIconFilled size={24} color="#000000" />
         ) : (
           <ClockIcon size={24} color="#A3A3A3" />
         ),
@@ -209,7 +209,7 @@ export default function AttendeesScreen() {
     {
       icon: (active: boolean) =>
         active ? (
-          <HeartIconFilled size={24} color="#0284C7" />
+          <HeartIconFilled size={24} color="#000000" />
         ) : (
           <HeartIcon size={24} color="#A3A3A3" />
         ),

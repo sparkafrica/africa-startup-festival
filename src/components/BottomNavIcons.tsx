@@ -1,12 +1,12 @@
-import React from 'react';
-import Svg, { Path } from 'react-native-svg';
+import React from "react";
+import Svg, { Path } from "react-native-svg";
 
 interface IconProps {
   size?: number;
   color?: string;
 }
 
-export function HomeIcon({ size = 24, color = '#A3A3A3' }: IconProps) {
+export function HomeIcon({ size = 24, color = "#000000" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -20,7 +20,7 @@ export function HomeIcon({ size = 24, color = '#A3A3A3' }: IconProps) {
   );
 }
 
-export function HomeIconFilled({ size = 24, color = '#0284C7' }: IconProps) {
+export function HomeIconFilled({ size = 24, color = "#000000" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -39,7 +39,7 @@ export function HomeIconFilled({ size = 24, color = '#0284C7' }: IconProps) {
   );
 }
 
-export function PeopleIcon({ size = 24, color = '#A3A3A3' }: IconProps) {
+export function PeopleIcon({ size = 24, color = "#000000" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -48,12 +48,13 @@ export function PeopleIcon({ size = 24, color = '#A3A3A3' }: IconProps) {
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
+        fill="none"
       />
     </Svg>
   );
 }
 
-export function PeopleIconFilled({ size = 24, color = '#0284C7' }: IconProps) {
+export function PeopleIconFilled({ size = 24, color = "#000000" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -70,12 +71,13 @@ export function PeopleIconFilled({ size = 24, color = '#0284C7' }: IconProps) {
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
+        fill="none"
       />
     </Svg>
   );
 }
 
-export function CalendarIcon({ size = 24, color = '#A3A3A3' }: IconProps) {
+export function CalendarIcon({ size = 24, color = "#000000" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -89,7 +91,10 @@ export function CalendarIcon({ size = 24, color = '#A3A3A3' }: IconProps) {
   );
 }
 
-export function CalendarIconFilled({ size = 24, color = '#0284C7' }: IconProps) {
+export function CalendarIconFilled({
+  size = 24,
+  color = "#000000",
+}: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -101,17 +106,12 @@ export function CalendarIconFilled({ size = 24, color = '#0284C7' }: IconProps) 
         fill={color}
         fillOpacity={0.1}
       />
-      <Path
-        d="M3 10H21"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
+      <Path d="M3 10H21" stroke={color} strokeWidth={2} strokeLinecap="round" />
     </Svg>
   );
 }
 
-export function ClockIcon({ size = 24, color = '#A3A3A3' }: IconProps) {
+export function ClockIcon({ size = 24, color = "#000000" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -132,7 +132,7 @@ export function ClockIcon({ size = 24, color = '#A3A3A3' }: IconProps) {
   );
 }
 
-export function ClockIconFilled({ size = 24, color = '#0284C7' }: IconProps) {
+export function ClockIconFilled({ size = 24, color = "#000000" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -141,7 +141,7 @@ export function ClockIconFilled({ size = 24, color = '#0284C7' }: IconProps) {
       />
       <Path
         d="M12 6V12L16 14"
-        stroke="white"
+        stroke="#000000"
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -150,7 +150,7 @@ export function ClockIconFilled({ size = 24, color = '#0284C7' }: IconProps) {
   );
 }
 
-export function HeartIcon({ size = 24, color = '#A3A3A3' }: IconProps) {
+export function HeartIcon({ size = 24, color = "#000000" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -164,7 +164,7 @@ export function HeartIcon({ size = 24, color = '#A3A3A3' }: IconProps) {
   );
 }
 
-export function HeartIconFilled({ size = 24, color = '#0284C7' }: IconProps) {
+export function HeartIconFilled({ size = 24, color = "#000000" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -174,4 +174,3 @@ export function HeartIconFilled({ size = 24, color = '#0284C7' }: IconProps) {
     </Svg>
   );
 }
-

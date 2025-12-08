@@ -1,31 +1,19 @@
 import React from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  Image,
-  ImageSourcePropType,
-} from "react-native";
+import { View, Text, Pressable, Image, ImageSourcePropType } from "react-native";
 
-interface ExhibitorCardProps {
+interface PartnerCardProps {
   name?: string;
-  logo?: string | number;
+  logo?: ImageSourcePropType;
   logoColor?: string;
   onPress?: () => void;
 }
 
-export default function ExhibitorCard({
+export default function PartnerCard({
   name,
   logo,
   logoColor = "#3B82F6",
   onPress,
-}: ExhibitorCardProps) {
-  const imageSource: ImageSourcePropType | undefined = logo
-    ? typeof logo === "string"
-      ? { uri: logo }
-      : logo
-    : undefined;
-
+}: PartnerCardProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -42,15 +30,15 @@ export default function ExhibitorCard({
       {logo ? (
         <View
           style={{
-            height: 60,
+            height: 50,
             width: "100%",
             justifyContent: "center",
             alignItems: "center",
           }}
         >
           <Image
-            source={imageSource}
-            style={{ width: 140, height: 60, maxWidth: "100%" }}
+            source={logo}
+            style={{ width: 100, height: 50, maxWidth: "100%" }}
             resizeMode="contain"
           />
         </View>
@@ -67,3 +55,4 @@ export default function ExhibitorCard({
     </Pressable>
   );
 }
+
