@@ -38,18 +38,19 @@ export default function Card({
           className="mb-4"
           disabled={!expandable}
         >
-          <View className="flex-row items-center justify-between mb-1">
+          <View className="flex-row items-center justify-between ">
             {title && (
               <Text className="text-lg font-bold text-neutral-900 flex-1 mr-2">
                 {title}
               </Text>
             )}
+            {/* mt-[-20px] is used to move the icon up by 20px */}
             {expandable && (
-              <View className="w-7 h-7 items-center justify-center">
+              <View className="w-7 h-7 items-center justify-center mt-[-20px]"> 
                 {expanded ? (
-                  <ChevronUpIcon size={20} color="#A3A3A3" />
-                ) : (
                   <ChevronDownIcon size={30} color="#A3A3A3" />
+                ) : (
+                  <ChevronUpIcon size={20} color="#A3A3A3"  />
                 )}
               </View>
             )}

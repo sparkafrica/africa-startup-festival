@@ -34,6 +34,10 @@ export default function HomeScreen() {
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const [checklistExpanded, setChecklistExpanded] = useState(true);
 
+  // TODO: Replace with backend data - check if there are unread notifications
+  // This would typically come from an API call or context/state management
+  const [hasUnreadNotifications] = useState(false);
+
   const bottomNavItems = [
     {
       icon: (active: boolean) =>
@@ -52,8 +56,8 @@ export default function HomeScreen() {
         ) : (
           <PeopleIcon size={24} color="#A3A3A3" />
         ),
-      label: "People",
-      route: "People",
+      label: "Attendees",
+      route: "Attendees",
     },
     {
       icon: (active: boolean) =>
@@ -72,8 +76,8 @@ export default function HomeScreen() {
         ) : (
           <ClockIcon size={24} color="#A3A3A3" />
         ),
-      label: "History",
-      route: "History",
+      label: "Meetings",
+      route: "Meetings",
     },
     {
       icon: (active: boolean) =>
@@ -82,17 +86,18 @@ export default function HomeScreen() {
         ) : (
           <HeartIcon size={24} color="#A3A3A3" />
         ),
-      label: "Favorites",
-      route: "Favorites",
+      label: "Connections",
+      route: "Connections",
     },
   ];
 
   return (
     <View className="flex-1 bg-surface">
       <HeaderBar
-        onScanPress={() => console.log("Scan pressed")}
+        onScanPress={() => navigation.navigate("ScanQR")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
+        hasUnreadNotifications={hasUnreadNotifications}
       />
 
       <ScrollView
@@ -111,19 +116,25 @@ export default function HomeScreen() {
             // badge="EVENT LIVE IN LAGOS"
             title="Welcome to ATE 2026"
             description="Complete your checklist and start booking 1:1 meetings with attendees and partners."
-            buttonText="View venue map"
+            buttonText="View attendees"
             gradient={gradients.sparkBlack}
             backgroundImage={require("../assets/images/left-card.jpg")}
-            onPress={() => console.log("View venue map")}
+            // backgroundImage={{
+            //   uri: "https://res.cloudinary.com/dznd7vzlb/image/upload/v1765286724/DSC_5673_left_card_img_jou0ok.jpg"
+            // }}
+            onPress={() => console.log("View attendees")}
           />
           <BannerCard
             // badge="PARTNER OFFERS"
-            title="Review event perks"
-            description="Get your ATE 2026 tickets for access to the event days"
-            buttonText="See schedule meetings"
+            title="Review event schedule"
+            description="Get your ATE 2026 itinerary ready ahead of the event day"
+            buttonText="See schedule"
             gradient={gradients.partnerGreen}
             backgroundImage={require("../assets/images/right-card.jpg")}
-            onPress={() => console.log("Browse offers")}
+            // backgroundImage={{
+            //   uri: "https://res.cloudinary.com/dznd7vzlb/image/upload/v1765286711/DSC_5145_right_card_img_gqppcl.jpg"
+            // }}
+            onPress={() => console.log("See schedule")}
           />
         </ScrollView>
 
@@ -134,7 +145,7 @@ export default function HomeScreen() {
             title="Event Checklist"
             description="Complete these to get the most out of the event."
             expandable
-            expanded={checklistExpanded}
+            expanded={!checklistExpanded}
             onToggle={() => setChecklistExpanded(!checklistExpanded)}
             className="mb-4"
           >
@@ -172,33 +183,53 @@ export default function HomeScreen() {
                 <ExhibitorCard
                   name="Kora"
                   logoColor="#2762C7"
-                  onPress={() => console.log("kora pressed")}
+                  onPress={() =>
+                    navigation.navigate("CompanyDetail", {
+                      exhibitorId: "kora",
+                      name: "Kora",
+                    })
+                  }
                 />
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <ExhibitorCard
                   name="Uber"
                   logoColor="#000000"
-                  onPress={() => console.log("Uber pressed")}
+                  onPress={() =>
+                    navigation.navigate("CompanyDetail", {
+                      exhibitorId: "uber",
+                      name: "Uber",
+                    })
+                  }
                 />
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <ExhibitorCard
                   name="MTN"
                   logoColor="#FFC107"
-                  onPress={() => console.log("MTN pressed")}
+                  onPress={() =>
+                    navigation.navigate("CompanyDetail", {
+                      exhibitorId: "mtn",
+                      name: "MTN",
+                    })
+                  }
                 />
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <ExhibitorCard
                   name="Zoko"
                   logoColor="#E91E63"
-                  onPress={() => console.log("Zoko pressed")}
+                  onPress={() =>
+                    navigation.navigate("CompanyDetail", {
+                      exhibitorId: "zoko",
+                      name: "Zoko",
+                    })
+                  }
                 />
               </View>
             </View>
             <Pressable
-              onPress={() => console.log("View all Exhibitors")}
+              onPress={() => navigation.navigate("Exhibitors")}
               className="bg-black rounded-xl py-4 px-6 flex-row items-center justify-center mt-4"
               style={{
                 shadowColor: "#000",
@@ -223,38 +254,58 @@ export default function HomeScreen() {
             expanded={true}
             className="mb-4"
           >
-            <View className="flex-row flex-wrap -mx-1.5">
-              <View className="px-1.5 mb-2" style={{ width: "50%" }}>
+            <View className="flex-row flex-wrap -mx-1.5 ">
+              <View className="px-1.5 mb-2 " style={{ width: "50%" }}>
                 <PartnerCard
                   name="Kora"
                   logoColor="#2762C7"
-                  onPress={() => console.log("Kora pressed")}
+                  onPress={() =>
+                    navigation.navigate("CompanyDetail", {
+                      exhibitorId: "kora",
+                      name: "Kora",
+                    })
+                  }
                 />
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <PartnerCard
                   name="Uber"
                   logoColor="#000000"
-                  onPress={() => console.log("Uber pressed")}
+                  onPress={() =>
+                    navigation.navigate("CompanyDetail", {
+                      exhibitorId: "uber",
+                      name: "Uber",
+                    })
+                  }
                 />
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <PartnerCard
                   name="MTN"
                   logoColor="#FFC107"
-                  onPress={() => console.log("MTN pressed")}
+                  onPress={() =>
+                    navigation.navigate("CompanyDetail", {
+                      exhibitorId: "mtn",
+                      name: "MTN",
+                    })
+                  }
                 />
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <PartnerCard
                   name="ZOHO"
                   logoColor="#E91E63"
-                  onPress={() => console.log("ZOHO pressed")}
+                  onPress={() =>
+                    navigation.navigate("CompanyDetail", {
+                      exhibitorId: "zoho",
+                      name: "ZOHO",
+                    })
+                  }
                 />
               </View>
             </View>
             <Pressable
-              onPress={() => console.log("View all Partners")}
+              onPress={() => navigation.navigate("Partners")}
               className="bg-black rounded-xl py-4 px-6 flex-row items-center justify-center mt-4"
               style={{
                 shadowColor: "#000",
@@ -274,47 +325,75 @@ export default function HomeScreen() {
           {/* Speakers Section */}
           <Card
             title="Speakers"
-            description="Tap a logo to view full profile, perks and job opportunities."
+            description="Tap an image to view full profile of each speaker."
             expandable={false}
             expanded={true}
             className="mb-4"
           >
             <View className="flex-row flex-wrap -mx-1.5">
-              <View className="px-1.5 mb-3" style={{ width: "50%" }}>
+              <View className="px-1.5 mb-3" style={{ width: "100%" }}>
                 <SpeakerCard
                   name="Sarah Johnson"
                   role="Tech Lead at Google"
+                  avatar={{ uri: "https://i.pravatar.cc/150?img=1" }}
                   avatarColor="#2762C7"
-                  onPress={() => console.log("Sarah Johnson pressed")}
+                  variant="horizontal"
+                  onPress={() =>
+                    navigation.navigate("SpeakerDetail", {
+                      speakerId: "sarah-johnson",
+                      name: "Sarah Johnson",
+                    })
+                  }
                 />
               </View>
-              <View className="px-1.5 mb-3" style={{ width: "50%" }}>
+              <View className="px-1.5 mb-3" style={{ width: "100%" }}>
                 <SpeakerCard
                   name="Michael Chen"
                   role="CEO at StartupX"
+                  avatar={{ uri: "https://i.pravatar.cc/150?img=12" }}
                   avatarColor="#1BB273"
-                  onPress={() => console.log("Michael Chen pressed")}
+                  variant="horizontal"
+                  onPress={() =>
+                    navigation.navigate("SpeakerDetail", {
+                      speakerId: "michael-chen",
+                      name: "Michael Chen",
+                    })
+                  }
                 />
               </View>
-              <View className="px-1.5 mb-3" style={{ width: "50%" }}>
+              <View className="px-1.5 mb-3" style={{ width: "100%" }}>
                 <SpeakerCard
                   name="Emily Davis"
                   role="Product Designer"
+                  avatar={{ uri: "https://i.pravatar.cc/150?img=47" }}
                   avatarColor="#9333EA"
-                  onPress={() => console.log("Emily Davis pressed")}
+                  variant="horizontal"
+                  onPress={() =>
+                    navigation.navigate("SpeakerDetail", {
+                      speakerId: "emily-davis",
+                      name: "Emily Davis",
+                    })
+                  }
                 />
               </View>
-              <View className="px-1.5 mb-3" style={{ width: "50%" }}>
+              <View className="px-1.5 mb-3" style={{ width: "100%" }}>
                 <SpeakerCard
                   name="David Wilson"
                   role="Engineering Manager"
+                  avatar={{ uri: "https://i.pravatar.cc/150?img=33" }}
                   avatarColor="#F97316"
-                  onPress={() => console.log("David Wilson pressed")}
+                  variant="horizontal"
+                  onPress={() =>
+                    navigation.navigate("SpeakerDetail", {
+                      speakerId: "david-wilson",
+                      name: "David Wilson",
+                    })
+                  }
                 />
               </View>
             </View>
             <Pressable
-              onPress={() => console.log("View all Speakers")}
+              onPress={() => navigation.navigate("Speakers")}
               className="bg-black rounded-xl py-4 px-6 flex-row items-center justify-center mt-4"
               style={{
                 shadowColor: "#000",
@@ -339,12 +418,16 @@ export default function HomeScreen() {
           items={bottomNavItems}
           activeRoute="Home"
           onNavigate={(route) => {
-            if (route === "Favorites") {
-              navigation.navigate("Favorites");
-            } else if (route === "People") {
-              navigation.navigate("People");
-            } else if (route === "Home") {
+            if (route === "Home") {
               // Already on Home screen
+            } else if (route === "Attendees") {
+              navigation.navigate("Attendees");
+            } else if (route === "Schedule") {
+              navigation.navigate("Schedule");
+            } else if (route === "Meetings") {
+              navigation.navigate("Meetings");
+            } else if (route === "Connections") {
+              navigation.navigate("Connections");
             } else {
               console.log(`Navigate to ${route}`);
             }

@@ -72,3 +72,46 @@ export function MenuIcon({ size = 20, color = "#404040" }: IconProps) {
     </Svg>
   );
 }
+
+export function ChevronLeftIcon({ size = 20, color = "#404040" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M12.5 15L7.5 10L12.5 5"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function FilterIcon({ size = 22, color = "#404040" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      {/* Three horizontal lines - top longest, middle shorter, bottom shortest */}
+      <Path
+        d="M3 8H17"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M5 11H15"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M7 14H13"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

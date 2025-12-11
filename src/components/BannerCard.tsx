@@ -55,11 +55,11 @@ export default function BannerCard({
           </Text>
         )}
 
-        <Text className="text-[20px] text-white font-semibold leading-tight mb-2">
+        <Text className="text-[22px] text-white font-semibold leading-tight mb-2">
           {title}
         </Text>
 
-        <Text className="text-[14px] text-white/90 leading-[20px] mb-5">
+        <Text className="text-[15px] text-white/90 leading-[20px] mb-5">
           {description}
         </Text>
 

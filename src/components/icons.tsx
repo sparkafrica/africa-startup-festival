@@ -71,7 +71,7 @@ export function HeartIcon({ active = false, size = 24 }: { active?: boolean; siz
   );
 }
 
-export function ChevronUpIcon({ size = 16, color = '#A3A3A3' }: IconProps) {
+export function ChevronUpIcon({ size = 30, color = '#A3A3A3' }: IconProps) {
   return (
     <Text style={{ fontSize: size, color }}>
       ⌃
@@ -79,7 +79,7 @@ export function ChevronUpIcon({ size = 16, color = '#A3A3A3' }: IconProps) {
   );
 }
 
-export function ChevronDownIcon({ size = 16, color = '#A3A3A3' }: IconProps) {
+export function ChevronDownIcon({ size = 30, color = '#A3A3A3' }: IconProps) {
   return (
     <Text style={{ fontSize: size, color }}>
       ⌄
@@ -91,6 +91,30 @@ export function ArrowRightIcon({ size = 16, color = '#FFFFFF' }: IconProps) {
   return (
     <Text style={{ fontSize: size, color }}>
       →
+    </Text>
+  );
+}
+
+export function ArrowDownIcon({ size = 16, color = '#FFFFFF' }: IconProps) {
+  return (
+    <Text style={{ fontSize: size, color }}>
+      ↓
+    </Text>
+  );
+}
+
+export function ArrowUpIcon({ size = 16, color = '#FFFFFF' }: IconProps) {
+  return (
+    <Text style={{ fontSize: size, color }}>
+      ↑
+    </Text>
+  );
+}
+
+export function ArrowLeftIcon({ size = 16, color = '#FFFFFF' }: IconProps) {
+  return (
+    <Text style={{ fontSize: size, color }}>
+      ←
     </Text>
   );
 }

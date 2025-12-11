@@ -9,12 +9,14 @@ interface HeaderBarProps {
   onScanPress?: () => void;
   onNotificationPress?: () => void;
   onMenuPress?: () => void;
+  hasUnreadNotifications?: boolean;
 }
 
 export default function HeaderBar({
   onScanPress,
   onNotificationPress,
   onMenuPress,
+  hasUnreadNotifications = false,
 }: HeaderBarProps) {
   return (
     <SafeAreaView edges={["top"]} className="bg-white">
@@ -51,20 +53,22 @@ export default function HeaderBar({
             hitSlop={10}
           >
             <BellIcon size={18} color="#404040" />
-            {/* Red notification dot */}
-            <View
-              style={{
-                position: "absolute",
-                top: 7,
-                right: 8,
-                width: 9,
-                height: 9,
-                borderRadius: 4.5,
-                backgroundColor: "#F04D52",
-                borderWidth: 2,
-                borderColor: "#FFF",
-              }}
-            />
+            {/* Red notification dot - only shown when there are unread notifications */}
+            {hasUnreadNotifications && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 7,
+                  right: 8,
+                  width: 9,
+                  height: 9,
+                  borderRadius: 4.5,
+                  backgroundColor: "#F04D52",
+                  borderWidth: 2,
+                  borderColor: "#FFF",
+                }}
+              />
+            )}
           </Pressable>
         </View>
         <Pressable onPress={onMenuPress} className="p-2">

@@ -29,7 +29,7 @@ export default function ExhibitorCard({
   return (
     <Pressable
       onPress={onPress}
-      className="bg-white rounded-xl p-3 items-center justify-center border border-neutral-200 w-full"
+      className="bg-neutral-100 rounded-xl p-3 items-center justify-center border border-neutral-200 w-full"
       style={{
         minHeight: 90,
         shadowColor: "#000",

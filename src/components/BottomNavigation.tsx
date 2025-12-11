@@ -19,21 +19,45 @@ export default function BottomNavigation({
   onNavigate,
 }: BottomNavigationProps) {
   return (
-    <View className="bg-white border-t border-neutral-200 px-4 py-2">
-      <View className="flex-row items-center justify-around">
-        {items.map((item) => {
+    <View
+      style={{
+        backgroundColor: "#fff",
+        borderTopWidth: 1,
+        borderTopColor: "#e5e5e5",
+        paddingVertical: 8,
+        paddingHorizontal: 0,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-evenly",
+          width: "100%",
+        }}
+      >
+        {items.map((item, idx) => {
           const isActive = activeRoute === item.route;
           return (
             <Pressable
               key={item.route}
               onPress={() => onNavigate(item.route)}
-              className="items-center justify-center py-2 px-4"
+              style={{
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+                paddingVertical: 8,
+                // Avoid horizontal padding for even distribution
+              }}
             >
               {item.icon(isActive)}
               <Text
-                className={`text-xs mt-1 ${
-                  isActive ? "text-black" : "text-neutral-400"
-                }`}
+                style={{
+                  fontSize: 12,
+                  marginTop: 4,
+                  color: isActive ? "#000" : "#a3a3a3",
+                  textAlign: "center",
+                }}
               >
                 {item.label}
               </Text>

@@ -15,6 +15,15 @@ import ProfileScreen from "../screens/ProfileScreen";
 import SearchScreen from "../screens/SearchScreen";
 import MenuScreen from "../screens/MenuScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
+import ScanQRScreen from "../screens/ScanQRScreen";
+import ExhibitorsScreen from "../screens/ExhibitorsScreen";
+import CompanyDetailScreen from "../screens/CompanyDetailScreen";
+import PartnersScreen from "../screens/PartnersScreen";
+import SpeakersScreen from "../screens/SpeakersScreen";
+import SpeakerDetailScreen from "../screens/SpeakerDetailScreen";
+import ScheduleScreen from "../screens/ScheduleScreen";
+import MeetingsScreen from "../screens/MeetingsScreen";
+import ConnectionsScreen from "../screens/ConnectionsScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -51,7 +60,7 @@ export default function AppNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="People"
+        name="Attendees"
         component={AttendeesScreen}
         options={{ headerShown: false }}
       />
@@ -94,8 +103,74 @@ export default function AppNavigator() {
         component={NotificationsScreen}
         options={{
           headerShown: false,
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="ScanQR"
+        component={ScanQRScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_left",
+        }}
+      />
+      <Stack.Screen
+        name="Exhibitors"
+        component={ExhibitorsScreen}
+        options={{
+          headerShown: false,
           animation: "slide_from_right",
         }}
+      />
+      <Stack.Screen
+        name="CompanyDetail"
+        component={CompanyDetailScreen}
+        options={{
+          headerShown: false,
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="Partners"
+        component={PartnersScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="Speakers"
+        component={SpeakersScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="SpeakerDetail"
+        component={SpeakerDetailScreen}
+        options={{
+          headerShown: false,
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="Schedule"
+        component={ScheduleScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Meetings"
+        component={MeetingsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Connections"
+        component={ConnectionsScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

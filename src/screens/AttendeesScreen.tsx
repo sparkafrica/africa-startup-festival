@@ -183,8 +183,8 @@ export default function AttendeesScreen() {
         ) : (
           <PeopleIcon size={24} color="#A3A3A3" />
         ),
-      label: "People",
-      route: "People",
+      label: "Attendees",
+      route: "Attendees",
     },
     {
       icon: (active: boolean) =>
@@ -203,8 +203,8 @@ export default function AttendeesScreen() {
         ) : (
           <ClockIcon size={24} color="#A3A3A3" />
         ),
-      label: "History",
-      route: "History",
+      label: "Meetings",
+      route: "Meetings",
     },
     {
       icon: (active: boolean) =>
@@ -213,15 +213,15 @@ export default function AttendeesScreen() {
         ) : (
           <HeartIcon size={24} color="#A3A3A3" />
         ),
-      label: "Favorites",
-      route: "Favorites",
+      label: "Connections",
+      route: "Connections",
     },
   ];
 
   return (
     <View className="flex-1 bg-surface">
       <HeaderBar
-        onScanPress={() => console.log("Scan pressed")}
+        onScanPress={() => navigation.navigate("ScanQR")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
       />
@@ -345,14 +345,18 @@ export default function AttendeesScreen() {
       <SafeAreaView edges={["bottom"]}>
         <BottomNavigation
           items={bottomNavItems}
-          activeRoute="People"
+          activeRoute="Attendees"
           onNavigate={(route) => {
-            if (route === "Favorites") {
-              navigation.navigate("Favorites");
-            } else if (route === "Home") {
+            if (route === "Home") {
               navigation.navigate("Home");
-            } else if (route === "People") {
-              // Already on People screen
+            } else if (route === "Attendees") {
+              // Already on Attendees screen
+            } else if (route === "Schedule") {
+              navigation.navigate("Schedule");
+            } else if (route === "Meetings") {
+              navigation.navigate("Meetings");
+            } else if (route === "Connections") {
+              navigation.navigate("Connections");
             } else {
               console.log(`Navigate to ${route}`);
             }
