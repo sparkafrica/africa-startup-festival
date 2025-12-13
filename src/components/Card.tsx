@@ -35,7 +35,7 @@ export default function Card({
       {(title || description) && (
         <Pressable
           onPress={expandable ? onToggle : undefined}
-          className="mb-4"
+          className="mb-4 "
           disabled={!expandable}
         >
           <View className="flex-row items-center justify-between ">
@@ -46,11 +46,11 @@ export default function Card({
             )}
             {/* mt-[-20px] is used to move the icon up by 20px */}
             {expandable && (
-              <View className="w-7 h-7 items-center justify-center mt-[-20px]"> 
+              <View className="w-7 h-7 items-center justify-center"> 
                 {expanded ? (
                   <ChevronDownIcon size={30} color="#A3A3A3" />
                 ) : (
-                  <ChevronUpIcon size={20} color="#A3A3A3"  />
+                  <ChevronUpIcon size={30} color="#A3A3A3"  />
                 )}
               </View>
             )}

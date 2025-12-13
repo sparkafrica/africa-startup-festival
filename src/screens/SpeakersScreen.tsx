@@ -246,12 +246,7 @@ export default function SpeakersScreen() {
                 Filter
               </Text>
             </View>
-            <View
-              className="flex-row items-center pb-2"
-              style={{ marginTop: -6 }}
-            >
-              <ChevronDownIcon size={30} color="#404040" />
-            </View>
+            <ChevronDownIcon size={30} color="#404040" />
           </Pressable>
         </View>
 

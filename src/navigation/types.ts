@@ -13,7 +13,7 @@ export type RootStackParamList = {
   Search: undefined;
   Menu: undefined;
   Notifications: undefined;
-  ScanQR: undefined;
+  ScanQR: { initialTab?: "My Ticket" | "Scan Ticket" } | undefined;
   Exhibitors: undefined;
   Partners: undefined;
   Speakers: undefined;
@@ -22,6 +22,7 @@ export type RootStackParamList = {
   Connections: undefined;
   CompanyDetail: { exhibitorId: string; name?: string };
   SpeakerDetail: { speakerId: string; name?: string };
+  Contact: undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> =

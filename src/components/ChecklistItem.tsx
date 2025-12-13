@@ -15,7 +15,7 @@ export default function ChecklistItem({
 }: ChecklistItemProps) {
   return (
     <View 
-      className="bg-neutral-100 rounded-xl p-4 mb-3 flex-row items-start justify-between"
+      className={`${completed ? "bg-neutral-100" : "bg-white"} rounded-xl p-4 mb-3 flex-row items-start justify-between`}
       style={{
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
@@ -46,7 +46,7 @@ export default function ChecklistItem({
             </Svg>
           </View>
         ) : (
-          <View className="w-6 h-6 rounded-full border-2 border-white bg-white" />
+          <View className="w-6 h-6 rounded-full border-2 border-neutral-300 bg-white" />
         )}
       </View>
     </View>

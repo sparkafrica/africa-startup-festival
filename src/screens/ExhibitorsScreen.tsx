@@ -204,17 +204,14 @@ export default function ExhibitorsScreen() {
               elevation: 2,
             }}
           >
-            <View className="flex-row items-center">
+            {/* Filter label + icon left, chevron right, always inline/centered */}
+            <View className="flex-row items-center flex-1">
               <FilterIcon size={20} color="#404040" />
               <Text className="text-[16px] font-medium text-neutral-900 ml-1">
                 Filter
               </Text>
             </View>
-            <View
-              className="flex-row items-center pb-2 mt-[-6px]"
-            >
-              <ChevronDownIcon size={30} color="#404040" />
-            </View>
+            <ChevronDownIcon size={30} color="#404040" />
           </Pressable>
         </View>
 

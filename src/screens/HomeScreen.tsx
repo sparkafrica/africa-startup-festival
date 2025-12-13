@@ -15,6 +15,7 @@ import {
   SpeakerCard,
   BottomNavigation,
 } from "../components";
+import EventChecklist from "../components/EventChecklist";
 import { ArrowUpRightIcon } from "../components/icons";
 import {
   HomeIcon,
@@ -141,33 +142,29 @@ export default function HomeScreen() {
         {/* Body sections */}
         <View className="px-4">
           {/* Event Checklist Section */}
-          <Card
+          <EventChecklist
             title="Event Checklist"
             description="Complete these to get the most out of the event."
-            expandable
-            expanded={!checklistExpanded}
+            expanded={checklistExpanded}
             onToggle={() => setChecklistExpanded(!checklistExpanded)}
             className="mb-4"
           >
-            {/* Checklist */}
-            <View>
-              <ChecklistItem
-                title="Connect with attendees"
-                description="Swipe or search attendees that match your goals."
-                completed={true}
-              />
-              <ChecklistItem
-                title="Request a meetings"
-                description="Book focused 20-minute meetings with people you care about."
-                completed={false}
-              />
-              <ChecklistItem
-                title="Add sessions to your schedule"
-                description="Add sessions so you never miss a talk."
-                completed={true}
-              />
-            </View>
-          </Card>
+            <ChecklistItem
+              title="Connect with attendees"
+              description="Swipe or search attendees that match your goals."
+              completed={true}
+            />
+            <ChecklistItem
+              title="Request a meetings"
+              description="Book focused 20-minute meetings with people you care about."
+              completed={false}
+            />
+            <ChecklistItem
+              title="Add sessions to your schedule"
+              description="Add sessions so you never miss a talk."
+              completed={true}
+            />
+          </EventChecklist>
 
           {/* Exhibitors Section */}
           <Card

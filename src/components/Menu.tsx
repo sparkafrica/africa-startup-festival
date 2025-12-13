@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Path, Circle } from "react-native-svg";
 
 import {
   TicketsIcon,
@@ -13,6 +14,7 @@ import {
   CloseIcon,
   UserAvatarIcon,
   ChevronRightIcon,
+  VideoIcon,
 } from "./MenuIcons";
 
 interface MenuProps {
@@ -52,6 +54,11 @@ export default function Menu({ onClose, onNavigate }: MenuProps) {
       icon: <MailIcon size={20} color="#444" />,
       route: "Contact",
     },
+    {
+      label: "App Guide Video",
+      icon: <VideoIcon size={20} color="#444" />,
+      route: "AppGuide",
+    },
   ];
 
   return (
@@ -59,7 +66,7 @@ export default function Menu({ onClose, onNavigate }: MenuProps) {
       <SafeAreaView edges={["top"]} className="flex-1">
         {/* Header */}
         <View className="flex-row items-center justify-between px-6 py-4 border-b border-neutral-200">
-          <Text className="text-[20px] font-bold text-neutral-900">Menu</Text>
+          <Text className="text-[24px] font-bold text-neutral-900">Menu</Text>
 
           <Pressable
             onPress={onClose}
@@ -77,10 +84,48 @@ export default function Menu({ onClose, onNavigate }: MenuProps) {
           {/* Profile Card */}
           <View className="px-6 mt-4">
             <View
-              className="rounded-2xl p-5"
+              className="rounded-2xl p-5 overflow-hidden"
               style={{ backgroundColor: "#1BB273" }}
             >
-              <View className="flex-row items-center">
+              {/* Decorative Background Graphics */}
+              <View className="absolute inset-0 opacity-20">
+                <Svg width="100%" height="100%" viewBox="0 0 200 120">
+                  {/* Treble Clef */}
+                  <Path
+                    d="M20 20C20 20 25 15 30 18C35 21 35 30 30 40C25 50 20 60 25 70C30 80 40 85 50 80C60 75 65 65 60 55C55 45 50 35 55 25C60 15 70 10 80 15C90 20 95 30 90 40C85 50 80 60 85 70C90 80 100 85 110 80"
+                    stroke="white"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                  {/* Musical Note 1 */}
+                  <Circle cx="140" cy="30" r="3" fill="white" />
+                  <Path
+                    d="M140 30L140 50M140 50L150 45"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  {/* Musical Note 2 */}
+                  <Circle cx="160" cy="50" r="3" fill="white" />
+                  <Path
+                    d="M160 50L160 70M160 70L170 65"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  {/* Musical Note 3 */}
+                  <Circle cx="120" cy="70" r="3" fill="white" />
+                  <Path
+                    d="M120 70L120 90M120 90L130 85"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </Svg>
+              </View>
+
+              <View className="flex-row items-center relative z-10">
                 <View className="w-12 h-12 rounded-full bg-white items-center justify-center mr-4">
                   <UserAvatarIcon size={28} color="#1BB273" />
                 </View>
@@ -111,17 +156,24 @@ export default function Menu({ onClose, onNavigate }: MenuProps) {
                 key={idx}
                 onPress={() => {
                   onNavigate?.(item.route);
-                  onClose();
                 }}
-                className="flex-row items-center px-6 py-4 border-b border-neutral-100"
+                className={`flex-row items-center py-4 border-b border-neutral-100 ${
+                  item.label === "App Guide Video" ? "px-6" : "px-6"
+                }`}
               >
-                <View className="w-8 mr-4">{item.icon}</View>
+                <View className="w-8 mr-2 flex-shrink-0">{item.icon}</View>
 
-                <Text className="flex-1 text-[16px] text-neutral-900">
+                <Text
+                  className="flex-1 text-[16px] font-normal text-neutral-900"
+                  numberOfLines={1}
+                  style={{ flexShrink: 1 }}
+                >
                   {item.label}
                 </Text>
 
-                <ChevronRightIcon size={18} color="#C4C4C4" />
+                <View className="ml-2 flex-shrink-0">
+                  <ChevronRightIcon size={18} color="#C4C4C4" />
+                </View>
               </Pressable>
             ))}
           </View>

@@ -29,7 +29,7 @@ import { ArrowUpRightIcon } from "../components/icons";
 // Change this value to adjust modal height (0.0 to 1.0)
 // Example: 0.7 = 70%, 0.8 = 80%, 0.9 = 90%
 // ============================================
-const MODAL_HEIGHT_PERCENTAGE = 0.7;
+const MODAL_HEIGHT_PERCENTAGE = 0.5;
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const MODAL_HEIGHT = SCREEN_HEIGHT * MODAL_HEIGHT_PERCENTAGE;

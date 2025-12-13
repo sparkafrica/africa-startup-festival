@@ -24,6 +24,7 @@ import SpeakerDetailScreen from "../screens/SpeakerDetailScreen";
 import ScheduleScreen from "../screens/ScheduleScreen";
 import MeetingsScreen from "../screens/MeetingsScreen";
 import ConnectionsScreen from "../screens/ConnectionsScreen";
+import ContactScreen from "../screens/ContactScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -155,6 +156,7 @@ export default function AppNavigator() {
           headerShown: false,
           presentation: "modal",
           animation: "slide_from_bottom",
+          contentStyle: { backgroundColor: "transparent" },
         }}
       />
       <Stack.Screen
@@ -171,6 +173,14 @@ export default function AppNavigator() {
         name="Connections"
         component={ConnectionsScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Contact"
+        component={ContactScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
       />
     </Stack.Navigator>
   );
