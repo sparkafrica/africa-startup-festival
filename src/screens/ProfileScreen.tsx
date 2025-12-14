@@ -16,6 +16,57 @@ import type { RootStackParamList } from "../navigation/types";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
 
+// Industry/Sector options from filter modals
+const INDUSTRY_OPTIONS = [
+  { id: "technology", label: "Technology" },
+  { id: "fintech", label: "Fintech" },
+  { id: "healthcare", label: "Healthcare" },
+  { id: "education", label: "Education" },
+  { id: "sustainability", label: "Sustainability" },
+  { id: "ecommerce", label: "E-commerce" },
+  { id: "transportation", label: "Transportation" },
+];
+
+// Country options with flags
+const COUNTRY_OPTIONS = [
+  { id: "nigeria", label: "Nigeria", flag: "🇳🇬" },
+  { id: "ghana", label: "Ghana", flag: "🇬🇭" },
+  { id: "kenya", label: "Kenya", flag: "🇰🇪" },
+  { id: "south-africa", label: "South Africa", flag: "🇿🇦" },
+  { id: "egypt", label: "Egypt", flag: "🇪🇬" },
+  { id: "tanzania", label: "Tanzania", flag: "🇹🇿" },
+  { id: "uganda", label: "Uganda", flag: "🇺🇬" },
+  { id: "ethiopia", label: "Ethiopia", flag: "🇪🇹" },
+  { id: "morocco", label: "Morocco", flag: "🇲🇦" },
+  { id: "algeria", label: "Algeria", flag: "🇩🇿" },
+  { id: "tunisia", label: "Tunisia", flag: "🇹🇳" },
+  { id: "rwanda", label: "Rwanda", flag: "🇷🇼" },
+  { id: "senegal", label: "Senegal", flag: "🇸🇳" },
+  { id: "ivory-coast", label: "Ivory Coast", flag: "🇨🇮" },
+  { id: "cameroon", label: "Cameroon", flag: "🇨🇲" },
+  { id: "zimbabwe", label: "Zimbabwe", flag: "🇿🇼" },
+  { id: "angola", label: "Angola", flag: "🇦🇴" },
+  { id: "mozambique", label: "Mozambique", flag: "🇲🇿" },
+  { id: "zambia", label: "Zambia", flag: "🇿🇲" },
+  { id: "malawi", label: "Malawi", flag: "🇲🇼" },
+  { id: "united-states", label: "United States", flag: "🇺🇸" },
+  { id: "united-kingdom", label: "United Kingdom", flag: "🇬🇧" },
+  { id: "canada", label: "Canada", flag: "🇨🇦" },
+  { id: "france", label: "France", flag: "🇫🇷" },
+  { id: "germany", label: "Germany", flag: "🇩🇪" },
+  { id: "italy", label: "Italy", flag: "🇮🇹" },
+  { id: "spain", label: "Spain", flag: "🇪🇸" },
+  { id: "netherlands", label: "Netherlands", flag: "🇳🇱" },
+  { id: "australia", label: "Australia", flag: "🇦🇺" },
+  { id: "china", label: "China", flag: "🇨🇳" },
+  { id: "india", label: "India", flag: "🇮🇳" },
+  { id: "japan", label: "Japan", flag: "🇯🇵" },
+  { id: "brazil", label: "Brazil", flag: "🇧🇷" },
+  { id: "mexico", label: "Mexico", flag: "🇲🇽" },
+  { id: "united-arab-emirates", label: "United Arab Emirates", flag: "🇦🇪" },
+  { id: "saudi-arabia", label: "Saudi Arabia", flag: "🇸🇦" },
+];
+
 interface IconProps {
   size?: number;
   color?: string;
@@ -260,6 +311,179 @@ function ProfilePictureModal({
   );
 }
 
+function IndustryDropdownModal({
+  visible,
+  onClose,
+  selectedIndustry,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  selectedIndustry: string;
+  onSelect: (industryId: string) => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable className="flex-1 bg-black/50" onPress={onClose}>
+        <Pressable
+          className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[70%]"
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 10,
+          }}
+        >
+          {/* Drag Handle */}
+          <View className="items-center pt-2 pb-2">
+            <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
+          </View>
+
+          {/* Modal Content */}
+          <View className="px-6 pb-6">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-[24px] font-bold text-black">
+                Select Industry/Sector
+              </Text>
+              <Pressable
+                onPress={onClose}
+                className="w-8 h-8 items-center justify-center"
+              >
+                <CloseIcon size={20} color="#000000" />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={true}
+              className="max-h-[400px]"
+            >
+              {INDUSTRY_OPTIONS.map((option) => {
+                const isSelected = selectedIndustry === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => {
+                      onSelect(option.id);
+                      onClose();
+                    }}
+                    className={`py-4 px-4 rounded-xl mb-2 ${
+                      isSelected ? "bg-neutral-200" : "bg-white"
+                    }`}
+                  >
+                    <Text
+                      className={`text-base ${
+                        isSelected
+                          ? "font-semibold text-black"
+                          : "font-medium text-neutral-700"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function CountryDropdownModal({
+  visible,
+  onClose,
+  selectedCountry,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  selectedCountry: string;
+  onSelect: (countryId: string) => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable className="flex-1 bg-black/50" onPress={onClose}>
+        <Pressable
+          className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[70%]"
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 10,
+          }}
+        >
+          {/* Drag Handle */}
+          <View className="items-center pt-2 pb-2">
+            <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
+          </View>
+
+          {/* Modal Content */}
+          <View className="px-6 pb-6">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-[24px] font-bold text-black">
+                Select Country
+              </Text>
+              <Pressable
+                onPress={onClose}
+                className="w-8 h-8 items-center justify-center"
+              >
+                <CloseIcon size={20} color="#000000" />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={true}
+              className="max-h-[400px]"
+            >
+              {COUNTRY_OPTIONS.map((option) => {
+                const isSelected = selectedCountry === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => {
+                      onSelect(option.id);
+                      onClose();
+                    }}
+                    className={`py-4 px-4 rounded-xl mb-2 flex-row items-center ${
+                      isSelected ? "bg-neutral-200" : "bg-white"
+                    }`}
+                  >
+                    <Text className="text-2xl mr-3">{option.flag}</Text>
+                    <Text
+                      className={`text-base flex-1 ${
+                        isSelected
+                          ? "font-semibold text-black"
+                          : "font-medium text-neutral-700"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function Header() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
@@ -343,19 +567,28 @@ function SegmentedControl({
 }
 
 function PersonalProfileSection() {
-  const [fullName, setFullName] = useState("John Doe");
-  const [jobTitle, setJobTitle] = useState("Product Manager");
-  const [company, setCompany] = useState("TechCorp");
+  const [fullName, setFullName] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [company, setCompany] = useState("");
   const [linkedIn, setLinkedIn] = useState("");
-  const [bio, setBio] = useState(
-    "Passionate about building innovative products that solve real problems."
-  );
+  const [bio, setBio] = useState("");
+  const [selectedIndustry, setSelectedIndustry] = useState("technology");
+  const [showIndustryModal, setShowIndustryModal] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState("nigeria");
+  const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([
     "AI/ML",
     "SaaS",
     "Product Strategy",
   ]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+
+  const selectedIndustryLabel =
+    INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
+    "Technology";
+  const selectedCountryData =
+    COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
+    COUNTRY_OPTIONS[0];
 
   const interests = [
     "AI/ML",
@@ -513,8 +746,18 @@ function PersonalProfileSection() {
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Country
               </Text>
-              <Pressable className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between">
-                <Text className="text-base text-black">Nigeria</Text>
+              <Pressable
+                onPress={() => setShowCountryModal(true)}
+                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+              >
+                <View className="flex-row items-center flex-1">
+                  <Text className="text-xl mr-2">
+                    {selectedCountryData.flag}
+                  </Text>
+                  <Text className="text-base text-black">
+                    {selectedCountryData.label}
+                  </Text>
+                </View>
                 <ChevronDownIcon size={20} color="#404040" />
               </Pressable>
             </View>
@@ -524,8 +767,13 @@ function PersonalProfileSection() {
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Industry/Sector
               </Text>
-              <Pressable className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between">
-                <Text className="text-base text-black">Technology</Text>
+              <Pressable
+                onPress={() => setShowIndustryModal(true)}
+                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+              >
+                <Text className="text-base text-black">
+                  {selectedIndustryLabel}
+                </Text>
                 <ChevronDownIcon size={20} color="#404040" />
               </Pressable>
             </View>
@@ -614,23 +862,44 @@ function PersonalProfileSection() {
           setShowProfileModal(false);
         }}
       />
+      <IndustryDropdownModal
+        visible={showIndustryModal}
+        onClose={() => setShowIndustryModal(false)}
+        selectedIndustry={selectedIndustry}
+        onSelect={setSelectedIndustry}
+      />
+      <CountryDropdownModal
+        visible={showCountryModal}
+        onClose={() => setShowCountryModal(false)}
+        selectedCountry={selectedCountry}
+        onSelect={setSelectedCountry}
+      />
     </KeyboardAvoidingView>
   );
 }
 
 function AttendeeProfileSection() {
-  const [fullName, setFullName] = useState("John Doe");
-  const [jobTitle, setJobTitle] = useState("Product Manager");
-  const [company, setCompany] = useState("TechCorp");
-  const [bio, setBio] = useState(
-    "Passionate about building innovative products that solve real problems."
-  );
+  const [fullName, setFullName] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [company, setCompany] = useState("");
+  const [bio, setBio] = useState("");
+  const [selectedIndustry, setSelectedIndustry] = useState("technology");
+  const [showIndustryModal, setShowIndustryModal] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState("nigeria");
+  const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([
     "AI/ML",
     "SaaS",
     "Product Strategy",
   ]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+
+  const selectedIndustryLabel =
+    INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
+    "Technology";
+  const selectedCountryData =
+    COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
+    COUNTRY_OPTIONS[0];
 
   const interests = [
     "AI/ML",
@@ -768,8 +1037,18 @@ function AttendeeProfileSection() {
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Country
               </Text>
-              <Pressable className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between">
-                <Text className="text-base text-black">Nigeria</Text>
+              <Pressable
+                onPress={() => setShowCountryModal(true)}
+                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+              >
+                <View className="flex-row items-center flex-1">
+                  <Text className="text-xl mr-2">
+                    {selectedCountryData.flag}
+                  </Text>
+                  <Text className="text-base text-black">
+                    {selectedCountryData.label}
+                  </Text>
+                </View>
                 <ChevronDownIcon size={20} color="#404040" />
               </Pressable>
             </View>
@@ -779,8 +1058,13 @@ function AttendeeProfileSection() {
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Industry/Sector
               </Text>
-              <Pressable className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between">
-                <Text className="text-base text-black">Technology</Text>
+              <Pressable
+                onPress={() => setShowIndustryModal(true)}
+                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+              >
+                <Text className="text-base text-black">
+                  {selectedIndustryLabel}
+                </Text>
                 <ChevronDownIcon size={20} color="#404040" />
               </Pressable>
             </View>
@@ -869,28 +1153,43 @@ function AttendeeProfileSection() {
           setShowProfileModal(false);
         }}
       />
+      <IndustryDropdownModal
+        visible={showIndustryModal}
+        onClose={() => setShowIndustryModal(false)}
+        selectedIndustry={selectedIndustry}
+        onSelect={setSelectedIndustry}
+      />
+      <CountryDropdownModal
+        visible={showCountryModal}
+        onClose={() => setShowCountryModal(false)}
+        selectedCountry={selectedCountry}
+        onSelect={setSelectedCountry}
+      />
     </KeyboardAvoidingView>
   );
 }
 
 function CompanyProfileSection() {
-  const [companyName, setCompanyName] = useState("TechCorp Inc");
-  const [boothNumber, setBoothNumber] = useState("Booth 24");
-  const [website, setWebsite] = useState("techcorp.com");
-  const [companyDescription, setCompanyDescription] = useState(
-    "Empowering innovation across Africa. High-growth tech company showcasing new products at Spark Summit."
+  const [companyName, setCompanyName] = useState("");
+  const [boothNumber, setBoothNumber] = useState("");
+  const [website, setWebsite] = useState("");
+  const [companyDescription, setCompanyDescription] = useState("");
+  const [selectedIndustry, setSelectedIndustry] = useState("technology");
+  const [showIndustryModal, setShowIndustryModal] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState("nigeria");
+  const [showCountryModal, setShowCountryModal] = useState(false);
+  const [offers, setOffers] = useState<Array<{ title: string; color: string }>>(
+    []
   );
-  const [offers, setOffers] = useState<string[]>([
-    "Startup Mentorship",
-    "Free Azure Credits",
-  ]);
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [newOfferTitle, setNewOfferTitle] = useState("");
-  const [newOfferCategory, setNewOfferCategory] = useState("Purple");
-  const [linkedIn, setLinkedIn] = useState("TechCorp_ng");
-  const [facebook, setFacebook] = useState("TechCorp_ng");
-  const [instagram, setInstagram] = useState("TechCorp_ng");
-  const [xHandle, setXHandle] = useState("TechCorp_ng");
+  const [newOfferColor, setNewOfferColor] = useState<string | undefined>(
+    undefined
+  );
+  const [linkedIn, setLinkedIn] = useState("");
+  const [facebook, setFacebook] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [xHandle, setXHandle] = useState("");
   const [isRecruiting, setIsRecruiting] = useState(true);
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [newJobRole, setNewJobRole] = useState("");
@@ -900,16 +1199,26 @@ function CompanyProfileSection() {
   ]);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
+  const selectedIndustryLabel =
+    INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
+    "Technology";
+  const selectedCountryData =
+    COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
+    COUNTRY_OPTIONS[0];
+
   const addOffer = () => {
     if (newOfferTitle.trim()) {
-      setOffers([...offers, newOfferTitle]);
+      // Use selected color or default to green if none selected
+      const offerColor = newOfferColor || "#4CAF50";
+      setOffers([...offers, { title: newOfferTitle, color: offerColor }]);
       setNewOfferTitle("");
+      setNewOfferColor(undefined);
       setShowAddOffer(false);
     }
   };
 
-  const removeOffer = (offer: string) => {
-    setOffers(offers.filter((o) => o !== offer));
+  const removeOffer = (offer: { title: string; color: string }) => {
+    setOffers(offers.filter((o) => o.title !== offer.title));
   };
 
   const addPosition = () => {
@@ -925,10 +1234,7 @@ function CompanyProfileSection() {
     setPositions(positions.filter((p) => p !== position));
   };
 
-  const getOfferColor = (index: number) => {
-    const colors = ["#1E40AF", "#10B981"]; // Dark blue, green
-    return colors[index % colors.length];
-  };
+  // Removed getOfferColor - now using color from offer object directly
 
   return (
     <KeyboardAvoidingView
@@ -1050,8 +1356,13 @@ function CompanyProfileSection() {
               <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
                 Industry/Sector
               </Text>
-              <Pressable className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between">
-                <Text className="text-base text-black">Technology</Text>
+              <Pressable
+                onPress={() => setShowIndustryModal(true)}
+                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+              >
+                <Text className="text-base text-black">
+                  {selectedIndustryLabel}
+                </Text>
                 <ChevronDownIcon size={20} color="#404040" />
               </Pressable>
             </View>
@@ -1061,8 +1372,18 @@ function CompanyProfileSection() {
               <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
                 Country
               </Text>
-              <Pressable className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between">
-                <Text className="text-base text-black">Nigeria</Text>
+              <Pressable
+                onPress={() => setShowCountryModal(true)}
+                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+              >
+                <View className="flex-row items-center flex-1">
+                  <Text className="text-xl mr-2">
+                    {selectedCountryData.flag}
+                  </Text>
+                  <Text className="text-base text-black">
+                    {selectedCountryData.label}
+                  </Text>
+                </View>
                 <ChevronDownIcon size={20} color="#404040" />
               </Pressable>
             </View>
@@ -1102,91 +1423,126 @@ function CompanyProfileSection() {
 
           {/* Event Offers */}
           <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
-            <View className="mb-6 p-2">
-              <View className="flex-row items-center justify-between mb-3">
-                <Text className="text-[14px] font-semibold text-neutral-700">
-                  Event Offers
+            <View className="flex-row items-center justify-between mb-3 pt-4">
+              <Text className="text-[14px] font-semibold text-neutral-700">
+                Event Offers
+              </Text>
+              <Pressable
+                onPress={() => setShowAddOffer(!showAddOffer)}
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-3 py-1.5"
+              >
+                <Text className="text-sm font-medium text-black">
+                  + Add Offer
                 </Text>
-                <Pressable
-                  onPress={() => setShowAddOffer(!showAddOffer)}
-                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-3 py-1.5"
-                >
-                  <Text className="text-sm font-medium text-black">
-                    + Add Offer
-                  </Text>
-                </Pressable>
-              </View>
+              </Pressable>
+            </View>
 
-              {showAddOffer && (
-                <View className="mb-3 p-4 bg-neutral-50 rounded-xl border border-neutral-200">
-                  <TextInput
-                    className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
-                    value={newOfferTitle}
-                    onChangeText={setNewOfferTitle}
-                    placeholder="Offer title (e.g., Free Consultation)"
-                  />
-                  <View className="flex-row items-center gap-2 mb-3">
-                    <Pressable className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between">
-                      <Text className="text-base text-black">
-                        {newOfferCategory}
-                      </Text>
-                      <ChevronDownIcon size={20} color="#404040" />
-                    </Pressable>
-                  </View>
-                  <View className="flex-row gap-2">
-                    <Pressable
-                      onPress={addOffer}
-                      className="flex-1 bg-black rounded-xl py-3 items-center"
-                    >
-                      <Text className="text-white text-sm font-medium">
-                        Add
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => {
-                        setShowAddOffer(false);
-                        setNewOfferTitle("");
-                      }}
-                      className="flex-1 bg-white border border-neutral-300 rounded-xl py-3 items-center"
-                    >
-                      <Text className="text-black text-sm font-medium">
-                        Cancel
-                      </Text>
-                    </Pressable>
+            {showAddOffer && (
+              <View className="mb-3 p-4 bg-neutral-50 rounded-xl border border-neutral-200">
+                <TextInput
+                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                  value={newOfferTitle}
+                  onChangeText={setNewOfferTitle}
+                  placeholder="Offer title (e.g., Free Consultation)"
+                />
+
+                {/* Offer color picker (ROYGBIV) */}
+                <View className="mb-3">
+                  <Text className="text-sm font-medium text-neutral-700 mb-2">
+                    Select Color
+                  </Text>
+                  <View className="flex-row items-center gap-2">
+                    {/* Color palette */}
+                    {[
+                      { name: "Red", val: "#F44336" },
+                      { name: "Orange", val: "#FF9800" },
+                      { name: "Yellow", val: "#FFEB3B" },
+                      { name: "Green", val: "#4CAF50" },
+                      { name: "Blue", val: "#2196F3" },
+                      { name: "Indigo", val: "#3F51B5" },
+                      { name: "Violet", val: "#9C27B0" },
+                    ].map((colorOption) => (
+                      <Pressable
+                        key={colorOption.name}
+                        onPress={() => setNewOfferColor(colorOption.val)}
+                        className={`w-7 h-7 rounded-full items-center justify-center border ${
+                          newOfferColor === colorOption.val
+                            ? "border-black"
+                            : "border-white"
+                        }`}
+                        style={{ backgroundColor: colorOption.val }}
+                        accessibilityLabel={colorOption.name}
+                      >
+                        {newOfferColor === colorOption.val && (
+                          <Svg
+                            width={14}
+                            height={14}
+                            viewBox="0 0 14 14"
+                            fill="none"
+                          >
+                            <Path
+                              d="M3 7.5L6 10L11 4"
+                              stroke="#fff"
+                              strokeWidth={2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </Svg>
+                        )}
+                      </Pressable>
+                    ))}
                   </View>
                 </View>
-              )}
 
-              {/* Event Offers List */}
-              <View className="flex-row flex-wrap gap-2">
-                {offers.map((offer, index) => (
-                  <View
-                    key={offer}
-                    className="flex-row items-center px-4 py-2 rounded-full"
-                    style={{ backgroundColor: getOfferColor(index) }}
+                <View className="flex-row gap-2">
+                  <Pressable
+                    onPress={addOffer}
+                    className="flex-1 bg-black rounded-xl py-3 items-center"
                   >
-                    <Text className="text-sm font-medium text-white mr-2">
-                      {offer}
+                    <Text className="text-white text-sm font-medium">Add</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setShowAddOffer(false);
+                      setNewOfferTitle("");
+                      setNewOfferColor(undefined);
+                    }}
+                    className="flex-1 bg-white border border-neutral-300 rounded-xl py-3 items-center"
+                  >
+                    <Text className="text-black text-sm font-medium">
+                      Cancel
                     </Text>
-                    <Pressable onPress={() => removeOffer(offer)}>
-                      <Svg
-                        width={14}
-                        height={14}
-                        viewBox="0 0 14 14"
-                        fill="none"
-                      >
-                        <Path
-                          d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5"
-                          stroke="white"
-                          strokeWidth={1.5}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </Svg>
-                    </Pressable>
-                  </View>
-                ))}
+                  </Pressable>
+                </View>
               </View>
+            )}
+
+            {/* Event Offers List */}
+            <View className="flex-row flex-wrap gap-2 pb-4">
+              {offers.map((offer, index) => (
+                <View
+                  key={`${offer.title}-${index}`}
+                  className="flex-row items-center px-4 py-2 rounded-full"
+                  style={{
+                    backgroundColor: offer.color || "#4CAF50",
+                  }}
+                >
+                  <Text className="text-sm font-medium text-white mr-2">
+                    {offer.title}
+                  </Text>
+                  <Pressable onPress={() => removeOffer(offer)}>
+                    <Svg width={14} height={14} viewBox="0 0 14 14" fill="none">
+                      <Path
+                        d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5"
+                        stroke="white"
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </Svg>
+                  </Pressable>
+                </View>
+              ))}
             </View>
           </View>
 
@@ -1378,6 +1734,18 @@ function CompanyProfileSection() {
           console.log("Remove Photo");
           setShowProfileModal(false);
         }}
+      />
+      <IndustryDropdownModal
+        visible={showIndustryModal}
+        onClose={() => setShowIndustryModal(false)}
+        selectedIndustry={selectedIndustry}
+        onSelect={setSelectedIndustry}
+      />
+      <CountryDropdownModal
+        visible={showCountryModal}
+        onClose={() => setShowCountryModal(false)}
+        selectedCountry={selectedCountry}
+        onSelect={setSelectedCountry}
       />
     </KeyboardAvoidingView>
   );

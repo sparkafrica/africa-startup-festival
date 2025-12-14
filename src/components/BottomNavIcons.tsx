@@ -141,7 +141,7 @@ export function ClockIconFilled({ size = 24, color = "#000000" }: IconProps) {
       />
       <Path
         d="M12 6V12L16 14"
-        stroke="#000000"
+        stroke="#FFFFFF"
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"

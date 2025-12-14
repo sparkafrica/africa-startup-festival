@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,16 +6,27 @@ import {
   Pressable,
   ScrollView,
   Image,
+  PanResponder,
+  Animated,
+  Dimensions,
+  StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const DRAG_THRESHOLD = 100;
 
 interface NotificationDetailModalProps {
   visible: boolean;
   onClose: () => void;
   notification: {
     id: string;
-    type: "meeting_time_change" | "meeting_approved" | "connection" | "reminder";
+    type:
+      | "meeting_time_change"
+      | "meeting_approved"
+      | "connection"
+      | "reminder";
     title: string;
     requester?: {
       name: string;
@@ -34,7 +45,13 @@ interface NotificationDetailModalProps {
   } | null;
 }
 
-function CheckIcon({ size = 20, color = "#FFFFFF" }: { size?: number; color?: string }) {
+function CheckIcon({
+  size = 20,
+  color = "#FFFFFF",
+}: {
+  size?: number;
+  color?: string;
+}) {
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
       <Path
@@ -45,7 +62,13 @@ function CheckIcon({ size = 20, color = "#FFFFFF" }: { size?: number; color?: st
   );
 }
 
-function XIcon({ size = 20, color = "#EF4444" }: { size?: number; color?: string }) {
+function XIcon({
+  size = 20,
+  color = "#EF4444",
+}: {
+  size?: number;
+  color?: string;
+}) {
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
       <Path
@@ -64,41 +87,88 @@ export default function NotificationDetailModal({
   onClose,
   notification,
 }: NotificationDetailModalProps) {
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
+      },
+      onPanResponderGrant: () => {
+        translateY.setOffset((translateY as any)._value || 0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        translateY.flattenOffset();
+
+        if (gestureState.dy > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: SCREEN_HEIGHT,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            translateY.setValue(0);
+            onClose();
+          });
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  useEffect(() => {
+    if (visible) {
+      // Smooth entrance animation
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      translateY.setValue(SCREEN_HEIGHT);
+    }
+  }, [visible, translateY]);
+
   if (!notification) return null;
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="none"
       onRequestClose={onClose}
     >
-      <View className="flex-1">
+      <View style={styles.modalContainer}>
         {/* Semi-transparent Background */}
-        <Pressable
-          className="flex-1"
-          onPress={onClose}
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-        />
+        <Pressable style={styles.backdrop} onPress={onClose} />
 
         {/* Modal Content */}
-        <View
-          className="bg-white rounded-t-3xl"
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            maxHeight: "90%",
-          }}
+        <Animated.View
+          style={[
+            styles.bottomSheet,
+            {
+              transform: [{ translateY: translateY }],
+            },
+          ]}
         >
           <SafeAreaView edges={["bottom"]}>
-            {/* Handle */}
-            <View className="items-center pt-3 pb-2">
-              <View
-                className="w-12 h-1 rounded-full"
-                style={{ backgroundColor: "#D1D5DB" }}
-              />
+            {/* Draggable Handle Area */}
+            <View style={styles.draggableArea} {...panResponder.panHandlers}>
+              <View style={styles.handleContainer}>
+                <View style={styles.handle} />
+              </View>
             </View>
 
             <ScrollView
@@ -144,7 +214,10 @@ export default function NotificationDetailModal({
                       </Text>
                     </View>
                     <View>
-                      <Text className="text-sm font-medium" style={{ color: "#EF4444" }}>
+                      <Text
+                        className="text-sm font-medium"
+                        style={{ color: "#EF4444" }}
+                      >
                         To: {notification.meetingDetails.newTime}
                       </Text>
                     </View>
@@ -190,11 +263,17 @@ export default function NotificationDetailModal({
                           {notification.requester.name}
                         </Text>
                         <Text className="text-sm text-neutral-600">
-                          {notification.requester.role} • {notification.requester.company}
+                          {notification.requester.role} •{" "}
+                          {notification.requester.company}
                         </Text>
                       </View>
                       <View className="w-6 h-6 items-center justify-center">
-                        <Svg width={16} height={16} viewBox="0 0 20 20" fill="none">
+                        <Svg
+                          width={16}
+                          height={16}
+                          viewBox="0 0 20 20"
+                          fill="none"
+                        >
                           <Path
                             d="M7.5 15L12.5 10L7.5 5"
                             stroke="#404040"
@@ -288,9 +367,45 @@ export default function NotificationDetailModal({
               )}
             </ScrollView>
           </SafeAreaView>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
 }
 
+const styles = StyleSheet.create({
+  modalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  bottomSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: SCREEN_HEIGHT * 0.9,
+    width: "100%",
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
+  },
+  draggableArea: {
+    width: "100%",
+  },
+  handleContainer: {
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#D1D5DB",
+    borderRadius: 2,
+  },
+});

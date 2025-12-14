@@ -23,6 +23,9 @@ import Svg, { Path, Rect, Circle } from "react-native-svg";
 import { ScrollView } from "react-native";
 import { CalendarIcon } from "../components/BottomNavIcons";
 
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const DRAG_THRESHOLD = 100;
+
 interface IconProps {
   size?: number;
   color?: string;
@@ -560,43 +563,32 @@ function QRCodeModal({
     isUnassigned?: boolean
   ) => void;
 }) {
-  const translateY = useRef(new Animated.Value(0)).current;
-  const offset = useRef(0);
-  const isClosingRef = useRef(false);
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !isClosingRef.current,
+      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return !isClosingRef.current && Math.abs(gestureState.dy) > 5;
+        return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
       },
       onPanResponderGrant: () => {
-        if (isClosingRef.current) return;
-        translateY.stopAnimation();
-        offset.current = 0;
-        translateY.setOffset(0);
-        translateY.setValue(0);
+        translateY.setOffset((translateY as any)._value || 0);
       },
       onPanResponderMove: (_, gestureState) => {
-        if (isClosingRef.current) return;
         if (gestureState.dy > 0) {
           translateY.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (isClosingRef.current) return;
         translateY.flattenOffset();
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          isClosingRef.current = true;
+
+        if (gestureState.dy > DRAG_THRESHOLD || gestureState.vy > 0.5) {
           Animated.timing(translateY, {
-            toValue: 1000,
+            toValue: SCREEN_HEIGHT,
             duration: 200,
             useNativeDriver: true,
           }).start(() => {
-            translateY.setValue(0);
-            translateY.setOffset(0);
-            offset.current = 0;
-            isClosingRef.current = false;
+            translateY.setValue(SCREEN_HEIGHT);
             onClose();
           });
         } else {
@@ -604,34 +596,31 @@ function QRCodeModal({
             toValue: 0,
             useNativeDriver: true,
             tension: 65,
-            friction: 8,
+            friction: 11,
           }).start();
         }
-        offset.current = 0;
       },
     })
   ).current;
 
   useEffect(() => {
     if (visible) {
-      isClosingRef.current = false;
-      translateY.stopAnimation(() => {
-        translateY.setValue(0);
-        translateY.setOffset(0);
-        offset.current = 0;
-      });
+      // Smooth entrance animation
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
     } else {
-      translateY.setValue(0);
-      translateY.setOffset(0);
-      offset.current = 0;
-      isClosingRef.current = false;
+      translateY.setValue(SCREEN_HEIGHT);
     }
   }, [visible, translateY]);
 
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="none"
       transparent={true}
       onRequestClose={onClose}
     >
@@ -744,43 +733,32 @@ function AssigningTicketsModal({
     backgroundColor: string;
   }) => void;
 }) {
-  const translateY = useRef(new Animated.Value(0)).current;
-  const offset = useRef(0);
-  const isClosingRef = useRef(false);
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !isClosingRef.current,
+      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return !isClosingRef.current && Math.abs(gestureState.dy) > 5;
+        return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
       },
       onPanResponderGrant: () => {
-        if (isClosingRef.current) return;
-        translateY.stopAnimation();
-        offset.current = 0;
-        translateY.setOffset(0);
-        translateY.setValue(0);
+        translateY.setOffset((translateY as any)._value || 0);
       },
       onPanResponderMove: (_, gestureState) => {
-        if (isClosingRef.current) return;
         if (gestureState.dy > 0) {
           translateY.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (isClosingRef.current) return;
         translateY.flattenOffset();
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          isClosingRef.current = true;
+
+        if (gestureState.dy > DRAG_THRESHOLD || gestureState.vy > 0.5) {
           Animated.timing(translateY, {
-            toValue: 1000,
+            toValue: SCREEN_HEIGHT,
             duration: 200,
             useNativeDriver: true,
           }).start(() => {
-            translateY.setValue(0);
-            translateY.setOffset(0);
-            offset.current = 0;
-            isClosingRef.current = false;
+            translateY.setValue(SCREEN_HEIGHT);
             onClose();
           });
         } else {
@@ -788,34 +766,31 @@ function AssigningTicketsModal({
             toValue: 0,
             useNativeDriver: true,
             tension: 65,
-            friction: 8,
+            friction: 11,
           }).start();
         }
-        offset.current = 0;
       },
     })
   ).current;
 
   useEffect(() => {
     if (visible) {
-      isClosingRef.current = false;
-      translateY.stopAnimation(() => {
-        translateY.setValue(0);
-        translateY.setOffset(0);
-        offset.current = 0;
-      });
+      // Smooth entrance animation
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
     } else {
-      translateY.setValue(0);
-      translateY.setOffset(0);
-      offset.current = 0;
-      isClosingRef.current = false;
+      translateY.setValue(SCREEN_HEIGHT);
     }
   }, [visible, translateY]);
 
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="none"
       transparent={true}
       onRequestClose={onClose}
     >
@@ -1324,9 +1299,7 @@ function RecipientDetailsModal({
               onPress={handleTransfer}
               className="w-full items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
             >
-              <Text className="text-base font-medium text-white">
-                Transfer
-              </Text>
+              <Text className="text-base font-medium text-white">Transfer</Text>
             </Pressable>
 
             <Pressable

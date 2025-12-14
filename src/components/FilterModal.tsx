@@ -11,6 +11,8 @@ import {
   Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CalendarIcon } from "./BottomNavIcons";
+import { CloseIcon } from "./MenuIcons";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100; // Minimum drag distance to close
@@ -43,7 +45,8 @@ export default function FilterModal({
 }: FilterModalProps) {
   const [selectedFilters, setSelectedFilters] =
     useState<string[]>(initialSelected);
-  const translateY = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -90,8 +93,15 @@ export default function FilterModal({
   useEffect(() => {
     if (visible) {
       setSelectedFilters(initialSelected);
-      // Reset animation when modal opens
-      translateY.setValue(0);
+      // Smooth entrance animation
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      translateY.setValue(SCREEN_HEIGHT);
     }
   }, [visible, initialSelected, translateY]);
 
@@ -116,7 +126,7 @@ export default function FilterModal({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="none"
       onRequestClose={onClose}
     >
       <View style={styles.modalContainer}>
@@ -148,37 +158,65 @@ export default function FilterModal({
           <ScrollView
             style={styles.content}
             contentContainerStyle={styles.contentContainer}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
           >
-            {categories.map((category) => (
-              <View key={category.id} style={styles.categorySection}>
-                <Text style={styles.categoryTitle}>{category.title}</Text>
-                <View style={styles.optionsGrid}>
-                  {category.options.map((option) => {
-                    const isSelected = selectedFilters.includes(option.id);
-                    return (
-                      <Pressable
-                        key={option.id}
-                        style={[
-                          styles.filterOption,
-                          isSelected && styles.filterOptionSelected,
-                        ]}
-                        onPress={() => toggleFilter(option.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.filterOptionText,
-                            isSelected && styles.filterOptionTextSelected,
-                          ]}
+            {categories.map((category) => {
+              const selectedOptions = category.options.filter((option) =>
+                selectedFilters.includes(option.id)
+              );
+              const unselectedOptions = category.options.filter(
+                (option) => !selectedFilters.includes(option.id)
+              );
+              const isDaysCategory =
+                category.id === "day" || category.id === "days";
+
+              return (
+                <View key={category.id} style={styles.categorySection}>
+                  <Text style={styles.categoryTitle}>{category.title}</Text>
+
+                  {/* Selected Filters - Shown immediately below category title */}
+                  {selectedOptions.length > 0 && (
+                    <View style={styles.selectedFiltersContainer}>
+                      {selectedOptions.map((option) => (
+                        <Pressable
+                          key={option.id}
+                          style={styles.selectedFilterChip}
+                          onPress={() => toggleFilter(option.id)}
                         >
-                          {option.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                          {isDaysCategory && (
+                            <CalendarIcon size={16} color="#FFFFFF" />
+                          )}
+                          <Text style={styles.selectedFilterText}>
+                            {option.label}
+                          </Text>
+                          <CloseIcon size={14} color="#FFFFFF" />
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Available Filters */}
+                  {unselectedOptions.length > 0 && (
+                    <View style={styles.optionsGrid}>
+                      {unselectedOptions.map((option) => (
+                        <Pressable
+                          key={option.id}
+                          style={styles.filterOption}
+                          onPress={() => toggleFilter(option.id)}
+                        >
+                          {isDaysCategory && (
+                            <CalendarIcon size={16} color="#000000" />
+                          )}
+                          <Text style={styles.filterOptionText}>
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </ScrollView>
 
           {/* Action Buttons */}
@@ -215,8 +253,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: SCREEN_HEIGHT * 0.9,
-    height: SCREEN_HEIGHT * 0.85,
+    maxHeight: SCREEN_HEIGHT * 0.7,
     flexDirection: "column",
     width: "100%",
     position: "absolute",
@@ -265,8 +302,30 @@ const styles = StyleSheet.create({
   categoryTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#404040",
+    color: "#000000",
     marginBottom: 12,
+  },
+  selectedFiltersContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 12,
+    marginHorizontal: -4,
+  },
+  selectedFilterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#000000",
+    marginHorizontal: 4,
+    marginBottom: 8,
+    gap: 6,
+  },
+  selectedFilterText: {
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "400",
   },
   optionsGrid: {
     flexDirection: "row",
@@ -274,23 +333,20 @@ const styles = StyleSheet.create({
     marginHorizontal: -4,
   },
   filterOption: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
     backgroundColor: "#F5F5F5",
     marginHorizontal: 4,
     marginBottom: 8,
-  },
-  filterOptionSelected: {
-    backgroundColor: "#E5E5E5",
+    gap: 6,
   },
   filterOptionText: {
     fontSize: 14,
     color: "#000000",
     fontWeight: "400",
-  },
-  filterOptionTextSelected: {
-    fontWeight: "500",
   },
   actionsContainer: {
     paddingHorizontal: 16,

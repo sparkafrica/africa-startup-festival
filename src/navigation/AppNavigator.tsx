@@ -162,17 +162,26 @@ export default function AppNavigator() {
       <Stack.Screen
         name="Schedule"
         component={ScheduleScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
       />
       <Stack.Screen
         name="Meetings"
         component={MeetingsScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
       />
       <Stack.Screen
         name="Connections"
         component={ConnectionsScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
       />
       <Stack.Screen
         name="Contact"

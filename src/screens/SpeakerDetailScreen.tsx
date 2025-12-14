@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   ScrollView,
@@ -15,6 +15,10 @@ import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackScreenProps } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
 import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
+import {
+  RequestMeetingModal,
+  type MeetingFormData,
+} from "../components";
 
 // ============================================
 // MODAL HEIGHT CONFIGURATION
@@ -31,6 +35,8 @@ type Props = RootStackScreenProps<"SpeakerDetail">;
 export default function SpeakerDetailScreen({ route }: Props) {
   const navigation = useNavigation<NavigationProp<any>>();
   const { speakerId, name = "Ada Okafor" } = route.params;
+  const [isRequestMeetingModalVisible, setIsRequestMeetingModalVisible] =
+    useState(false);
 
   // TODO: Replace with backend data
   const speakerData = {
@@ -189,8 +195,7 @@ export default function SpeakerDetailScreen({ route }: Props) {
             <Pressable
               className="bg-neutral-900 rounded-xl py-4 items-center flex-row justify-center mb-3"
               onPress={() => {
-                // TODO: Navigate to meeting request
-                console.log("Request Meeting");
+                setIsRequestMeetingModalVisible(true);
               }}
               style={{
                 shadowColor: "#000",
@@ -228,6 +233,53 @@ export default function SpeakerDetailScreen({ route }: Props) {
           </View>
         </SafeAreaView>
       </View>
+
+      {/* Request Meeting Modal */}
+      <RequestMeetingModal
+        visible={isRequestMeetingModalVisible}
+        onClose={() => {
+          setIsRequestMeetingModalVisible(false);
+        }}
+        onSubmit={(data: MeetingFormData) => {
+          console.log("========================================");
+          console.log("📅 MEETING REQUEST SUBMITTED");
+          console.log("========================================");
+          console.log("Speaker Information:");
+          console.log("  - Speaker ID:", speakerId);
+          console.log("  - Speaker Name:", speakerData.name);
+          console.log("  - Title:", speakerData.title);
+          console.log("  - Company:", speakerData.company);
+          console.log("");
+          console.log("Meeting Details:");
+          console.log("  - Title:", data.title);
+          console.log("  - Type:", data.meetingType);
+          if (data.meetingType === "Physical" && data.tableNumber) {
+            console.log("  - Table Number:", data.tableNumber);
+          }
+          if (data.meetingType === "Virtual" && data.meetingLink) {
+            console.log("  - Meeting Link:", data.meetingLink);
+          }
+          if (data.date) {
+            console.log("  - Date:", data.date);
+          }
+          if (data.time) {
+            console.log("  - Time:", data.time);
+          }
+          console.log("  - Description:", data.description);
+          console.log("");
+          console.log("Full Meeting Data Object:", {
+            speakerId,
+            speakerName: speakerData.name,
+            speakerTitle: speakerData.title,
+            speakerCompany: speakerData.company,
+            meetingData: data,
+          });
+          console.log("========================================");
+          // TODO: Send meeting request to backend
+          setIsRequestMeetingModalVisible(false);
+        }}
+        attendeeName={speakerData.name}
+      />
     </View>
   );
 }

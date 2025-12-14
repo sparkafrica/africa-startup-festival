@@ -62,7 +62,7 @@ export default function RequestMeetingModal({
   const [showTablePicker, setShowTablePicker] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-  const translateY = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scrollViewRef = useRef<ScrollView>(null);
   const descriptionFieldRef = useRef<View>(null);
   const descriptionFieldY = useRef(0);
@@ -107,7 +107,13 @@ export default function RequestMeetingModal({
 
   useEffect(() => {
     if (visible) {
-      translateY.setValue(0);
+      // Smooth entrance animation
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
       // Reset form when modal opens
       setTitle("");
       setTableNumber("");
@@ -118,6 +124,8 @@ export default function RequestMeetingModal({
       setShowDatePicker(false);
       setShowTimePicker(false);
       setKeyboardHeight(0);
+    } else {
+      translateY.setValue(SCREEN_HEIGHT);
     }
   }, [visible, translateY]);
 
