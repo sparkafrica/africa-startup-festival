@@ -75,12 +75,15 @@ export default function EventViewModal({
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to downward drags with sufficient movement
         return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
       },
       onPanResponderGrant: () => {
         translateY.setOffset((translateY as any)._value || 0);
+        translateY.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
+        // Only allow dragging down
         if (gestureState.dy > 0) {
           translateY.setValue(gestureState.dy);
         }
@@ -94,7 +97,7 @@ export default function EventViewModal({
             duration: 200,
             useNativeDriver: true,
           }).start(() => {
-            translateY.setValue(0);
+            translateY.setValue(SCREEN_HEIGHT);
             onClose();
           });
         } else {

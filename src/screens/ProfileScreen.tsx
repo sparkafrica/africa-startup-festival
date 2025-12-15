@@ -1754,7 +1754,7 @@ function CompanyProfileSection() {
 export default function ProfileScreen() {
   // TODO: Connect this to backend to determine user role
   // For now, defaulting to "attendee" - backend will handle role-based access
-  const [userRole] = useState<"attendee" | "company">("company");
+  const [userRole] = useState<"attendee" | "company">("attendee");
   const [activeTab, setActiveTab] = useState<"Personal" | "Company">(
     "Personal"
   );

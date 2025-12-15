@@ -17,7 +17,7 @@ export default function TabButton({
   return (
     <Pressable
       onPress={onPress}
-      className={`flex-1 rounded-lg px-4 py-2.5 ${
+      className={`flex-1 rounded-lg px-2 py-2.5 items-center justify-center min-h-[40px] ${
         isActive ? "bg-white" : "bg-transparent"
       }`}
       style={
@@ -36,6 +36,9 @@ export default function TabButton({
         className={`text-sm font-medium text-center ${
           isActive ? "text-black" : "text-gray-400"
         }`}
+        numberOfLines={1}
+        adjustsFontSizeToFit={true}
+        minimumFontScale={0.85}
       >
         {label}
         {count !== undefined && ` (${count})`}

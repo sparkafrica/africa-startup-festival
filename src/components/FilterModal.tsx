@@ -56,6 +56,7 @@ export default function FilterModal({
       },
       onPanResponderGrant: () => {
         translateY.setOffset((translateY as any)._value || 0);
+        translateY.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
         // Only allow dragging down
@@ -73,7 +74,7 @@ export default function FilterModal({
             duration: 200,
             useNativeDriver: true,
           }).start(() => {
-            translateY.setValue(0);
+            translateY.setValue(SCREEN_HEIGHT);
             onClose();
           });
         } else {

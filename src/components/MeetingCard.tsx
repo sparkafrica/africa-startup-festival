@@ -33,13 +33,13 @@ export default function MeetingCard({
   return (
     <Pressable
       onPress={onPress}
-      className="bg-white rounded-xl p-4 mb-4"
+      className="bg-white rounded-xl p-4 mb-4 border border-gray-200"
       style={{
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
         shadowRadius: 8,
-        elevation: 2,
+        elevation: 3,
       }}
     >
       {/* Header with Title and Status */}
@@ -60,7 +60,7 @@ export default function MeetingCard({
 
       {/* Date and Time */}
       <View className="flex-row items-center mb-2">
-        <ClockIcon size={16} color="#404040" />
+        <ClockIcon size={16} active={false} />
         <Text className="text-sm text-black ml-2">
           {date} • {startTime} - {endTime}
         </Text>
