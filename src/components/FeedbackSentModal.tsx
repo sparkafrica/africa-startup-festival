@@ -10,29 +10,19 @@ import {
   Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Path, Circle } from "react-native-svg";
-import { ClockIcon } from "./BottomNavIcons";
-import { LocationPinIcon, PersonProfileIcon } from "./icons";
+import Svg, { Path } from "react-native-svg";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
 const MAX_MODAL_HEIGHT = SCREEN_HEIGHT * 0.9;
 
-interface MeetingCancelledModalProps {
+interface FeedbackSentModalProps {
   visible: boolean;
   onClose: () => void;
-  meetingTitle: string;
-  participantName: string;
-  participantCompany: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  location?: string;
-  onViewCancelled?: () => void;
-  modalTitle?: string; // Optional: defaults to "Meeting Cancelled"
+  meetingTitle?: string;
 }
 
-function XCircleIcon({
+function CheckCircleIcon({
   size = 24,
   color = "#FFFFFF",
 }: {
@@ -42,7 +32,7 @@ function XCircleIcon({
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M9 9L15 15M15 9L9 15M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+        d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
         stroke={color}
         strokeWidth="2"
         strokeLinecap="round"
@@ -52,19 +42,11 @@ function XCircleIcon({
   );
 }
 
-export default function MeetingCancelledModal({
+export default function FeedbackSentModal({
   visible,
   onClose,
   meetingTitle,
-  participantName,
-  participantCompany,
-  date,
-  startTime,
-  endTime,
-  location,
-  onViewCancelled,
-  modalTitle = "Meeting Cancelled",
-}: MeetingCancelledModalProps) {
+}: FeedbackSentModalProps) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const modalHeight = useRef(SCREEN_HEIGHT);
   const hasMeasured = useRef(false);
@@ -186,56 +168,28 @@ export default function MeetingCancelledModal({
 
             {/* Content */}
             <View style={styles.content}>
-              {/* Cancellation Icon */}
+              {/* Success Icon */}
               <View style={styles.iconContainer}>
                 <View style={styles.iconOuterCircle}>
                   <View style={styles.iconInnerCircle}>
-                    <XCircleIcon size={32} color="#FFFFFF" />
+                    <CheckCircleIcon size={32} color="#FFFFFF" />
                   </View>
                 </View>
               </View>
 
               {/* Title */}
-              <Text style={styles.title}>{modalTitle}</Text>
+              <Text style={styles.title}>Feedback Sent</Text>
 
-              {/* Meeting Details Card */}
-              <View style={styles.detailsCard}>
-                <Text style={styles.meetingTitle}>{meetingTitle}</Text>
+              {/* Optional Meeting Title */}
+              {meetingTitle && (
+                <Text style={styles.subtitle}>{meetingTitle}</Text>
+              )}
 
-                {/* Participant */}
-                <View style={styles.detailRow}>
-                  <PersonProfileIcon size={18} color="#404040" />
-                  <Text style={styles.detailText}>
-                    {participantName} • {participantCompany}
-                  </Text>
-                </View>
-
-                {/* Date & Time */}
-                <View style={styles.detailRow}>
-                  <ClockIcon size={18} color="#404040" />
-                  <Text style={styles.detailText}>
-                    {date} • {startTime} - {endTime}
-                  </Text>
-                </View>
-
-                {/* Location */}
-                {location && (
-                  <View style={styles.detailRow}>
-                    <LocationPinIcon size={18} color="#404040" />
-                    <Text style={styles.detailText}>{location}</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* View Cancelled Meeting Link */}
-              <View style={styles.linkContainer}>
-                <Text style={styles.linkText}>
-                  View cancelled meeting in{" "}
-                  <Text style={styles.linkTextBlue} onPress={onViewCancelled}>
-                    here
-                  </Text>
-                </Text>
-              </View>
+              {/* Success Message */}
+              <Text style={styles.message}>
+                Thank you for your feedback! Your input helps us improve the
+                experience for everyone.
+              </Text>
 
               {/* Action Button */}
               <Pressable style={styles.actionButton} onPress={onClose}>
@@ -299,6 +253,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 20,
+    alignItems: "center",
   },
   iconContainer: {
     alignItems: "center",
@@ -309,7 +264,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#FFE5E5",
+    backgroundColor: "#E6F7E6",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -317,7 +272,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#FF3B30",
+    backgroundColor: "#4CAF50",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -326,53 +281,31 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#000000",
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 8,
   },
-  detailsCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-  },
-  meetingTitle: {
+  subtitle: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#000000",
-    marginBottom: 16,
-  },
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  detailText: {
-    fontSize: 14,
+    fontWeight: "500",
     color: "#404040",
-    marginLeft: 8,
-    flex: 1,
+    textAlign: "center",
+    marginBottom: 20,
   },
-  linkContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  linkText: {
+  message: {
     fontSize: 14,
     color: "#404040",
     textAlign: "center",
-  },
-  linkTextBlue: {
-    fontSize: 14,
-    color: "#007AFF",
-    textDecorationLine: "underline",
+    lineHeight: 20,
+    marginBottom: 32,
+    paddingHorizontal: 20,
   },
   actionButton: {
     backgroundColor: "#000000",
     borderRadius: 999,
     paddingVertical: 16,
+    paddingHorizontal: 48,
     alignItems: "center",
     justifyContent: "center",
+    width: "100%",
   },
   actionButtonText: {
     fontSize: 16,

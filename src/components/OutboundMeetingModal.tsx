@@ -16,6 +16,7 @@ import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
 import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
 import { LinkedInIcon } from "./SocialIcons";
+import EditMeetingModal, { EditMeetingModalProps } from "./EditMeetingModal";
 import MeetingCancelModal from "./MeetingCancelModal";
 import MeetingCancelledModal from "./MeetingCancelledModal";
 
@@ -112,46 +113,48 @@ export default function OutboundMeetingModal({
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const modalHeight = useRef(SCREEN_HEIGHT);
   const hasMeasured = useRef(false);
+  const isAnimating = useRef(false);
 
   // State for edit/cancel modals
-  // const [showEditModal, setShowEditModal] = useState(false); // TODO: Re-implement tomorrow
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showCancelledModal, setShowCancelledModal] = useState(false);
 
   const handleLayout = (event: any) => {
     const { height } = event.nativeEvent.layout;
-    if (height > 0) {
+    if (height > 0 && !hasMeasured.current) {
       modalHeight.current = Math.min(height, MAX_MODAL_HEIGHT);
       hasMeasured.current = true;
-
-      // If modal is visible and we just measured, ensure it animates in
-      if (visible) {
-        // Only animate if we haven't started animating yet
-        translateY.setValue(modalHeight.current);
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 65,
-          friction: 11,
-        }).start();
-      }
     }
   };
 
   useEffect(() => {
     if (visible) {
+      // Stop any ongoing animations
+      translateY.stopAnimation();
+      isAnimating.current = false;
+
       // Use measured height if available, otherwise use screen height
       const initialHeight = hasMeasured.current
         ? modalHeight.current
         : SCREEN_HEIGHT;
       translateY.setValue(initialHeight);
+
+      // Mark as animating
+      isAnimating.current = true;
+
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
         tension: 65,
         friction: 11,
-      }).start();
+      }).start(() => {
+        isAnimating.current = false;
+      });
     } else {
+      // Stop any ongoing animations
+      translateY.stopAnimation();
+      isAnimating.current = false;
       translateY.setValue(SCREEN_HEIGHT);
       hasMeasured.current = false;
     }
@@ -159,39 +162,52 @@ export default function OutboundMeetingModal({
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !isAnimating.current,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
+        return (
+          !isAnimating.current &&
+          Math.abs(gestureState.dy) > 5 &&
+          gestureState.dy > 0
+        );
       },
       onPanResponderGrant: () => {
+        if (isAnimating.current) return;
+        translateY.stopAnimation();
         translateY.setOffset((translateY as any)._value || 0);
         translateY.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
+        if (isAnimating.current) return;
         if (gestureState.dy > 0) {
           translateY.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
+        if (isAnimating.current) return;
         translateY.flattenOffset();
         const currentValue = (translateY as any)._value || 0;
 
         if (currentValue > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+          isAnimating.current = true;
           Animated.timing(translateY, {
             toValue: modalHeight.current || SCREEN_HEIGHT,
             duration: 250,
             useNativeDriver: true,
           }).start(() => {
             translateY.setValue(0);
+            isAnimating.current = false;
             onClose();
           });
         } else {
+          isAnimating.current = true;
           Animated.spring(translateY, {
             toValue: 0,
             useNativeDriver: true,
             tension: 65,
             friction: 11,
-          }).start();
+          }).start(() => {
+            isAnimating.current = false;
+          });
         }
       },
     })
@@ -203,82 +219,100 @@ export default function OutboundMeetingModal({
   ).current;
   const participantModalHeight = useRef(SCREEN_HEIGHT);
   const participantHasMeasured = useRef(false);
+  const participantIsAnimating = useRef(false);
 
   // Participant modal layout handler
   const handleParticipantLayout = (event: any) => {
     const { height } = event.nativeEvent.layout;
-    if (height > 0) {
+    if (height > 0 && !participantHasMeasured.current) {
       participantModalHeight.current = Math.min(height, MAX_MODAL_HEIGHT);
       participantHasMeasured.current = true;
-
-      if (showParticipantDetail) {
-        participantTranslateY.setValue(participantModalHeight.current);
-        Animated.spring(participantTranslateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: 65,
-          friction: 11,
-        }).start();
-      }
     }
   };
 
   // Participant modal visibility effect
   useEffect(() => {
     if (showParticipantDetail) {
+      // Stop any ongoing animations
+      participantTranslateY.stopAnimation();
+      participantIsAnimating.current = false;
+
       const initialHeight = participantHasMeasured.current
         ? participantModalHeight.current
         : SCREEN_HEIGHT;
       participantTranslateY.setValue(initialHeight);
+
+      // Mark as animating
+      participantIsAnimating.current = true;
+
       Animated.spring(participantTranslateY, {
         toValue: 0,
         useNativeDriver: true,
         tension: 65,
         friction: 11,
-      }).start();
+      }).start(() => {
+        participantIsAnimating.current = false;
+      });
     } else {
+      // Stop any ongoing animations
+      participantTranslateY.stopAnimation();
+      participantIsAnimating.current = false;
       participantTranslateY.setValue(SCREEN_HEIGHT);
+      participantHasMeasured.current = false;
     }
   }, [showParticipantDetail]);
 
   // Participant modal PanResponder
   const participantPanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !participantIsAnimating.current,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
+        return (
+          !participantIsAnimating.current &&
+          Math.abs(gestureState.dy) > 5 &&
+          gestureState.dy > 0
+        );
       },
       onPanResponderGrant: () => {
+        if (participantIsAnimating.current) return;
+        participantTranslateY.stopAnimation();
         participantTranslateY.setOffset(
           (participantTranslateY as any)._value || 0
         );
         participantTranslateY.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
+        if (participantIsAnimating.current) return;
         if (gestureState.dy > 0) {
           participantTranslateY.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
+        if (participantIsAnimating.current) return;
         participantTranslateY.flattenOffset();
         const currentValue = (participantTranslateY as any)._value || 0;
 
         if (currentValue > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+          participantIsAnimating.current = true;
           Animated.timing(participantTranslateY, {
             toValue: participantModalHeight.current || SCREEN_HEIGHT,
             duration: 250,
             useNativeDriver: true,
           }).start(() => {
             participantTranslateY.setValue(0);
+            participantIsAnimating.current = false;
             onCloseParticipantDetail?.();
           });
         } else {
+          participantIsAnimating.current = true;
           Animated.spring(participantTranslateY, {
             toValue: 0,
             useNativeDriver: true,
             tension: 65,
             friction: 11,
-          }).start();
+          }).start(() => {
+            participantIsAnimating.current = false;
+          });
         }
       },
     })
@@ -385,8 +419,7 @@ export default function OutboundMeetingModal({
             <Pressable
               style={styles.editButton}
               onPress={() => {
-                // setShowEditModal(true); // TODO: Re-implement tomorrow
-                onEdit?.();
+                setShowEditModal(true);
               }}
             >
               <PencilIcon size={20} color="#FFFFFF" />
@@ -516,7 +549,37 @@ export default function OutboundMeetingModal({
           </View>
         )}
 
-        {/* Edit Meeting Modal - TODO: Re-implement tomorrow */}
+        {/* Edit Meeting Modal */}
+        <EditMeetingModal
+          visible={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+          }}
+          onSave={(data: {
+            title: string;
+            meetingType: "physical" | "virtual";
+            tableNumber?: string;
+            meetingLink?: string;
+            time: string;
+            date: string;
+            description: string;
+          }) => {
+            setShowEditModal(false);
+            onEdit?.();
+            // TODO: Handle save meeting data
+            console.log("Save meeting data:", data);
+          }}
+          initialData={{
+            title,
+            meetingType: "physical", // TODO: Get from meeting data
+            tableNumber: location.startsWith("Table ")
+              ? location
+              : `Table ${location}`,
+            time: `${startTime} - ${endTime}`,
+            date,
+            description: description || "",
+          }}
+        />
 
         {/* Cancel Meeting Input Modal */}
         <MeetingCancelModal
@@ -539,14 +602,18 @@ export default function OutboundMeetingModal({
             setShowCancelledModal(false);
             onCancel?.();
           }}
-          title={title}
+          meetingTitle={title}
           date={date}
           startTime={startTime}
           endTime={endTime}
           location={location}
           participantName={participantName}
-          participantRole={participantRole}
           participantCompany={participantCompany}
+          onViewCancelled={() => {
+            // TODO: Navigate to cancelled meetings view
+            setShowCancelledModal(false);
+            onCancel?.();
+          }}
         />
       </View>
     </Modal>

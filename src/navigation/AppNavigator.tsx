@@ -1,196 +1,39 @@
 import React from "react";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "./types";
+import { View, ActivityIndicator } from "react-native";
+import { useAuth } from "../context/AuthContext";
+import AuthNavigator from "./AuthNavigator";
+import MainNavigator from "./MainNavigator";
 
-// Screens
-import OnboardingScreen from "../screens/OnboardingScreen";
-import LoginScreen from "../screens/LoginScreen";
-import SignupScreen from "../screens/SignupScreen";
-import HomeScreen from "../screens/HomeScreen";
-import AttendeesScreen from "../screens/AttendeesScreen";
-import EventDetailsScreen from "../screens/EventDetailsScreen";
-import TicketScreen from "../screens/TicketScreen";
-import FavoritesScreen from "../screens/FavoritesScreen";
-import ProfileScreen from "../screens/ProfileScreen";
-import SearchScreen from "../screens/SearchScreen";
-import MenuScreen from "../screens/MenuScreen";
-import NotificationsScreen from "../screens/NotificationsScreen";
-import ScanQRScreen from "../screens/ScanQRScreen";
-import ExhibitorsScreen from "../screens/ExhibitorsScreen";
-import CompanyDetailScreen from "../screens/CompanyDetailScreen";
-import PartnersScreen from "../screens/PartnersScreen";
-import SpeakersScreen from "../screens/SpeakersScreen";
-import SpeakerDetailScreen from "../screens/SpeakerDetailScreen";
-import ScheduleScreen from "../screens/ScheduleScreen";
-import MeetingsScreen from "../screens/MeetingsScreen";
-import ConnectionsScreen from "../screens/ConnectionsScreen";
-import ContactScreen from "../screens/ContactScreen";
-
-const Stack = createNativeStackNavigator<RootStackParamList>();
-
+/**
+ * AppNavigator - Main navigation router
+ *
+ * Conditionally renders:
+ * - AuthNavigator (Onboarding, Login, Signup) if user is not authenticated
+ * - MainNavigator (all app screens) if user is authenticated
+ *
+ * Flow:
+ * 1. First-time users → Onboarding → Login/Signup → Main App
+ * 2. Returning users → Check auth state → Login if needed → Main App
+ * 3. Authenticated users → Direct to Main App
+ */
 export default function AppNavigator() {
-  return (
-    <Stack.Navigator
-      initialRouteName="Home"
-      screenOptions={{
-        headerShown: false,
-        animation: "slide_from_right",
-      }}
-    >
-      {/* Auth & Onboarding Screens */}
-      <Stack.Screen
-        name="Onboarding"
-        component={OnboardingScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Login"
-        component={LoginScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Signup"
-        component={SignupScreen}
-        options={{ headerShown: false }}
-      />
+  const { isAuthenticated, isLoading, hasCompletedOnboarding } = useAuth();
 
-      {/* Main App Screens */}
-      <Stack.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Attendees"
-        component={AttendeesScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="EventDetails"
-        component={EventDetailsScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Ticket"
-        component={TicketScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Favorites"
-        component={FavoritesScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Search"
-        component={SearchScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Menu"
-        component={MenuScreen}
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="Notifications"
-        component={NotificationsScreen}
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_bottom",
-        }}
-      />
-      <Stack.Screen
-        name="ScanQR"
-        component={ScanQRScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_left",
-        }}
-      />
-      <Stack.Screen
-        name="Exhibitors"
-        component={ExhibitorsScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="CompanyDetail"
-        component={CompanyDetailScreen}
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_bottom",
-        }}
-      />
-      <Stack.Screen
-        name="Partners"
-        component={PartnersScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="Speakers"
-        component={SpeakersScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="SpeakerDetail"
-        component={SpeakerDetailScreen}
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          contentStyle: { backgroundColor: "transparent" },
-        }}
-      />
-      <Stack.Screen
-        name="Schedule"
-        component={ScheduleScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="Meetings"
-        component={MeetingsScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="Connections"
-        component={ConnectionsScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="Contact"
-        component={ContactScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-    </Stack.Navigator>
-  );
+  // Show loading spinner while checking auth state
+  if (isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white">
+        <ActivityIndicator size="large" color="#1BB273" />
+      </View>
+    );
+  }
+
+  // If user is authenticated, show main app
+  if (isAuthenticated) {
+    return <MainNavigator />;
+  }
+
+  // If not authenticated, show auth flow
+  // AuthNavigator will handle showing Onboarding vs Login based on hasCompletedOnboarding
+  return <AuthNavigator />;
 }

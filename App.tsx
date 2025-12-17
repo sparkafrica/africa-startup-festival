@@ -6,6 +6,7 @@ import { useFonts } from "expo-font";
 import { Inter_400Regular } from "@expo-google-fonts/inter";
 // import { Roboto_400Regular } from "@expo-google-fonts/roboto";
 import { Text, View, ActivityIndicator } from "react-native";
+import { AuthProvider } from "./src/context/AuthContext";
 import AppNavigator from "./src/navigation/AppNavigator";
 
 export default function App() {
@@ -29,9 +30,11 @@ export default function App() {
   // (Text as any).defaultProps.style = { fontFamily: "Roboto_400Regular" };
 
   return (
-    <NavigationContainer>
-      <AppNavigator />
-      <StatusBar style="auto" />
-    </NavigationContainer>
+    <AuthProvider>
+      <NavigationContainer>
+        <AppNavigator />
+        <StatusBar style="auto" />
+      </NavigationContainer>
+    </AuthProvider>
   );
 }

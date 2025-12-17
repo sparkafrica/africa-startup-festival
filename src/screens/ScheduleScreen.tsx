@@ -10,6 +10,7 @@ import {
   FilterModal,
   EventViewModal,
   LeaveFeedbackModal,
+  FeedbackSentModal,
   type FilterCategory,
   type Speaker,
 } from "../components";
@@ -40,6 +41,8 @@ export default function ScheduleScreen() {
   const [isEventViewModalVisible, setIsEventViewModalVisible] =
     React.useState(false);
   const [isLeaveFeedbackModalVisible, setIsLeaveFeedbackModalVisible] =
+    React.useState(false);
+  const [isFeedbackSentModalVisible, setIsFeedbackSentModalVisible] =
     React.useState(false);
 
   const stageOptions = [
@@ -188,16 +191,13 @@ export default function ScheduleScreen() {
         onMenuPress={() => navigation.navigate("Menu")}
       />
 
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: 20 }}
-        showsVerticalScrollIndicator={false}
-      >
+      {/* Fixed Header Section */}
+      <View>
         {/* Time Zone Alert Banner */}
         <TimeZoneAlertBanner />
 
         {/* Filter Controls */}
-        <View className="flex-row items-center justify-center mb-4 px-4 gap-3">
+        <View className="flex-row items-center justify-center mb-4 px-4 pt-4 gap-3">
           <DropdownButton
             label="Main Stage"
             icon="list"
@@ -217,8 +217,14 @@ export default function ScheduleScreen() {
             width="30%"
           />
         </View>
+      </View>
 
-        {/* Event Cards */}
+      {/* Scrollable Event Cards */}
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 20 }}
+        showsVerticalScrollIndicator={false}
+      >
         <View className="px-4">
           {events.map((event) => (
             <Pressable
@@ -295,8 +301,18 @@ export default function ScheduleScreen() {
           // TODO: Submit feedback to API
           console.log("Feedback submitted:", feedback);
           setIsLeaveFeedbackModalVisible(false);
+          // Show confirmation modal after feedback is sent
+          setIsFeedbackSentModalVisible(true);
         }}
         eventTitle={selectedEvent?.title}
+      />
+
+      <FeedbackSentModal
+        visible={isFeedbackSentModalVisible}
+        onClose={() => {
+          setIsFeedbackSentModalVisible(false);
+        }}
+        meetingTitle={selectedEvent?.title}
       />
 
       <SafeAreaView edges={["bottom"]}>

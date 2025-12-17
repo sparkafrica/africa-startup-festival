@@ -5,6 +5,10 @@ import {
   HeaderBar,
   BottomNavigation,
   MeetingCard,
+  ScheduledMeetingCard,
+  ScheduledMeetingModal,
+  CancelledMeetingCard,
+  EmptyCancelledMeetings,
   TabButton,
   SecondaryTabButton,
   ArrowDownRedIcon,
@@ -197,9 +201,172 @@ export default function MeetingsScreen() {
     },
   ];
 
-  // Get meetings based on active secondary tab
-  const meetings =
-    secondaryTab === "inbound" ? inboundMeetings : outboundMeetings;
+  // Scheduled meetings data
+
+  const scheduledInboundMeetings = [
+    {
+      id: "scheduled-1",
+      title: "Investment Opportunity",
+      participantName: "Ada Okafor",
+      participantRole: "VC Partner",
+      company: "Skyline Ventures",
+      tags: ["Fintech", "Nigeria"],
+      interests: ["Fintech", "Infrastructure", "Developer Tools"],
+      socialLabel: "Flutterwave.ng",
+      bio: "Empowering innovation across Africa. High-growth tech company showcasing new new products at Spark Summit.",
+      date: "2025-03-15",
+      startTime: "2:00 PM",
+      endTime: "2:20 PM",
+      meetingType: "virtual" as const,
+      meetingLink: "https://meet.google.com/abc-defg-hij",
+      timeUntil: "In 3hrs",
+      description: "Discuss investment opportunities in African fintech",
+    },
+    {
+      id: "scheduled-2",
+      title: "Product Partnership",
+      participantName: "Sarah Williams",
+      participantRole: "Product Lead",
+      company: "TechFlow Inc",
+      tags: ["SaaS", "Enterprise"],
+      interests: ["Cloud Computing", "Product Management"],
+      socialLabel: "TechFlow.io",
+      bio: "Leading product innovation in enterprise SaaS solutions. Building scalable platforms for modern businesses.",
+      date: "2025-03-15",
+      startTime: "4:00 PM",
+      endTime: "4:20 PM",
+      meetingType: "physical" as const,
+      location: "Table T-15",
+      timeUntil: "In 5hrs",
+      description: "Explore strategic partnership opportunities",
+    },
+  ];
+
+  const scheduledOutboundMeetings = [
+    {
+      id: "scheduled-outbound-1",
+      title: "Strategic Partnership Discussion",
+      participantName: "James Mitchell",
+      participantRole: "CEO",
+      company: "InnovateTech Solutions",
+      tags: ["AI", "Enterprise"],
+      interests: ["Machine Learning", "Cloud Infrastructure", "Data Analytics"],
+      socialLabel: "InnovateTech.io",
+      bio: "Leading AI innovation in enterprise solutions. Building the future of intelligent automation and scalable cloud platforms.",
+      date: "2025-03-15",
+      startTime: "11:00 AM",
+      endTime: "11:20 AM",
+      meetingType: "physical" as const,
+      location: "Table T-22",
+      timeUntil: "In 2hrs",
+      description:
+        "Explore strategic partnership opportunities in AI infrastructure",
+    },
+    {
+      id: "scheduled-outbound-2",
+      title: "Product Demo & Integration",
+      participantName: "Emma Rodriguez",
+      participantRole: "CTO",
+      company: "CloudScale Inc",
+      tags: ["Cloud", "SaaS"],
+      interests: ["Cloud Computing", "DevOps", "Microservices"],
+      socialLabel: "CloudScale.com",
+      bio: "Transforming businesses through scalable cloud solutions. Expert in enterprise architecture and modern DevOps practices.",
+      date: "2025-03-15",
+      startTime: "3:00 PM",
+      endTime: "3:20 PM",
+      meetingType: "virtual" as const,
+      meetingLink: "https://meet.google.com/xyz-uvwx-rst",
+      timeUntil: "In 6hrs",
+      description:
+        "Showcase product integration capabilities and discuss technical requirements",
+    },
+    {
+      id: "scheduled-outbound-3",
+      title: "Investment Pitch Review",
+      participantName: "David Kim",
+      participantRole: "Product Lead",
+      company: "DataFlow Systems",
+      tags: ["Data", "Analytics"],
+      interests: ["Big Data", "Business Intelligence", "Data Visualization"],
+      socialLabel: "DataFlow.io",
+      bio: "Revolutionizing data analytics for modern enterprises. Making data-driven decisions easier with intuitive platforms.",
+      date: "2025-03-16",
+      startTime: "10:30 AM",
+      endTime: "10:50 AM",
+      meetingType: "physical" as const,
+      location: "Table T-31",
+      timeUntil: "Tomorrow",
+      description:
+        "Present investment opportunity and growth potential in data analytics space",
+    },
+  ];
+
+  // Cancelled meetings data
+  const cancelledInboundMeetings = [
+    {
+      id: "cancelled-inbound-1",
+      title: "Investment Opportunity",
+      participantName: "Michael Chen",
+      company: "GreenTech Solutions",
+      date: "2025-03-15",
+      startTime: "2:00 PM",
+      endTime: "2:20 PM",
+      meetingType: "virtual" as const,
+    },
+    {
+      id: "cancelled-inbound-2",
+      title: "Product Partnership",
+      participantName: "Sarah Williams",
+      company: "TechFlow Inc",
+      date: "2025-03-15",
+      startTime: "4:00 PM",
+      endTime: "4:20 PM",
+      meetingType: "physical" as const,
+    },
+  ];
+
+  const cancelledOutboundMeetings = [
+    {
+      id: "cancelled-outbound-1",
+      title: "Strategic Partnership Discussion",
+      participantName: "James Mitchell",
+      company: "InnovateTech Solutions",
+      date: "2025-03-15",
+      startTime: "11:00 AM",
+      endTime: "11:20 AM",
+      meetingType: "physical" as const,
+    },
+    {
+      id: "cancelled-outbound-2",
+      title: "Product Demo & Integration",
+      participantName: "Emma Rodriguez",
+      company: "CloudScale Inc",
+      date: "2025-03-15",
+      startTime: "3:00 PM",
+      endTime: "3:20 PM",
+      meetingType: "virtual" as const,
+    },
+  ];
+
+  // Get meetings based on active primary and secondary tabs
+  const getMeetings = () => {
+    if (primaryTab === "scheduled") {
+      return secondaryTab === "inbound"
+        ? scheduledInboundMeetings
+        : scheduledOutboundMeetings;
+    } else if (primaryTab === "requests") {
+      return secondaryTab === "inbound" ? inboundMeetings : outboundMeetings;
+    } else if (primaryTab === "cancelled") {
+      return secondaryTab === "inbound"
+        ? cancelledInboundMeetings
+        : cancelledOutboundMeetings;
+    } else {
+      return [];
+    }
+  };
+
+  const meetings = getMeetings();
 
   return (
     <View className="flex-1 bg-white">
@@ -256,26 +423,68 @@ export default function MeetingsScreen() {
         contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="px-4 pt-4">
-          {meetings.map((meeting) => (
-            <MeetingCard
-              key={meeting.id}
-              title={meeting.title}
-              participantName={meeting.participantName}
-              company={meeting.company}
-              date={meeting.date}
-              startTime={meeting.startTime}
-              endTime={meeting.endTime}
-              location={meeting.location}
-              status={meeting.status}
-              approvalMessage={meeting.approvalMessage}
-              expiresIn={meeting.expiresIn}
-              onPress={() => {
-                setSelectedMeeting(meeting);
-                setIsModalVisible(true);
-              }}
-            />
-          ))}
+        <View className="px-4 pt-4 flex-1">
+          {/* TEMPORARY: Force empty state for testing - remove this condition to restore normal behavior meetings.length === 0 && */}
+          {meetings.length === 0 && primaryTab === "cancelled" ? (
+            <EmptyCancelledMeetings />
+          ) : primaryTab === "scheduled" ? (
+            meetings.map((meeting: any) => (
+              <ScheduledMeetingCard
+                key={meeting.id}
+                title={meeting.title}
+                participantName={meeting.participantName}
+                company={meeting.company}
+                date={meeting.date}
+                startTime={meeting.startTime}
+                endTime={meeting.endTime}
+                meetingType={meeting.meetingType}
+                timeUntil={meeting.timeUntil}
+                onPress={() => {
+                  setIsParticipantModalVisible(false); // Reset participant modal
+                  setSelectedMeeting(meeting);
+                  setIsModalVisible(true);
+                }}
+              />
+            ))
+          ) : primaryTab === "cancelled" ? (
+            meetings.map((meeting: any) => (
+              <CancelledMeetingCard
+                key={meeting.id}
+                title={meeting.title}
+                participantName={meeting.participantName}
+                company={meeting.company}
+                date={meeting.date}
+                startTime={meeting.startTime}
+                endTime={meeting.endTime}
+                meetingType={meeting.meetingType}
+                onPress={() => {
+                  // TODO: Handle cancelled meeting press (maybe show details?)
+                  console.log("Cancelled meeting pressed:", meeting.id);
+                }}
+              />
+            ))
+          ) : (
+            meetings.map((meeting: any) => (
+              <MeetingCard
+                key={meeting.id}
+                title={meeting.title}
+                participantName={meeting.participantName}
+                company={meeting.company}
+                date={meeting.date}
+                startTime={meeting.startTime}
+                endTime={meeting.endTime}
+                location={meeting.location}
+                status={meeting.status}
+                approvalMessage={meeting.approvalMessage}
+                expiresIn={meeting.expiresIn}
+                onPress={() => {
+                  setIsParticipantModalVisible(false); // Reset participant modal
+                  setSelectedMeeting(meeting);
+                  setIsModalVisible(true);
+                }}
+              />
+            ))
+          )}
         </View>
       </ScrollView>
 
@@ -302,54 +511,103 @@ export default function MeetingsScreen() {
       </SafeAreaView>
 
       {/* Inbound Meeting Modal */}
-      {selectedMeeting && secondaryTab === "inbound" && (
-        <InboundMeetingModal
-          visible={isModalVisible}
-          onClose={() => {
-            setIsModalVisible(false);
-            setSelectedMeeting(null);
-          }}
-          title={selectedMeeting.title}
-          date={selectedMeeting.date}
-          startTime={selectedMeeting.startTime}
-          endTime={selectedMeeting.endTime}
-          location={selectedMeeting.location}
-          participantName={selectedMeeting.participantName}
-          participantRole={selectedMeeting.participantRole}
-          participantCompany={selectedMeeting.company}
-          description={selectedMeeting.description}
-          expiresIn={selectedMeeting.expiresIn}
-          onParticipantPress={() => {
-            setIsParticipantModalVisible(true);
-          }}
-          showParticipantDetail={isParticipantModalVisible}
-          participantTags={selectedMeeting.tags}
-          participantBio={selectedMeeting.bio}
-          participantInterests={selectedMeeting.interests}
-          participantSocialLabel={selectedMeeting.socialLabel}
-          onCloseParticipantDetail={() => {
-            setIsParticipantModalVisible(false);
-          }}
-          onAccept={() => {
-            // TODO: Handle accept meeting
-            console.log("Accept meeting:", selectedMeeting.id);
-            setIsModalVisible(false);
-            setSelectedMeeting(null);
-          }}
-          onDecline={() => {
-            // TODO: Handle decline meeting
-            console.log("Decline meeting:", selectedMeeting.id);
-            setIsModalVisible(false);
-            setSelectedMeeting(null);
-          }}
-        />
-      )}
+      {selectedMeeting &&
+        secondaryTab === "inbound" &&
+        primaryTab === "requests" && (
+          <InboundMeetingModal
+            visible={isModalVisible}
+            onClose={() => {
+              setIsModalVisible(false);
+              setSelectedMeeting(null);
+            }}
+            title={selectedMeeting.title}
+            date={selectedMeeting.date}
+            startTime={selectedMeeting.startTime}
+            endTime={selectedMeeting.endTime}
+            location={selectedMeeting.location}
+            participantName={selectedMeeting.participantName}
+            participantRole={selectedMeeting.participantRole}
+            participantCompany={selectedMeeting.company}
+            description={selectedMeeting.description}
+            expiresIn={selectedMeeting.expiresIn}
+            onParticipantPress={() => {
+              setIsParticipantModalVisible(true);
+            }}
+            showParticipantDetail={isParticipantModalVisible}
+            participantTags={selectedMeeting.tags}
+            participantBio={selectedMeeting.bio}
+            participantInterests={selectedMeeting.interests}
+            participantSocialLabel={selectedMeeting.socialLabel}
+            onCloseParticipantDetail={() => {
+              setIsParticipantModalVisible(false);
+            }}
+            onAccept={() => {
+              // TODO: Handle accept meeting
+              console.log("Accept meeting:", selectedMeeting.id);
+              setIsModalVisible(false);
+              setSelectedMeeting(null);
+            }}
+            onDecline={() => {
+              // TODO: Handle decline meeting
+              console.log("Decline meeting:", selectedMeeting.id);
+              setIsModalVisible(false);
+              setSelectedMeeting(null);
+            }}
+          />
+        )}
 
       {/* Outbound Meeting Modal */}
-      {selectedMeeting && secondaryTab === "outbound" && (
-        <OutboundMeetingModal
+      {selectedMeeting &&
+        secondaryTab === "outbound" &&
+        primaryTab === "requests" && (
+          <OutboundMeetingModal
+            visible={isModalVisible}
+            onClose={() => {
+              setIsModalVisible(false);
+              setSelectedMeeting(null);
+            }}
+            title={selectedMeeting.title}
+            date={selectedMeeting.date}
+            startTime={selectedMeeting.startTime}
+            endTime={selectedMeeting.endTime}
+            location={selectedMeeting.location}
+            participantName={selectedMeeting.participantName}
+            participantRole={selectedMeeting.participantRole}
+            participantCompany={selectedMeeting.company}
+            description={selectedMeeting.description}
+            expiresIn={selectedMeeting.expiresIn}
+            onParticipantPress={() => {
+              setIsParticipantModalVisible(true);
+            }}
+            showParticipantDetail={isParticipantModalVisible}
+            participantTags={selectedMeeting.tags}
+            participantBio={selectedMeeting.bio}
+            participantInterests={selectedMeeting.interests}
+            participantSocialLabel={selectedMeeting.socialLabel}
+            onCloseParticipantDetail={() => {
+              setIsParticipantModalVisible(false);
+            }}
+            onEdit={() => {
+              // TODO: Handle edit meeting
+              console.log("Edit meeting:", selectedMeeting.id);
+              setIsModalVisible(false);
+              setSelectedMeeting(null);
+            }}
+            onCancel={() => {
+              // TODO: Handle cancel meeting
+              console.log("Cancel meeting:", selectedMeeting.id);
+              setIsModalVisible(false);
+              setSelectedMeeting(null);
+            }}
+          />
+        )}
+
+      {/* Scheduled Meeting Modal */}
+      {selectedMeeting && primaryTab === "scheduled" && (
+        <ScheduledMeetingModal
           visible={isModalVisible}
           onClose={() => {
+            setIsParticipantModalVisible(false); // Close participant modal when meeting modal closes
             setIsModalVisible(false);
             setSelectedMeeting(null);
           }}
@@ -358,33 +616,37 @@ export default function MeetingsScreen() {
           startTime={selectedMeeting.startTime}
           endTime={selectedMeeting.endTime}
           location={selectedMeeting.location}
+          meetingLink={selectedMeeting.meetingLink}
+          meetingType={selectedMeeting.meetingType}
           participantName={selectedMeeting.participantName}
-          participantRole={selectedMeeting.participantRole}
+          participantRole={selectedMeeting.participantRole || "Participant"}
           participantCompany={selectedMeeting.company}
           description={selectedMeeting.description}
-          expiresIn={selectedMeeting.expiresIn}
+          isOutbound={secondaryTab === "outbound"}
           onParticipantPress={() => {
             setIsParticipantModalVisible(true);
           }}
           showParticipantDetail={isParticipantModalVisible}
-          participantTags={selectedMeeting.tags}
+          participantTags={selectedMeeting.tags || []}
           participantBio={selectedMeeting.bio}
-          participantInterests={selectedMeeting.interests}
+          participantInterests={selectedMeeting.interests || []}
           participantSocialLabel={selectedMeeting.socialLabel}
           onCloseParticipantDetail={() => {
             setIsParticipantModalVisible(false);
           }}
           onEdit={() => {
             // TODO: Handle edit meeting
-            console.log("Edit meeting:", selectedMeeting.id);
-            setIsModalVisible(false);
-            setSelectedMeeting(null);
+            console.log("Edit scheduled meeting:", selectedMeeting.id);
           }}
           onCancel={() => {
             // TODO: Handle cancel meeting
-            console.log("Cancel meeting:", selectedMeeting.id);
+            console.log("Cancel scheduled meeting:", selectedMeeting.id);
             setIsModalVisible(false);
             setSelectedMeeting(null);
+          }}
+          onLeaveFeedback={() => {
+            // TODO: Handle leave feedback
+            console.log("Leave feedback for:", selectedMeeting.id);
           }}
         />
       )}

@@ -9,7 +9,6 @@ import {
   PanResponder,
   Animated,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   Keyboard,
@@ -65,13 +64,21 @@ export default function LeaveFeedbackModal({
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const keyboardOffset = useRef(new Animated.Value(0)).current;
+  const modalHeight = useRef(SCREEN_HEIGHT);
   const scrollViewRef = useRef<ScrollView>(null);
-  const textInputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInput>(null);
 
+  const handleLayout = (event: any) => {
+    const { height } = event.nativeEvent.layout;
+    if (height > 0) {
+      modalHeight.current = height;
+    }
+  };
+
+  // Modal visibility effect
   useEffect(() => {
     if (visible) {
-      // Reset keyboard offset when modal opens
-      keyboardOffset.setValue(0);
+      translateY.setValue(modalHeight.current || SCREEN_HEIGHT);
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
@@ -80,43 +87,66 @@ export default function LeaveFeedbackModal({
       }).start();
     } else {
       translateY.setValue(SCREEN_HEIGHT);
-      keyboardOffset.setValue(0); // Reset keyboard offset when modal closes
+      keyboardOffset.setValue(0);
       setFeedback("");
       setKeyboardHeight(0);
+      Keyboard.dismiss();
     }
   }, [visible, translateY, keyboardOffset]);
 
-  // Handle keyboard show/hide
+  // Keyboard event listeners
   useEffect(() => {
     if (!visible) return;
 
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
       (e) => {
-        const height = e.endCoordinates.height;
-        setKeyboardHeight(height);
-        // Animate modal up when keyboard appears
-        // Move modal up by keyboard height minus safe area to keep content visible
+        const kbHeight = e.endCoordinates.height;
+        setKeyboardHeight(kbHeight);
+
+        // Calculate offset differently for Android vs iOS
+        let offset: number;
+        if (Platform.OS === "android") {
+          // On Android, use screenY to get actual keyboard position
+          // screenY is the Y coordinate of the keyboard top from screen top
+          const keyboardTop = e.endCoordinates.screenY;
+          // The distance from screen bottom to keyboard top
+          const distanceFromBottom = SCREEN_HEIGHT - keyboardTop;
+
+          // Use the actual distance from bottom, but add a small padding (10-20px)
+          // to ensure modal sits just above keyboard with a tiny gap
+          // This accounts for any safe area or system UI at the bottom
+          const padding = 10;
+          offset = -(distanceFromBottom - padding);
+          } else {
+          // iOS: use full keyboard height
+          offset = -kbHeight;
+        }
+
         Animated.timing(keyboardOffset, {
-          toValue: -height + 40, // Raise modal above keyboard with padding for navigation bar
-          duration: 250,
+          toValue: offset,
+          duration: Platform.OS === "ios" ? e.duration || 250 : 250,
           useNativeDriver: true,
         }).start();
-        // Scroll to input when keyboard appears
-        setTimeout(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 300);
+
+        setTimeout(
+          () => {
+            inputRef.current?.focus();
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          },
+          Platform.OS === "ios" ? (e.duration || 250) + 50 : 300
+        );
       }
     );
 
     const keyboardWillHide = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => {
+      (e) => {
         setKeyboardHeight(0);
-        // Animate modal back down when keyboard hides
+
         Animated.timing(keyboardOffset, {
           toValue: 0,
-          duration: 250,
+          duration: Platform.OS === "ios" ? e.duration || 250 : 250,
           useNativeDriver: true,
         }).start();
       }
@@ -125,10 +155,11 @@ export default function LeaveFeedbackModal({
     return () => {
       keyboardWillShow.remove();
       keyboardWillHide.remove();
-      // Reset keyboard offset when listeners are removed (modal closes)
-      keyboardOffset.setValue(0);
     };
   }, [visible, keyboardOffset]);
+
+  // Combine translateY and keyboardOffset
+  const combinedTranslateY = Animated.add(translateY, keyboardOffset);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -137,7 +168,9 @@ export default function LeaveFeedbackModal({
         return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
       },
       onPanResponderGrant: () => {
+        Keyboard.dismiss();
         translateY.setOffset((translateY as any)._value || 0);
+        translateY.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy > 0) {
@@ -146,14 +179,15 @@ export default function LeaveFeedbackModal({
       },
       onPanResponderRelease: (_, gestureState) => {
         translateY.flattenOffset();
+        const currentValue = (translateY as any)._value || 0;
 
-        if (gestureState.dy > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+        if (currentValue > DRAG_THRESHOLD || gestureState.vy > 0.5) {
           Animated.timing(translateY, {
-            toValue: SCREEN_HEIGHT,
-            duration: 200,
+            toValue: modalHeight.current || SCREEN_HEIGHT,
+            duration: 250,
             useNativeDriver: true,
           }).start(() => {
-            translateY.setValue(SCREEN_HEIGHT);
+            translateY.setValue(0);
             onClose();
           });
         } else {
@@ -169,14 +203,15 @@ export default function LeaveFeedbackModal({
   ).current;
 
   const handleSend = () => {
-    if (feedback.trim()) {
-      onSubmit?.(feedback);
+    if (feedback.trim().length > 0) {
+      Keyboard.dismiss();
+      onSubmit?.(feedback.trim());
       setFeedback("");
-      onClose();
     }
   };
 
   const characterCount = feedback.length;
+  const isSendDisabled = feedback.trim().length === 0;
 
   return (
     <Modal
@@ -185,100 +220,100 @@ export default function LeaveFeedbackModal({
       animationType="none"
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-        style={styles.modalContainer}
-      >
-        {/* Semi-transparent Backdrop */}
+      <View style={styles.modalContainer}>
         <Pressable style={styles.backdrop} onPress={onClose} />
 
-        {/* Bottom Sheet */}
         <Animated.View
           style={[
             styles.bottomSheet,
             {
-              transform: [
-                {
-                  translateY: Animated.add(translateY, keyboardOffset),
-                },
-              ],
-              maxHeight:
-                keyboardHeight > 0
-                  ? SCREEN_HEIGHT * 0.85 - keyboardHeight
-                  : SCREEN_HEIGHT * 0.7,
+              transform: [{ translateY: combinedTranslateY }],
+              maxHeight: SCREEN_HEIGHT * 0.9,
             },
           ]}
+          onLayout={handleLayout}
         >
-          {/* Draggable Handle */}
-          <View style={styles.draggableArea} {...panResponder.panHandlers}>
-            <View style={styles.handleContainer}>
+          <SafeAreaView edges={["bottom"]} style={styles.safeArea}>
+            {/* Handle */}
+            <View style={styles.handleContainer} {...panResponder.panHandlers}>
               <View style={styles.handle} />
             </View>
-          </View>
 
-          {/* Content */}
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Title */}
-            <Text style={styles.title}>Leave a feedback about the session</Text>
+            {/* Content Container */}
+            <View style={styles.contentContainer}>
+              {/* Title */}
+              <Text style={styles.title}>
+                Leave a feedback about the session
+              </Text>
 
-            {/* Text Input */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                ref={textInputRef}
-                style={styles.textInput}
-                placeholder="Say something about this session."
-                placeholderTextColor="#A3A3A3"
-                multiline
-                value={feedback}
-                onChangeText={setFeedback}
-                maxLength={MAX_CHARACTERS}
-                textAlignVertical="top"
-                onFocus={() => {
-                  // Scroll to ensure input is visible when keyboard appears
-                  setTimeout(() => {
-                    scrollViewRef.current?.scrollToEnd({ animated: true });
-                  }, 300);
-                }}
-              />
-              {/* Character Counter */}
-              <View style={styles.counterContainer}>
-                <Text style={styles.counterText}>
-                  {characterCount}/{MAX_CHARACTERS}
-                </Text>
-                <PenIcon size={14} color="#A3A3A3" />
-              </View>
-            </View>
+              {/* Scrollable Content */}
+              <ScrollView
+                ref={scrollViewRef}
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={true}
+              >
+                {/* Text Input Container */}
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    ref={inputRef}
+                    style={styles.textInput}
+                    placeholder="Say something about this session."
+                    placeholderTextColor="#A3A3A3"
+                    multiline
+                    value={feedback}
+                    onChangeText={(text) => {
+                      if (text.length <= MAX_CHARACTERS) {
+                        setFeedback(text);
+                      }
+                    }}
+                    textAlignVertical="top"
+                    returnKeyType="done"
+                    blurOnSubmit={false}
+                  />
+                  {/* Character Counter */}
+                  <View style={styles.counterContainer}>
+                    <Text style={styles.counterText}>
+                      {characterCount}/{MAX_CHARACTERS}
+                    </Text>
+                    <PenIcon size={14} color="#A3A3A3" />
+                  </View>
+                </View>
+              </ScrollView>
 
-            {/* Send Button */}
-            <Pressable
-              style={[
-                styles.sendButton,
-                !feedback.trim() && styles.sendButtonDisabled,
-              ]}
-              onPress={handleSend}
-              disabled={!feedback.trim()}
-            >
-              <Text
+              {/* Action Button - Fixed at bottom */}
+              <View
                 style={[
-                  styles.sendButtonText,
-                  !feedback.trim() && styles.sendButtonTextDisabled,
+                  styles.buttonContainer,
+                  {
+                    paddingBottom: keyboardHeight > 0 ? 8 : 20,
+                  },
                 ]}
               >
-                Send
-              </Text>
-            </Pressable>
-          </ScrollView>
-
-          <SafeAreaView edges={["bottom"]} style={styles.safeArea} />
+                <Pressable
+                  style={[
+                    styles.actionButton,
+                    isSendDisabled && styles.actionButtonDisabled,
+                  ]}
+                  onPress={handleSend}
+                  disabled={isSendDisabled}
+                >
+                  <Text
+                    style={[
+                      styles.actionButtonText,
+                      isSendDisabled && styles.actionButtonTextDisabled,
+                    ]}
+                  >
+                    Send
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </SafeAreaView>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -287,30 +322,41 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    zIndex: 0,
   },
   bottomSheet: {
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: SCREEN_HEIGHT * 0.7,
     width: "100%",
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 1,
+    zIndex: 10,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
   },
-  draggableArea: {
-    width: "100%",
+  safeArea: {
+    flex: 1,
   },
   handleContainer: {
     alignItems: "center",
     paddingTop: 12,
     paddingBottom: 8,
+    backgroundColor: "#FFFFFF",
+    zIndex: 1,
   },
   handle: {
     width: 40,
@@ -318,37 +364,42 @@ const styles = StyleSheet.create({
     backgroundColor: "#D1D5DB",
     borderRadius: 2,
   },
-  scrollView: {
+  contentContainer: {
     flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 32,
+    paddingBottom: 0,
   },
   title: {
     fontSize: 20,
     fontWeight: "700",
     color: "#000000",
-    marginBottom: 24,
-    paddingHorizontal: 0,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 20,
+    lineHeight: 28,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 16,
   },
   inputContainer: {
+    marginHorizontal: 24,
+    marginBottom: 20,
     position: "relative",
-    marginBottom: 24,
   },
   textInput: {
-    minHeight: 120,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E5E7EB",
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 40,
+    padding: 16,
+    minHeight: 120,
     fontSize: 16,
     color: "#000000",
+    paddingBottom: 40,
+    lineHeight: 20,
     textAlignVertical: "top",
   },
   counterContainer: {
@@ -358,32 +409,38 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    zIndex: 2,
   },
   counterText: {
     fontSize: 12,
     color: "#A3A3A3",
     fontWeight: "400",
   },
-  sendButton: {
+  buttonContainer: {
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+    zIndex: 3,
+  },
+  actionButton: {
     backgroundColor: "#000000",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
-    marginTop: 8,
-    marginBottom: 8,
+    justifyContent: "center",
+    minHeight: 52,
   },
-  sendButtonDisabled: {
+  actionButtonDisabled: {
     backgroundColor: "#E5E7EB",
   },
-  sendButtonText: {
-    color: "#FFFFFF",
+  actionButtonText: {
     fontSize: 16,
     fontWeight: "600",
+    color: "#FFFFFF",
   },
-  sendButtonTextDisabled: {
+  actionButtonTextDisabled: {
     color: "#A3A3A3",
-  },
-  safeArea: {
-    backgroundColor: "#FFFFFF",
   },
 });
