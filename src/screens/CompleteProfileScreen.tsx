@@ -516,7 +516,6 @@ function OfferColorModal({
 
 // Attendee Profile Form Component (single screen, no progress bar)
 function AttendeeProfileForm() {
-  const { completeProfile } = useAuth();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [fullName, setFullName] = useState("John Doe");
   const [jobTitle, setJobTitle] = useState("Product Manager");
@@ -586,10 +585,8 @@ function AttendeeProfileForm() {
       // TODO: Save profile data to backend API
       // await api.post('/profile/complete', { fullName, jobTitle, company, ... });
 
-      // Complete profile
-      await completeProfile();
-
-      // Navigate to success screen
+      // Navigate to success screen (completeProfile will be called there)
+      console.log("Navigating to ProfileCreatedScreen...");
       navigation.navigate("ProfileCreated");
     } catch (error) {
       console.error("Error completing profile:", error);

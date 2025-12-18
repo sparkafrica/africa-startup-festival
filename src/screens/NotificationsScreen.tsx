@@ -191,7 +191,7 @@ export default function NotificationsScreen() {
                           navigation.navigate("Connections");
                           break;
                         case "reminder":
-                          navigation.navigate("Meetings");
+                          navigation.navigate("Schedule");
                           break;
                         default:
                           // For any other types, just mark as read

@@ -69,6 +69,8 @@ export default function EditMeetingModal({
   );
 
   const translateY = useRef(new Animated.Value(0)).current;
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const offset = useRef(0);
   const isClosingRef = useRef(false);
 
@@ -149,6 +151,60 @@ export default function EditMeetingModal({
     }
   }, [visible, initialData]);
 
+  // Keyboard event listeners
+  useEffect(() => {
+    if (!visible) {
+      setKeyboardHeight(0);
+      keyboardOffset.setValue(0);
+      return;
+    }
+
+    if (Platform.OS === "android") {
+      // Android: Use keyboardDidShow/DidHide and set keyboardHeight state
+      // The modal uses bottom = keyboardHeight to position itself
+      const keyboardDidShow = Keyboard.addListener("keyboardDidShow", (e) => {
+        const kbHeight = e.endCoordinates.height;
+        setKeyboardHeight(kbHeight);
+      });
+
+      const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => {
+        setKeyboardHeight(0);
+      });
+
+      return () => {
+        keyboardDidShow.remove();
+        keyboardDidHide.remove();
+      };
+    } else {
+      // iOS: Use existing translateY approach with keyboardOffset
+      const keyboardWillShow = Keyboard.addListener("keyboardWillShow", (e) => {
+        const kbHeight = e.endCoordinates.height;
+        setKeyboardHeight(kbHeight);
+
+        Animated.timing(keyboardOffset, {
+          toValue: -kbHeight,
+          duration: e.duration || 250,
+          useNativeDriver: true,
+        }).start();
+      });
+
+      const keyboardWillHide = Keyboard.addListener("keyboardWillHide", (e) => {
+        setKeyboardHeight(0);
+
+        Animated.timing(keyboardOffset, {
+          toValue: 0,
+          duration: e.duration || 250,
+          useNativeDriver: true,
+        }).start();
+      });
+
+      return () => {
+        keyboardWillShow.remove();
+        keyboardWillHide.remove();
+      };
+    }
+  }, [visible, keyboardOffset]);
+
   const handleSave = () => {
     if (title.trim().length === 0) {
       // TODO: Show validation error
@@ -188,6 +244,9 @@ export default function EditMeetingModal({
   const characterCount = description.length;
   const isSaveDisabled = title.trim().length === 0;
 
+  // Combine translateY and keyboardOffset for iOS only
+  const combinedTranslateY = Animated.add(translateY, keyboardOffset);
+
   return (
     <Modal
       visible={visible}
@@ -195,18 +254,234 @@ export default function EditMeetingModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-      >
-        <View className="flex-1 bg-black/50">
-          <Pressable className="flex-1" onPress={onClose} />
+      <View className="flex-1 bg-black/50">
+        <Pressable className="flex-1" onPress={onClose} />
+        {Platform.OS === "android" ? (
+          <View
+            className="bg-white rounded-t-3xl"
+            style={{
+              position: "absolute",
+              bottom: keyboardHeight,
+              left: 0,
+              right: 0,
+              width: "100%",
+              maxHeight: SCREEN_HEIGHT * 0.75,
+            }}
+          >
+            <View className="items-center pt-2 pb-2">
+              <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
+              <Text className="text-xl font-semibold text-black mb-4 px-4 self-start">
+                Edit Meeting
+              </Text>
+            </View>
+
+            {/* Notification Info Bar */}
+            <View className="px-4 mb-4">
+              <View
+                className="rounded-xl px-4 py-3"
+                style={{ backgroundColor: "#FFF4E6" }}
+              >
+                <Text className="text-sm text-black leading-5">
+                  Changes require the other person's approval. They'll receive
+                  an email and notification.
+                </Text>
+              </View>
+            </View>
+
+            <ScrollView
+              className="px-4"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 120 }}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
+            >
+              {/* Meeting Title */}
+              <View className="mb-4">
+                <Text className="text-sm font-medium text-black mb-2">
+                  Meeting Title
+                </Text>
+                <TextInput
+                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3.5 text-base"
+                  placeholder="e.g., Product Discussion"
+                  placeholderTextColor="#9CA3AF"
+                  value={title}
+                  onChangeText={setTitle}
+                  returnKeyType="next"
+                  onSubmitEditing={handleTitleSubmit}
+                />
+              </View>
+
+              {/* Meeting Type */}
+              <View className="mb-4">
+                <Text className="text-sm font-medium text-black mb-2">
+                  Meeting Type
+                </Text>
+                <View className="flex-row bg-neutral-100 rounded-xl p-1 gap-1">
+                  <Pressable
+                    className={`flex-1 py-2.5 px-4 rounded-lg items-center ${
+                      meetingType === "physical"
+                        ? "bg-white shadow-sm"
+                        : "bg-transparent"
+                    }`}
+                    onPress={() => setMeetingType("physical")}
+                  >
+                    <Text
+                      className={`text-base font-medium ${
+                        meetingType === "physical"
+                          ? "text-black"
+                          : "text-neutral-500"
+                      }`}
+                    >
+                      Physical
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    className={`flex-1 py-2.5 px-4 rounded-lg items-center ${
+                      meetingType === "virtual"
+                        ? "bg-white shadow-sm"
+                        : "bg-transparent"
+                    }`}
+                    onPress={() => setMeetingType("virtual")}
+                  >
+                    <Text
+                      className={`text-base font-medium ${
+                        meetingType === "virtual"
+                          ? "text-black"
+                          : "text-neutral-500"
+                      }`}
+                    >
+                      Virtual
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* Table Number (Physical) or Meeting Link (Virtual) */}
+              {meetingType === "physical" ? (
+                <View className="mb-4">
+                  <Text className="text-sm font-medium text-black mb-2">
+                    Table Number
+                  </Text>
+                  <Pressable className="flex-row items-center justify-between bg-white border border-neutral-300 rounded-xl px-4 py-3.5">
+                    <Text className="text-base text-black flex-1">
+                      {tableNumber}
+                    </Text>
+                    <ChevronDownIcon size={20} color="#6B7280" />
+                  </Pressable>
+                </View>
+              ) : (
+                <View className="mb-4">
+                  <Text className="text-sm font-medium text-black mb-2">
+                    Meeting Link
+                  </Text>
+                  <View className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 gap-2">
+                    <TextInput
+                      className="flex-1 py-3.5 text-base"
+                      placeholder="Paste your meeting link"
+                      placeholderTextColor="#9CA3AF"
+                      value={meetingLink}
+                      onChangeText={setMeetingLink}
+                      keyboardType="url"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="next"
+                      onSubmitEditing={handleLinkSubmit}
+                    />
+                    <Pressable
+                      className="bg-indigo-100 px-3 py-1.5 rounded-md"
+                      onPress={handlePasteLink}
+                    >
+                      <Text className="text-sm font-medium text-indigo-600">
+                        Paste link
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              {/* Date & Time */}
+              <View className="mb-4">
+                <Text className="text-sm font-medium text-black mb-2">
+                  Date & Time
+                </Text>
+                <Pressable className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5 mb-3">
+                  <View className="mr-2">
+                    <ClockIcon size={18} color="#404040" />
+                  </View>
+                  <Text className="flex-1 text-base font-medium text-black">
+                    {time}
+                  </Text>
+                  <ChevronDownIcon size={20} color="#6B7280" />
+                </Pressable>
+                <Pressable className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5">
+                  <View className="mr-2">
+                    <Text className="text-lg">📅</Text>
+                  </View>
+                  <Text
+                    className={`flex-1 text-base ${
+                      !date ? "text-neutral-500" : "text-black"
+                    }`}
+                  >
+                    {date || "Select date"}
+                  </Text>
+                  <ChevronDownIcon size={20} color="#6B7280" />
+                </Pressable>
+              </View>
+
+              {/* Description */}
+              <View className="mb-6">
+                <Text className="text-sm font-medium text-black mb-2">
+                  Description
+                </Text>
+                <View className="relative bg-white border border-neutral-300 rounded-xl p-3 min-h-[96px]">
+                  <TextInput
+                    className="text-base text-black min-h-[72px] pb-6"
+                    placeholder="Briefly describe the meeting purpose..."
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                    value={description}
+                    onChangeText={(text) => {
+                      if (text.length <= MAX_CHARACTERS) {
+                        setDescription(text);
+                      }
+                    }}
+                    textAlignVertical="top"
+                    returnKeyType="done"
+                    blurOnSubmit={true}
+                  />
+                  <View className="absolute bottom-2 right-3">
+                    <Text className="text-xs text-neutral-500">
+                      {characterCount}/{MAX_CHARACTERS}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Action Button */}
+              <Pressable
+                onPress={handleSave}
+                disabled={isSaveDisabled}
+                className={`w-full items-center justify-center rounded-xl py-4 px-4 mb-3 ${
+                  isSaveDisabled ? "bg-neutral-200" : "bg-black"
+                }`}
+              >
+                <Text
+                  className={`text-base font-medium ${
+                    isSaveDisabled ? "text-neutral-400" : "text-white"
+                  }`}
+                >
+                  Send Meeting Update
+                </Text>
+              </Pressable>
+            </ScrollView>
+            <SafeAreaView edges={["bottom"]} className="bg-white pb-4" />
+          </View>
+        ) : (
           <Animated.View
             className="bg-white rounded-t-3xl"
             style={{
-              transform: [{ translateY }],
-              maxHeight: Dimensions.get("window").height * 0.75,
+              transform: [{ translateY: combinedTranslateY }],
+              maxHeight: SCREEN_HEIGHT * 0.75,
             }}
           >
             <View
@@ -348,15 +623,19 @@ export default function EditMeetingModal({
                 <Text className="text-sm font-medium text-black mb-2">
                   Date & Time
                 </Text>
-                <Pressable className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5 mb-3 gap-2">
-                  <ClockIcon size={18} color="#404040" />
+                <Pressable className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5 mb-3">
+                  <View className="mr-2">
+                    <ClockIcon size={18} color="#404040" />
+                  </View>
                   <Text className="flex-1 text-base font-medium text-black">
                     {time}
                   </Text>
                   <ChevronDownIcon size={20} color="#6B7280" />
                 </Pressable>
-                <Pressable className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5 gap-2">
-                  <Text className="text-lg">📅</Text>
+                <Pressable className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5">
+                  <View className="mr-2">
+                    <Text className="text-lg">📅</Text>
+                  </View>
                   <Text
                     className={`flex-1 text-base ${
                       !date ? "text-neutral-500" : "text-black"
@@ -416,8 +695,8 @@ export default function EditMeetingModal({
             </ScrollView>
             <SafeAreaView edges={["bottom"]} className="bg-white pb-4" />
           </Animated.View>
-        </View>
-      </KeyboardAvoidingView>
+        )}
+      </View>
     </Modal>
   );
 }

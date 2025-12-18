@@ -10,6 +10,7 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -173,18 +174,28 @@ export default function LoginScreen() {
             paddingBottom: Platform.OS === "ios" ? 34 : 24,
           }}
         >
-          <Pressable
-            onPress={handleGetTicket}
-            className="mb-3"
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text className="text-base text-neutral-600">
-              Don't have a ticket?{" "}
-              <Text className="text-neutral-900 underline font-medium">
-                Get one
-              </Text>
+          <Text className="text-base text-neutral-600 mb-3">
+            Don't have a ticket?{" "}
+            <Text
+              className="text-neutral-900 underline font-medium"
+              onPress={async () => {
+                try {
+                  const url = "https://www.africatechnologyexpo.com";
+                  const canOpen = await Linking.canOpenURL(url);
+                  if (canOpen) {
+                    await Linking.openURL(url);
+                  } else {
+                    Alert.alert("Error", "Cannot open this URL");
+                  }
+                } catch (error) {
+                  console.error("Error opening URL:", error);
+                  Alert.alert("Error", "Failed to open link");
+                }
+              }}
+            >
+              Get one
             </Text>
-          </Pressable>
+          </Text>
 
           <Pressable
             onPress={handleContactUs}

@@ -78,16 +78,22 @@ export default function LeaveFeedbackModal({
   // Modal visibility effect
   useEffect(() => {
     if (visible) {
-      translateY.setValue(modalHeight.current || SCREEN_HEIGHT);
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
+      if (Platform.OS === "ios") {
+        // iOS: Animate modal in with translateY
+        translateY.setValue(modalHeight.current || SCREEN_HEIGHT);
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 11,
+        }).start();
+      }
+      // Android: Modal is always visible when visible=true, no animation needed
     } else {
-      translateY.setValue(SCREEN_HEIGHT);
-      keyboardOffset.setValue(0);
+      if (Platform.OS === "ios") {
+        translateY.setValue(SCREEN_HEIGHT);
+        keyboardOffset.setValue(0);
+      }
       setFeedback("");
       setKeyboardHeight(0);
       Keyboard.dismiss();
@@ -98,105 +104,106 @@ export default function LeaveFeedbackModal({
   useEffect(() => {
     if (!visible) return;
 
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      (e) => {
+    if (Platform.OS === "android") {
+      // Android: Use keyboardDidShow/DidHide and set keyboardHeight state
+      // The modal uses bottom = keyboardHeight to position itself
+      // NO animations, NO setTimeout - just set the state directly
+      const keyboardDidShow = Keyboard.addListener("keyboardDidShow", (e) => {
+        const kbHeight = e.endCoordinates.height;
+        setKeyboardHeight(kbHeight);
+        // Input is already focused, no need to re-focus or scroll
+      });
+
+      const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => {
+        setKeyboardHeight(0);
+      });
+
+      return () => {
+        keyboardDidShow.remove();
+        keyboardDidHide.remove();
+      };
+    } else {
+      // iOS: Use existing translateY approach
+      const keyboardWillShow = Keyboard.addListener("keyboardWillShow", (e) => {
         const kbHeight = e.endCoordinates.height;
         setKeyboardHeight(kbHeight);
 
-        // Calculate offset differently for Android vs iOS
-        let offset: number;
-        if (Platform.OS === "android") {
-          // On Android, use screenY to get actual keyboard position
-          // screenY is the Y coordinate of the keyboard top from screen top
-          const keyboardTop = e.endCoordinates.screenY;
-          // The distance from screen bottom to keyboard top
-          const distanceFromBottom = SCREEN_HEIGHT - keyboardTop;
-
-          // Use the actual distance from bottom, but add a small padding (10-20px)
-          // to ensure modal sits just above keyboard with a tiny gap
-          // This accounts for any safe area or system UI at the bottom
-          const padding = 10;
-          offset = -(distanceFromBottom - padding);
-          } else {
-          // iOS: use full keyboard height
-          offset = -kbHeight;
-        }
-
         Animated.timing(keyboardOffset, {
-          toValue: offset,
-          duration: Platform.OS === "ios" ? e.duration || 250 : 250,
+          toValue: -kbHeight,
+          duration: e.duration || 250,
           useNativeDriver: true,
         }).start();
 
-        setTimeout(
-          () => {
-            inputRef.current?.focus();
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-          },
-          Platform.OS === "ios" ? (e.duration || 250) + 50 : 300
-        );
-      }
-    );
+        setTimeout(() => {
+          inputRef.current?.focus();
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, (e.duration || 250) + 50);
+      });
 
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      (e) => {
+      const keyboardWillHide = Keyboard.addListener("keyboardWillHide", (e) => {
         setKeyboardHeight(0);
 
         Animated.timing(keyboardOffset, {
           toValue: 0,
-          duration: Platform.OS === "ios" ? e.duration || 250 : 250,
+          duration: e.duration || 250,
           useNativeDriver: true,
         }).start();
-      }
-    );
+      });
 
-    return () => {
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
-    };
+      return () => {
+        keyboardWillShow.remove();
+        keyboardWillHide.remove();
+      };
+    }
   }, [visible, keyboardOffset]);
 
-  // Combine translateY and keyboardOffset
+  // Combine translateY and keyboardOffset for iOS only
   const combinedTranslateY = Animated.add(translateY, keyboardOffset);
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => Platform.OS === "ios",
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
+        return (
+          Platform.OS === "ios" &&
+          Math.abs(gestureState.dy) > 5 &&
+          gestureState.dy > 0
+        );
       },
       onPanResponderGrant: () => {
-        Keyboard.dismiss();
-        translateY.setOffset((translateY as any)._value || 0);
-        translateY.setValue(0);
+        if (Platform.OS === "ios") {
+          Keyboard.dismiss();
+          translateY.setOffset((translateY as any)._value || 0);
+          translateY.setValue(0);
+        }
       },
       onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
+        if (Platform.OS === "ios" && gestureState.dy > 0) {
           translateY.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        translateY.flattenOffset();
-        const currentValue = (translateY as any)._value || 0;
+        if (Platform.OS === "ios") {
+          translateY.flattenOffset();
+          const currentValue = (translateY as any)._value || 0;
 
-        if (currentValue > DRAG_THRESHOLD || gestureState.vy > 0.5) {
-          Animated.timing(translateY, {
-            toValue: modalHeight.current || SCREEN_HEIGHT,
-            duration: 250,
-            useNativeDriver: true,
-          }).start(() => {
-            translateY.setValue(0);
-            onClose();
-          });
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 65,
-            friction: 11,
-          }).start();
+          if (currentValue > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+            Animated.timing(translateY, {
+              toValue: modalHeight.current || SCREEN_HEIGHT,
+              duration: 250,
+              useNativeDriver: true,
+            }).start(() => {
+              translateY.setValue(0);
+              onClose();
+            });
+          } else {
+            Animated.spring(translateY, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }).start();
+          }
         }
       },
     })
@@ -223,96 +230,192 @@ export default function LeaveFeedbackModal({
       <View style={styles.modalContainer}>
         <Pressable style={styles.backdrop} onPress={onClose} />
 
-        <Animated.View
-          style={[
-            styles.bottomSheet,
-            {
-              transform: [{ translateY: combinedTranslateY }],
-              maxHeight: SCREEN_HEIGHT * 0.9,
-            },
-          ]}
-          onLayout={handleLayout}
-        >
-          <SafeAreaView edges={["bottom"]} style={styles.safeArea}>
-            {/* Handle */}
-            <View style={styles.handleContainer} {...panResponder.panHandlers}>
-              <View style={styles.handle} />
-            </View>
-
-            {/* Content Container */}
-            <View style={styles.contentContainer}>
-              {/* Title */}
-              <Text style={styles.title}>
-                Leave a feedback about the session
-              </Text>
-
-              {/* Scrollable Content */}
-              <ScrollView
-                ref={scrollViewRef}
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled={true}
-              >
-                {/* Text Input Container */}
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    ref={inputRef}
-                    style={styles.textInput}
-                    placeholder="Say something about this session."
-                    placeholderTextColor="#A3A3A3"
-                    multiline
-                    value={feedback}
-                    onChangeText={(text) => {
-                      if (text.length <= MAX_CHARACTERS) {
-                        setFeedback(text);
-                      }
-                    }}
-                    textAlignVertical="top"
-                    returnKeyType="done"
-                    blurOnSubmit={false}
-                  />
-                  {/* Character Counter */}
-                  <View style={styles.counterContainer}>
-                    <Text style={styles.counterText}>
-                      {characterCount}/{MAX_CHARACTERS}
-                    </Text>
-                    <PenIcon size={14} color="#A3A3A3" />
-                  </View>
-                </View>
-              </ScrollView>
-
-              {/* Action Button - Fixed at bottom */}
-              <View
-                style={[
-                  styles.buttonContainer,
-                  {
-                    paddingBottom: keyboardHeight > 0 ? 8 : 20,
-                  },
-                ]}
-              >
-                <Pressable
-                  style={[
-                    styles.actionButton,
-                    isSendDisabled && styles.actionButtonDisabled,
-                  ]}
-                  onPress={handleSend}
-                  disabled={isSendDisabled}
-                >
-                  <Text
-                    style={[
-                      styles.actionButtonText,
-                      isSendDisabled && styles.actionButtonTextDisabled,
-                    ]}
-                  >
-                    Send
-                  </Text>
-                </Pressable>
+        {Platform.OS === "android" ? (
+          <View
+            style={[
+              styles.bottomSheet,
+              {
+                bottom: keyboardHeight,
+                maxHeight: SCREEN_HEIGHT * 0.9,
+              },
+            ]}
+            onLayout={handleLayout}
+          >
+            <SafeAreaView edges={["bottom"]} style={styles.safeArea}>
+              {/* Handle */}
+              <View style={styles.handleContainer}>
+                <View style={styles.handle} />
               </View>
-            </View>
-          </SafeAreaView>
-        </Animated.View>
+
+              {/* Content Container */}
+              <View style={styles.contentContainer}>
+                {/* Title */}
+                <Text style={styles.title}>
+                  Leave a feedback about the session
+                </Text>
+
+                {/* Scrollable Content */}
+                <ScrollView
+                  ref={scrollViewRef}
+                  style={styles.scrollView}
+                  contentContainerStyle={styles.scrollContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  nestedScrollEnabled={true}
+                >
+                  {/* Text Input Container */}
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      ref={inputRef}
+                      style={styles.textInput}
+                      placeholder="Say something about this session."
+                      placeholderTextColor="#A3A3A3"
+                      multiline
+                      value={feedback}
+                      onChangeText={(text) => {
+                        if (text.length <= MAX_CHARACTERS) {
+                          setFeedback(text);
+                        }
+                      }}
+                      textAlignVertical="top"
+                      returnKeyType="done"
+                      blurOnSubmit={false}
+                    />
+                    {/* Character Counter */}
+                    <View style={styles.counterContainer}>
+                      <Text style={styles.counterText}>
+                        {characterCount}/{MAX_CHARACTERS}
+                      </Text>
+                      <PenIcon size={14} color="#A3A3A3" />
+                    </View>
+                  </View>
+                </ScrollView>
+
+                {/* Action Button - Fixed at bottom */}
+                <View
+                  style={[
+                    styles.buttonContainer,
+                    {
+                      paddingBottom: keyboardHeight > 0 ? 8 : 20,
+                    },
+                  ]}
+                >
+                  <Pressable
+                    style={[
+                      styles.actionButton,
+                      isSendDisabled && styles.actionButtonDisabled,
+                    ]}
+                    onPress={handleSend}
+                    disabled={isSendDisabled}
+                  >
+                    <Text
+                      style={[
+                        styles.actionButtonText,
+                        isSendDisabled && styles.actionButtonTextDisabled,
+                      ]}
+                    >
+                      Send
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </SafeAreaView>
+          </View>
+        ) : (
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              {
+                transform: [{ translateY: combinedTranslateY }],
+                maxHeight: SCREEN_HEIGHT * 0.9,
+              },
+            ]}
+            onLayout={handleLayout}
+          >
+            <SafeAreaView edges={["bottom"]} style={styles.safeArea}>
+              {/* Handle */}
+              <View
+                style={styles.handleContainer}
+                {...panResponder.panHandlers}
+              >
+                <View style={styles.handle} />
+              </View>
+
+              {/* Content Container */}
+              <View style={styles.contentContainer}>
+                {/* Title */}
+                <Text style={styles.title}>
+                  Leave a feedback about the session
+                </Text>
+
+                {/* Scrollable Content */}
+                <ScrollView
+                  ref={scrollViewRef}
+                  style={styles.scrollView}
+                  contentContainerStyle={styles.scrollContent}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  nestedScrollEnabled={true}
+                >
+                  {/* Text Input Container */}
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      ref={inputRef}
+                      style={styles.textInput}
+                      placeholder="Say something about this session."
+                      placeholderTextColor="#A3A3A3"
+                      multiline
+                      value={feedback}
+                      onChangeText={(text) => {
+                        if (text.length <= MAX_CHARACTERS) {
+                          setFeedback(text);
+                        }
+                      }}
+                      textAlignVertical="top"
+                      returnKeyType="done"
+                      blurOnSubmit={false}
+                    />
+                    {/* Character Counter */}
+                    <View style={styles.counterContainer}>
+                      <Text style={styles.counterText}>
+                        {characterCount}/{MAX_CHARACTERS}
+                      </Text>
+                      <PenIcon size={14} color="#A3A3A3" />
+                    </View>
+                  </View>
+                </ScrollView>
+
+                {/* Action Button - Fixed at bottom */}
+                <View
+                  style={[
+                    styles.buttonContainer,
+                    {
+                      paddingBottom: keyboardHeight > 0 ? 8 : 20,
+                    },
+                  ]}
+                >
+                  <Pressable
+                    style={[
+                      styles.actionButton,
+                      isSendDisabled && styles.actionButtonDisabled,
+                    ]}
+                    onPress={handleSend}
+                    disabled={isSendDisabled}
+                  >
+                    <Text
+                      style={[
+                        styles.actionButtonText,
+                        isSendDisabled && styles.actionButtonTextDisabled,
+                      ]}
+                    >
+                      Send
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </SafeAreaView>
+          </Animated.View>
+        )}
       </View>
     </Modal>
   );

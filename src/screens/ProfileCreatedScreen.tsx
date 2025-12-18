@@ -47,6 +47,13 @@ function SuccessCheckmarkIcon({ size = 120 }: { size?: number }) {
 export default function ProfileCreatedScreen() {
   const { completeProfile } = useAuth();
 
+  // Log when screen mounts to verify it's being shown
+  React.useEffect(() => {
+    console.log(
+      "ProfileCreatedScreen mounted - success screen should be visible"
+    );
+  }, []);
+
   const handleContinue = async () => {
     try {
       // Complete profile - this will trigger AppNavigator to automatically

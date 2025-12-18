@@ -389,12 +389,16 @@ function Instructions() {
   );
 }
 
-function ManualEntryButton() {
+function ManualEntryButton({
+  onPress,
+}: {
+  onPress: () => void;
+}) {
   return (
     <View className="px-4 pb-4">
       <View className="items-center">
         <Pressable
-          onPress={() => console.log("Enter code manually")}
+          onPress={onPress}
           className="py-4 items-center justify-center bg-neutral-100 rounded-2xl w-[60%] border border-neutral-300"
         >
           <Text className="text-base font-medium text-black">
@@ -2558,6 +2562,298 @@ function ScannedTicketProfileModal({
   );
 }
 
+function ManualCodeEntryModal({
+  visible,
+  onClose,
+  onSubmit,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (code: string) => void;
+}) {
+  const [code, setCode] = useState("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
+  const codeInputRef = useRef<TextInput>(null);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
+      },
+      onPanResponderGrant: () => {
+        translateY.setOffset((translateY as any)._value || 0);
+        translateY.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        translateY.flattenOffset();
+        if (gestureState.dy > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: SCREEN_HEIGHT,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            translateY.setValue(SCREEN_HEIGHT);
+            onClose();
+          });
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+      // Reset code when modal opens
+      setCode("");
+    } else {
+      translateY.setValue(SCREEN_HEIGHT);
+      setCode("");
+    }
+  }, [visible, translateY]);
+
+  // Handle keyboard show/hide
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
+
+  const handleSubmit = () => {
+    if (code.trim().length > 0) {
+      onSubmit(code.trim());
+      setCode("");
+      onClose();
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="none"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <View className="flex-1 bg-black/50">
+        <Pressable
+          className="flex-1"
+          onPress={() => {
+            onClose();
+            Keyboard.dismiss();
+          }}
+        />
+        <Animated.View
+          className="bg-white rounded-t-3xl"
+          style={{
+            transform: [{ translateY }],
+            maxHeight: Dimensions.get("window").height * 0.85,
+            height: Dimensions.get("window").height * 0.85,
+            flexDirection: "column",
+          }}
+        >
+          <View
+            className="items-center pt-2 pb-2"
+            {...panResponder.panHandlers}
+          >
+            <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
+            <Text className="text-xl font-semibold text-black mb-2">
+              Enter Ticket Code
+            </Text>
+            <Text className="text-sm text-neutral-500 text-center px-4">
+              Manually enter the ticket code or QR code number
+            </Text>
+          </View>
+
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={{ flex: 1, minHeight: 0 }}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+          >
+            <ScrollView
+              ref={scrollViewRef}
+              className="px-4"
+              style={{ flex: 1, minHeight: 0, backgroundColor: "#FFFFFF" }}
+              contentContainerStyle={{
+                paddingBottom: keyboardHeight > 0 ? keyboardHeight + 50 : 20,
+                flexGrow: 1,
+              }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+            >
+              {/* Instructions Box */}
+              <View className="bg-blue-50 rounded-xl p-4 border border-blue-200 mb-6">
+                <Text className="text-sm font-medium text-black mb-2">
+                  How to find the code:
+                </Text>
+                <View className="space-y-2">
+                  <View className="flex-row items-start">
+                    <Text className="text-blue-600 mr-2">•</Text>
+                    <Text className="text-sm text-black flex-1">
+                      Look for the ticket number on the physical ticket
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-blue-600 mr-2">•</Text>
+                    <Text className="text-sm text-black flex-1">
+                      Enter the full code including any prefixes (e.g., SPK2025-1234)
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Text className="text-blue-600 mr-2">•</Text>
+                    <Text className="text-sm text-black flex-1">
+                      The code is case-sensitive, enter exactly as shown
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Code Input Field */}
+              <View className="mb-6">
+                <Text className="text-sm font-medium text-black mb-2">
+                  Ticket Code
+                </Text>
+                <View className="bg-neutral-50 rounded-xl border border-neutral-300">
+                  <TextInput
+                    ref={codeInputRef}
+                    className="px-4 py-4 text-base text-black"
+                    placeholder="Enter ticket code (e.g., SPK2025-1234)"
+                    placeholderTextColor="#A3A3A3"
+                    value={code}
+                    onChangeText={setCode}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSubmit}
+                    onFocus={() => {
+                      setTimeout(() => {
+                        if (keyboardHeight > 0) {
+                          scrollViewRef.current?.scrollTo({
+                            y: 100,
+                            animated: true,
+                          });
+                        }
+                      }, 300);
+                    }}
+                  />
+                </View>
+                {code.length > 0 && (
+                  <Text className="text-xs text-neutral-400 mt-2">
+                    {code.length} character{code.length !== 1 ? "s" : ""} entered
+                  </Text>
+                )}
+              </View>
+
+              {/* Visual Code Display (for better UX) */}
+              {code.length > 0 && (
+                <View className="mb-6">
+                  <Text className="text-sm font-medium text-black mb-3">
+                    Preview:
+                  </Text>
+                  <View className="bg-black rounded-xl p-4 border-2 border-neutral-200">
+                    <View className="flex-row items-center justify-between mb-2">
+                      <View className="flex-row items-center">
+                        <QRIconSmall size={20} color="#FFFFFF" />
+                        <Text className="text-white text-sm font-medium ml-2">
+                          Ticket Code
+                        </Text>
+                      </View>
+                      <View className="bg-white/20 px-2 py-1 rounded">
+                        <Text className="text-white text-xs font-mono">
+                          {code.length} chars
+                        </Text>
+                      </View>
+                    </View>
+                    <Text className="text-white text-lg font-mono font-semibold">
+                      {code}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          </KeyboardAvoidingView>
+
+          <SafeAreaView
+            edges={["bottom"]}
+            className="bg-white"
+            style={{
+              paddingHorizontal: 16,
+              paddingTop: 16,
+              paddingBottom: 20,
+              borderTopWidth: 1,
+              borderTopColor: "#F5F5F5",
+            }}
+          >
+            <Pressable
+              onPress={handleSubmit}
+              disabled={code.trim().length === 0}
+              className={`w-full items-center justify-center rounded-xl py-4 px-4 mb-3 ${
+                code.trim().length > 0
+                  ? "bg-black"
+                  : "bg-neutral-200"
+              }`}
+            >
+              <Text
+                className={`text-base font-medium ${
+                  code.trim().length > 0 ? "text-white" : "text-neutral-400"
+                }`}
+              >
+                Verify Ticket
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                onClose();
+                Keyboard.dismiss();
+              }}
+              className="w-full items-center justify-center bg-white border border-neutral-300 rounded-xl py-4 px-4"
+            >
+              <Text className="text-base font-medium text-black">Cancel</Text>
+            </Pressable>
+          </SafeAreaView>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 function EditAssignedTicketModal({
   visible,
   onClose,
@@ -3156,6 +3452,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   ] = useState(false);
   const [scannedTicketProfileVisible, setScannedTicketProfileVisible] =
     useState(false);
+  const [manualCodeEntryModalVisible, setManualCodeEntryModalVisible] =
+    useState(false);
   const [recipientData, setRecipientData] = useState<{
     fullName: string;
     email: string;
@@ -3323,6 +3621,19 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     setScannedTicketProfileVisible(true);
   };
 
+  const handleManualCodeEntry = () => {
+    setManualCodeEntryModalVisible(true);
+  };
+
+  const handleCodeSubmit = (code: string) => {
+    console.log("Submitted code:", code);
+    // Process the code and show the scanned ticket profile
+    // For now, we'll just show the profile modal
+    setTimeout(() => {
+      setScannedTicketProfileVisible(true);
+    }, 300);
+  };
+
   const handleRequestMeeting = () => {
     console.log("Request meeting");
     // Add navigation or modal for meeting request
@@ -3349,7 +3660,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           <>
             <ScanFrame onQRCodePress={handleQRCodePress} />
             <Instructions />
-            <ManualEntryButton />
+            <ManualEntryButton onPress={handleManualCodeEntry} />
           </>
         )}
         <QRCodeModal
@@ -3465,6 +3776,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           onClose={() => setScannedTicketProfileVisible(false)}
           onRequestMeeting={handleRequestMeeting}
           onConnect={handleConnect}
+        />
+        <ManualCodeEntryModal
+          visible={manualCodeEntryModalVisible}
+          onClose={() => setManualCodeEntryModalVisible(false)}
+          onSubmit={handleCodeSubmit}
         />
       </SafeAreaView>
     </View>

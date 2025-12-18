@@ -74,18 +74,55 @@ export default function MeetingCancelModal({
         const kbHeight = e.endCoordinates.height;
         setKeyboardHeight(kbHeight);
 
-        Animated.timing(keyboardOffset, {
-          toValue: -kbHeight,
-          duration: Platform.OS === "ios" ? e.duration || 250 : 250,
-          useNativeDriver: true,
-        }).start();
+        // Calculate offset differently for Android vs iOS
+        let offset: number;
+        if (Platform.OS === "android") {
+          // On Android, keyboard height can be unreliable, so use screenY
+          // screenY gives us the keyboard top position from screen top
+          const keyboardTop = e.endCoordinates.screenY;
+
+          // If screenY is valid and reasonable, use it
+          // Otherwise fall back to keyboard height
+          if (keyboardTop > 0 && keyboardTop < SCREEN_HEIGHT) {
+            // Calculate distance from screen bottom to keyboard top
+            const distanceFromBottom = SCREEN_HEIGHT - keyboardTop;
+            // Clamp to reasonable values (between 0 and screen height)
+            const clampedDistance = Math.max(
+              0,
+              Math.min(distanceFromBottom, SCREEN_HEIGHT * 0.5)
+            );
+            offset = -clampedDistance;
+          } else {
+            // Fallback: use keyboard height, but clamp it
+            const clampedHeight = Math.min(kbHeight, SCREEN_HEIGHT * 0.5);
+            offset = -clampedHeight;
+          }
+        } else {
+          // iOS: use keyboard height directly (works correctly on iOS)
+          offset = -kbHeight;
+        }
+
+        // On Android, add a small delay to ensure keyboard is fully rendered
+        const animateOffset = () => {
+          Animated.timing(keyboardOffset, {
+            toValue: offset,
+            duration: Platform.OS === "ios" ? e.duration || 250 : 250,
+            useNativeDriver: true,
+          }).start();
+        };
+
+        if (Platform.OS === "android") {
+          setTimeout(animateOffset, 100);
+        } else {
+          animateOffset();
+        }
 
         setTimeout(
           () => {
             inputRef.current?.focus();
             scrollViewRef.current?.scrollToEnd({ animated: true });
           },
-          Platform.OS === "ios" ? (e.duration || 250) + 50 : 300
+          Platform.OS === "ios" ? (e.duration || 250) + 50 : 350
         );
       }
     );
