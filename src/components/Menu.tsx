@@ -20,9 +20,10 @@ import {
 interface MenuProps {
   onClose: () => void;
   onNavigate?: (route: string) => void;
+  onLogout?: () => void;
 }
 
-export default function Menu({ onClose, onNavigate }: MenuProps) {
+export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
   const menuItems = [
     {
       label: "My Tickets",
@@ -180,7 +181,9 @@ export default function Menu({ onClose, onNavigate }: MenuProps) {
 
           {/* Logout */}
           <Pressable
-            onPress={() => console.log("Logout")}
+            onPress={() => {
+              onLogout?.();
+            }}
             className="flex-row items-center px-6 py-5 mt-4"
           >
             <LogoutIcon size={20} color="#FF4D4F" />

@@ -1,12 +1,14 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./types";
-import { useAuth } from "../context/AuthContext";
 
 // Auth Screens
-import OnboardingScreen from "../screens/OnboardingScreen";
 import LoginScreen from "../screens/LoginScreen";
-import SignupScreen from "../screens/SignupScreen";
+import VerificationCodeScreen from "../screens/VerificationCodeScreen";
+import WelcomeScreen from "../screens/WelcomeScreen";
+import CompleteProfileScreen from "../screens/CompleteProfileScreen";
+import ProfileCreatedScreen from "../screens/ProfileCreatedScreen";
+import ProfileScreen from "../screens/ProfileScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -14,34 +16,46 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
  * AuthNavigator - Handles authentication flow
  *
  * Flow:
- * - If user hasn't completed onboarding → Show Onboarding first
- * - If onboarding completed → Show Login as initial screen
- * - User can navigate between Login and Signup
+ * - Login (email entry) → VerificationCode screen
+ * - After code verification → Welcome (tickets) → Profile completion → Main App
  */
 export default function AuthNavigator() {
-  const { hasCompletedOnboarding } = useAuth();
-
   return (
     <Stack.Navigator
-      initialRouteName={hasCompletedOnboarding ? "Login" : "Onboarding"}
+      initialRouteName="Login"
       screenOptions={{
         headerShown: false,
         animation: "slide_from_right",
       }}
     >
       <Stack.Screen
-        name="Onboarding"
-        component={OnboardingScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
         name="Login"
         component={LoginScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="Signup"
-        component={SignupScreen}
+        name="VerificationCode"
+        component={VerificationCodeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Welcome"
+        component={WelcomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CompleteProfile"
+        component={CompleteProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ProfileCreated"
+        component={ProfileCreatedScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Profile"
+        component={ProfileScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

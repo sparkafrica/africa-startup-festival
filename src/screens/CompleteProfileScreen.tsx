@@ -8,16 +8,21 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Alert,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
-import type { RootStackParamList } from "../navigation/types";
+import type {
+  RootStackParamList,
+  RootStackScreenProps,
+} from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
 
-// Industry/Sector options from filter modals
+// Industry/Sector options
 const INDUSTRY_OPTIONS = [
   { id: "technology", label: "Technology" },
   { id: "fintech", label: "Fintech" },
@@ -68,12 +73,22 @@ const COUNTRY_OPTIONS = [
   { id: "saudi-arabia", label: "Saudi Arabia", flag: "🇸🇦" },
 ];
 
+// Offer colors
+const OFFER_COLORS = [
+  { id: "purple", label: "Purple", color: "#9333EA" },
+  { id: "green", label: "Green", color: "#10B981" },
+  { id: "blue", label: "Blue", color: "#3B82F6" },
+  { id: "red", label: "Red", color: "#EF4444" },
+  { id: "orange", label: "Orange", color: "#F59E0B" },
+  { id: "pink", label: "Pink", color: "#EC4899" },
+];
+
 interface IconProps {
   size?: number;
   color?: string;
 }
 
-function CameraIcon({ size = 16, color = "#FFFFFF" }: IconProps) {
+function CameraIcon({ size = 20, color = "#FFFFFF" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 16 16" fill="none">
       <Path
@@ -102,6 +117,7 @@ function ChevronDownIcon({ size = 20, color = "#404040" }: IconProps) {
   );
 }
 
+// Icon components for social links (with color prop support)
 function LinkedInIcon({ size = 20, color = "#404040" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
@@ -146,47 +162,41 @@ function XIcon({ size = 20, color = "#404040" }: IconProps) {
   );
 }
 
-function ToggleSwitch({
-  value,
-  onValueChange,
-}: {
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-}) {
+function CloseXIcon({ size = 16, color = "#FFFFFF" }: IconProps) {
   return (
-    <Pressable
-      onPress={() => onValueChange(!value)}
-      className={`w-12 h-7 rounded-full flex-row items-center px-1 ${
-        value ? "bg-green-500" : "bg-neutral-300"
-      }`}
-    >
-      <View
-        className={`w-5 h-5 rounded-full bg-white ${
-          value ? "ml-auto" : "ml-0"
-        }`}
-        style={{
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.2,
-          shadowRadius: 2,
-          elevation: 2,
-        }}
+    <Svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <Path
+        d="M12 4L4 12M4 4L12 12"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
-    </Pressable>
+    </Svg>
   );
 }
 
-function RemoveIcon({ size = 20, color = "#EF4444" }: IconProps) {
+// Progress Indicator Component
+function ProgressIndicator({
+  currentStep = 1,
+  totalSteps = 2,
+}: {
+  currentStep?: number;
+  totalSteps?: number;
+}) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <Circle cx="10" cy="10" r="9" stroke={color} strokeWidth={1.5} />
-      <Path
-        d="M7 10H13"
-        stroke={color}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-      />
-    </Svg>
+    <View className="px-6 pt-4 pb-2">
+      <View className="flex-row gap-2">
+        {Array.from({ length: totalSteps }).map((_, index) => (
+          <View
+            key={index}
+            className={`flex-1 h-1 rounded-full ${
+              index < currentStep ? "bg-black" : "bg-neutral-300"
+            }`}
+          />
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -195,13 +205,11 @@ function ProfilePictureModal({
   onClose,
   onTakePhoto,
   onChoosePhoto,
-  onRemovePhoto,
 }: {
   visible: boolean;
   onClose: () => void;
   onTakePhoto: () => void;
   onChoosePhoto: () => void;
-  onRemovePhoto: () => void;
 }) {
   return (
     <Modal
@@ -222,53 +230,15 @@ function ProfilePictureModal({
             elevation: 10,
           }}
         >
-          {/* Drag Handle */}
           <View className="items-center pt-2 pb-2">
             <View className="w-12 h-1 bg-neutral-300 rounded-full mb-6" />
           </View>
 
-          {/* Modal Content */}
           <View className="px-6 pb-12">
             <Text className="text-[24px] font-bold text-black mb-6 text-center">
               Update Profile Picture
             </Text>
 
-            {/* Profile Picture Preview and Choose Photo */}
-            <View className="flex-row items-center mb-6 pb-2">
-              <View className="w-24 h-24 rounded-full bg-neutral-200 items-center justify-center mr-4">
-                <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
-                  <Circle
-                    cx="12"
-                    cy="8"
-                    r="4"
-                    stroke="#9CA3AF"
-                    strokeWidth={1.5}
-                  />
-                  <Path
-                    d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
-                    stroke="#9CA3AF"
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </Svg>
-              </View>
-              <View className="flex-1">
-                <Pressable
-                  onPress={onChoosePhoto}
-                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 mb-2"
-                >
-                  <Text className="text-base font-medium text-black text-center">
-                    Choose Photo
-                  </Text>
-                </Pressable>
-                <Text className="text-xs text-neutral-500 text-center">
-                  Min 400x400px, PNG or JPEG
-                </Text>
-              </View>
-            </View>
-
-            {/* Action Buttons */}
             <View className="gap-3 pb-4">
               <Pressable
                 onPress={onTakePhoto}
@@ -281,27 +251,11 @@ function ProfilePictureModal({
               </Pressable>
 
               <Pressable
-                onPress={onRemovePhoto}
-                className="bg-white border-2 border-red-500 rounded-xl py-4 flex-row items-center justify-center"
+                onPress={onChoosePhoto}
+                className="bg-neutral-100 border border-neutral-300 rounded-xl py-4 flex-row items-center justify-center"
               >
-                <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
-                  <Circle
-                    cx="10"
-                    cy="10"
-                    r="9"
-                    stroke="#EF4444"
-                    strokeWidth={2}
-                  />
-                  <Path
-                    d="M6.5 6.5L13.5 13.5M13.5 6.5L6.5 13.5"
-                    stroke="#EF4444"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </Svg>
-                <Text className="text-red-500 text-base font-semibold ml-2">
-                  Remove Photo
+                <Text className="text-black text-base font-semibold">
+                  Choose Photo
                 </Text>
               </Pressable>
             </View>
@@ -342,12 +296,10 @@ function IndustryDropdownModal({
             elevation: 10,
           }}
         >
-          {/* Drag Handle */}
           <View className="items-center pt-2 pb-2">
             <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
           </View>
 
-          {/* Modal Content */}
           <View className="px-6 pb-6">
             <View className="flex-row items-center justify-between mb-4">
               <Text className="text-[24px] font-bold text-black">
@@ -428,12 +380,10 @@ function CountryDropdownModal({
             elevation: 10,
           }}
         >
-          {/* Drag Handle */}
           <View className="items-center pt-2 pb-2">
             <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
           </View>
 
-          {/* Modal Content */}
           <View className="px-6 pb-6">
             <View className="flex-row items-center justify-between mb-4">
               <Text className="text-[24px] font-bold text-black">
@@ -485,94 +435,96 @@ function CountryDropdownModal({
   );
 }
 
-function Header() {
-  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-
-  return (
-    <View className="flex-row items-center justify-between px-6 pt-4 pb-4">
-      <Text className="text-[28px] font-bold text-black">Manage Profile</Text>
-      <Pressable
-        onPress={() => navigation.goBack()}
-        className="w-10 h-10 items-center justify-center"
-        hitSlop={10}
-      >
-        <CloseIcon size={20} color="#000000" />
-      </Pressable>
-    </View>
-  );
-}
-
-function SegmentedControl({
-  activeTab,
-  onTabChange,
+function OfferColorModal({
+  visible,
+  onClose,
+  selectedColor,
+  onSelect,
 }: {
-  activeTab: "Personal" | "Company";
-  onTabChange: (tab: "Personal" | "Company") => void;
+  visible: boolean;
+  onClose: () => void;
+  selectedColor: string;
+  onSelect: (colorId: string) => void;
 }) {
   return (
-    <View className="px-6 pb-4">
-      <View className="flex-row bg-neutral-100 rounded-2xl p-1">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable className="flex-1 bg-black/50" onPress={onClose}>
         <Pressable
-          onPress={() => onTabChange("Personal")}
-          className={`flex-1 py-3 px-4 ${
-            activeTab === "Personal" ? "bg-white rounded-xl" : "bg-transparent"
-          }`}
-          style={
-            activeTab === "Personal"
-              ? {
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.05,
-                  shadowRadius: 2,
-                  elevation: 1,
-                }
-              : undefined
-          }
+          className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[50%]"
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 10,
+          }}
         >
-          <Text
-            className={`text-sm font-medium text-center ${
-              activeTab === "Personal" ? "text-black" : "text-neutral-500"
-            }`}
-          >
-            Personal
-          </Text>
+          <View className="items-center pt-2 pb-2">
+            <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
+          </View>
+
+          <View className="px-6 pb-6">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-[24px] font-bold text-black">
+                Select Color
+              </Text>
+              <Pressable
+                onPress={onClose}
+                className="w-8 h-8 items-center justify-center"
+              >
+                <CloseIcon size={20} color="#000000" />
+              </Pressable>
+            </View>
+
+            <View className="flex-row flex-wrap gap-3">
+              {OFFER_COLORS.map((colorOption) => {
+                const isSelected = selectedColor === colorOption.id;
+                return (
+                  <Pressable
+                    key={colorOption.id}
+                    onPress={() => {
+                      onSelect(colorOption.id);
+                      onClose();
+                    }}
+                    className="items-center"
+                  >
+                    <View
+                      className={`w-16 h-16 rounded-xl ${
+                        isSelected ? "border-2 border-black" : ""
+                      }`}
+                      style={{ backgroundColor: colorOption.color }}
+                    />
+                    <Text className="text-xs mt-2 text-neutral-700">
+                      {colorOption.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </Pressable>
-        <Pressable
-          onPress={() => onTabChange("Company")}
-          className={`flex-1 py-3 px-4 ${
-            activeTab === "Company" ? "bg-white rounded-xl" : "bg-transparent"
-          }`}
-          style={
-            activeTab === "Company"
-              ? {
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.05,
-                  shadowRadius: 2,
-                  elevation: 1,
-                }
-              : undefined
-          }
-        >
-          <Text
-            className={`text-sm font-medium text-center ${
-              activeTab === "Company" ? "text-black" : "text-neutral-500"
-            }`}
-          >
-            Company
-          </Text>
-        </Pressable>
-      </View>
-    </View>
+      </Pressable>
+    </Modal>
   );
 }
 
-function PersonalProfileSection() {
-  const [fullName, setFullName] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [company, setCompany] = useState("");
+// Attendee Profile Form Component (single screen, no progress bar)
+function AttendeeProfileForm() {
+  const { completeProfile } = useAuth();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const [fullName, setFullName] = useState("John Doe");
+  const [jobTitle, setJobTitle] = useState("Product Manager");
+  const [company, setCompany] = useState("TechCorp");
   const [linkedIn, setLinkedIn] = useState("");
-  const [bio, setBio] = useState("");
+  const [bio, setBio] = useState(
+    "Passionate about building innovative products that solve real problems."
+  );
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
@@ -583,6 +535,7 @@ function PersonalProfileSection() {
     "Product Strategy",
   ]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -612,6 +565,40 @@ function PersonalProfileSection() {
     }
   };
 
+  const handleCompleteProfile = async () => {
+    // Validate required fields
+    if (!fullName.trim()) {
+      Alert.alert("Required Field", "Please enter your full name");
+      return;
+    }
+
+    if (selectedInterests.length < 5) {
+      Alert.alert(
+        "Interests Required",
+        "Please select at least 5 interests (up to 12)"
+      );
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // TODO: Save profile data to backend API
+      // await api.post('/profile/complete', { fullName, jobTitle, company, ... });
+
+      // Complete profile
+      await completeProfile();
+
+      // Navigate to success screen
+      navigation.navigate("ProfileCreated");
+    } catch (error) {
+      console.error("Error completing profile:", error);
+      Alert.alert("Error", "Failed to complete profile. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -625,71 +612,62 @@ function PersonalProfileSection() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
       >
-        <View className="px-4">
-          {/* Profile Picture and Name Section */}
-          <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-2">
-            <View className="flex-row items-center mb-4">
-              <View className="relative">
-                <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center">
-                  <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
-                    <Circle
-                      cx="12"
-                      cy="8"
-                      r="4"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
-                    />
-                    <Path
-                      d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </Svg>
-                </View>
-                <Pressable
-                  className="absolute bottom-0 right-0 w-6 h-6 bg-black rounded-full items-center justify-center border-2 border-white"
-                  onPress={() => setShowProfileModal(true)}
-                >
-                  <CameraIcon size={12} color="#FFFFFF" />
-                </Pressable>
-              </View>
-              <View className="ml-4 flex-1">
-                <Text className="text-[18px] font-bold text-black">
-                  John Doe
-                </Text>
-                <Text className="text-sm text-neutral-600 mt-1">
-                  John.doe@email.com
-                </Text>
-              </View>
-            </View>
-
-            {/* Email Warning */}
-            <View
-              className="rounded-xl p-3"
-              style={{
-                backgroundColor: "#FEF3C7",
-                borderWidth: 1,
-                borderColor: "#FDE68A",
-              }}
-            >
-              <Text className="text-sm text-neutral-700">
-                Email cannot be changed as it's linked to your ticket.{" "}
-                <Text className="underline">Contact support</Text> if needed.
-              </Text>
-            </View>
+        <View className="px-6 py-6">
+          {/* Title and Subtitle */}
+          <View className="items-center mb-8">
+            <Text className="text-[32px] font-bold text-neutral-900 text-center mb-2">
+              Complete Your Personal Profile
+            </Text>
+            <Text className="text-base text-neutral-600 text-center">
+              Help others connect with you
+            </Text>
           </View>
 
-          {/* Personal Information Section */}
-          <View className="rounded-2xl border border-neutral-200  mb-6 px-2">
+          {/* Profile Photo Upload Section */}
+          <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
+            <View className="relative mb-4">
+              <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center">
+                <Svg width={64} height={64} viewBox="0 0 24 24" fill="none">
+                  <Circle
+                    cx="12"
+                    cy="8"
+                    r="4"
+                    stroke="#9CA3AF"
+                    strokeWidth={1.5}
+                  />
+                  <Path
+                    d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
+                    stroke="#9CA3AF"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </Svg>
+              </View>
+              <Pressable
+                className="absolute bottom-0 right-0 w-10 h-10 bg-black rounded-full items-center justify-center border-2 border-white"
+                onPress={() => setShowProfileModal(true)}
+              >
+                <CameraIcon size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
+            <Text className="text-sm font-medium text-neutral-900 mb-1">
+              Upload a photo of yourself
+            </Text>
+            <Text className="text-xs text-neutral-500">
+              Recommended: 400x400px minimum
+            </Text>
+          </View>
+
+          {/* Form Fields */}
+          <View className="rounded-2xl border border-neutral-200 mb-6 px-4 py-4">
             {/* Full Name */}
-            <View className="mb-4 pt-4">
+            <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Full Name
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                 value={fullName}
                 onChangeText={setFullName}
                 placeholder="Enter full name"
@@ -702,7 +680,7 @@ function PersonalProfileSection() {
                 Job Title
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                 value={jobTitle}
                 onChangeText={setJobTitle}
                 placeholder="Enter job title"
@@ -715,7 +693,7 @@ function PersonalProfileSection() {
                 Company
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                 value={company}
                 onChangeText={setCompany}
                 placeholder="Enter company name"
@@ -729,12 +707,12 @@ function PersonalProfileSection() {
               </Text>
               <View className="flex-row items-center gap-2">
                 <TextInput
-                  className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                  className="flex-1 bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                   value={linkedIn}
                   onChangeText={setLinkedIn}
                   placeholder="Insert profile link"
                 />
-                <Pressable className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
+                <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
                   <Text className="text-sm font-medium text-black">
                     Paste link
                   </Text>
@@ -749,13 +727,13 @@ function PersonalProfileSection() {
               </Text>
               <Pressable
                 onPress={() => setShowCountryModal(true)}
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
               >
                 <View className="flex-row items-center flex-1">
                   <Text className="text-xl mr-2">
                     {selectedCountryData.flag}
                   </Text>
-                  <Text className="text-base text-black">
+                  <Text className="text-base text-neutral-900">
                     {selectedCountryData.label}
                   </Text>
                 </View>
@@ -770,9 +748,9 @@ function PersonalProfileSection() {
               </Text>
               <Pressable
                 onPress={() => setShowIndustryModal(true)}
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
               >
-                <Text className="text-base text-black">
+                <Text className="text-base text-neutral-900">
                   {selectedIndustryLabel}
                 </Text>
                 <ChevronDownIcon size={20} color="#404040" />
@@ -786,7 +764,7 @@ function PersonalProfileSection() {
               </Text>
               <View className="relative">
                 <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black min-h-[100px]"
+                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[100px]"
                   value={bio}
                   onChangeText={setBio}
                   placeholder="Tell us about yourself"
@@ -847,6 +825,33 @@ function PersonalProfileSection() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Next Button - Fixed at Bottom */}
+      <View
+        className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pt-4 pb-6"
+        style={{
+          paddingBottom: Platform.OS === "ios" ? 34 : 24,
+        }}
+      >
+        <Pressable
+          onPress={handleCompleteProfile}
+          disabled={isSubmitting || selectedInterests.length < 5}
+          className={`rounded-xl py-4 items-center justify-center ${
+            selectedInterests.length >= 5 && !isSubmitting
+              ? "bg-black"
+              : "bg-neutral-300"
+          }`}
+          style={{
+            opacity: selectedInterests.length >= 5 && !isSubmitting ? 1 : 0.6,
+          }}
+        >
+          <Text className="text-white text-base font-semibold">
+            Complete your profile
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Modals */}
       <ProfilePictureModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
@@ -856,10 +861,6 @@ function PersonalProfileSection() {
         }}
         onChoosePhoto={() => {
           console.log("Choose Photo");
-          setShowProfileModal(false);
-        }}
-        onRemovePhoto={() => {
-          console.log("Remove Photo");
           setShowProfileModal(false);
         }}
       />
@@ -879,11 +880,16 @@ function PersonalProfileSection() {
   );
 }
 
-function AttendeeProfileSection() {
-  const [fullName, setFullName] = useState("");
-  const [jobTitle, setJobTitle] = useState("");
-  const [company, setCompany] = useState("");
-  const [bio, setBio] = useState("");
+// Personal Profile Form Component (Step 1 of 2 for Company/Partner accounts)
+function PersonalProfileForm() {
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const [fullName, setFullName] = useState("John Doe");
+  const [jobTitle, setJobTitle] = useState("Product Manager");
+  const [company, setCompany] = useState("TechCorp");
+  const [linkedIn, setLinkedIn] = useState("");
+  const [bio, setBio] = useState(
+    "Passionate about building innovative products that solve real problems."
+  );
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
@@ -894,6 +900,7 @@ function AttendeeProfileSection() {
     "Product Strategy",
   ]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -923,12 +930,44 @@ function AttendeeProfileSection() {
     }
   };
 
+  const handleNext = async () => {
+    // Validate required fields
+    if (!fullName.trim()) {
+      Alert.alert("Required Field", "Please enter your full name");
+      return;
+    }
+
+    if (selectedInterests.length < 5) {
+      Alert.alert(
+        "Interests Required",
+        "Please select at least 5 interests (up to 12)"
+      );
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // TODO: Save personal profile data to backend API
+      // await api.post('/profile/personal', { fullName, jobTitle, company, ... });
+
+      // Navigate to company profile (step 2)
+      navigation.navigate("CompleteProfile", { step: "company" });
+    } catch (error) {
+      console.error("Error saving personal profile:", error);
+      Alert.alert("Error", "Failed to save profile. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       className="flex-1"
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
+      <ProgressIndicator currentStep={1} totalSteps={2} />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -936,71 +975,62 @@ function AttendeeProfileSection() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
       >
-        <View className="px-4">
-          {/* Profile Picture and Name Section */}
-          <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-2">
-            <View className="flex-row items-center mb-4">
-              <View className="relative">
-                <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center">
-                  <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
-                    <Circle
-                      cx="12"
-                      cy="8"
-                      r="4"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
-                    />
-                    <Path
-                      d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </Svg>
-                </View>
-                <Pressable
-                  className="absolute bottom-0 right-0 w-6 h-6 bg-black rounded-full items-center justify-center border-2 border-white"
-                  onPress={() => setShowProfileModal(true)}
-                >
-                  <CameraIcon size={12} color="#FFFFFF" />
-                </Pressable>
-              </View>
-              <View className="ml-4 flex-1">
-                <Text className="text-[18px] font-bold text-black">
-                  John Doe
-                </Text>
-                <Text className="text-sm text-neutral-600 mt-1">
-                  John.doe@email.com
-                </Text>
-              </View>
-            </View>
-
-            {/* Email Warning */}
-            <View
-              className="rounded-xl p-3"
-              style={{
-                backgroundColor: "#FEF3C7",
-                borderWidth: 1,
-                borderColor: "#FDE68A",
-              }}
-            >
-              <Text className="text-sm text-neutral-700">
-                Email cannot be changed as it's linked to your ticket.{" "}
-                <Text className="underline">Contact support</Text> if needed.
-              </Text>
-            </View>
+        <View className="px-6 py-6">
+          {/* Title and Subtitle */}
+          <View className="items-center mb-8">
+            <Text className="text-[32px] font-bold text-neutral-900 text-center mb-2">
+              Complete Your Personal Profile
+            </Text>
+            <Text className="text-base text-neutral-600 text-center">
+              Help others connect with you
+            </Text>
           </View>
 
-          {/* Personal Information Section */}
-          <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
+          {/* Profile Photo Upload Section */}
+          <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
+            <View className="relative mb-4">
+              <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center">
+                <Svg width={64} height={64} viewBox="0 0 24 24" fill="none">
+                  <Circle
+                    cx="12"
+                    cy="8"
+                    r="4"
+                    stroke="#9CA3AF"
+                    strokeWidth={1.5}
+                  />
+                  <Path
+                    d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
+                    stroke="#9CA3AF"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </Svg>
+              </View>
+              <Pressable
+                className="absolute bottom-0 right-0 w-10 h-10 bg-black rounded-full items-center justify-center border-2 border-white"
+                onPress={() => setShowProfileModal(true)}
+              >
+                <CameraIcon size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
+            <Text className="text-sm font-medium text-neutral-900 mb-1">
+              Upload a photo of yourself
+            </Text>
+            <Text className="text-xs text-neutral-500">
+              Recommended: 400x400px minimum
+            </Text>
+          </View>
+
+          {/* Form Fields */}
+          <View className="rounded-2xl border border-neutral-200 mb-6 px-4 py-4">
             {/* Full Name */}
-            <View className="mb-4 pt-4">
+            <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Full Name
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                 value={fullName}
                 onChangeText={setFullName}
                 placeholder="Enter full name"
@@ -1013,7 +1043,7 @@ function AttendeeProfileSection() {
                 Job Title
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                 value={jobTitle}
                 onChangeText={setJobTitle}
                 placeholder="Enter job title"
@@ -1026,11 +1056,31 @@ function AttendeeProfileSection() {
                 Company
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                 value={company}
                 onChangeText={setCompany}
                 placeholder="Enter company name"
               />
+            </View>
+
+            {/* LinkedIn */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                LinkedIn
+              </Text>
+              <View className="flex-row items-center gap-2">
+                <TextInput
+                  className="flex-1 bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                  value={linkedIn}
+                  onChangeText={setLinkedIn}
+                  placeholder="Insert profile link"
+                />
+                <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
+                  <Text className="text-sm font-medium text-black">
+                    Paste link
+                  </Text>
+                </Pressable>
+              </View>
             </View>
 
             {/* Country */}
@@ -1040,13 +1090,13 @@ function AttendeeProfileSection() {
               </Text>
               <Pressable
                 onPress={() => setShowCountryModal(true)}
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
               >
                 <View className="flex-row items-center flex-1">
                   <Text className="text-xl mr-2">
                     {selectedCountryData.flag}
                   </Text>
-                  <Text className="text-base text-black">
+                  <Text className="text-base text-neutral-900">
                     {selectedCountryData.label}
                   </Text>
                 </View>
@@ -1061,9 +1111,9 @@ function AttendeeProfileSection() {
               </Text>
               <Pressable
                 onPress={() => setShowIndustryModal(true)}
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
               >
-                <Text className="text-base text-black">
+                <Text className="text-base text-neutral-900">
                   {selectedIndustryLabel}
                 </Text>
                 <ChevronDownIcon size={20} color="#404040" />
@@ -1077,7 +1127,7 @@ function AttendeeProfileSection() {
               </Text>
               <View className="relative">
                 <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black min-h-[100px]"
+                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[100px]"
                   value={bio}
                   onChangeText={setBio}
                   placeholder="Tell us about yourself"
@@ -1138,6 +1188,31 @@ function AttendeeProfileSection() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Next Button - Fixed at Bottom */}
+      <View
+        className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pt-4 pb-6"
+        style={{
+          paddingBottom: Platform.OS === "ios" ? 34 : 24,
+        }}
+      >
+        <Pressable
+          onPress={handleNext}
+          disabled={isSubmitting || selectedInterests.length < 5}
+          className={`rounded-xl py-4 items-center justify-center ${
+            selectedInterests.length >= 5 && !isSubmitting
+              ? "bg-black"
+              : "bg-neutral-300"
+          }`}
+          style={{
+            opacity: selectedInterests.length >= 5 && !isSubmitting ? 1 : 0.6,
+          }}
+        >
+          <Text className="text-white text-base font-semibold">Next</Text>
+        </Pressable>
+      </View>
+
+      {/* Modals */}
       <ProfilePictureModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
@@ -1147,10 +1222,6 @@ function AttendeeProfileSection() {
         }}
         onChoosePhoto={() => {
           console.log("Choose Photo");
-          setShowProfileModal(false);
-        }}
-        onRemovePhoto={() => {
-          console.log("Remove Photo");
           setShowProfileModal(false);
         }}
       />
@@ -1170,35 +1241,45 @@ function AttendeeProfileSection() {
   );
 }
 
-function CompanyProfileSection() {
-  const [companyName, setCompanyName] = useState("");
-  const [boothNumber, setBoothNumber] = useState("");
-  const [website, setWebsite] = useState("");
-  const [companyDescription, setCompanyDescription] = useState("");
+// Company Profile Form Component (Step 2 of 2 for Company/Partner accounts)
+function CompanyProfileForm() {
+  const { completeProfile } = useAuth();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const [companyName, setCompanyName] = useState("TechCorp Inc");
+  const [boothNumber, setBoothNumber] = useState("Booth 24");
+  const [website, setWebsite] = useState("techcorp.com");
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
-  const [offers, setOffers] = useState<Array<{ title: string; color: string }>>(
-    []
+  const [companyDescription, setCompanyDescription] = useState(
+    "Empowering innovation across Africa. High-growth tech company showcasing new products at Spark Summit."
   );
+  const [offers, setOffers] = useState<
+    Array<{ id: string; title: string; color: string }>
+  >([
+    { id: "1", title: "Startup Mentorship", color: "purple" },
+    { id: "2", title: "Free Azure Credits", color: "green" },
+  ]);
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [newOfferTitle, setNewOfferTitle] = useState("");
-  const [newOfferColor, setNewOfferColor] = useState<string | undefined>(
-    undefined
-  );
-  const [linkedIn, setLinkedIn] = useState("");
-  const [facebook, setFacebook] = useState("");
-  const [instagram, setInstagram] = useState("");
-  const [xHandle, setXHandle] = useState("");
+  const [newOfferColor, setNewOfferColor] = useState("purple");
+  const [showColorModal, setShowColorModal] = useState(false);
+  const [socialLinks, setSocialLinks] = useState({
+    linkedin: "TechCorp_ng",
+    facebook: "TechCorp_ng",
+    instagram: "TechCorp_ng",
+    x: "TechCorp_ng",
+  });
   const [isRecruiting, setIsRecruiting] = useState(true);
   const [showAddPosition, setShowAddPosition] = useState(false);
-  const [newJobRole, setNewJobRole] = useState("");
-  const [newJobLink, setNewJobLink] = useState("");
-  const [positions, setPositions] = useState<string[]>([
-    "Chief Operating Officer",
-  ]);
+  const [newPositionRole, setNewPositionRole] = useState("");
+  const [newPositionLink, setNewPositionLink] = useState("");
+  const [positions, setPositions] = useState<
+    Array<{ id: string; role: string; link: string }>
+  >([{ id: "1", role: "Chief Operating Officer", link: "" }]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -1207,35 +1288,67 @@ function CompanyProfileSection() {
     COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
     COUNTRY_OPTIONS[0];
 
-  const addOffer = () => {
+  const handleAddOffer = () => {
     if (newOfferTitle.trim()) {
-      // Use selected color or default to green if none selected
-      const offerColor = newOfferColor || "#4CAF50";
-      setOffers([...offers, { title: newOfferTitle, color: offerColor }]);
+      setOffers([
+        ...offers,
+        {
+          id: Date.now().toString(),
+          title: newOfferTitle,
+          color: newOfferColor,
+        },
+      ]);
       setNewOfferTitle("");
-      setNewOfferColor(undefined);
+      setNewOfferColor("purple");
       setShowAddOffer(false);
     }
   };
 
-  const removeOffer = (offer: { title: string; color: string }) => {
-    setOffers(offers.filter((o) => o.title !== offer.title));
+  const handleRemoveOffer = (id: string) => {
+    setOffers(offers.filter((offer) => offer.id !== id));
   };
 
-  const addPosition = () => {
-    if (newJobRole.trim()) {
-      setPositions([...positions, newJobRole]);
-      setNewJobRole("");
-      setNewJobLink("");
+  const handleAddPosition = () => {
+    if (newPositionRole.trim()) {
+      setPositions([
+        ...positions,
+        {
+          id: Date.now().toString(),
+          role: newPositionRole,
+          link: newPositionLink,
+        },
+      ]);
+      setNewPositionRole("");
+      setNewPositionLink("");
       setShowAddPosition(false);
     }
   };
 
-  const removePosition = (position: string) => {
-    setPositions(positions.filter((p) => p !== position));
+  const handleRemovePosition = (id: string) => {
+    setPositions(positions.filter((pos) => pos.id !== id));
   };
 
-  // Removed getOfferColor - now using color from offer object directly
+  const handleDone = async () => {
+    if (!companyName.trim()) {
+      Alert.alert("Required Field", "Please enter company name");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // TODO: Save company profile data to backend API
+      // await api.post('/company/profile/complete', { companyName, boothNumber, ... });
+
+      // Navigate to success screen (completeProfile will be called there)
+      navigation.navigate("ProfileCreated");
+    } catch (error) {
+      console.error("Error completing profile:", error);
+      Alert.alert("Error", "Failed to complete profile. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -1243,6 +1356,7 @@ function CompanyProfileSection() {
       className="flex-1"
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
+      <ProgressIndicator currentStep={2} totalSteps={2} />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -1250,69 +1364,62 @@ function CompanyProfileSection() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
       >
-        <View className="px-4">
-          {/* Company Picture and Name Section */}
-          <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
-            <View className="flex-row items-center mb-4 pt-3">
-              <View className="relative">
-                <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center">
-                  <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
-                    <Circle
-                      cx="12"
-                      cy="8"
-                      r="4"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
-                    />
-                    <Path
-                      d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </Svg>
-                </View>
-                <Pressable
-                  className="absolute bottom-0 right-0 w-6 h-6 bg-black rounded-full items-center justify-center border-2 border-white"
-                  onPress={() => setShowProfileModal(true)}
-                >
-                  <CameraIcon size={12} color="#FFFFFF" />
-                </Pressable>
-              </View>
-              <View className="ml-4 flex-1">
-                <Text className="text-[18px] font-bold text-black">
-                  TechCorp Inc
-                </Text>
-                <Text className="text-sm text-neutral-600 mt-1">Booth 24</Text>
-              </View>
-            </View>
-
-            {/* Email Warning */}
-            <View
-              className="rounded-xl p-3 mb-6"
-              style={{
-                backgroundColor: "#FEF3C7",
-                borderWidth: 1,
-                borderColor: "#FDE68A",
-              }}
-            >
-              <Text className="text-sm text-neutral-700">
-                Email cannot be changed as it's linked to your ticket.{" "}
-                <Text className="underline">Contact support</Text> if needed.
-              </Text>
-            </View>
+        <View className="px-6 py-6">
+          {/* Title and Subtitle */}
+          <View className="items-center mb-8">
+            <Text className="text-[32px] font-bold text-neutral-900 text-center mb-2">
+              Complete Your Company Profile
+            </Text>
+            <Text className="text-base text-neutral-600 text-center">
+              Help others connect with your business
+            </Text>
           </View>
 
-          {/* Company Information Section */}
-          <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
+          {/* Company Logo Upload Section */}
+          <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
+            <View className="relative mb-4">
+              <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center">
+                <Svg width={64} height={64} viewBox="0 0 24 24" fill="none">
+                  <Circle
+                    cx="12"
+                    cy="8"
+                    r="4"
+                    stroke="#9CA3AF"
+                    strokeWidth={1.5}
+                  />
+                  <Path
+                    d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
+                    stroke="#9CA3AF"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </Svg>
+              </View>
+              <Pressable
+                className="absolute bottom-0 right-0 w-10 h-10 bg-black rounded-full items-center justify-center border-2 border-white"
+                onPress={() => setShowProfileModal(true)}
+              >
+                <CameraIcon size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
+            <Text className="text-sm font-medium text-neutral-900 mb-1">
+              Upload a logo of company
+            </Text>
+            <Text className="text-xs text-neutral-500">
+              Recommended: 400x400px minimum
+            </Text>
+          </View>
+
+          {/* Company Information Fields */}
+          <View className="rounded-2xl border border-neutral-200 mb-6 px-4 py-4">
             {/* Company Name */}
-            <View className="mb-4 pt-4">
-              <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Company Name
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                 value={companyName}
                 onChangeText={setCompanyName}
                 placeholder="Enter company name"
@@ -1321,11 +1428,11 @@ function CompanyProfileSection() {
 
             {/* Booth Number */}
             <View className="mb-4">
-              <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Booth Number
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                 value={boothNumber}
                 onChangeText={setBoothNumber}
                 placeholder="Enter booth number"
@@ -1334,17 +1441,17 @@ function CompanyProfileSection() {
 
             {/* Website */}
             <View className="mb-4">
-              <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Website
               </Text>
               <View className="flex-row items-center gap-2">
                 <TextInput
-                  className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                  className="flex-1 bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                   value={website}
                   onChangeText={setWebsite}
                   placeholder="Enter website URL"
                 />
-                <Pressable className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
+                <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
                   <Text className="text-sm font-medium text-black">
                     Paste link
                   </Text>
@@ -1354,14 +1461,14 @@ function CompanyProfileSection() {
 
             {/* Industry/Sector */}
             <View className="mb-4">
-              <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Industry/Sector
               </Text>
               <Pressable
                 onPress={() => setShowIndustryModal(true)}
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
               >
-                <Text className="text-base text-black">
+                <Text className="text-base text-neutral-900">
                   {selectedIndustryLabel}
                 </Text>
                 <ChevronDownIcon size={20} color="#404040" />
@@ -1370,18 +1477,18 @@ function CompanyProfileSection() {
 
             {/* Country */}
             <View className="mb-4">
-              <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Country
               </Text>
               <Pressable
                 onPress={() => setShowCountryModal(true)}
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
               >
                 <View className="flex-row items-center flex-1">
                   <Text className="text-xl mr-2">
                     {selectedCountryData.flag}
                   </Text>
-                  <Text className="text-base text-black">
+                  <Text className="text-base text-neutral-900">
                     {selectedCountryData.label}
                   </Text>
                 </View>
@@ -1391,15 +1498,15 @@ function CompanyProfileSection() {
 
             {/* Company Description */}
             <View className="mb-4">
-              <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Company Description
               </Text>
               <View className="relative">
                 <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-gray-500 min-h-[100px]"
+                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[100px]"
                   value={companyDescription}
                   onChangeText={setCompanyDescription}
-                  placeholder="Describe your company"
+                  placeholder="Tell us about your company"
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -1422,83 +1529,51 @@ function CompanyProfileSection() {
             </View>
           </View>
 
-          {/* Event Offers */}
-          <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
-            <View className="flex-row items-center justify-between mb-3 pt-4">
-              <Text className="text-[14px] font-semibold text-neutral-700">
+          {/* Event Offers Section */}
+          <View className="mb-6 rounded-2xl border border-neutral-200 p-4">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-sm font-medium text-neutral-700">
                 Event Offers
               </Text>
-              <Pressable
-                onPress={() => setShowAddOffer(!showAddOffer)}
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-3 py-1.5"
-              >
-                <Text className="text-sm font-medium text-black">
+              <Pressable onPress={() => setShowAddOffer(!showAddOffer)}>
+                <Text className="text-blue-600 text-sm font-medium">
                   + Add Offer
                 </Text>
               </Pressable>
             </View>
 
             {showAddOffer && (
-              <View className="mb-3 p-4 bg-neutral-50 rounded-xl border border-neutral-200">
+              <View className="mb-4 gap-3">
                 <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                   value={newOfferTitle}
                   onChangeText={setNewOfferTitle}
                   placeholder="Offer title (e.g., Free Consultation)"
                 />
-
-                {/* Offer color picker (ROYGBIV) */}
-                <View className="mb-3">
-                  <Text className="text-sm font-medium text-neutral-700 mb-2">
-                    Select Color
-                  </Text>
+                <Pressable
+                  onPress={() => setShowColorModal(true)}
+                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+                >
                   <View className="flex-row items-center gap-2">
-                    {/* Color palette */}
-                    {[
-                      { name: "Red", val: "#F44336" },
-                      { name: "Orange", val: "#FF9800" },
-                      { name: "Yellow", val: "#FFEB3B" },
-                      { name: "Green", val: "#4CAF50" },
-                      { name: "Blue", val: "#2196F3" },
-                      { name: "Indigo", val: "#3F51B5" },
-                      { name: "Violet", val: "#9C27B0" },
-                    ].map((colorOption) => (
-                      <Pressable
-                        key={colorOption.name}
-                        onPress={() => setNewOfferColor(colorOption.val)}
-                        className={`w-7 h-7 rounded-full items-center justify-center border ${
-                          newOfferColor === colorOption.val
-                            ? "border-black"
-                            : "border-white"
-                        }`}
-                        style={{ backgroundColor: colorOption.val }}
-                        accessibilityLabel={colorOption.name}
-                      >
-                        {newOfferColor === colorOption.val && (
-                          <Svg
-                            width={14}
-                            height={14}
-                            viewBox="0 0 14 14"
-                            fill="none"
-                          >
-                            <Path
-                              d="M3 7.5L6 10L11 4"
-                              stroke="#fff"
-                              strokeWidth={2}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </Svg>
-                        )}
-                      </Pressable>
-                    ))}
+                    <View
+                      className="w-6 h-6 rounded"
+                      style={{
+                        backgroundColor:
+                          OFFER_COLORS.find((c) => c.id === newOfferColor)
+                            ?.color || "#9333EA",
+                      }}
+                    />
+                    <Text className="text-base text-neutral-900">
+                      {OFFER_COLORS.find((c) => c.id === newOfferColor)
+                        ?.label || "Purple"}
+                    </Text>
                   </View>
-                </View>
-
+                  <ChevronDownIcon size={20} color="#404040" />
+                </Pressable>
                 <View className="flex-row gap-2">
                   <Pressable
-                    onPress={addOffer}
-                    className="flex-1 bg-black rounded-xl py-3 items-center"
+                    onPress={handleAddOffer}
+                    className="flex-1 bg-neutral-800 rounded-xl py-3 items-center"
                   >
                     <Text className="text-white text-sm font-medium">Add</Text>
                   </Pressable>
@@ -1506,7 +1581,6 @@ function CompanyProfileSection() {
                     onPress={() => {
                       setShowAddOffer(false);
                       setNewOfferTitle("");
-                      setNewOfferColor(undefined);
                     }}
                     className="flex-1 bg-white border border-neutral-300 rounded-xl py-3 items-center"
                   >
@@ -1518,35 +1592,29 @@ function CompanyProfileSection() {
               </View>
             )}
 
-            {/* Event Offers List */}
-            <View className="flex-row flex-wrap gap-2 pb-4">
-              {offers.map((offer, index) => (
-                <View
-                  key={`${offer.title}-${index}`}
-                  className="flex-row items-center px-4 py-2 rounded-full"
-                  style={{
-                    backgroundColor: offer.color || "#4CAF50",
-                  }}
-                >
-                  <Text className="text-sm font-medium text-white mr-2">
-                    {offer.title}
-                  </Text>
-                  <Pressable onPress={() => removeOffer(offer)}>
-                    <Svg width={14} height={14} viewBox="0 0 14 14" fill="none">
-                      <Path
-                        d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5"
-                        stroke="white"
-                        strokeWidth={1.5}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </Svg>
-                  </Pressable>
-                </View>
-              ))}
+            {/* Existing Offers */}
+            <View className="flex-row flex-wrap gap-2">
+              {offers.map((offer) => {
+                const colorData = OFFER_COLORS.find(
+                  (c) => c.id === offer.color
+                );
+                return (
+                  <View
+                    key={offer.id}
+                    className="flex-row items-center rounded-full px-4 py-2"
+                    style={{ backgroundColor: colorData?.color || "#9333EA" }}
+                  >
+                    <Text className="text-white text-sm font-medium mr-2">
+                      {offer.title}
+                    </Text>
+                    <Pressable onPress={() => handleRemoveOffer(offer.id)}>
+                      <CloseXIcon size={14} color="#FFFFFF" />
+                    </Pressable>
+                  </View>
+                );
+              })}
             </View>
           </View>
-
           {/* Social Links */}
           <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
             <View className=" p-2">
@@ -1561,8 +1629,10 @@ function CompanyProfileSection() {
                   </View>
                   <TextInput
                     className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={linkedIn}
-                    onChangeText={setLinkedIn}
+                    value={socialLinks.linkedin}
+                    onChangeText={(text) =>
+                      setSocialLinks({ ...socialLinks, linkedin: text })
+                    }
                     placeholder="LinkedIn handle"
                     style={{ height: 42, minHeight: 42, maxHeight: 42 }}
                   />
@@ -1576,8 +1646,10 @@ function CompanyProfileSection() {
                   </View>
                   <TextInput
                     className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={facebook}
-                    onChangeText={setFacebook}
+                    value={socialLinks.facebook}
+                    onChangeText={(text) =>
+                      setSocialLinks({ ...socialLinks, facebook: text })
+                    }
                     placeholder="Facebook handle"
                     style={{ height: 42, minHeight: 42, maxHeight: 42 }}
                   />
@@ -1591,8 +1663,10 @@ function CompanyProfileSection() {
                   </View>
                   <TextInput
                     className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={instagram}
-                    onChangeText={setInstagram}
+                    value={socialLinks.instagram}
+                    onChangeText={(text) =>
+                      setSocialLinks({ ...socialLinks, instagram: text })
+                    }
                     placeholder="Instagram handle"
                     style={{ height: 42, minHeight: 42, maxHeight: 42 }}
                   />
@@ -1606,8 +1680,10 @@ function CompanyProfileSection() {
                   </View>
                   <TextInput
                     className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={xHandle}
-                    onChangeText={setXHandle}
+                    value={socialLinks.x}
+                    onChangeText={(text) =>
+                      setSocialLinks({ ...socialLinks, x: text })
+                    }
                     placeholder="X handle"
                     style={{ height: 42, minHeight: 42, maxHeight: 42 }}
                   />
@@ -1616,36 +1692,38 @@ function CompanyProfileSection() {
             </View>
           </View>
 
-          {/* Recruiting */}
-          <View className="rounded-2xl border border-neutral-200 mb-6 p-2">
-            <View className="flex-row items-center justify-between mb-3">
+          {/* Recruiting Section */}
+          <View className="mb-6 rounded-2xl border border-neutral-200 p-4">
+            <View className="flex-row items-center justify-between mb-4">
               <Text className="text-sm font-medium text-neutral-700">
-                Recruiting
+                Recruiting - Open Positions
               </Text>
-              <ToggleSwitch
+              <Switch
                 value={isRecruiting}
                 onValueChange={setIsRecruiting}
+                trackColor={{ false: "#D1D5DB", true: "#10B981" }}
+                thumbColor="#FFFFFF"
               />
             </View>
 
             {isRecruiting && (
               <>
                 {showAddPosition && (
-                  <View className="mb-3 p-4 bg-neutral-50 rounded-xl border border-neutral-200">
+                  <View className="mb-4 gap-3">
                     <TextInput
-                      className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
-                      value={newJobRole}
-                      onChangeText={setNewJobRole}
+                      className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                      value={newPositionRole}
+                      onChangeText={setNewPositionRole}
                       placeholder="Job Role"
                     />
-                    <View className="flex-row items-center gap-2 mb-3">
+                    <View className="flex-row items-center gap-2">
                       <TextInput
-                        className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
-                        value={newJobLink}
-                        onChangeText={setNewJobLink}
+                        className="flex-1 bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                        value={newPositionLink}
+                        onChangeText={setNewPositionLink}
                         placeholder="Job Link"
                       />
-                      <Pressable className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
+                      <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
                         <Text className="text-sm font-medium text-black">
                           Paste link
                         </Text>
@@ -1653,8 +1731,8 @@ function CompanyProfileSection() {
                     </View>
                     <View className="flex-row gap-2">
                       <Pressable
-                        onPress={addPosition}
-                        className="flex-1 bg-black rounded-xl py-3 items-center"
+                        onPress={handleAddPosition}
+                        className="flex-1 bg-neutral-800 rounded-xl py-3 items-center"
                       >
                         <Text className="text-white text-sm font-medium">
                           Add Position
@@ -1663,8 +1741,8 @@ function CompanyProfileSection() {
                       <Pressable
                         onPress={() => {
                           setShowAddPosition(false);
-                          setNewJobRole("");
-                          setNewJobLink("");
+                          setNewPositionRole("");
+                          setNewPositionLink("");
                         }}
                         className="flex-1 bg-white border border-neutral-300 rounded-xl py-3 items-center"
                       >
@@ -1679,38 +1757,28 @@ function CompanyProfileSection() {
                 {!showAddPosition && (
                   <Pressable
                     onPress={() => setShowAddPosition(true)}
-                    className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 mb-3"
+                    className="mb-4"
                   >
-                    <Text className="text-sm font-medium text-black text-center">
+                    <Text className="text-blue-600 text-sm font-medium">
                       + Add Position
                     </Text>
                   </Pressable>
                 )}
 
+                {/* Existing Positions */}
                 <View className="flex-row flex-wrap gap-2">
                   {positions.map((position) => (
                     <View
-                      key={position}
-                      className="flex-row items-center px-4 py-2 rounded-full bg-white border border-neutral-300"
+                      key={position.id}
+                      className="flex-row items-center rounded-full px-4 py-2 bg-white border border-neutral-300"
                     >
-                      <Text className="text-sm font-medium text-black mr-2">
-                        {position}
+                      <Text className="text-black text-sm font-medium mr-2">
+                        {position.role}
                       </Text>
-                      <Pressable onPress={() => removePosition(position)}>
-                        <Svg
-                          width={14}
-                          height={14}
-                          viewBox="0 0 14 14"
-                          fill="none"
-                        >
-                          <Path
-                            d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5"
-                            stroke="#404040"
-                            strokeWidth={1.5}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </Svg>
+                      <Pressable
+                        onPress={() => handleRemovePosition(position.id)}
+                      >
+                        <CloseXIcon size={14} color="#000000" />
                       </Pressable>
                     </View>
                   ))}
@@ -1720,6 +1788,29 @@ function CompanyProfileSection() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Done Button - Fixed at Bottom */}
+      <View
+        className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pt-4 pb-6"
+        style={{
+          paddingBottom: Platform.OS === "ios" ? 34 : 24,
+        }}
+      >
+        <Pressable
+          onPress={handleDone}
+          disabled={isSubmitting}
+          className={`rounded-xl py-4 items-center justify-center ${
+            !isSubmitting ? "bg-black" : "bg-neutral-300"
+          }`}
+          style={{
+            opacity: !isSubmitting ? 1 : 0.6,
+          }}
+        >
+          <Text className="text-white text-base font-semibold">Done</Text>
+        </Pressable>
+      </View>
+
+      {/* Modals */}
       <ProfilePictureModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
@@ -1729,10 +1820,6 @@ function CompanyProfileSection() {
         }}
         onChoosePhoto={() => {
           console.log("Choose Photo");
-          setShowProfileModal(false);
-        }}
-        onRemovePhoto={() => {
-          console.log("Remove Photo");
           setShowProfileModal(false);
         }}
       />
@@ -1748,71 +1835,50 @@ function CompanyProfileSection() {
         selectedCountry={selectedCountry}
         onSelect={setSelectedCountry}
       />
+      <OfferColorModal
+        visible={showColorModal}
+        onClose={() => setShowColorModal(false)}
+        selectedColor={newOfferColor}
+        onSelect={setNewOfferColor}
+      />
     </KeyboardAvoidingView>
   );
 }
 
-export default function ProfileScreen() {
-  // TODO: Connect this to backend to determine user role
-  // For now, defaulting to "attendee" - backend will handle role-based access
-  const [userRole] = useState<"attendee" | "company">("attendee");
-  const [activeTab, setActiveTab] = useState<"Personal" | "Company">(
-    "Personal"
-  );
-  const { completeProfile } = useAuth();
+type Props = RootStackScreenProps<"CompleteProfile">;
+
+export default function CompleteProfileScreen({ route }: Props) {
+  const { user } = useAuth();
+
+  // TODO: Determine user type from backend/context based on email
+  // For now, checking route params for step, or defaulting based on email domain
+  // In production, this should come from backend API based on user's email
+  const getUserType = (): "attendee" | "company" => {
+    // If route has step param, use it (for company flow)
+    if (route.params?.step === "company") {
+      return "company";
+    }
+
+    // TODO: Check user email against backend to determine if attendee or company
+    // For now, defaulting to "attendee" - update this logic based on your backend
+    // Example: if (user?.email?.endsWith("@company.com")) return "company";
+
+    return "attendee";
+    // return "company";
+  };
+
+  const userType = getUserType();
+  const currentStep = route.params?.step;
 
   return (
-    <View className="flex-1 bg-white">
-      <SafeAreaView edges={["top"]} className="flex-1">
-        <Header />
-        {userRole === "attendee" ? (
-          <>
-            <AttendeeProfileSection />
-            {/* Save Changes Button */}
-            <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
-              <Pressable
-                className="bg-black rounded-xl py-4 items-center justify-center"
-                onPress={async () => {
-                  // TODO: Save profile data to backend
-                  // For now, just complete the profile to proceed to main app
-                  await completeProfile();
-                }}
-              >
-                <Text className="text-white text-base font-semibold">
-                  Save Changes
-                </Text>
-              </Pressable>
-            </View>
-          </>
-        ) : (
-          <>
-            <SegmentedControl
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
-            {activeTab === "Personal" ? (
-              <PersonalProfileSection />
-            ) : (
-              <CompanyProfileSection />
-            )}
-            {/* Save Changes Button */}
-            <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
-              <Pressable
-                className="bg-black rounded-xl py-4 items-center justify-center"
-                onPress={async () => {
-                  // TODO: Save profile data to backend
-                  // For now, just complete the profile to proceed to main app
-                  await completeProfile();
-                }}
-              >
-                <Text className="text-white text-base font-semibold">
-                  Save Changes
-                </Text>
-              </Pressable>
-            </View>
-          </>
-        )}
-      </SafeAreaView>
-    </View>
+    <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
+      {userType === "attendee" ? (
+        <AttendeeProfileForm />
+      ) : currentStep === "company" ? (
+        <CompanyProfileForm />
+      ) : (
+        <PersonalProfileForm />
+      )}
+    </SafeAreaView>
   );
 }

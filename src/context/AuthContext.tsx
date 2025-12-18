@@ -3,6 +3,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useCallback,
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -20,10 +21,15 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   hasCompletedOnboarding: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
+  hasCompletedProfile: boolean;
+  hasSeenWelcome: boolean;
+  // Email-based login flow
+  requestVerificationCode: (email: string) => Promise<void>;
+  verifyCode: (email: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
+  completeProfile: () => Promise<void>;
+  markWelcomeSeen: () => Promise<void>;
   // For development: skip auth temporarily
   skipAuth: () => void;
 }
@@ -35,6 +41,8 @@ const STORAGE_KEYS = {
   USER: "@spark:user",
   TOKEN: "@spark:token",
   ONBOARDING_COMPLETE: "@spark:onboarding_complete",
+  PROFILE_COMPLETE: "@spark:profile_complete",
+  WELCOME_SEEN: "@spark:welcome_seen",
 };
 
 interface AuthProviderProps {
@@ -46,13 +54,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  const [hasCompletedProfile, setHasCompletedProfile] = useState(false);
+  const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
 
-  // Check for existing session on app start
-  useEffect(() => {
-    checkAuthState();
-  }, []);
-
-  const checkAuthState = async () => {
+  const checkAuthState = useCallback(async () => {
     try {
       setIsLoading(true);
 
@@ -61,6 +66,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         STORAGE_KEYS.ONBOARDING_COMPLETE
       );
       setHasCompletedOnboarding(onboardingComplete === "true");
+
+      // Check if user has completed profile
+      const profileComplete = await AsyncStorage.getItem(
+        STORAGE_KEYS.PROFILE_COMPLETE
+      );
+      setHasCompletedProfile(profileComplete === "true");
+
+      // Check if user has seen Welcome screen
+      const welcomeSeen = await AsyncStorage.getItem(STORAGE_KEYS.WELCOME_SEEN);
+      setHasSeenWelcome(welcomeSeen === "true");
 
       // Check for existing auth token/user
       const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
@@ -77,65 +92,66 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const login = async (email: string, password: string) => {
+  // Check for existing session on app start
+  useEffect(() => {
+    checkAuthState();
+  }, [checkAuthState]);
+
+  // Request verification code to be sent to email
+  const requestVerificationCode = async (email: string) => {
     try {
       setIsLoading(true);
 
       // TODO: Replace with actual API call
-      // const response = await api.login(email, password);
-      // const { user, token } = response.data;
+      // await api.post('/auth/request-code', { email });
 
-      // Mock login for now - will be replaced with API call
-      const mockUser: User = {
-        id: "1",
-        email,
-        name: "John Doe",
-      };
-      const mockToken = "mock-token-123";
+      // Mock: In real app, this would send verification code to email
+      console.log(`Verification code requested for: ${email}`);
 
-      // Store user and token
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
-      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, mockToken);
-
-      setUser(mockUser);
-      setIsAuthenticated(true);
+      // For development, we'll just proceed (no actual email sent)
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("Request verification code error:", error);
       throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signup = async (email: string, password: string, name: string) => {
+  // Verify the code sent to email
+  const verifyCode = async (email: string, code: string) => {
     try {
-      setIsLoading(true);
+      // Don't set isLoading here - it causes AppNavigator to show loading spinner
+      // which interrupts navigation. The screen can handle its own loading state.
 
       // TODO: Replace with actual API call
-      // const response = await api.signup(email, password, name);
+      // const response = await api.post('/auth/verify-code', { email, code });
       // const { user, token } = response.data;
 
-      // Mock signup for now - will be replaced with API call
+      // Mock verification for now - will be replaced with API call
+      // In real app, this would validate the code with backend
+      if (code.length < 4) {
+        throw new Error("Invalid verification code");
+      }
+
       const mockUser: User = {
         id: "1",
         email,
-        name,
+        name: "", // Name will be set during profile completion
       };
       const mockToken = "mock-token-123";
 
-      // Store user and token
+      // Store user and token (but not authenticated yet - need to complete profile)
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, mockToken);
 
       setUser(mockUser);
-      setIsAuthenticated(true);
+      // User is verified but not fully authenticated until profile is completed
+      // Profile completion will set isAuthenticated to true
     } catch (error) {
-      console.error("Signup error:", error);
+      console.error("Verify code error:", error);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -143,11 +159,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       setIsLoading(true);
 
-      // Clear stored data
-      await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.TOKEN]);
+      // Clear all stored data for a complete logout
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.USER,
+        STORAGE_KEYS.TOKEN,
+        STORAGE_KEYS.WELCOME_SEEN,
+        STORAGE_KEYS.PROFILE_COMPLETE,
+        STORAGE_KEYS.ONBOARDING_COMPLETE,
+      ]);
 
+      // Reset all state
       setUser(null);
       setIsAuthenticated(false);
+      setHasCompletedProfile(false);
+      setHasCompletedOnboarding(false);
+      setHasSeenWelcome(false);
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
@@ -164,11 +190,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const markWelcomeSeen = async () => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.WELCOME_SEEN, "true");
+      setHasSeenWelcome(true);
+    } catch (error) {
+      console.error("Error marking welcome as seen:", error);
+    }
+  };
+
+  const completeProfile = async () => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
+      setHasCompletedProfile(true);
+      // Once profile is completed, user is fully authenticated
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error("Error completing profile:", error);
+    }
+  };
+
   // Development helper: skip auth for UI development
   const skipAuth = () => {
     setUser({ id: "dev", email: "dev@spark.com", name: "Dev User" });
     setIsAuthenticated(true);
     setHasCompletedOnboarding(true);
+    setHasCompletedProfile(true);
+    setHasSeenWelcome(true);
   };
 
   const value: AuthContextType = {
@@ -176,10 +224,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAuthenticated,
     isLoading,
     hasCompletedOnboarding,
-    login,
-    signup,
+    hasCompletedProfile,
+    hasSeenWelcome,
+    requestVerificationCode,
+    verifyCode,
     logout,
     completeOnboarding,
+    completeProfile,
+    markWelcomeSeen,
     skipAuth,
   };
 

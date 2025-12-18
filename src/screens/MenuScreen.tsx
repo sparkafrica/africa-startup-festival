@@ -1,11 +1,14 @@
 import React from "react";
+import { Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { useAuth } from "../context/AuthContext";
 import Menu from "../components/Menu";
 
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { logout } = useAuth();
 
   const handleNavigate = (route: string) => {
     // Close menu first, then navigate
@@ -45,7 +48,39 @@ export default function MenuScreen() {
     }, 100);
   };
 
+  const handleLogout = async () => {
+    Alert.alert(
+      "Log Out",
+      "Are you sure you want to log out?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Log Out",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await logout();
+              // Navigation will automatically switch to AuthNavigator
+              // since isAuthenticated is now false
+            } catch (error) {
+              console.error("Logout error:", error);
+              Alert.alert("Error", "Failed to log out. Please try again.");
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
-    <Menu onClose={() => navigation.goBack()} onNavigate={handleNavigate} />
+    <Menu
+      onClose={() => navigation.goBack()}
+      onNavigate={handleNavigate}
+      onLogout={handleLogout}
+    />
   );
 }

@@ -31,10 +31,10 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <AppNavigator />
-        <StatusBar style="auto" />
-      </NavigationContainer>
+    <NavigationContainer>
+      <AppNavigator />
+      <StatusBar style="auto" />
+    </NavigationContainer>
     </AuthProvider>
   );
 }

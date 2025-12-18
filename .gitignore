@@ -4,6 +4,14 @@
 node_modules/
 Figma Design
 
+# .md files
+ATTENDING_TO_REVIEW.md
+ATTENDEES_CARD_FLOW.md
+AUTH_ARCHITECTURE.md
+BACKEND_INTEGRATION_GUIDE.md
+INTEGRATION_CHECKLIST.md
+CACHE_FIX.md
+
 # Expo
 .expo/
 dist/
