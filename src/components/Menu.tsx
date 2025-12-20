@@ -26,7 +26,7 @@ interface MenuProps {
 export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
   const menuItems = [
     {
-      label: "My Tickets",
+      label: "My Ticket(s)",
       icon: <TicketsIcon size={20} color="#444" />,
       route: "Tickets",
     },

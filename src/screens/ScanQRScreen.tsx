@@ -539,6 +539,7 @@ function TicketCard({
                     Transfer Personal Ticket Unavailable
                   </Text>
                   <Text className="text-xs text-orange-700 leading-4">
+                    You have {availableToAssignCount} available ticket(s) to assign.
                     Please assign all {availableToAssignCount} available ticket
                     {availableToAssignCount !== 1 ? "s" : ""} before
                     transferring your personal ticket.
