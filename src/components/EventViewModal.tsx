@@ -23,6 +23,10 @@ export interface Speaker {
   id: string;
   name: string;
   affiliation: string;
+  bio?: string;
+  interests?: string[];
+  tags?: string[];
+  socialLabel?: string;
   onPress?: () => void;
 }
 
@@ -57,56 +61,74 @@ export default function EventViewModal({
   onLeaveFeedback,
 }: EventViewModalProps) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const isAnimating = useRef(false);
 
   useEffect(() => {
     if (visible) {
+      isAnimating.current = true;
+      translateY.setValue(SCREEN_HEIGHT);
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
         tension: 65,
         friction: 11,
-      }).start();
+      }).start(() => {
+        isAnimating.current = false;
+      });
     } else {
       translateY.setValue(SCREEN_HEIGHT);
+      isAnimating.current = false;
     }
   }, [visible, translateY]);
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !isAnimating.current,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to downward drags with sufficient movement
-        return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
+        return (
+          !isAnimating.current &&
+          Math.abs(gestureState.dy) > 5 &&
+          gestureState.dy > 0
+        );
       },
       onPanResponderGrant: () => {
+        if (isAnimating.current) return;
+        translateY.stopAnimation();
         translateY.setOffset((translateY as any)._value || 0);
         translateY.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
-        // Only allow dragging down
+        if (isAnimating.current) return;
         if (gestureState.dy > 0) {
           translateY.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
+        if (isAnimating.current) return;
         translateY.flattenOffset();
+        const currentValue = (translateY as any)._value || 0;
 
-        if (gestureState.dy > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+        if (currentValue > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+          isAnimating.current = true;
           Animated.timing(translateY, {
             toValue: SCREEN_HEIGHT,
-            duration: 200,
+            duration: 250,
             useNativeDriver: true,
           }).start(() => {
             translateY.setValue(SCREEN_HEIGHT);
+            isAnimating.current = false;
             onClose();
           });
         } else {
+          isAnimating.current = true;
           Animated.spring(translateY, {
             toValue: 0,
             useNativeDriver: true,
             tension: 65,
             friction: 11,
-          }).start();
+          }).start(() => {
+            isAnimating.current = false;
+          });
         }
       },
     })
@@ -158,6 +180,9 @@ export default function EventViewModal({
             style={styles.content}
             contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={false}
+            nestedScrollEnabled={true}
+            bounces={true}
+            scrollEnabled={true}
           >
             {/* Sponsored Tag */}
             {sponsoredBy && sponsorColor && (
@@ -203,8 +228,17 @@ export default function EventViewModal({
                 {speakers.map((speaker) => (
                   <Pressable
                     key={speaker.id}
-                    style={styles.speakerCard}
-                    onPress={speaker.onPress}
+                    style={({ pressed }) => [
+                      styles.speakerCard,
+                      pressed && styles.speakerCardPressed,
+                    ]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      if (speaker?.onPress) {
+                        speaker.onPress();
+                      }
+                    }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <View style={styles.speakerIconContainer}>
                       <PersonProfileIcon size={24} color="#000000" />
@@ -251,6 +285,8 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     justifyContent: "flex-end",
+    zIndex: 1000,
+    elevation: 1000,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -266,7 +302,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 1,
+    zIndex: 1001,
+    elevation: 1001,
   },
   draggableArea: {
     width: "100%",
@@ -342,6 +379,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
+  },
+  speakerCardPressed: {
+    backgroundColor: "#E5E5E5",
+    opacity: 0.8,
   },
   speakerIconContainer: {
     width: 40,

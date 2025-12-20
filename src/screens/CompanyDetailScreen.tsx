@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   ScrollView,
@@ -23,6 +23,12 @@ import {
   CalendarIconWhite,
 } from "../components/SocialIcons";
 import { ArrowUpRightIcon } from "../components/icons";
+import {
+  RequestMeetingModal,
+  MeetingRequestMessageModal,
+  type MeetingFormData,
+} from "../components";
+import { useChecklist } from "../context/ChecklistContext";
 
 // ============================================
 // MODAL HEIGHT CONFIGURATION
@@ -39,6 +45,20 @@ type Props = RootStackScreenProps<"CompanyDetail">;
 export default function CompanyDetailScreen({ route }: Props) {
   const navigation = useNavigation<NavigationProp<any>>();
   const { exhibitorId, name = "Flutterwave" } = route.params;
+  const { markRequestMeetingComplete } = useChecklist();
+  
+  // Request Meeting Modal state
+  const [isRequestMeetingModalVisible, setIsRequestMeetingModalVisible] =
+    useState(false);
+  
+  // Meeting Request Message Modal state
+  const [isMeetingRequestMessageVisible, setIsMeetingRequestMessageVisible] =
+    useState(false);
+  const [meetingRequestData, setMeetingRequestData] = useState<{
+    attendeeName: string;
+    meetingType: "Physical" | "Virtual";
+    meetingTitle: string;
+  } | null>(null);
 
   // TODO: Replace with backend data
   const companyData = {
@@ -334,8 +354,7 @@ export default function CompanyDetailScreen({ route }: Props) {
           <Pressable
             className="bg-neutral-900 rounded-xl py-4 items-center flex-row justify-center"
             onPress={() => {
-              // TODO: Navigate to meeting request
-              console.log("Request Meeting");
+              setIsRequestMeetingModalVisible(true);
             }}
           >
             <CalendarIconWhite size={20} color="#FFFFFF" />
@@ -345,6 +364,39 @@ export default function CompanyDetailScreen({ route }: Props) {
           </Pressable>
         </View>
       </SafeAreaView>
+
+      {/* Request Meeting Modal */}
+      <RequestMeetingModal
+        visible={isRequestMeetingModalVisible}
+        onClose={() => setIsRequestMeetingModalVisible(false)}
+        onSubmit={(data: MeetingFormData) => {
+          console.log("Meeting Request Submitted:", data);
+          // Mark checklist item as completed when user submits meeting request
+          markRequestMeetingComplete();
+          // Show meeting request message modal
+          setMeetingRequestData({
+            attendeeName: name,
+            meetingType: data.meetingType,
+            meetingTitle: data.title || "Meeting",
+          });
+          setIsRequestMeetingModalVisible(false);
+          setIsMeetingRequestMessageVisible(true);
+          // TODO: Send meeting request to backend
+        }}
+        attendeeName={name}
+      />
+
+      {/* Meeting Request Message Modal */}
+      <MeetingRequestMessageModal
+        visible={isMeetingRequestMessageVisible}
+        onClose={() => {
+          setIsMeetingRequestMessageVisible(false);
+          setMeetingRequestData(null);
+        }}
+        attendeeName={meetingRequestData?.attendeeName}
+        meetingType={meetingRequestData?.meetingType}
+        meetingTitle={meetingRequestData?.meetingTitle}
+      />
     </View>
   );
 }

@@ -8,17 +8,21 @@ import {
   Animated,
   ScrollView,
   FlatList,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { useChecklist } from "../context/ChecklistContext";
 import {
   HeaderBar,
   BottomNavigation,
   FilterModal,
   FilterTag,
   RequestMeetingModal,
+  ConnectMessageModal,
+  MeetingRequestMessageModal,
   type FilterCategory,
   type MeetingFormData,
 } from "../components";
@@ -34,7 +38,7 @@ import {
   HeartIcon,
   HeartIconFilled,
 } from "../components/BottomNavIcons";
-import { ChevronDownIcon, ListIcon } from "../components/icons";
+import { ChevronDownIcon, ListIcon, SearchIcon } from "../components/icons";
 import Svg, { Path, Circle } from "react-native-svg";
 
 // Grid Icon Component (for Card View)
@@ -189,6 +193,7 @@ interface AttendeeCardProps {
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
   onRequestMeeting?: (attendee: Attendee) => void;
+  onConnect?: (attendee: Attendee) => void;
   index: number;
   totalCards: number;
   hasFilters?: boolean;
@@ -202,6 +207,7 @@ function AttendeeCard({
   onSwipeLeft,
   onSwipeRight,
   onRequestMeeting,
+  onConnect,
   index,
   totalCards,
   hasFilters = false,
@@ -623,7 +629,11 @@ function AttendeeCard({
           </Pressable>
 
           <Pressable
-            onPress={() => console.log("Connect")}
+            onPress={() => {
+              if (onConnect) {
+                onConnect(attendee);
+              }
+            }}
             className={`w-full flex-row items-center justify-center bg-neutral-100 rounded-xl ${
               hasFilters ? "py-4 px-3" : "py-3 px-4"
             }`}
@@ -646,6 +656,7 @@ function AttendeeCard({
 export default function AttendeesScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
+  const { markConnectAttendeesComplete, markRequestMeetingComplete } = useChecklist();
   const [activeTab, setActiveTab] = useState<"Recommended" | "All">(
     "Recommended"
   );
@@ -664,6 +675,21 @@ export default function AttendeesScreen() {
   const [isRequestMeetingModalVisible, setIsRequestMeetingModalVisible] =
     useState(false);
   const [meetingAttendee, setMeetingAttendee] = useState<Attendee | null>(null);
+
+  // Connect Message Modal state
+  const [isConnectMessageVisible, setIsConnectMessageVisible] = useState(false);
+  const [connectedAttendeeName, setConnectedAttendeeName] = useState<string>("");
+
+  // Meeting Request Message Modal state
+  const [isMeetingRequestMessageVisible, setIsMeetingRequestMessageVisible] = useState(false);
+  const [meetingRequestData, setMeetingRequestData] = useState<{
+    attendeeName: string;
+    meetingType: "Physical" | "Virtual";
+    meetingTitle: string;
+  } | null>(null);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Bottom sheet animation values
   const bottomSheetTranslateY = useRef(new Animated.Value(0)).current;
@@ -810,8 +836,34 @@ export default function AttendeesScreen() {
   // Recommended attendees (could be filtered by algorithm)
   const recommendedAttendees = allAttendees.slice(0, 5);
 
-  const displayedAttendees =
+  // Get displayed attendees based on active tab
+  let displayedAttendees =
     activeTab === "Recommended" ? recommendedAttendees : allAttendees;
+
+  // Apply search filter if search query exists and in list view
+  if (viewMode === "list" && searchQuery.trim().length > 0) {
+    const query = searchQuery.toLowerCase().trim();
+    displayedAttendees = displayedAttendees.filter((attendee) => {
+      const nameMatch = attendee.name.toLowerCase().includes(query);
+      const roleMatch = attendee.role?.toLowerCase().includes(query);
+      const companyMatch = attendee.company?.toLowerCase().includes(query);
+      const bioMatch = attendee.bio?.toLowerCase().includes(query);
+      const tagsMatch = attendee.tags?.some((tag) =>
+        tag.toLowerCase().includes(query)
+      );
+      const interestsMatch = attendee.interests?.some((interest) =>
+        interest.toLowerCase().includes(query)
+      );
+      return (
+        nameMatch ||
+        roleMatch ||
+        companyMatch ||
+        bioMatch ||
+        tagsMatch ||
+        interestsMatch
+      );
+    });
+  }
 
   // State for current card index
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -864,10 +916,25 @@ export default function AttendeesScreen() {
   const handleAccept = () => {
     const attendee = displayedAttendees[currentCardIndex];
     console.log("Accepted/Connected:", attendee.name);
+    // Mark checklist item as completed when user connects
+    markConnectAttendeesComplete();
+    // Show connect message modal
+    setConnectedAttendeeName(attendee.name);
+    setIsConnectMessageVisible(true);
     // Move to next card
     if (currentCardIndex < displayedAttendees.length - 1) {
       setCurrentCardIndex(currentCardIndex + 1);
     }
+  };
+
+  // Handle connect button press
+  const handleConnect = (attendee: Attendee) => {
+    console.log("Connect:", attendee.name);
+    // Mark checklist item as completed when user connects
+    markConnectAttendeesComplete();
+    // Show connect message modal
+    setConnectedAttendeeName(attendee.name);
+    setIsConnectMessageVisible(true);
   };
 
   // Open bottom sheet with animation
@@ -1004,7 +1071,7 @@ export default function AttendeesScreen() {
           <Pressable
             onPress={(e) => {
               e.stopPropagation();
-              console.log("Connect:", item.name);
+              handleConnect(item);
             }}
             className="flex-row items-center justify-center bg-neutral-100 rounded-xl px-3 py-2 flex-shrink-0"
           >
@@ -1233,6 +1300,34 @@ export default function AttendeesScreen() {
           </View>
         )}
 
+        {/* Search Bar - Only shown in List View */}
+        {viewMode === "list" && (
+          <View className="px-4 pb-4">
+            <View className="flex-row items-center bg-white border border-neutral-200 rounded-xl px-4 py-3">
+              <SearchIcon size={18} color="#A3A3A3" />
+              <TextInput
+                className="flex-1 ml-3 text-base text-neutral-900"
+                placeholder="Search attendees, speakers..."
+                placeholderTextColor="#A3A3A3"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {searchQuery.length > 0 && (
+                <Pressable
+                  onPress={() => setSearchQuery("")}
+                  className="ml-2"
+                >
+                  <Text className="text-sm font-medium text-neutral-600">
+                    Clear
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* Card View or List View */}
         {viewMode === "card" ? (
           <View
@@ -1269,6 +1364,7 @@ export default function AttendeesScreen() {
                           setMeetingAttendee(attendee);
                           setIsRequestMeetingModalVisible(true);
                         }}
+                        onConnect={handleConnect}
                         index={index}
                         totalCards={Math.min(
                           5,
@@ -1498,7 +1594,7 @@ export default function AttendeesScreen() {
 
                   <Pressable
                     onPress={() => {
-                      console.log("Connect:", selectedAttendee.name);
+                      handleConnect(selectedAttendee);
                       closeBottomSheet();
                     }}
                     className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-3 px-4"
@@ -1547,9 +1643,42 @@ export default function AttendeesScreen() {
         }}
         onSubmit={(data: MeetingFormData) => {
           console.log("Meeting Request Submitted:", data);
+          // Mark checklist item as completed when user requests a meeting
+          markRequestMeetingComplete();
+          // Show meeting request message modal
+          setMeetingRequestData({
+            attendeeName: meetingAttendee?.name || "Attendee",
+            meetingType: data.meetingType,
+            meetingTitle: data.title || "Meeting",
+          });
+          setIsRequestMeetingModalVisible(false);
+          setIsMeetingRequestMessageVisible(true);
+          setMeetingAttendee(null);
           // TODO: Send meeting request to backend
         }}
         attendeeName={meetingAttendee?.name}
+      />
+
+      {/* Connect Message Modal */}
+      <ConnectMessageModal
+        visible={isConnectMessageVisible}
+        onClose={() => {
+          setIsConnectMessageVisible(false);
+          setConnectedAttendeeName("");
+        }}
+        attendeeName={connectedAttendeeName}
+      />
+
+      {/* Meeting Request Message Modal */}
+      <MeetingRequestMessageModal
+        visible={isMeetingRequestMessageVisible}
+        onClose={() => {
+          setIsMeetingRequestMessageVisible(false);
+          setMeetingRequestData(null);
+        }}
+        attendeeName={meetingRequestData?.attendeeName}
+        meetingType={meetingRequestData?.meetingType}
+        meetingTitle={meetingRequestData?.meetingTitle}
       />
     </View>
   );

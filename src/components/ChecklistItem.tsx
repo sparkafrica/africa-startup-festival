@@ -1,20 +1,23 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 interface ChecklistItemProps {
   title: string;
   description: string;
   completed?: boolean;
+  onPress?: () => void;
 }
 
 export default function ChecklistItem({ 
   title, 
   description, 
-  completed = false 
+  completed = false,
+  onPress
 }: ChecklistItemProps) {
   return (
-    <View 
+    <Pressable
+      onPress={onPress}
       className={`${completed ? "bg-neutral-100" : "bg-white"} rounded-xl p-4 mb-3 flex-row items-start justify-between`}
       style={{
         shadowColor: '#000',
@@ -23,6 +26,7 @@ export default function ChecklistItem({
         shadowRadius: 2,
         elevation: 1,
       }}
+      android_ripple={{ color: '#F5F5F5' }}
     >
       <View className="flex-1 mr-3">
         <Text className="text-base font-semibold text-neutral-900 mb-1.5">
@@ -49,7 +53,7 @@ export default function ChecklistItem({
           <View className="w-6 h-6 rounded-full border-2 border-neutral-300 bg-white" />
         )}
       </View>
-    </View>
+    </Pressable>
   );
 }
 

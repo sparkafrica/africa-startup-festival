@@ -389,11 +389,7 @@ function Instructions() {
   );
 }
 
-function ManualEntryButton({
-  onPress,
-}: {
-  onPress: () => void;
-}) {
+function ManualEntryButton({ onPress }: { onPress: () => void }) {
   return (
     <View className="px-4 pb-4">
       <View className="items-center">
@@ -431,6 +427,9 @@ function TicketCard({
   assignedTo,
   isUnassigned,
   isMyTicket,
+  canTransfer,
+  totalTickets,
+  availableToAssignCount,
   onViewQR,
   onTransfer,
   onAssign,
@@ -442,6 +441,9 @@ function TicketCard({
   assignedTo?: string;
   isUnassigned?: boolean;
   isMyTicket?: boolean;
+  canTransfer?: boolean; // Whether personal ticket can be transferred
+  totalTickets?: number; // Total number of tickets user has
+  availableToAssignCount?: number; // Number of unassigned tickets
   onViewQR?: () => void;
   onTransfer?: () => void;
   onAssign?: () => void;
@@ -486,11 +488,6 @@ function TicketCard({
               <View className="w-6 h-6 items-center justify-center">
                 <TicketIcon size={18} color="#FFFFFF" />
               </View>
-              {!isUnassigned && (
-                <Pressable className="w-6 h-6 items-center justify-center">
-                  <ThreeDotsIcon size={18} color="#FFFFFF" />
-                </Pressable>
-              )}
             </View>
           </View>
         </View>
@@ -508,15 +505,48 @@ function TicketCard({
               View QR Code
             </Text>
           </Pressable>
-          <Pressable
-            onPress={onTransfer}
-            className="items-center justify-center bg-white rounded-xl py-3.5 px-4 border border-red-500"
-            style={{ width: "100%" }}
-          >
-            <Text className="text-sm font-medium text-red-500">
-              Transfer This Ticket
-            </Text>
-          </Pressable>
+
+          {/* Transfer button - only shown if transfer is allowed */}
+          {canTransfer && onTransfer && (
+            <Pressable
+              onPress={onTransfer}
+              className="items-center justify-center bg-white rounded-xl py-3.5 px-4 border border-red-500"
+              style={{ width: "100%" }}
+            >
+              <Text className="text-sm font-medium text-red-500">
+                Transfer This Ticket
+              </Text>
+            </Pressable>
+          )}
+
+          {/* Warning message when transfer is not allowed */}
+          {!canTransfer && (
+            <View className="bg-orange-50 rounded-xl py-3.5 px-4 border border-orange-200">
+              {totalTickets === 1 ? (
+                <View>
+                  <Text className="text-xs font-medium text-orange-800 mb-1">
+                    Transfer Not Available
+                  </Text>
+                  <Text className="text-xs text-orange-700 leading-4">
+                    You only have one ticket. Transferring it would remove your
+                    access to the event.
+                  </Text>
+                </View>
+              ) : availableToAssignCount !== undefined &&
+                availableToAssignCount > 0 ? (
+                <View>
+                  <Text className="text-xs font-medium text-orange-800 mb-1">
+                    Transfer Personal Ticket Unavailable
+                  </Text>
+                  <Text className="text-xs text-orange-700 leading-4">
+                    Please assign all {availableToAssignCount} available ticket
+                    {availableToAssignCount !== 1 ? "s" : ""} before
+                    transferring your personal ticket.
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
         </View>
       )}
       {/* Assigned Ticket buttons - Edit Assignment */}
@@ -552,6 +582,9 @@ function QRCodeModal({
   title,
   ticketNumber,
   assignedTo,
+  canTransfer,
+  totalTickets,
+  availableToAssignCount,
   onTransfer,
 }: {
   visible: boolean;
@@ -559,6 +592,9 @@ function QRCodeModal({
   title: string;
   ticketNumber: string;
   assignedTo: string;
+  canTransfer?: boolean;
+  totalTickets?: number;
+  availableToAssignCount?: number;
   onTransfer: (
     title: string,
     ticketNumber: string,
@@ -694,19 +730,57 @@ function QRCodeModal({
               </Pressable>
             </View>
 
-            <Pressable
-              onPress={() => {
-                onClose();
-                setTimeout(() => {
-                  onTransfer(title, ticketNumber, assignedTo, "#000000", false);
-                }, 300);
-              }}
-              className="w-full items-center justify-center bg-white rounded-xl py-3.5 px-4 border border-red-500 mb-4"
-            >
-              <Text className="text-sm font-medium text-red-500">
-                Transfer This Ticket
-              </Text>
-            </Pressable>
+            {/* Transfer button - only shown if transfer is allowed */}
+            {canTransfer && (
+              <Pressable
+                onPress={() => {
+                  onClose();
+                  setTimeout(() => {
+                    onTransfer(
+                      title,
+                      ticketNumber,
+                      assignedTo,
+                      "#000000",
+                      false
+                    );
+                  }, 300);
+                }}
+                className="w-full items-center justify-center bg-white rounded-xl py-3.5 px-4 border border-red-500 mb-4"
+              >
+                <Text className="text-sm font-medium text-red-500">
+                  Transfer This Ticket
+                </Text>
+              </Pressable>
+            )}
+
+            {/* Warning message when transfer is not allowed */}
+            {!canTransfer && (
+              <View className="bg-orange-50 rounded-xl py-3.5 px-4 border border-orange-200 mb-4">
+                {totalTickets === 1 ? (
+                  <View>
+                    <Text className="text-xs font-medium text-orange-800 mb-1">
+                      Transfer Not Available
+                    </Text>
+                    <Text className="text-xs text-orange-700 leading-4">
+                      You only have one ticket. Transferring it would remove
+                      your access to the event.
+                    </Text>
+                  </View>
+                ) : availableToAssignCount !== undefined &&
+                  availableToAssignCount > 0 ? (
+                  <View>
+                    <Text className="text-xs font-medium text-orange-800 mb-1">
+                      Transfer Personal Ticket Unavailable
+                    </Text>
+                    <Text className="text-xs text-orange-700 leading-4">
+                      Please assign all {availableToAssignCount} available
+                      ticket{availableToAssignCount !== 1 ? "s" : ""} before
+                      transferring your personal ticket.
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
           </View>
           <SafeAreaView
             edges={["bottom"]}
@@ -1483,9 +1557,7 @@ function TicketTransferConfirmationModal({
               onPress={onBackToHome}
               className="w-full items-center justify-center bg-black rounded-xl py-4 px-4"
             >
-              <Text className="text-base font-medium text-white">
-                Back to Home
-              </Text>
+              <Text className="text-base font-medium text-white">Done</Text>
             </Pressable>
           </View>
           <SafeAreaView edges={["bottom"]} className="bg-white pb-4" />
@@ -2732,7 +2804,8 @@ function ManualCodeEntryModal({
                   <View className="flex-row items-start">
                     <Text className="text-blue-600 mr-2">•</Text>
                     <Text className="text-sm text-black flex-1">
-                      Enter the full code including any prefixes (e.g., SPK2025-1234)
+                      Enter the full code including any prefixes (e.g.,
+                      SPK2025-1234)
                     </Text>
                   </View>
                   <View className="flex-row items-start">
@@ -2775,7 +2848,8 @@ function ManualCodeEntryModal({
                 </View>
                 {code.length > 0 && (
                   <Text className="text-xs text-neutral-400 mt-2">
-                    {code.length} character{code.length !== 1 ? "s" : ""} entered
+                    {code.length} character{code.length !== 1 ? "s" : ""}{" "}
+                    entered
                   </Text>
                 )}
               </View>
@@ -2824,9 +2898,7 @@ function ManualCodeEntryModal({
               onPress={handleSubmit}
               disabled={code.trim().length === 0}
               className={`w-full items-center justify-center rounded-xl py-4 px-4 mb-3 ${
-                code.trim().length > 0
-                  ? "bg-black"
-                  : "bg-neutral-200"
+                code.trim().length > 0 ? "bg-black" : "bg-neutral-200"
               }`}
             >
               <Text
@@ -3023,9 +3095,6 @@ function EditAssignedTicketModal({
                       <View className="w-6 h-6 items-center justify-center">
                         <TicketIcon size={18} color="#FFFFFF" />
                       </View>
-                      <Pressable className="w-6 h-6 items-center justify-center">
-                        <ThreeDotsIcon size={18} color="#FFFFFF" />
-                      </Pressable>
                     </View>
                   </View>
                 </View>
@@ -3192,7 +3261,7 @@ function TransferTicketModal({
           >
             <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
             <Text className="text-xl font-semibold text-black mb-6">
-              Transfer Ticket
+              {isUnassigned ? "Transfer Unassigned Ticket" : "Transfer Ticket"}
             </Text>
           </View>
 
@@ -3203,19 +3272,42 @@ function TransferTicketModal({
           >
             {/* Transfer Ticket Modal Instructions */}
             <View className="bg-orange-50 rounded-xl p-4 border border-orange-200 mb-6">
-              <Text className="text-sm text-black leading-5 mb-2">
-                • Assignee will have full access to the event
-              </Text>
-              <Text className="text-sm text-black leading-5 mb-2">
-                • You can revoke access anytime before the event
-              </Text>
-              <Text className="text-sm text-black leading-5 mb-2">
-                • Verify contact details
-              </Text>
-              <Text className="text-sm text-black leading-5">
-                • Recipient will need to accept allocation for ticket to be
-                usable.
-              </Text>
+              {isUnassigned ? (
+                // Unassigned ticket instructions (4 bullet points)
+                <>
+                  <Text className="text-sm text-black leading-5 mb-1">
+                    • Assignee will have access to the event with this ticket
+                    type
+                  </Text>
+                  <Text className="text-sm text-black leading-5 mb-1">
+                    • You can revoke access anytime before the event
+                  </Text>
+                  <Text className="text-sm text-black leading-5 mb-1">
+                    • Verify contact details carefully
+                  </Text>
+                  <Text className="text-sm text-black leading-5 mb-1">
+                    • Recipient will need to accept allocation for ticket to be
+                    usable at the event.
+                  </Text>
+                </>
+              ) : (
+                // Personal ticket instructions (4 bullet points - warning style)
+                <>
+                  <Text className="text-sm text-black leading-5 mb-1">
+                    • Once transferred, you will lose total access to the event
+                  </Text>
+                  <Text className="text-sm text-black leading-5 mb-1">
+                    • This action cannot be undone
+                  </Text>
+                  <Text className="text-sm text-black leading-5 mb-1">
+                    • Verify contact details carefully
+                  </Text>
+                  <Text className="text-sm text-black leading-5 mb-1">
+                    • Recipient will need to accept allocation for ticket to be
+                    usable at the event.
+                  </Text>
+                </>
+              )}
             </View>
 
             {/* Transfer Ticket Card */}
@@ -3251,9 +3343,6 @@ function TransferTicketModal({
                       <View className="w-6 h-6 items-center justify-center">
                         <TicketIcon size={18} color="#FFFFFF" />
                       </View>
-                      <Pressable className="w-6 h-6 items-center justify-center">
-                        <ThreeDotsIcon size={18} color="#FFFFFF" />
-                      </Pressable>
                     </View>
                   </View>
                 </View>
@@ -3274,12 +3363,34 @@ function TransferTicketModal({
   );
 }
 
+// Ticket data structure
+interface Ticket {
+  id: string;
+  title: string;
+  ticketNumber: string;
+  backgroundColor: string;
+  assignedTo?: string;
+  assigneeEmail?: string;
+  assigneePhone?: string;
+  assignedDate?: string;
+  isPersonal: boolean; // true for personal ticket, false for available to assign
+  isUnassigned: boolean; // true if ticket hasn't been assigned yet
+}
+
 function MyTicketView({
+  tickets,
   onViewQR,
   onTransfer,
   onEditAssignment,
 }: {
-  onViewQR: (title: string, ticketNumber: string) => void;
+  tickets: Ticket[];
+  onViewQR: (
+    title: string,
+    ticketNumber: string,
+    canTransfer: boolean,
+    totalTickets: number,
+    availableToAssignCount: number
+  ) => void;
   onTransfer: (
     title: string,
     ticketNumber: string,
@@ -3294,6 +3405,48 @@ function MyTicketView({
     assignedTo: string
   ) => void;
 }) {
+  // Calculate ticket counts
+  const personalTickets = tickets.filter((t) => t.isPersonal);
+  const availableToAssignTickets = tickets.filter(
+    (t) => !t.isPersonal && t.isUnassigned
+  );
+  const assignedOtherTickets = tickets.filter(
+    (t) => !t.isPersonal && !t.isUnassigned
+  );
+
+  // Logic: Personal ticket can only be transferred if:
+  // 1. User has more than 1 ticket total, AND
+  // 2. All available-to-assign tickets have been assigned
+  const totalTickets = tickets.length;
+  const canTransferPersonalTicket =
+    totalTickets > 1 && availableToAssignTickets.length === 0;
+
+  // Get tickets by category
+  const myPersonalTickets = tickets.filter((t) => t.isPersonal);
+  const assignedTickets = tickets.filter(
+    (t) => !t.isPersonal && !t.isUnassigned
+  );
+  const unassignedTickets = tickets.filter(
+    (t) => !t.isPersonal && t.isUnassigned
+  );
+
+  // Debug: Log ticket categories when tickets change
+  useEffect(() => {
+    const assigned = tickets.filter((t) => !t.isPersonal && !t.isUnassigned);
+    const unassigned = tickets.filter((t) => !t.isPersonal && t.isUnassigned);
+    const canTransfer = tickets.length > 1 && unassigned.length === 0;
+
+    console.log("Ticket categories updated:", {
+      totalTickets: tickets.length,
+      personalTickets: tickets.filter((t) => t.isPersonal).length,
+      assignedTickets: assigned.length,
+      unassignedTickets: unassigned.length,
+      canTransferPersonalTicket: canTransfer,
+      assignedTicketNumbers: assigned.map((t) => t.ticketNumber),
+      unassignedTicketNumbers: unassigned.map((t) => t.ticketNumber),
+    });
+  }, [tickets]);
+
   return (
     <ScrollView
       className="flex-1"
@@ -3304,91 +3457,127 @@ function MyTicketView({
         <Text className="text-[20px] font-semibold text-black mb-4">
           My Ticket
         </Text>
-        <View
-          style={{
-            backgroundColor: "#fff",
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: "#E5E7EB",
-            padding: 10,
-            overflow: "hidden",
-            marginBottom: 16,
-          }}
-        >
-          <TicketCard
-            title="Founder Pass"
-            ticketNumber="#SPK2025-1234"
-            backgroundColor="#000000"
-            assignedTo="John Doe"
-            isMyTicket={true}
-            onViewQR={() => onViewQR("Founder Pass", "#SPK2025-1234")}
-            onTransfer={() =>
-              onTransfer(
-                "Founder Pass",
-                "#SPK2025-1234",
-                "John Doe",
-                "#000000",
-                false
-              )
-            }
-          />
-        </View>
+        {myPersonalTickets.map((ticket) => (
+          <View
+            key={ticket.id}
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: "#E5E7EB",
+              padding: 10,
+              overflow: "hidden",
+              marginBottom: 16,
+            }}
+          >
+            <TicketCard
+              title={ticket.title}
+              ticketNumber={ticket.ticketNumber}
+              backgroundColor={ticket.backgroundColor}
+              assignedTo={ticket.assignedTo}
+              isMyTicket={true}
+              canTransfer={canTransferPersonalTicket}
+              totalTickets={totalTickets}
+              availableToAssignCount={availableToAssignTickets.length}
+              onViewQR={() =>
+                onViewQR(
+                  ticket.title,
+                  ticket.ticketNumber,
+                  canTransferPersonalTicket,
+                  totalTickets,
+                  availableToAssignTickets.length
+                )
+              }
+              onTransfer={() =>
+                canTransferPersonalTicket
+                  ? onTransfer(
+                      ticket.title,
+                      ticket.ticketNumber,
+                      ticket.assignedTo || "",
+                      ticket.backgroundColor,
+                      false
+                    )
+                  : undefined
+              }
+            />
+          </View>
+        ))}
 
-        <Text className="text-[20px] font-semibold text-black mb-4 mt-6">
-          Assigned Ticket(s)
-        </Text>
-        <View
-          style={{
-            backgroundColor: "#fff",
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: "#E5E7EB",
-            padding: 10,
-            overflow: "hidden",
-            marginBottom: 16,
-          }}
-        >
-          <TicketCard
-            title="Exhibitor Pass"
-            ticketNumber="#SPK2025-5678"
-            backgroundColor="#10B981"
-            assignedTo="John Doe"
-            isMyTicket={false}
-            onEditAssignment={() =>
-              onEditAssignment(
-                "Exhibitor Pass",
-                "#SPK2025-5678",
-                "#10B981",
-                "John Doe"
-              )
-            }
-          />
-        </View>
+        {assignedTickets.length > 0 && (
+          <>
+            <Text className="text-[20px] font-semibold text-black mb-4 mt-6">
+              Assigned Ticket(s)
+            </Text>
+            {assignedTickets.map((ticket) => (
+              <View
+                key={ticket.id}
+                style={{
+                  backgroundColor: "#fff",
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: "#E5E7EB",
+                  padding: 10,
+                  overflow: "hidden",
+                  marginBottom: 16,
+                }}
+              >
+                <TicketCard
+                  title={ticket.title}
+                  ticketNumber={ticket.ticketNumber}
+                  backgroundColor={ticket.backgroundColor}
+                  assignedTo={ticket.assignedTo}
+                  isMyTicket={false}
+                  onEditAssignment={() =>
+                    onEditAssignment(
+                      ticket.title,
+                      ticket.ticketNumber,
+                      ticket.backgroundColor,
+                      ticket.assignedTo || ""
+                    )
+                  }
+                />
+              </View>
+            ))}
+          </>
+        )}
 
-        <Text className="text-[20px] font-semibold text-black mb-4 mt-6">
-          Available to Assign
-        </Text>
-        <View
-          style={{
-            backgroundColor: "#fff",
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: "#E5E7EB",
-            padding: 10,
-            overflow: "hidden",
-            marginBottom: 0,
-          }}
-        >
-          <TicketCard
-            title="Attendee Pass"
-            ticketNumber="#SPK2025-9012"
-            backgroundColor="#3B82F6"
-            isUnassigned
-            onAssign={() =>
-              onTransfer("Attendee Pass", "#SPK2025-9012", "", "#3B82F6", true)
-            }
-          />
-        </View>
+        {unassignedTickets.length > 0 && (
+          <>
+            <Text className="text-[20px] font-semibold text-black mb-4 mt-6">
+              Available to Assign
+            </Text>
+            {unassignedTickets.map((ticket) => (
+              <View
+                key={ticket.id}
+                style={{
+                  backgroundColor: "#fff",
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: "#E5E7EB",
+                  padding: 10,
+                  overflow: "hidden",
+                  marginBottom: 16,
+                }}
+              >
+                <TicketCard
+                  title={ticket.title}
+                  ticketNumber={ticket.ticketNumber}
+                  backgroundColor={ticket.backgroundColor}
+                  isUnassigned
+                  onAssign={() =>
+                    onTransfer(
+                      ticket.title,
+                      ticket.ticketNumber,
+                      "",
+                      ticket.backgroundColor,
+                      true
+                    )
+                  }
+                />
+              </View>
+            ))}
+          </>
+        )}
       </View>
     </ScrollView>
   );
@@ -3403,7 +3592,14 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     initialTab
   );
   const [qrModalVisible, setQrModalVisible] = useState(false);
-  const [qrModalData, setQrModalData] = useState({
+  const [qrModalData, setQrModalData] = useState<{
+    title: string;
+    ticketNumber: string;
+    assignedTo: string;
+    canTransfer?: boolean;
+    totalTickets?: number;
+    availableToAssignCount?: number;
+  }>({
     title: "",
     ticketNumber: "",
     assignedTo: "",
@@ -3461,6 +3657,39 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     countryCode: string;
   } | null>(null);
 
+  // Ticket state management
+  const [tickets, setTickets] = useState<Ticket[]>([
+    {
+      id: "1",
+      title: "Founder Pass",
+      ticketNumber: "#SPK2025-1234",
+      backgroundColor: "#000000",
+      assignedTo: "John Doe",
+      isPersonal: true,
+      isUnassigned: false,
+    },
+    {
+      id: "2",
+      title: "Exhibitor Pass",
+      ticketNumber: "#SPK2025-5678",
+      backgroundColor: "#10B981",
+      assignedTo: "Jane Smith",
+      assigneeEmail: "jane@example.com",
+      assigneePhone: "+1234567890",
+      assignedDate: "2025-01-15",
+      isPersonal: false,
+      isUnassigned: false,
+    },
+    {
+      id: "3",
+      title: "Attendee Pass",
+      ticketNumber: "#SPK2025-9012",
+      backgroundColor: "#3B82F6",
+      isPersonal: false,
+      isUnassigned: true,
+    },
+  ]);
+
   // Update tab when route params change
   useEffect(() => {
     if (route.params?.initialTab) {
@@ -3468,8 +3697,37 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     }
   }, [route.params?.initialTab]);
 
-  const handleViewQR = (title: string, ticketNumber: string) => {
-    setQrModalData({ title, ticketNumber, assignedTo: "John Doe" });
+  // Calculate transfer logic based on current ticket state
+  const calculateTransferLogic = () => {
+    const totalTickets = tickets.length;
+    const availableToAssignTickets = tickets.filter(
+      (t) => !t.isPersonal && t.isUnassigned
+    );
+    const canTransferPersonalTicket =
+      totalTickets > 1 && availableToAssignTickets.length === 0;
+    return {
+      totalTickets,
+      availableToAssignCount: availableToAssignTickets.length,
+      canTransferPersonalTicket,
+    };
+  };
+
+  const handleViewQR = (
+    title: string,
+    ticketNumber: string,
+    canTransfer: boolean,
+    totalTickets: number,
+    availableToAssignCount: number
+  ) => {
+    const ticket = tickets.find((t) => t.ticketNumber === ticketNumber);
+    setQrModalData({
+      title,
+      ticketNumber,
+      assignedTo: ticket?.assignedTo || "John Doe",
+      canTransfer,
+      totalTickets,
+      availableToAssignCount,
+    });
     setQrModalVisible(true);
   };
 
@@ -3510,6 +3768,50 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     phoneNumber: string;
     countryCode: string;
   }) => {
+    // Update the ticket state - mark the ticket as assigned
+    // Use functional update to ensure we have the latest state
+    setTickets((prevTickets: Ticket[]) => {
+      const ticketToAssign = prevTickets.find(
+        (t) =>
+          t.ticketNumber === transferModalData.ticketNumber && t.isUnassigned
+      );
+
+      if (ticketToAssign) {
+        const updatedTickets = prevTickets.map((ticket: Ticket) =>
+          ticket.id === ticketToAssign.id
+            ? {
+                ...ticket,
+                isUnassigned: false,
+                assignedTo: data.fullName,
+                assigneeEmail: data.email,
+                assigneePhone: data.phoneNumber,
+                assignedDate: new Date().toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                }),
+              }
+            : ticket
+        );
+
+        // Debug: Log the updated state
+        console.log("Ticket assigned:", {
+          ticketNumber: transferModalData.ticketNumber,
+          before: ticketToAssign,
+          after: updatedTickets.find((t) => t.id === ticketToAssign.id),
+          allTickets: updatedTickets,
+        });
+
+        return updatedTickets;
+      }
+
+      console.warn(
+        "Ticket not found for assignment:",
+        transferModalData.ticketNumber
+      );
+      return prevTickets;
+    });
+
     setRecipientData(data);
     setRecipientModalVisible(false);
     setTimeout(() => {
@@ -3518,9 +3820,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   };
 
   const handleBackToHome = () => {
+    // Close the confirmation modal but stay on the My Ticket screen
+    // so user can see the updated ticket sections
     setConfirmationModalVisible(false);
     setRecipientData(null);
-    navigation.navigate("Home");
+    // Don't navigate away - let user see the updated state
   };
 
   const handleAssignTicket = (ticket: {
@@ -3601,6 +3905,25 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
   const handleRevokeAccessConfirm = (reason: string) => {
     console.log("Revoke access with reason:", reason);
+
+    // Update ticket state - move ticket back to available to assign
+    if (editAssignedTicketData) {
+      setTickets((prevTickets) =>
+        prevTickets.map((ticket) =>
+          ticket.ticketNumber === editAssignedTicketData.ticketNumber
+            ? {
+                ...ticket,
+                isUnassigned: true,
+                assignedTo: undefined,
+                assigneeEmail: undefined,
+                assigneePhone: undefined,
+                assignedDate: undefined,
+              }
+            : ticket
+        )
+      );
+    }
+
     setRevokeAccessModalVisible(false);
     setTimeout(() => {
       setTicketRevokedConfirmationVisible(true);
@@ -3652,6 +3975,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         <SegmentedControl activeTab={activeTab} onTabChange={setActiveTab} />
         {activeTab === "My Ticket" ? (
           <MyTicketView
+            tickets={tickets}
             onViewQR={handleViewQR}
             onTransfer={handleTransfer}
             onEditAssignment={handleEditAssignment}
@@ -3669,6 +3993,9 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           title={qrModalData.title}
           ticketNumber={qrModalData.ticketNumber}
           assignedTo={qrModalData.assignedTo}
+          canTransfer={qrModalData.canTransfer}
+          totalTickets={qrModalData.totalTickets}
+          availableToAssignCount={qrModalData.availableToAssignCount}
           onTransfer={handleTransfer}
         />
         <TransferTicketModal

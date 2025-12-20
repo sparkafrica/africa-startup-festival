@@ -11,6 +11,8 @@ import {
   EventViewModal,
   LeaveFeedbackModal,
   FeedbackSentModal,
+  ScheduleSuccessToast,
+  ParticipantDetailModal,
   type FilterCategory,
   type Speaker,
 } from "../components";
@@ -29,20 +31,43 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { useChecklist } from "../context/ChecklistContext";
 
 export default function ScheduleScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
+  const { markAddSessionsComplete } = useChecklist();
   const [selectedStage, setSelectedStage] =
     React.useState<string>("main-stage");
   const [isFilterModalVisible, setIsFilterModalVisible] = React.useState(false);
   const [selectedFilters, setSelectedFilters] = React.useState<string[]>([]);
-  const [selectedEvent, setSelectedEvent] = React.useState<any>(null);
+  interface EventData {
+    id: string;
+    title: string;
+    stage: string;
+    day: string;
+    startTime: string;
+    endTime: string;
+    sponsoredBy?: { name: string; color: "blue" | "purple" };
+    speakers?: Speaker[];
+    description?: string;
+  }
+
+  const [selectedEvent, setSelectedEvent] = React.useState<EventData | null>(
+    null
+  );
   const [isEventViewModalVisible, setIsEventViewModalVisible] =
     React.useState(false);
   const [isLeaveFeedbackModalVisible, setIsLeaveFeedbackModalVisible] =
     React.useState(false);
   const [isFeedbackSentModalVisible, setIsFeedbackSentModalVisible] =
+    React.useState(false);
+  const [showScheduleSuccess, setShowScheduleSuccess] = React.useState(false);
+  const [addedEventTitle, setAddedEventTitle] = React.useState<string>("");
+  const [selectedSpeaker, setSelectedSpeaker] = React.useState<Speaker | null>(
+    null
+  );
+  const [isSpeakerDetailVisible, setIsSpeakerDetailVisible] =
     React.useState(false);
 
   const stageOptions = [
@@ -147,11 +172,28 @@ export default function ScheduleScreen() {
           id: "1",
           name: "Dr. Jane Smith",
           affiliation: "VC Partner · TechVentures Inc",
+          bio: "Dr. Jane Smith is a seasoned venture capitalist with over 15 years of experience in technology investments. She specializes in early-stage fintech and enterprise SaaS companies across Africa. Jane has led investments in over 50 startups and has been instrumental in scaling some of the continent's most successful tech companies.",
+          interests: [
+            "Fintech",
+            "Enterprise SaaS",
+            "AI/ML",
+            "Startup Ecosystem",
+          ],
+          tags: ["VC", "Fintech Expert", "Africa Tech"],
+          socialLabel: "jane.smith@techventures.com",
         },
         {
           id: "2",
           name: "Sarah Johnson",
           affiliation: "Founder · Innovation Labs",
+          bio: "Sarah Johnson is the founder and CEO of Innovation Labs, a leading technology incubator focused on supporting African entrepreneurs. With a background in software engineering and product management, Sarah has helped launch over 30 successful startups in the past decade.",
+          interests: [
+            "Product Development",
+            "Startup Mentoring",
+            "Tech Innovation",
+          ],
+          tags: ["Founder", "Product Expert", "Mentor"],
+          socialLabel: "sarah.johnson@innovationlabs.com",
         },
       ] as Speaker[],
       description:
@@ -164,7 +206,36 @@ export default function ScheduleScreen() {
       day: "Day 1",
       startTime: "11:00 AM",
       endTime: "11:40 AM",
-      speakers: [] as Speaker[],
+      speakers: [
+        {
+          id: "3",
+          name: "Michael Chen",
+          affiliation: "CTO · CloudScale Africa",
+          bio: "Michael Chen is the Chief Technology Officer at CloudScale Africa, where he leads a team of 50+ engineers building scalable cloud infrastructure solutions. He has over 12 years of experience in distributed systems and cloud architecture, having previously worked at major tech companies.",
+          interests: [
+            "Cloud Infrastructure",
+            "Distributed Systems",
+            "DevOps",
+            "Scalability",
+          ],
+          tags: ["CTO", "Cloud Expert", "Architecture"],
+          socialLabel: "michael.chen@cloudscale.africa",
+        },
+        {
+          id: "4",
+          name: "Amina Okafor",
+          affiliation: "Product Lead · TechBuild",
+          bio: "Amina Okafor is a product leader with a passion for building user-centric technology solutions. She has led product teams at several successful startups and has a track record of launching products that have reached millions of users across Africa.",
+          interests: [
+            "Product Strategy",
+            "User Experience",
+            "Data Analytics",
+            "Growth",
+          ],
+          tags: ["Product Lead", "UX Expert", "Growth Hacker"],
+          socialLabel: "amina.okafor@techbuild.com",
+        },
+      ] as Speaker[],
       description: "Learn how to build scalable SaaS solutions from Africa.",
     },
     {
@@ -178,7 +249,50 @@ export default function ScheduleScreen() {
         name: "ASF",
         color: "purple" as const,
       },
-      speakers: [] as Speaker[],
+      speakers: [
+        {
+          id: "5",
+          name: "David Kimani",
+          affiliation: "Founder · StartupHub",
+          bio: "David Kimani is the visionary founder of StartupHub, a platform connecting African entrepreneurs with investors and resources. He has been featured in Forbes Africa and has mentored hundreds of startups. David is passionate about building the next generation of African tech leaders.",
+          interests: [
+            "Entrepreneurship",
+            "Startup Ecosystem",
+            "Investor Relations",
+            "Mentoring",
+          ],
+          tags: ["Founder", "Ecosystem Builder", "Mentor"],
+          socialLabel: "david.kimani@startuphub.com",
+        },
+        {
+          id: "6",
+          name: "Fatima Bello",
+          affiliation: "CEO · Innovation Labs",
+          bio: "Fatima Bello is the CEO of Innovation Labs, driving innovation in the African tech space. With a background in business strategy and technology, she has transformed multiple companies and led them to successful exits. Fatima is a sought-after speaker at tech conferences worldwide.",
+          interests: [
+            "Business Strategy",
+            "Tech Innovation",
+            "Leadership",
+            "Public Speaking",
+          ],
+          tags: ["CEO", "Strategy Expert", "Speaker"],
+          socialLabel: "fatima.bello@innovationlabs.com",
+        },
+        {
+          id: "7",
+          name: "James Osei",
+          affiliation: "Co-founder · TechVenture",
+          bio: "James Osei is the co-founder of TechVenture, a venture capital firm focused on African tech startups. He has invested in over 100 companies and has a deep understanding of the African market. James is known for his hands-on approach to supporting portfolio companies.",
+          interests: [
+            "Venture Capital",
+            "Market Analysis",
+            "Startup Investing",
+            "Portfolio Management",
+          ],
+          tags: ["Co-founder", "VC", "Investor"],
+          socialLabel: "james.osei@techventure.com",
+        },
+      ] as Speaker[],
       description: "Discover the next generation of African startups.",
     },
   ];
@@ -206,7 +320,6 @@ export default function ScheduleScreen() {
             onSelect={(value) => {
               setSelectedStage(value);
               // TODO: Filter events by stage
-              console.log("Selected stage:", value);
             }}
             width="65%"
           />
@@ -228,22 +341,31 @@ export default function ScheduleScreen() {
         <View className="px-4">
           {events.map((event) => (
             <Pressable
-              key={event.id}
+              key={event?.id || `event-${Math.random()}`}
               onPress={() => {
-                setSelectedEvent(event);
-                setIsEventViewModalVisible(true);
+                if (event) {
+                  setSelectedEvent(event);
+                  setIsEventViewModalVisible(true);
+                }
               }}
+              style={({ pressed }) => ({
+                opacity: pressed ? 0.7 : 1,
+              })}
             >
               <EventCard
-                title={event.title}
-                stage={event.stage}
-                day={event.day}
-                startTime={event.startTime}
-                endTime={event.endTime}
-                sponsoredBy={event.sponsoredBy}
+                title={event?.title || ""}
+                stage={event?.stage || ""}
+                day={event?.day || ""}
+                startTime={event?.startTime || ""}
+                endTime={event?.endTime || ""}
+                sponsoredBy={event?.sponsoredBy}
                 onAddToSchedule={() => {
                   // TODO: Implement add to schedule functionality
-                  console.log("Add to schedule:", event.id);
+                  // Mark checklist item as completed when user adds a session
+                  markAddSessionsComplete();
+                  // Show success toast
+                  setAddedEventTitle(event?.title || "");
+                  setShowScheduleSuccess(true);
                 }}
                 onLeaveFeedback={() => {
                   setSelectedEvent(event);
@@ -261,7 +383,6 @@ export default function ScheduleScreen() {
         onApply={(filters) => {
           setSelectedFilters(filters);
           // TODO: Filter events based on selected filters
-          console.log("Applied filters:", filters);
         }}
         categories={filterCategories}
         initialSelected={selectedFilters}
@@ -269,23 +390,46 @@ export default function ScheduleScreen() {
 
       {selectedEvent && (
         <EventViewModal
-          visible={isEventViewModalVisible}
+          visible={isEventViewModalVisible && !isSpeakerDetailVisible}
           onClose={() => {
             setIsEventViewModalVisible(false);
             setSelectedEvent(null);
+            // Clear speaker state when closing event modal
+            setSelectedSpeaker(null);
+            setIsSpeakerDetailVisible(false);
           }}
-          title={selectedEvent.title}
-          startTime={selectedEvent.startTime}
-          endTime={selectedEvent.endTime}
-          stage={selectedEvent.stage}
-          sponsoredBy={selectedEvent.sponsoredBy}
-          speakers={selectedEvent.speakers || []}
-          description={selectedEvent.description}
+          title={selectedEvent?.title || ""}
+          startTime={selectedEvent?.startTime || ""}
+          endTime={selectedEvent?.endTime || ""}
+          stage={selectedEvent?.stage || ""}
+          sponsoredBy={selectedEvent?.sponsoredBy}
+          speakers={(selectedEvent?.speakers || []).map((speaker: Speaker) => {
+            return {
+              ...speaker,
+              onPress: () => {
+                if (speaker) {
+                  // Hide event modal first, then show speaker modal
+                  setIsEventViewModalVisible(false);
+                  // Set speaker and show modal
+                  setSelectedSpeaker(speaker);
+                  setIsSpeakerDetailVisible(true);
+                }
+              },
+            };
+          })}
+          description={selectedEvent?.description}
           onAddToSchedule={() => {
             // TODO: Implement add to schedule functionality
-            console.log("Add to schedule:", selectedEvent.id);
+            // Mark checklist item as completed when user adds a session
+            markAddSessionsComplete();
+            // Show success toast
+            setAddedEventTitle(selectedEvent?.title || "");
+            setShowScheduleSuccess(true);
             setIsEventViewModalVisible(false);
             setSelectedEvent(null);
+            // Clear speaker state
+            setSelectedSpeaker(null);
+            setIsSpeakerDetailVisible(false);
           }}
           onLeaveFeedback={() => {
             setIsEventViewModalVisible(false);
@@ -299,7 +443,6 @@ export default function ScheduleScreen() {
         onClose={() => setIsLeaveFeedbackModalVisible(false)}
         onSubmit={(feedback: string) => {
           // TODO: Submit feedback to API
-          console.log("Feedback submitted:", feedback);
           setIsLeaveFeedbackModalVisible(false);
           // Show confirmation modal after feedback is sent
           setIsFeedbackSentModalVisible(true);
@@ -313,6 +456,43 @@ export default function ScheduleScreen() {
           setIsFeedbackSentModalVisible(false);
         }}
         meetingTitle={selectedEvent?.title}
+      />
+
+      <ScheduleSuccessToast
+        visible={showScheduleSuccess}
+        onHide={() => setShowScheduleSuccess(false)}
+        eventTitle={addedEventTitle}
+      />
+
+      <ParticipantDetailModal
+        visible={isSpeakerDetailVisible && !!selectedSpeaker}
+        onClose={() => {
+          setIsSpeakerDetailVisible(false);
+          setSelectedSpeaker(null);
+          // Restore event modal if event is still selected
+          if (selectedEvent) {
+            setIsEventViewModalVisible(true);
+          }
+        }}
+        name={selectedSpeaker?.name || ""}
+        role={(() => {
+          // Parse affiliation to extract role (e.g., "VC Partner · TechVentures Inc" -> "VC Partner")
+          const affiliation = selectedSpeaker?.affiliation || "";
+          const parts = affiliation.split("·");
+          const role = parts[0]?.trim() || "";
+          return role;
+        })()}
+        company={(() => {
+          // Parse affiliation to extract company (e.g., "VC Partner · TechVentures Inc" -> "TechVentures Inc")
+          const affiliation = selectedSpeaker?.affiliation || "";
+          const parts = affiliation.split("·");
+          const company = parts.length > 1 ? parts[1]?.trim() : "";
+          return company;
+        })()}
+        bio={selectedSpeaker?.bio}
+        interests={selectedSpeaker?.interests}
+        tags={selectedSpeaker?.tags}
+        socialLabel={selectedSpeaker?.socialLabel}
       />
 
       <SafeAreaView edges={["bottom"]}>
@@ -330,8 +510,6 @@ export default function ScheduleScreen() {
               navigation.navigate("Meetings");
             } else if (route === "Connections") {
               navigation.navigate("Connections");
-            } else {
-              console.log(`Navigate to ${route}`);
             }
           }}
         />

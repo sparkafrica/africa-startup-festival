@@ -490,7 +490,7 @@ function Header() {
 
   return (
     <View className="flex-row items-center justify-between px-6 pt-4 pb-4">
-      <Text className="text-[28px] font-bold text-black">Manage Profile</Text>
+      <Text className="text-[28px] font-inter-semibold text-black">Manage Profile</Text>
       <Pressable
         onPress={() => navigation.goBack()}
         className="w-10 h-10 items-center justify-center"
@@ -1778,7 +1778,7 @@ export default function ProfileScreen() {
                   await completeProfile();
                 }}
               >
-                <Text className="text-white text-base font-semibold">
+                <Text className="text-white text-base font-inter-semibold">
                   Save Changes
                 </Text>
               </Pressable>

@@ -297,6 +297,53 @@ export default function RequestMeetingModal({
                 </View>
               </View>
 
+              {/* Date Picker */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Date</Text>
+                <Pressable
+                  style={styles.input}
+                  onPress={() => {
+                    setShowDatePicker(!showDatePicker);
+                    setShowTimePicker(false);
+                    setShowTablePicker(false);
+                  }}
+                >
+                  <CalendarIcon size={20} />
+                  <Text style={[styles.inputText, { marginLeft: 12 }]}>
+                    {selectedDate || "Select date"}
+                  </Text>
+                  {showDatePicker ? (
+                    <ChevronUpIcon size={20} color="#A3A3A3" />
+                  ) : (
+                    <ChevronDownIcon size={20} color="#A3A3A3" />
+                  )}
+                </Pressable>
+
+                {/* Date Options */}
+                {showDatePicker && (
+                  <View style={styles.pickerOptions}>
+                    {availableDates.map((date) => (
+                      <Pressable
+                        key={date.id}
+                        style={styles.pickerOption}
+                        onPress={() => {
+                          setSelectedDate(date.label);
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        <CalendarIcon size={20} active={true} />
+                        <Text style={styles.pickerOptionText}>
+                          {date.label}
+                        </Text>
+                        {selectedDate === date.label && (
+                          <Text style={styles.checkmark}>✓</Text>
+                        )}
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
               {/* Table Number (Physical) or Meeting Link (Virtual) */}
               {meetingType === "Physical" ? (
                 <View style={styles.fieldContainer}>
@@ -357,11 +404,9 @@ export default function RequestMeetingModal({
                 </View>
               )}
 
-              {/* Date & Time */}
+              {/* Time Picker */}
               <View style={styles.fieldContainer}>
-                <Text style={styles.label}>Date & Time</Text>
-
-                {/* Time Picker */}
+                <Text style={styles.label}>Time</Text>
                 <Pressable
                   style={styles.input}
                   onPress={() => {
@@ -371,7 +416,7 @@ export default function RequestMeetingModal({
                   }}
                 >
                   <ClockIcon size={20} />
-                  <Text style={styles.inputText}>
+                  <Text style={[styles.inputText, { marginLeft: 12 }]}>
                     {selectedTime || "Select time"}
                   </Text>
                   {showTimePicker ? (
@@ -397,50 +442,6 @@ export default function RequestMeetingModal({
                         <Text style={styles.pickerOptionText}>
                           {time.label}
                         </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-
-                {/* Date Picker */}
-                <Pressable
-                  style={[styles.input, styles.dateInput]}
-                  onPress={() => {
-                    setShowDatePicker(!showDatePicker);
-                    setShowTimePicker(false);
-                    setShowTablePicker(false);
-                  }}
-                >
-                  <CalendarIcon size={20} />
-                  <Text style={styles.inputText}>
-                    {selectedDate || "Select date"}
-                  </Text>
-                  {showDatePicker ? (
-                    <ChevronUpIcon size={20} color="#A3A3A3" />
-                  ) : (
-                    <ChevronDownIcon size={20} color="#A3A3A3" />
-                  )}
-                </Pressable>
-
-                {/* Date Options */}
-                {showDatePicker && (
-                  <View style={styles.pickerOptions}>
-                    {availableDates.map((date) => (
-                      <Pressable
-                        key={date.id}
-                        style={styles.pickerOption}
-                        onPress={() => {
-                          setSelectedDate(date.label);
-                          setShowDatePicker(false);
-                        }}
-                      >
-                        <CalendarIcon size={20} active={true} />
-                        <Text style={styles.pickerOptionText}>
-                          {date.label}
-                        </Text>
-                        {selectedDate === date.label && (
-                          <Text style={styles.checkmark}>✓</Text>
-                        )}
                       </Pressable>
                     ))}
                   </View>
@@ -613,9 +614,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: "#171717",
-  },
-  dateInput: {
-    marginTop: 12,
   },
   segmentedControl: {
     flexDirection: "row",

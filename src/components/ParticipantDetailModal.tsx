@@ -37,8 +37,6 @@ export default function ParticipantDetailModal({
   interests = [],
   socialLabel,
 }: ParticipantDetailModalProps) {
-  console.log("ParticipantDetailModal render - visible:", visible);
-
   return (
     <Modal
       visible={visible}
@@ -52,7 +50,7 @@ export default function ParticipantDetailModal({
         <Pressable style={styles.backdrop} onPress={onClose} />
 
         {/* Bottom Sheet Card */}
-        <SafeAreaView edges={["bottom"]} style={styles.safeArea}>
+        <View style={styles.sheetWrapper}>
           <View style={styles.sheetContainer}>
             {/* Handle */}
             <View style={styles.handleContainer}>
@@ -62,7 +60,7 @@ export default function ParticipantDetailModal({
             <ScrollView
               style={styles.content}
               contentContainerStyle={styles.contentContainer}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
             >
               {/* Header: Avatar + Name/Role */}
               <View style={styles.headerRow}>
@@ -118,7 +116,8 @@ export default function ParticipantDetailModal({
               )}
             </ScrollView>
           </View>
-        </SafeAreaView>
+          <SafeAreaView edges={["bottom"]} style={styles.bottomSafeArea} />
+        </View>
       </View>
     </Modal>
   );
@@ -136,7 +135,9 @@ const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
   },
-  safeArea: {
+  sheetWrapper: {
+    width: "100%",
+    alignItems: "center",
     justifyContent: "flex-end",
   },
   sheetContainer: {
@@ -146,6 +147,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     overflow: "hidden",
+    minHeight: SCREEN_HEIGHT * 0.5,
+    maxHeight: SCREEN_HEIGHT * 0.85,
   },
   handleContainer: {
     alignItems: "center",
@@ -159,11 +162,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
   },
   content: {
-    maxHeight: SCREEN_HEIGHT * 0.7,
+    flex: 1,
   },
   contentContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingTop: 8,
+    paddingBottom: 120,
+  },
+  bottomSafeArea: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
   },
   headerRow: {
     flexDirection: "row",
@@ -258,4 +266,3 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
 });
-

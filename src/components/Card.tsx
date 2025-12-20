@@ -33,19 +33,18 @@ export default function Card({
       }}
     >
       {(title || description) && (
-        <Pressable
-          onPress={expandable ? onToggle : undefined}
-          className="mb-4 "
-          disabled={!expandable}
-        >
-          <View className="flex-row items-center justify-between ">
-            {title && (
-              <Text className="text-lg font-bold text-neutral-900 flex-1 mr-2">
-                {title}
-              </Text>
-            )}
-            {/* mt-[-20px] is used to move the icon up by 20px */}
-            {expandable && (
+        expandable ? (
+          <Pressable
+            onPress={onToggle}
+            className="mb-4 "
+          >
+            <View className="flex-row items-center justify-between ">
+              {title && (
+                <Text className="text-lg font-bold text-neutral-900 flex-1 mr-2">
+                  {title}
+                </Text>
+              )}
+              {/* mt-[-20px] is used to move the icon up by 20px */}
               <View className="w-7 h-7 items-center justify-center"> 
                 {expanded ? (
                   <ChevronDownIcon size={30} color="#A3A3A3" />
@@ -53,14 +52,29 @@ export default function Card({
                   <ChevronUpIcon size={30} color="#A3A3A3"  />
                 )}
               </View>
+            </View>
+            {description && (
+              <Text className="text-sm text-neutral-600 leading-5">
+                {description}
+              </Text>
+            )}
+          </Pressable>
+        ) : (
+          <View className="mb-4 ">
+            <View className="flex-row items-center justify-between ">
+              {title && (
+                <Text className="text-lg font-bold text-neutral-900 flex-1 mr-2">
+                  {title}
+                </Text>
+              )}
+            </View>
+            {description && (
+              <Text className="text-sm text-neutral-600 leading-5">
+                {description}
+              </Text>
             )}
           </View>
-          {description && (
-            <Text className="text-sm text-neutral-600 leading-5">
-              {description}
-            </Text>
-          )}
-        </Pressable>
+        )
       )}
       {expanded && children}
     </View>

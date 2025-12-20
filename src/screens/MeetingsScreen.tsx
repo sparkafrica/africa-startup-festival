@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -29,14 +29,19 @@ import {
   HeartIcon,
   HeartIconFilled,
 } from "../components/BottomNavIcons";
-import { useNavigation } from "@react-navigation/native";
-import type { NavigationProp } from "@react-navigation/native";
-import type { RootStackParamList } from "../navigation/types";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { NavigationProp, RouteProp } from "@react-navigation/native";
+import type {
+  RootStackParamList,
+  RootStackScreenProps,
+} from "../navigation/types";
 
 type PrimaryTab = "requests" | "scheduled" | "cancelled";
 type SecondaryTab = "inbound" | "outbound";
 
-export default function MeetingsScreen() {
+type Props = RootStackScreenProps<"Meetings">;
+
+export default function MeetingsScreen({ route }: Props) {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const [primaryTab, setPrimaryTab] = useState<PrimaryTab>("requests");
@@ -45,6 +50,18 @@ export default function MeetingsScreen() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isParticipantModalVisible, setIsParticipantModalVisible] =
     useState(false);
+
+  // Handle navigation params to set tabs when navigating from notifications
+  useEffect(() => {
+    if (route.params) {
+      if (route.params.primaryTab) {
+        setPrimaryTab(route.params.primaryTab);
+      }
+      if (route.params.secondaryTab) {
+        setSecondaryTab(route.params.secondaryTab);
+      }
+    }
+  }, [route.params]);
 
   const bottomNavItems = [
     {

@@ -62,9 +62,13 @@ export const colors = {
 
 export const typography = {
   fontFamily: {
-    sans: "Inter_400Regular", // Default font - change here to switch globally
-    inter: "Inter_400Regular",
-    roboto: "Roboto_400Regular",
+    // Inter Display - ONLY font family used throughout the app (no fallbacks)
+    sans: "InterDisplay-Regular", // Default font - Inter Display Regular
+    inter: "InterDisplay-Regular",
+    "inter-light": "InterDisplay-Light",
+    "inter-medium": "InterDisplay-Medium",
+    "inter-semibold": "InterDisplay-SemiBold",
+    "inter-bold": "InterDisplay-Bold",
   },
   fontSize: {
     xs: 12,

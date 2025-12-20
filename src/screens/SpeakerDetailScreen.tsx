@@ -17,6 +17,7 @@ import { ChevronLeftIcon } from "../components/HeaderIcons";
 import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
 import {
   RequestMeetingModal,
+  MeetingRequestMessageModal,
   type MeetingFormData,
 } from "../components";
 
@@ -37,6 +38,15 @@ export default function SpeakerDetailScreen({ route }: Props) {
   const { speakerId, name = "Ada Okafor" } = route.params;
   const [isRequestMeetingModalVisible, setIsRequestMeetingModalVisible] =
     useState(false);
+
+  // Meeting Request Message Modal state
+  const [isMeetingRequestMessageVisible, setIsMeetingRequestMessageVisible] =
+    useState(false);
+  const [meetingRequestData, setMeetingRequestData] = useState<{
+    attendeeName: string;
+    meetingType: "Physical" | "Virtual";
+    meetingTitle: string;
+  } | null>(null);
 
   // TODO: Replace with backend data
   const speakerData = {
@@ -275,10 +285,29 @@ export default function SpeakerDetailScreen({ route }: Props) {
             meetingData: data,
           });
           console.log("========================================");
-          // TODO: Send meeting request to backend
+          // Show meeting request message modal
+          setMeetingRequestData({
+            attendeeName: speakerData.name,
+            meetingType: data.meetingType,
+            meetingTitle: data.title || "Meeting",
+          });
           setIsRequestMeetingModalVisible(false);
+          setIsMeetingRequestMessageVisible(true);
+          // TODO: Send meeting request to backend
         }}
         attendeeName={speakerData.name}
+      />
+
+      {/* Meeting Request Message Modal */}
+      <MeetingRequestMessageModal
+        visible={isMeetingRequestMessageVisible}
+        onClose={() => {
+          setIsMeetingRequestMessageVisible(false);
+          setMeetingRequestData(null);
+        }}
+        attendeeName={meetingRequestData?.attendeeName}
+        meetingType={meetingRequestData?.meetingType}
+        meetingTitle={meetingRequestData?.meetingTitle}
       />
     </View>
   );

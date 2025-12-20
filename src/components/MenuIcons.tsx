@@ -1,5 +1,5 @@
 import React from "react";
-import Svg, { Path, Circle } from "react-native-svg";
+import Svg, { Path, Circle, Rect } from "react-native-svg";
 
 interface IconProps {
   size?: number;
@@ -312,6 +312,38 @@ export function VideoIcon({ size = 30, color = "#404040" }: IconProps) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </Svg>
+  );
+}
+
+export function DoorIcon({ size = 30, color = "#404040" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Door frame */}
+      <Rect
+        x="3"
+        y="4"
+        width="18"
+        height="16"
+        rx="1"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Door panel */}
+      <Rect
+        x="4"
+        y="4"
+        width="11"
+        height="16"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Door handle */}
+      <Circle cx="17" cy="12" r="1.5" fill={color} />
     </Svg>
   );
 }

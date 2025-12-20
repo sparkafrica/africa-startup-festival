@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, ScrollView, Pressable, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { useChecklist } from "../context/ChecklistContext";
 import { gradients } from "../theme/theme";
 import {
   HeaderBar,
@@ -35,9 +36,56 @@ export default function HomeScreen() {
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const [checklistExpanded, setChecklistExpanded] = useState(true);
 
+  // Get checklist state and methods from context
+  const {
+    isConnectAttendeesComplete,
+    isRequestMeetingComplete,
+    isAddSessionsComplete,
+  } = useChecklist();
+
+  // Track if checklist has been auto-collapsed (to prevent re-collapsing on manual opens)
+  const [hasAutoCollapsed, setHasAutoCollapsed] = useState(false);
+
   // TODO: Replace with backend data - check if there are unread notifications
   // This would typically come from an API call or context/state management
   const [hasUnreadNotifications] = useState(false);
+
+  // Auto-collapse checklist when all items are completed (only once)
+  useEffect(() => {
+    const allCompleted =
+      isConnectAttendeesComplete &&
+      isRequestMeetingComplete &&
+      isAddSessionsComplete;
+
+    if (allCompleted && checklistExpanded && !hasAutoCollapsed) {
+      // Small delay for better UX
+      setTimeout(() => {
+        setChecklistExpanded(false);
+        setHasAutoCollapsed(true);
+      }, 500);
+    }
+  }, [
+    isConnectAttendeesComplete,
+    isRequestMeetingComplete,
+    isAddSessionsComplete,
+    checklistExpanded,
+    hasAutoCollapsed,
+  ]);
+
+  // Handler functions for checklist item navigation
+  // Items will be marked as completed when actions are performed on those screens
+  const handleConnectAttendees = () => {
+    navigation.navigate("Attendees");
+  };
+
+  const handleRequestMeeting = () => {
+    // Navigate to Attendees screen for user to request a meeting
+    navigation.navigate("Attendees");
+  };
+
+  const handleAddSessions = () => {
+    navigation.navigate("Schedule");
+  };
 
   const bottomNavItems = [
     {
@@ -123,7 +171,7 @@ export default function HomeScreen() {
             // backgroundImage={{
             //   uri: "https://res.cloudinary.com/dznd7vzlb/image/upload/v1765286724/DSC_5673_left_card_img_jou0ok.jpg"
             // }}
-            onPress={() => console.log("View attendees")}
+            onPress={() => navigation.navigate("Attendees")}
           />
           <BannerCard
             // badge="PARTNER OFFERS"
@@ -135,7 +183,7 @@ export default function HomeScreen() {
             // backgroundImage={{
             //   uri: "https://res.cloudinary.com/dznd7vzlb/image/upload/v1765286711/DSC_5145_right_card_img_gqppcl.jpg"
             // }}
-            onPress={() => console.log("See schedule")}
+            onPress={() => navigation.navigate("Schedule")}
           />
         </ScrollView>
 
@@ -152,17 +200,20 @@ export default function HomeScreen() {
             <ChecklistItem
               title="Connect with attendees"
               description="Swipe or search attendees that match your goals."
-              completed={true}
+              completed={isConnectAttendeesComplete}
+              onPress={handleConnectAttendees}
             />
             <ChecklistItem
               title="Request a meetings"
               description="Book focused 20-minute meetings with people you care about."
-              completed={false}
+              completed={isRequestMeetingComplete}
+              onPress={handleRequestMeeting}
             />
             <ChecklistItem
               title="Add sessions to your schedule"
               description="Add sessions so you never miss a talk."
-              completed={true}
+              completed={isAddSessionsComplete}
+              onPress={handleAddSessions}
             />
           </EventChecklist>
 

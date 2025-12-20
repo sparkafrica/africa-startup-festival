@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
+import MeetingActionToast from "./MeetingActionToast";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -26,7 +27,8 @@ interface NotificationDetailModalProps {
       | "meeting_time_change"
       | "meeting_approved"
       | "connection"
-      | "reminder";
+      | "reminder"
+      | "meeting_cancelled";
     title: string;
     requester?: {
       name: string;
@@ -37,9 +39,11 @@ interface NotificationDetailModalProps {
     meetingDetails?: {
       title: string;
       originalTime: string;
-      newTime: string;
+      newTime?: string;
+      location?: string;
     };
     reason?: string;
+    cancelledBy?: "them" | "you";
     onAccept?: () => void;
     onDecline?: () => void;
   } | null;
@@ -88,6 +92,8 @@ export default function NotificationDetailModal({
   notification,
 }: NotificationDetailModalProps) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const [showToast, setShowToast] = useState(false);
+  const [toastAction, setToastAction] = useState<"accepted" | "declined">("accepted");
 
   const panResponder = useRef(
     PanResponder.create({
@@ -139,8 +145,12 @@ export default function NotificationDetailModal({
         tension: 65,
         friction: 11,
       }).start();
+      // Reset toast when modal opens
+      setShowToast(false);
     } else {
       translateY.setValue(SCREEN_HEIGHT);
+      // Reset toast when modal closes
+      setShowToast(false);
     }
   }, [visible, translateY]);
 
@@ -197,13 +207,27 @@ export default function NotificationDetailModal({
                   </Text>
                 </View>
               )}
+              {notification.type === "meeting_cancelled" && (
+                <View className="px-6 pb-4">
+                  <Text className="text-base text-neutral-600 leading-6">
+                    {notification.cancelledBy === "them"
+                      ? `${notification.requester?.name} has cancelled this meeting.`
+                      : "You have cancelled this meeting."}
+                  </Text>
+                </View>
+              )}
 
               {/* Meeting Details Card */}
               {notification.meetingDetails && (
                 <View className="px-6 mb-4">
                   <View
                     className="rounded-2xl p-4"
-                    style={{ backgroundColor: "#FFF7ED" }}
+                    style={{
+                      backgroundColor:
+                        notification.type === "meeting_cancelled"
+                          ? "#FEF2F2"
+                          : "#FFF7ED",
+                    }}
                   >
                     <Text
                       className="text-lg font-semibold text-neutral-900 mb-3"
@@ -211,19 +235,38 @@ export default function NotificationDetailModal({
                     >
                       {notification.meetingDetails.title}
                     </Text>
-                    <View className="mb-2">
-                      <Text className="text-sm text-neutral-500 line-through">
-                        From: {notification.meetingDetails.originalTime}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text
-                        className="text-sm font-medium"
-                        style={{ color: "#EF4444" }}
-                      >
-                        To: {notification.meetingDetails.newTime}
-                      </Text>
-                    </View>
+                    {notification.type === "meeting_time_change" ? (
+                      <>
+                        <View className="mb-2">
+                          <Text className="text-sm text-neutral-500 line-through">
+                            From: {notification.meetingDetails.originalTime}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text
+                            className="text-sm font-medium"
+                            style={{ color: "#EF4444" }}
+                          >
+                            To: {notification.meetingDetails.newTime}
+                          </Text>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <View className="mb-2">
+                          <Text className="text-sm text-neutral-600">
+                            {notification.meetingDetails.originalTime}
+                          </Text>
+                        </View>
+                        {notification.meetingDetails.location && (
+                          <View>
+                            <Text className="text-sm text-neutral-600">
+                              {notification.meetingDetails.location}
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    )}
                   </View>
                 </View>
               )}
@@ -291,7 +334,7 @@ export default function NotificationDetailModal({
                 </View>
               )}
 
-              {/* Reason for Change Card */}
+              {/* Reason for Change/Cancellation Card */}
               {notification.reason && (
                 <View className="px-6 mb-6">
                   <View
@@ -308,7 +351,9 @@ export default function NotificationDetailModal({
                       className="text-base font-semibold text-neutral-900 mb-2"
                       style={{ fontSize: 16, lineHeight: 22 }}
                     >
-                      Reason for Change
+                      {notification.type === "meeting_cancelled"
+                        ? "Reason for Cancellation"
+                        : "Reason for Change"}
                     </Text>
                     <Text className="text-sm text-neutral-600 italic leading-5">
                       "{notification.reason}"
@@ -318,13 +363,38 @@ export default function NotificationDetailModal({
               )}
 
               {/* Action Buttons */}
-              {(notification.onAccept || notification.onDecline) && (
-                <View className="px-6 flex-row gap-3">
-                  {notification.onAccept && (
+              {notification.type === "meeting_cancelled" ? (
+                <View className="px-6">
+                  <Pressable
+                    onPress={onClose}
+                    className="bg-black rounded-2xl py-4 flex-row items-center justify-center"
+                    style={{
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
+                  >
+                    <Text className="text-white font-semibold text-base">
+                      OK
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                (notification.onAccept || notification.onDecline) && (
+                  <View className="px-6 flex-row gap-3">
+                    {notification.onAccept && (
                     <Pressable
                       onPress={() => {
                         notification.onAccept?.();
-                        onClose();
+                        // Show toast
+                        setToastAction("accepted");
+                        setShowToast(true);
+                        // Close modal after a short delay
+                        setTimeout(() => {
+                          onClose();
+                        }, 500);
                       }}
                       className="flex-1 bg-black rounded-2xl py-4 flex-row items-center justify-center"
                       style={{
@@ -345,7 +415,13 @@ export default function NotificationDetailModal({
                     <Pressable
                       onPress={() => {
                         notification.onDecline?.();
-                        onClose();
+                        // Show toast
+                        setToastAction("declined");
+                        setShowToast(true);
+                        // Close modal after a short delay
+                        setTimeout(() => {
+                          onClose();
+                        }, 500);
                       }}
                       className="flex-1 border-2 rounded-2xl py-4 flex-row items-center justify-center"
                       style={{
@@ -366,12 +442,20 @@ export default function NotificationDetailModal({
                       </Text>
                     </Pressable>
                   )}
-                </View>
+                  </View>
+                )
               )}
             </ScrollView>
           </SafeAreaView>
         </Animated.View>
       </View>
+
+      {/* Toast Notification */}
+      <MeetingActionToast
+        visible={showToast}
+        onHide={() => setShowToast(false)}
+        action={toastAction}
+      />
     </Modal>
   );
 }

@@ -55,11 +55,12 @@ export default function BannerCard({
           </Text>
         )}
 
-        <Text className="text-[22px] text-white font-semibold leading-tight mb-2">
+        <Text className="text-[22px] text-white font-inter-semibold leading-tight mb-2" >
+
           {title}
         </Text>
 
-        <Text className="text-[15px] text-white/90 leading-[20px] mb-5">
+        <Text className="text-[15px] text-white/90 font-inter-normal leading-[20px] mb-5">
           {description}
         </Text>
 
@@ -67,7 +68,7 @@ export default function BannerCard({
           onPress={onPress}
           className="w-full bg-white/10 border border-white/20 py-3 rounded-2xl flex-row items-center justify-center"
         >
-          <Text className="text-white text-[14px] font-medium mr-2">
+          <Text className="text-white text-[14px] font-inter-medium mr-2">
             {buttonText}
           </Text>
           <ArrowRightIcon size={18} color="#FFFFFF" />

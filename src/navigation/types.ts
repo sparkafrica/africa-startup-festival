@@ -21,7 +21,7 @@ export type RootStackParamList = {
   Partners: undefined;
   Speakers: undefined;
   Schedule: undefined;
-  Meetings: undefined;
+  Meetings: { primaryTab?: "requests" | "scheduled" | "cancelled"; secondaryTab?: "inbound" | "outbound" } | undefined;
   Connections: undefined;
   CompanyDetail: { exhibitorId: string; name?: string };
   SpeakerDetail: { speakerId: string; name?: string };

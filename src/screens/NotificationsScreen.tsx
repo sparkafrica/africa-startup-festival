@@ -62,6 +62,24 @@ export default function NotificationsScreen() {
       description: "Sarah Johnson approved your meeting request for March 15",
       time: "2 hours ago",
       unread: false,
+      direction: "outbound", // "outbound" = user requested, "inbound" = someone else requested
+    },
+    {
+      id: "2b",
+      type: "meeting_approved",
+      icon: (
+        <View
+          className="w-12 h-12 rounded-lg items-center justify-center"
+          style={{ backgroundColor: "#F0FDF4" }}
+        >
+          <CalendarIcon size={24} color="#1BB273" />
+        </View>
+      ),
+      title: "Meeting Request Approved",
+      description: "You approved Michael Chen's meeting request for March 16",
+      time: "3 hours ago",
+      unread: true,
+      direction: "inbound", // "inbound" = someone else requested, user approved
     },
     {
       id: "3",
@@ -94,6 +112,37 @@ export default function NotificationsScreen() {
       description: "You have a meeting with Emma Rodriguez in 30 minutes",
       time: "Yesterday",
       unread: false,
+      direction: "outbound", // "outbound" = user requested, "inbound" = someone else requested
+    },
+    {
+      id: "5",
+      type: "meeting_cancelled",
+      icon: (
+        <View
+          className="w-12 h-12 rounded-lg items-center justify-center"
+          style={{ backgroundColor: "#FEF2F2" }}
+        >
+          <CalendarIcon size={24} color="#EF4444" />
+        </View>
+      ),
+      title: "Meeting Cancelled",
+      description: "Michael Chen cancelled your meeting request",
+      time: "3 hours ago",
+      unread: true,
+      requester: {
+        name: "Michael Chen",
+        role: "CEO",
+        company: "InnovateTech Solutions",
+        avatar: { uri: "https://i.pravatar.cc/150?img=12" },
+      },
+      meetingDetails: {
+        title: "Investment Opportunity",
+        originalTime: "March 16 • 2:00 PM - 2:20 PM",
+        location: "Table T-22",
+      },
+      reason:
+        "I have an urgent conflict that requires my immediate attention. I apologize for the inconvenience and would be happy to reschedule at your convenience.",
+      cancelledBy: "them", // "them" or "you" - who cancelled
     },
   ]);
 
@@ -173,8 +222,8 @@ export default function NotificationsScreen() {
                     markAsRead(notification.id);
                   }
                   
-                  // Only show modal for meeting time change requests
-                  if (notification.type === "meeting_time_change") {
+                  // Show modal for meeting time change requests and cancelled meetings
+                  if (notification.type === "meeting_time_change" || notification.type === "meeting_cancelled") {
                     setSelectedNotification(notification);
                   } else {
                     // Close the notifications modal first, then navigate
@@ -185,13 +234,21 @@ export default function NotificationsScreen() {
                       // Navigate to appropriate screen based on notification type
                       switch (notification.type) {
                         case "meeting_approved":
-                          navigation.navigate("Schedule");
+                          // Navigate to Meetings → Scheduled tab → appropriate direction tab
+                          navigation.navigate("Meetings", {
+                            primaryTab: "scheduled",
+                            secondaryTab: notification.direction || "outbound",
+                          });
+                          break;
+                        case "reminder":
+                          // Navigate to Meetings → Scheduled tab → appropriate direction tab
+                          navigation.navigate("Meetings", {
+                            primaryTab: "scheduled",
+                            secondaryTab: notification.direction || "outbound",
+                          });
                           break;
                         case "connection":
                           navigation.navigate("Connections");
-                          break;
-                        case "reminder":
-                          navigation.navigate("Schedule");
                           break;
                         default:
                           // For any other types, just mark as read
@@ -206,9 +263,9 @@ export default function NotificationsScreen() {
         )}
       </SafeAreaView>
 
-      {/* Notification Detail Modal - Only for meeting time change requests */}
+      {/* Notification Detail Modal - For meeting time change requests and cancelled meetings */}
       <NotificationDetailModal
-        visible={selectedNotification !== null && selectedNotification?.type === "meeting_time_change"}
+        visible={selectedNotification !== null && (selectedNotification?.type === "meeting_time_change" || selectedNotification?.type === "meeting_cancelled")}
         onClose={() => setSelectedNotification(null)}
         notification={selectedNotification}
       />
