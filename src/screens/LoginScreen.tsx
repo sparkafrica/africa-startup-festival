@@ -112,20 +112,20 @@ export default function LoginScreen() {
               </View>
 
               {/* Title */}
-              <Text className="text-[28px] font-bold text-neutral-900 text-center mb-2">
+              <Text className="text-[22px] font-bold text-neutral-900 text-center mb-2">
                 Log in with your Event Ticket
               </Text>
 
               {/* Subtitle */}
-              <Text className="text-base text-neutral-600 text-center mb-10">
+              <Text className="text-[12px] text-neutral-600 text-center mb-10">
                 Use the same email linked to your ticket.
               </Text>
 
               {/* Email Input Field */}
               <View className="mb-8">
-                <Text className="text-sm font-medium text-neutral-700 mb-2">
+                {/* <Text className="text-sm font-medium text-neutral-700 mb-2">
                   Email linked to your ticket
-                </Text>
+                </Text> */}
                 <TextInput
                   className="bg-white border border-neutral-300 rounded-xl px-4 py-4 text-base text-neutral-900"
                   placeholder="you@example.com"

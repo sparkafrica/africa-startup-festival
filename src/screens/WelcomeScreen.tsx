@@ -255,14 +255,47 @@ function RecipientDetailsModal({
   }, []);
 
   const handleTransfer = () => {
-    if (!fullName.trim() || !email.trim()) {
-      Alert.alert("Required Fields", "Please fill in all required fields");
+    // Basic required field validation
+    if (!fullName.trim()) {
+      Alert.alert("Required Field", "Please enter the recipient's full name");
       return;
     }
+
+    if (!email.trim()) {
+      Alert.alert(
+        "Required Field",
+        "Please enter the recipient's email address"
+      );
+      return;
+    }
+
+    // Email format validation
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert("Invalid Email", "Please enter a valid email address");
+      return;
+    }
+
+    // Phone number validation (if provided)
+    if (phoneNumber.trim()) {
+      // Remove any non-digit characters for validation
+      const digitsOnly = phoneNumber.replace(/\D/g, "");
+
+      // Validate length (typically 7-15 digits)
+      if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+        Alert.alert(
+          "Invalid Phone",
+          "Phone number must be between 7 and 15 digits"
+        );
+        return;
+      }
+    }
+
+    // All validations passed
     onTransfer({
-      fullName,
-      email,
-      phoneNumber,
+      fullName: fullName.trim(),
+      email: email.trim(),
+      phoneNumber: phoneNumber.trim(),
       countryCode,
     });
   };

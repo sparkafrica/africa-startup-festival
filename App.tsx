@@ -4,7 +4,7 @@ import React from "react";
 import { StatusBar } from "expo-status-bar";
 import { NavigationContainer } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Text, View, ActivityIndicator } from "react-native";
+import { Text, View, ActivityIndicator, Image } from "react-native";
 import { AuthProvider } from "./src/context/AuthContext";
 import { ChecklistProvider } from "./src/context/ChecklistContext";
 import AppNavigator from "./src/navigation/AppNavigator";
@@ -19,19 +19,48 @@ export default function App() {
     "InterDisplay-Bold": require("./src/assets/fonts/Inter Display/Inter Display/InterDisplay-Bold.ttf"),
   });
 
-  // Debug: Log font loading status
+  const [imagesPreloaded, setImagesPreloaded] = React.useState(false);
+
+  // Preload banner images during app initialization
+  // Render images off-screen to force React Native to load and decode them
+  React.useEffect(() => {
+    // Small delay to ensure images are rendered and cached
+    const timer = setTimeout(() => {
+      setImagesPreloaded(true);
+      console.log("✅ Banner images preloaded");
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Log font loading status
   React.useEffect(() => {
     if (fontError) {
       console.error("❌ Font loading error:", fontError);
     }
     if (fontsLoaded) {
-      console.log("✅ Inter Display fonts loaded successfully");
+      console.log("✅ Fonts loaded - Inter Display variants available");
+      console.log("📝 Default font set to: InterDisplay-Regular");
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded) {
+  // Wait for both fonts and images to be ready
+  if (!fontsLoaded || !imagesPreloaded) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        {/* Preload banner images off-screen */}
+        <View style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}>
+          <Image
+            source={require("./src/assets/images/lhs-card.jpg")}
+            style={{ width: 1, height: 1 }}
+            resizeMode="cover"
+          />
+          <Image
+            source={require("./src/assets/images/rhs-card.jpg")}
+            style={{ width: 1, height: 1 }}
+            resizeMode="cover"
+          />
+        </View>
         <ActivityIndicator size="large" />
       </View>
     );
@@ -46,10 +75,10 @@ export default function App() {
     <View className="flex-1 font-sans">
       <AuthProvider>
         <ChecklistProvider>
-        <NavigationContainer>
-          <AppNavigator />
-          <StatusBar style="auto" />
-        </NavigationContainer>
+          <NavigationContainer>
+            <AppNavigator />
+            <StatusBar style="auto" />
+          </NavigationContainer>
         </ChecklistProvider>
       </AuthProvider>
     </View>

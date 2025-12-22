@@ -20,6 +20,7 @@ import {
   MeetingRequestMessageModal,
   type MeetingFormData,
 } from "../components";
+import { useChecklist } from "../context/ChecklistContext";
 
 // ============================================
 // MODAL HEIGHT CONFIGURATION
@@ -36,6 +37,7 @@ type Props = RootStackScreenProps<"SpeakerDetail">;
 export default function SpeakerDetailScreen({ route }: Props) {
   const navigation = useNavigation<NavigationProp<any>>();
   const { speakerId, name = "Ada Okafor" } = route.params;
+  const { markRequestMeetingComplete } = useChecklist();
   const [isRequestMeetingModalVisible, setIsRequestMeetingModalVisible] =
     useState(false);
 
@@ -285,6 +287,8 @@ export default function SpeakerDetailScreen({ route }: Props) {
             meetingData: data,
           });
           console.log("========================================");
+          // Mark checklist item as completed when user submits meeting request
+          markRequestMeetingComplete();
           // Show meeting request message modal
           setMeetingRequestData({
             attendeeName: speakerData.name,

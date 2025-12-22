@@ -39,6 +39,7 @@ import {
   HeartIconFilled,
 } from "../components/BottomNavIcons";
 import { ChevronDownIcon, ListIcon, SearchIcon } from "../components/icons";
+import { LinkedInIcon } from "../components/SocialIcons";
 import Svg, { Path, Circle } from "react-native-svg";
 
 // Grid Icon Component (for Card View)
@@ -185,6 +186,7 @@ interface Attendee {
   tags?: string[];
   bio?: string;
   interests?: string[];
+  linkedInUrl?: string;
 }
 
 // Attendee Card Component (Tinder-style card)
@@ -772,6 +774,7 @@ export default function AttendeesScreen() {
       tags: ["Fintech", "Nigeria"],
       bio: "Early-stage investor focused on African fintech and infrastructure.",
       interests: ["Fintech", "Infrastructure", "Developer Tools"],
+      linkedInUrl: "https://linkedin.com/in/ada-okafor",
     },
     {
       id: "2",
@@ -781,6 +784,7 @@ export default function AttendeesScreen() {
       tags: ["Startups", "Ghana"],
       bio: "Building the next generation of African tech companies.",
       interests: ["Startups", "Technology", "Innovation"],
+      linkedInUrl: "https://linkedin.com/in/john-mensah",
     },
     {
       id: "3",
@@ -790,6 +794,7 @@ export default function AttendeesScreen() {
       tags: ["Product", "Egypt"],
       bio: "Passionate about creating products that make a difference.",
       interests: ["Product Design", "User Experience", "Strategy"],
+      linkedInUrl: "https://linkedin.com/in/sara-ibrahim",
     },
     {
       id: "4",
@@ -799,6 +804,7 @@ export default function AttendeesScreen() {
       tags: ["Cloud", "DevOps"],
       bio: "Cloud architecture expert helping companies scale efficiently.",
       interests: ["Cloud Computing", "DevOps", "Architecture"],
+      linkedInUrl: "https://linkedin.com/in/david-kim",
     },
     {
       id: "5",
@@ -808,6 +814,7 @@ export default function AttendeesScreen() {
       tags: ["UX/UI", "Product Design"],
       bio: "Designer focused on creating beautiful and functional interfaces.",
       interests: ["UI Design", "UX Research", "Design Systems"],
+      linkedInUrl: "https://linkedin.com/in/lisa-anderson",
     },
     {
       id: "6",
@@ -821,6 +828,7 @@ export default function AttendeesScreen() {
         "Machine Learning",
         "Data Science",
       ],
+      linkedInUrl: "https://linkedin.com/in/michael-chen",
     },
     {
       id: "7",
@@ -830,6 +838,7 @@ export default function AttendeesScreen() {
       tags: ["Marketing", "Kenya"],
       bio: "Expert in growth marketing and brand strategy for African markets.",
       interests: ["Digital Marketing", "Brand Strategy", "Growth Hacking"],
+      linkedInUrl: "https://linkedin.com/in/amina-hassan",
     },
   ];
 
@@ -1208,22 +1217,22 @@ export default function AttendeesScreen() {
         {/* View Dropdown and Filter Dropdowns */}
         <View className="px-4 pb-6 flex-row">
           <View className="flex-1 mr-2" style={{ position: "relative" }}>
-            <Pressable
+          <Pressable
               onPress={() => setShowViewDropdown(!showViewDropdown)}
               className="flex-row items-center justify-center bg-white rounded-xl px-4 py-3 border border-neutral-200"
-            >
+          >
               {viewMode === "card" ? (
-                <GridIcon size={16} color="#404040" />
+            <GridIcon size={16} color="#404040" />
               ) : (
                 <ListIcon size={16} color="#404040" />
               )}
-              <Text className="text-sm font-medium text-neutral-900 ml-2">
+            <Text className="text-sm font-medium text-neutral-900 ml-2">
                 {viewMode === "card" ? "Card View" : "List View"}
-              </Text>
-              <View className="ml-2">
-                <ChevronDownIcon size={14} color="#A3A3A3" />
-              </View>
-            </Pressable>
+            </Text>
+            <View className="ml-2">
+              <ChevronDownIcon size={14} color="#A3A3A3" />
+            </View>
+          </Pressable>
             {/* Dropdown Menu */}
             {showViewDropdown && (
               <View
@@ -1237,7 +1246,7 @@ export default function AttendeesScreen() {
                   zIndex: 50,
                 }}
               >
-                <Pressable
+          <Pressable
                   onPress={() => {
                     setViewMode("card");
                     setShowViewDropdown(false);
@@ -1355,8 +1364,8 @@ export default function AttendeesScreen() {
                   {displayedAttendees
                     .slice(currentCardIndex, currentCardIndex + 5)
                     .map((attendee, index) => (
-                      <AttendeeCard
-                        key={attendee.id}
+              <AttendeeCard
+                key={attendee.id}
                         attendee={attendee}
                         onSwipeLeft={handleReject}
                         onSwipeRight={handleAccept}
@@ -1383,9 +1392,9 @@ export default function AttendeesScreen() {
                   Swiping left skips, swiping right connects.
                 </Text>
               </>
-            ) : (
-              <View className="items-center justify-center py-12">
-                <Text className="text-base text-neutral-500 mb-2">
+          ) : (
+            <View className="items-center justify-center py-12">
+              <Text className="text-base text-neutral-500 mb-2">
                   {displayedAttendees.length === 0
                     ? "No attendees found"
                     : "No more attendees"}
@@ -1413,10 +1422,10 @@ export default function AttendeesScreen() {
             ) : (
               <View className="items-center justify-center py-12">
                 <Text className="text-base text-neutral-500">
-                  No attendees found
-                </Text>
-              </View>
-            )}
+                No attendees found
+              </Text>
+            </View>
+          )}
           </View>
         )}
       </View>
@@ -1576,6 +1585,30 @@ export default function AttendeesScreen() {
                     </View>
                   )}
 
+                {/* LinkedIn Badge */}
+                {selectedAttendee.linkedInUrl && (
+                  <View className="mb-4">
+                    <Text className="text-base font-semibold text-neutral-900 mb-2">
+                      Social Links
+                    </Text>
+                    <Pressable
+                      onPress={() => {
+                        // TODO: Open LinkedIn URL
+                        console.log("Open LinkedIn:", selectedAttendee.linkedInUrl);
+                      }}
+                      className="flex-row items-center bg-neutral-100 rounded-full px-4 py-2.5 self-start"
+                    >
+                      <LinkedInIcon size={18} color="#0A66C2" />
+                      <Text className="text-sm font-medium text-neutral-900 ml-2">
+                        {selectedAttendee.linkedInUrl.replace(
+                          /^https?:\/\/(www\.)?linkedin\.com\/in\//i,
+                          ""
+                        )}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
+
                 {/* Action Buttons */}
                 <View className="mt-2">
                   <Pressable
@@ -1604,8 +1637,8 @@ export default function AttendeesScreen() {
                       Connect
                     </Text>
                   </Pressable>
-                </View>
-              </ScrollView>
+        </View>
+      </ScrollView>
             </Pressable>
           </Animated.View>
         </View>

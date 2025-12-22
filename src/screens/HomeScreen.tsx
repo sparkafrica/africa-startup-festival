@@ -158,7 +158,7 @@ export default function HomeScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="px-4 pt-4 pb-3"
+          className="px-4 pt-4 pb-4"
           contentContainerStyle={{ paddingRight: 16 }}
         >
           <BannerCard
@@ -167,7 +167,7 @@ export default function HomeScreen() {
             description="Complete your checklist and start booking 1:1 meetings with attendees and partners."
             buttonText="View attendees"
             gradient={gradients.sparkBlack}
-            backgroundImage={require("../assets/images/left-card.jpg")}
+            backgroundImage={require("../assets/images/lhs-card.jpg")}
             // backgroundImage={{
             //   uri: "https://res.cloudinary.com/dznd7vzlb/image/upload/v1765286724/DSC_5673_left_card_img_jou0ok.jpg"
             // }}
@@ -179,7 +179,7 @@ export default function HomeScreen() {
             description="Get your ATE 2026 itinerary ready ahead of the event day"
             buttonText="See schedule"
             gradient={gradients.partnerGreen}
-            backgroundImage={require("../assets/images/right-card.jpg")}
+            backgroundImage={require("../assets/images/rhs-card.jpg")}
             // backgroundImage={{
             //   uri: "https://res.cloudinary.com/dznd7vzlb/image/upload/v1765286711/DSC_5145_right_card_img_gqppcl.jpg"
             // }}
@@ -204,7 +204,7 @@ export default function HomeScreen() {
               onPress={handleConnectAttendees}
             />
             <ChecklistItem
-              title="Request a meetings"
+              title="Request a meeting"
               description="Book focused 20-minute meetings with people you care about."
               completed={isRequestMeetingComplete}
               onPress={handleRequestMeeting}
@@ -238,6 +238,9 @@ export default function HomeScreen() {
                     })
                   }
                 />
+                <Text className="text-xs text-neutral-600 text-center mt-2">
+                  Kora
+                </Text>
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <ExhibitorCard
@@ -250,6 +253,9 @@ export default function HomeScreen() {
                     })
                   }
                 />
+                <Text className="text-xs text-neutral-600 text-center mt-2">
+                  Uber
+                </Text>
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <ExhibitorCard
@@ -262,6 +268,9 @@ export default function HomeScreen() {
                     })
                   }
                 />
+                <Text className="text-xs text-neutral-600 text-center mt-2">
+                  MTN
+                </Text>
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <ExhibitorCard
@@ -274,6 +283,9 @@ export default function HomeScreen() {
                     })
                   }
                 />
+                <Text className="text-xs text-neutral-600 text-center mt-2">
+                  Zoko
+                </Text>
               </View>
             </View>
             <Pressable
@@ -314,6 +326,9 @@ export default function HomeScreen() {
                     })
                   }
                 />
+                <Text className="text-xs text-neutral-600 text-center mt-2">
+                  Kora
+                </Text>
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <PartnerCard
@@ -326,6 +341,9 @@ export default function HomeScreen() {
                     })
                   }
                 />
+                <Text className="text-xs text-neutral-600 text-center mt-2">
+                  Uber
+                </Text>
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <PartnerCard
@@ -338,6 +356,9 @@ export default function HomeScreen() {
                     })
                   }
                 />
+                <Text className="text-xs text-neutral-600 text-center mt-2">
+                  MTN
+                </Text>
               </View>
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
                 <PartnerCard
@@ -350,6 +371,9 @@ export default function HomeScreen() {
                     })
                   }
                 />
+                <Text className="text-xs text-neutral-600 text-center mt-2">
+                  ZOHO
+                </Text>
               </View>
             </View>
             <Pressable

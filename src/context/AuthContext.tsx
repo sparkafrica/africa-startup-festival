@@ -57,38 +57,103 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [hasCompletedProfile, setHasCompletedProfile] = useState(false);
   const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
 
+  // Development: Set to true to force login every time (clears stored auth)
+  // Set to false to allow persistent sessions
+  const FORCE_LOGIN_ON_START = false; // Change to true to force login every app start
+
   const checkAuthState = useCallback(async () => {
     try {
       setIsLoading(true);
 
-      // Check if user has completed onboarding
-      const onboardingComplete = await AsyncStorage.getItem(
-        STORAGE_KEYS.ONBOARDING_COMPLETE
-      );
-      setHasCompletedOnboarding(onboardingComplete === "true");
-
-      // Check if user has completed profile
-      const profileComplete = await AsyncStorage.getItem(
-        STORAGE_KEYS.PROFILE_COMPLETE
-      );
-      setHasCompletedProfile(profileComplete === "true");
-
-      // Check if user has seen Welcome screen
-      const welcomeSeen = await AsyncStorage.getItem(STORAGE_KEYS.WELCOME_SEEN);
-      setHasSeenWelcome(welcomeSeen === "true");
+      // Development: Clear stored auth if FORCE_LOGIN_ON_START is true
+      if (FORCE_LOGIN_ON_START) {
+        await AsyncStorage.multiRemove([
+          STORAGE_KEYS.USER,
+          STORAGE_KEYS.TOKEN,
+          STORAGE_KEYS.PROFILE_COMPLETE,
+          STORAGE_KEYS.ONBOARDING_COMPLETE,
+          STORAGE_KEYS.WELCOME_SEEN,
+        ]);
+        setUser(null);
+        setIsAuthenticated(false);
+        setHasCompletedOnboarding(false);
+        setHasCompletedProfile(false);
+        setHasSeenWelcome(false);
+        return;
+      }
 
       // Check for existing auth token/user
       const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
       const storedToken = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
 
+      // Only restore auth state if both user and token exist
+      // TODO: In production, validate token with backend API before restoring
       if (storedUser && storedToken) {
-        // TODO: Validate token with backend API
-        // For now, just restore user from storage
-        setUser(JSON.parse(storedUser));
-        setIsAuthenticated(true);
+        try {
+          // TODO: Validate token with backend API
+          // const isValid = await validateToken(storedToken);
+          // if (!isValid) {
+          //   // Token expired or invalid, clear storage and require re-login
+          //   await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.TOKEN]);
+          //   return;
+          // }
+
+          // Restore user from storage
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+
+          // Check if user has completed onboarding
+          const onboardingComplete = await AsyncStorage.getItem(
+            STORAGE_KEYS.ONBOARDING_COMPLETE
+          );
+          setHasCompletedOnboarding(onboardingComplete === "true");
+
+          // Check if user has completed profile
+          const profileComplete = await AsyncStorage.getItem(
+            STORAGE_KEYS.PROFILE_COMPLETE
+          );
+          setHasCompletedProfile(profileComplete === "true");
+
+          // Check if user has seen Welcome screen
+          const welcomeSeen = await AsyncStorage.getItem(
+            STORAGE_KEYS.WELCOME_SEEN
+          );
+          setHasSeenWelcome(welcomeSeen === "true");
+
+          // Only set authenticated if profile is completed
+          // This ensures users must complete the full flow
+          if (profileComplete === "true") {
+            setIsAuthenticated(true);
+          } else {
+            // User exists but profile not completed - keep authenticated false
+            // They'll need to complete profile to access main app
+            setIsAuthenticated(false);
+          }
+        } catch (parseError) {
+          console.error("Error parsing stored user:", parseError);
+          // Clear corrupted data
+          await AsyncStorage.multiRemove([
+            STORAGE_KEYS.USER,
+            STORAGE_KEYS.TOKEN,
+          ]);
+        }
+      } else {
+        // No stored auth - user must login
+        // Reset all state to ensure clean login flow
+        setUser(null);
+        setIsAuthenticated(false);
+        setHasCompletedOnboarding(false);
+        setHasCompletedProfile(false);
+        setHasSeenWelcome(false);
       }
     } catch (error) {
       console.error("Error checking auth state:", error);
+      // On error, require login
+      setUser(null);
+      setIsAuthenticated(false);
+      setHasCompletedOnboarding(false);
+      setHasCompletedProfile(false);
+      setHasSeenWelcome(false);
     } finally {
       setIsLoading(false);
     }
@@ -211,12 +276,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   // Development helper: skip auth for UI development
+  // NOTE: This bypasses the login flow - use only for development/testing
   const skipAuth = () => {
-    setUser({ id: "dev", email: "dev@spark.com", name: "Dev User" });
+    const devUser = { id: "dev", email: "dev@spark.com", name: "Dev User" };
+    setUser(devUser);
     setIsAuthenticated(true);
     setHasCompletedOnboarding(true);
     setHasCompletedProfile(true);
     setHasSeenWelcome(true);
+    // Also store in AsyncStorage so it persists
+    AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(devUser));
+    AsyncStorage.setItem(STORAGE_KEYS.TOKEN, "dev-token");
+    AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
+    AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_COMPLETE, "true");
+    AsyncStorage.setItem(STORAGE_KEYS.WELCOME_SEEN, "true");
   };
 
   const value: AuthContextType = {

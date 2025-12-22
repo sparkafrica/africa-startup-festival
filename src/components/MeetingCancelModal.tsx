@@ -31,6 +31,7 @@ export default function MeetingCancelModal({
   onSend,
 }: MeetingCancelModalProps) {
   const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | undefined>(undefined);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -190,12 +191,31 @@ export default function MeetingCancelModal({
     })
   ).current;
 
-  const handleSend = () => {
-    if (reason.trim().length > 0) {
-      Keyboard.dismiss();
-      onSend(reason.trim());
-      setReason("");
+  const validateReason = (value: string): string | undefined => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return "Reason is required";
     }
+    if (trimmed.length < 10) {
+      return "Reason must be at least 10 characters";
+    }
+    if (trimmed.length > MAX_CHARACTERS) {
+      return `Reason must be less than ${MAX_CHARACTERS} characters`;
+    }
+    return undefined;
+  };
+
+  const handleSend = () => {
+    const validationError = validateReason(reason);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setError(undefined);
+    Keyboard.dismiss();
+    onSend(reason.trim());
+    setReason("");
   };
 
   const characterCount = reason.length;
@@ -247,7 +267,10 @@ export default function MeetingCancelModal({
                 <View style={styles.inputContainer}>
                   <TextInput
                     ref={inputRef}
-                    style={styles.textInput}
+                    style={[
+                      styles.textInput,
+                      error && { borderColor: "#EF4444" },
+                    ]}
                     placeholder="Type in your reasons here."
                     placeholderTextColor="#9CA3AF"
                     multiline
@@ -255,6 +278,10 @@ export default function MeetingCancelModal({
                     onChangeText={(text) => {
                       if (text.length <= MAX_CHARACTERS) {
                         setReason(text);
+                        // Clear error when user starts typing
+                        if (error) {
+                          setError(undefined);
+                        }
                       }
                     }}
                     textAlignVertical="top"
@@ -263,11 +290,19 @@ export default function MeetingCancelModal({
                   />
                   {/* Character Counter */}
                   <View style={styles.counterContainer}>
-                    <Text style={styles.counterText}>
+                    <Text
+                      style={[
+                        styles.counterText,
+                        characterCount > MAX_CHARACTERS && {
+                          color: "#EF4444",
+                        },
+                      ]}
+                    >
                       {characterCount}/{MAX_CHARACTERS}
                     </Text>
                   </View>
                 </View>
+                {error && <Text style={styles.errorText}>{error}</Text>}
               </ScrollView>
 
               {/* Action Button - Fixed at bottom */}
@@ -401,6 +436,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9CA3AF",
     fontWeight: "400",
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#EF4444",
+    marginTop: 4,
+    marginLeft: 20,
+    marginRight: 20,
   },
   buttonContainer: {
     backgroundColor: "#FFFFFF",

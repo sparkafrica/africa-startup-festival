@@ -62,6 +62,16 @@ export default function RequestMeetingModal({
   const [showTablePicker, setShowTablePicker] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
+  // Validation errors
+  const [errors, setErrors] = useState<{
+    title?: string;
+    tableNumber?: string;
+    meetingLink?: string;
+    date?: string;
+    time?: string;
+    description?: string;
+  }>({});
+
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scrollViewRef = useRef<ScrollView>(null);
   const descriptionFieldRef = useRef<View>(null);
@@ -127,6 +137,7 @@ export default function RequestMeetingModal({
       setShowDatePicker(false);
       setShowTimePicker(false);
       setKeyboardHeight(0);
+      setErrors({});
     } else {
       translateY.setValue(SCREEN_HEIGHT);
     }
@@ -154,25 +165,92 @@ export default function RequestMeetingModal({
     };
   }, []);
 
+  // Validate form
+  const validateForm = (): boolean => {
+    const newErrors: typeof errors = {};
+
+    // Validate Meeting Title
+    if (!title.trim()) {
+      newErrors.title = "Meeting title is required";
+    }
+
+    // Validate Table Number (Physical) or Meeting Link (Virtual)
+    if (meetingType === "Physical") {
+      if (!tableNumber.trim()) {
+        newErrors.tableNumber = "Table number is required";
+      }
+    } else {
+      if (!meetingLink.trim()) {
+        newErrors.meetingLink = "Meeting link is required";
+      }
+    }
+
+    // Validate Date
+    if (!selectedDate) {
+      newErrors.date = "Date is required";
+    }
+
+    // Validate Time
+    if (!selectedTime) {
+      newErrors.time = "Time is required";
+    }
+
+    // Validate Description
+    if (!description.trim()) {
+      newErrors.description = "Description is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Check if form is valid (for button state)
+  const isFormValid = (): boolean => {
+    const hasTitle = title.trim().length > 0;
+    const hasTableOrLink =
+      meetingType === "Physical"
+        ? tableNumber.trim().length > 0
+        : meetingLink.trim().length > 0;
+    const hasDate = selectedDate !== null;
+    const hasTime = selectedTime !== null;
+    const hasDescription = description.trim().length > 0;
+
+    return hasTitle && hasTableOrLink && hasDate && hasTime && hasDescription;
+  };
+
   const handleSubmit = () => {
-    const formData: MeetingFormData = {
-      title,
-      meetingType,
-      tableNumber: meetingType === "Physical" ? tableNumber : undefined,
-      meetingLink: meetingType === "Virtual" ? meetingLink : undefined,
-      date: selectedDate || undefined,
-      time: selectedTime || undefined,
-      description,
-    };
-    onSubmit(formData);
-    // Reset form
-    setTitle("");
-    setTableNumber("");
-    setMeetingLink("");
-    setSelectedDate(null);
-    setSelectedTime(null);
-    setDescription("");
-    onClose();
+    if (validateForm()) {
+      const formData: MeetingFormData = {
+        title,
+        meetingType,
+        tableNumber: meetingType === "Physical" ? tableNumber : undefined,
+        meetingLink: meetingType === "Virtual" ? meetingLink : undefined,
+        date: selectedDate || undefined,
+        time: selectedTime || undefined,
+        description,
+      };
+      onSubmit(formData);
+      // Reset form
+      setTitle("");
+      setTableNumber("");
+      setMeetingLink("");
+      setSelectedDate(null);
+      setSelectedTime(null);
+      setDescription("");
+      setErrors({});
+      onClose();
+    }
+  };
+
+  // Clear error when field is edited
+  const clearError = (field: keyof typeof errors) => {
+    if (errors[field]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
   };
 
   // Sample dates - in production, these would come from backend
@@ -247,15 +325,21 @@ export default function RequestMeetingModal({
               {/* Meeting Title */}
               <View style={styles.fieldContainer}>
                 <Text style={styles.label}>Meeting Title</Text>
-                <View style={styles.input}>
+                <View style={[styles.input, errors.title && styles.inputError]}>
                   <TextInput
                     style={styles.inputText}
                     placeholder="e.g., Product Discussion"
                     placeholderTextColor="#A3A3A3"
                     value={title}
-                    onChangeText={setTitle}
+                    onChangeText={(text) => {
+                      setTitle(text);
+                      clearError("title");
+                    }}
                   />
                 </View>
+                {errors.title && (
+                  <Text style={styles.errorText}>{errors.title}</Text>
+                )}
               </View>
 
               {/* Meeting Type - SegmentedControl */}
@@ -301,15 +385,22 @@ export default function RequestMeetingModal({
               <View style={styles.fieldContainer}>
                 <Text style={styles.label}>Date</Text>
                 <Pressable
-                  style={styles.input}
+                  style={[styles.input, errors.date && styles.inputError]}
                   onPress={() => {
                     setShowDatePicker(!showDatePicker);
                     setShowTimePicker(false);
                     setShowTablePicker(false);
+                    clearError("date");
                   }}
                 >
                   <CalendarIcon size={20} />
-                  <Text style={[styles.inputText, { marginLeft: 12 }]}>
+                  <Text
+                    style={[
+                      styles.inputText,
+                      { marginLeft: 12 },
+                      !selectedDate && styles.placeholderText,
+                    ]}
+                  >
                     {selectedDate || "Select date"}
                   </Text>
                   {showDatePicker ? (
@@ -329,6 +420,7 @@ export default function RequestMeetingModal({
                         onPress={() => {
                           setSelectedDate(date.label);
                           setShowDatePicker(false);
+                          clearError("date");
                         }}
                       >
                         <CalendarIcon size={20} active={true} />
@@ -342,6 +434,9 @@ export default function RequestMeetingModal({
                     ))}
                   </View>
                 )}
+                {errors.date && (
+                  <Text style={styles.errorText}>{errors.date}</Text>
+                )}
               </View>
 
               {/* Table Number (Physical) or Meeting Link (Virtual) */}
@@ -349,14 +444,23 @@ export default function RequestMeetingModal({
                 <View style={styles.fieldContainer}>
                   <Text style={styles.label}>Table Number</Text>
                   <Pressable
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      errors.tableNumber && styles.inputError,
+                    ]}
                     onPress={() => {
                       setShowTablePicker(!showTablePicker);
                       setShowDatePicker(false);
                       setShowTimePicker(false);
+                      clearError("tableNumber");
                     }}
                   >
-                    <Text style={styles.inputText}>
+                    <Text
+                      style={[
+                        styles.inputText,
+                        !tableNumber && styles.placeholderText,
+                      ]}
+                    >
                       {tableNumber || "Select table"}
                     </Text>
                     {showTablePicker ? (
@@ -376,6 +480,7 @@ export default function RequestMeetingModal({
                           onPress={() => {
                             setTableNumber(table.label);
                             setShowTablePicker(false);
+                            clearError("tableNumber");
                           }}
                         >
                           <Text style={styles.pickerOptionText}>
@@ -385,22 +490,36 @@ export default function RequestMeetingModal({
                       ))}
                     </View>
                   )}
+                  {errors.tableNumber && (
+                    <Text style={styles.errorText}>{errors.tableNumber}</Text>
+                  )}
                 </View>
               ) : (
                 <View style={styles.fieldContainer}>
                   <Text style={styles.label}>Meeting Link</Text>
-                  <View style={styles.linkInputContainer}>
+                  <View
+                    style={[
+                      styles.linkInputContainer,
+                      errors.meetingLink && styles.inputError,
+                    ]}
+                  >
                     <TextInput
                       style={styles.linkInput}
                       placeholder="Paste your meeting link"
                       placeholderTextColor="#A3A3A3"
                       value={meetingLink}
-                      onChangeText={setMeetingLink}
+                      onChangeText={(text) => {
+                        setMeetingLink(text);
+                        clearError("meetingLink");
+                      }}
                     />
                     <Pressable style={styles.pasteButton}>
                       <Text style={styles.pasteButtonText}>Paste link</Text>
                     </Pressable>
                   </View>
+                  {errors.meetingLink && (
+                    <Text style={styles.errorText}>{errors.meetingLink}</Text>
+                  )}
                 </View>
               )}
 
@@ -408,15 +527,22 @@ export default function RequestMeetingModal({
               <View style={styles.fieldContainer}>
                 <Text style={styles.label}>Time</Text>
                 <Pressable
-                  style={styles.input}
+                  style={[styles.input, errors.time && styles.inputError]}
                   onPress={() => {
                     setShowTimePicker(!showTimePicker);
                     setShowDatePicker(false);
                     setShowTablePicker(false);
+                    clearError("time");
                   }}
                 >
                   <ClockIcon size={20} />
-                  <Text style={[styles.inputText, { marginLeft: 12 }]}>
+                  <Text
+                    style={[
+                      styles.inputText,
+                      { marginLeft: 12 },
+                      !selectedTime && styles.placeholderText,
+                    ]}
+                  >
                     {selectedTime || "Select time"}
                   </Text>
                   {showTimePicker ? (
@@ -436,6 +562,7 @@ export default function RequestMeetingModal({
                         onPress={() => {
                           setSelectedTime(time.label);
                           setShowTimePicker(false);
+                          clearError("time");
                         }}
                       >
                         <ClockIcon size={20} active={true} />
@@ -445,6 +572,9 @@ export default function RequestMeetingModal({
                       </Pressable>
                     ))}
                   </View>
+                )}
+                {errors.time && (
+                  <Text style={styles.errorText}>{errors.time}</Text>
                 )}
               </View>
 
@@ -458,13 +588,21 @@ export default function RequestMeetingModal({
                 }}
               >
                 <Text style={styles.label}>Description</Text>
-                <View style={styles.textAreaContainer}>
+                <View
+                  style={[
+                    styles.textAreaContainer,
+                    errors.description && styles.inputError,
+                  ]}
+                >
                   <TextInput
                     style={styles.textArea}
                     placeholder="Briefly describe the meeting purpose..."
                     placeholderTextColor="#A3A3A3"
                     value={description}
-                    onChangeText={setDescription}
+                    onChangeText={(text) => {
+                      setDescription(text);
+                      clearError("description");
+                    }}
                     onFocus={() => {
                       // Scroll to position description field just above keyboard, not all the way to top
                       setTimeout(() => {
@@ -507,13 +645,30 @@ export default function RequestMeetingModal({
                     </Text>
                   </View>
                 </View>
+                {errors.description && (
+                  <Text style={styles.errorText}>{errors.description}</Text>
+                )}
               </View>
             </ScrollView>
           </KeyboardAvoidingView>
 
           <SafeAreaView edges={["bottom"]} style={styles.actionsContainer}>
-            <Pressable style={styles.submitButton} onPress={handleSubmit}>
-              <Text style={styles.submitButtonText}>Send Meeting Request</Text>
+            <Pressable
+              style={[
+                styles.submitButton,
+                !isFormValid() && styles.submitButtonDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={!isFormValid()}
+            >
+              <Text
+                style={[
+                  styles.submitButtonText,
+                  !isFormValid() && styles.submitButtonTextDisabled,
+                ]}
+              >
+                Send Meeting Request
+              </Text>
             </Pressable>
           </SafeAreaView>
         </Animated.View>
@@ -747,5 +902,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  submitButtonDisabled: {
+    backgroundColor: "#E5E5E5",
+  },
+  submitButtonTextDisabled: {
+    color: "#A3A3A3",
+  },
+  inputError: {
+    borderColor: "#EF4444",
+    borderWidth: 1,
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#EF4444",
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  placeholderText: {
+    color: "#A3A3A3",
   },
 });

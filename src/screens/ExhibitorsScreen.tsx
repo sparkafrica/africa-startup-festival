@@ -250,7 +250,7 @@ export default function ExhibitorsScreen() {
                   }
                 />
                 <Text className="text-xs text-neutral-600 text-center mt-2">
-                  Tap to view details
+                  {exhibitor.name}
                 </Text>
               </View>
             ))}

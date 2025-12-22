@@ -61,6 +61,7 @@ export default function LeaveFeedbackModal({
   eventTitle,
 }: LeaveFeedbackModalProps) {
   const [feedback, setFeedback] = useState("");
+  const [error, setError] = useState<string | undefined>(undefined);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -95,6 +96,7 @@ export default function LeaveFeedbackModal({
         keyboardOffset.setValue(0);
       }
       setFeedback("");
+      setError(undefined);
       setKeyboardHeight(0);
       Keyboard.dismiss();
     }
@@ -209,12 +211,31 @@ export default function LeaveFeedbackModal({
     })
   ).current;
 
-  const handleSend = () => {
-    if (feedback.trim().length > 0) {
-      Keyboard.dismiss();
-      onSubmit?.(feedback.trim());
-      setFeedback("");
+  const validateFeedback = (value: string): string | undefined => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return "Feedback is required";
     }
+    if (trimmed.length < 10) {
+      return "Feedback must be at least 10 characters";
+    }
+    if (trimmed.length > MAX_CHARACTERS) {
+      return `Feedback must be less than ${MAX_CHARACTERS} characters`;
+    }
+    return undefined;
+  };
+
+  const handleSend = () => {
+    const validationError = validateFeedback(feedback);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setError(undefined);
+    Keyboard.dismiss();
+    onSubmit?.(feedback.trim());
+    setFeedback("");
   };
 
   const characterCount = feedback.length;
@@ -267,7 +288,10 @@ export default function LeaveFeedbackModal({
                   <View style={styles.inputContainer}>
                     <TextInput
                       ref={inputRef}
-                      style={styles.textInput}
+                      style={[
+                        styles.textInput,
+                        error && { borderColor: "#EF4444" },
+                      ]}
                       placeholder="Say something about this session."
                       placeholderTextColor="#A3A3A3"
                       multiline
@@ -275,6 +299,10 @@ export default function LeaveFeedbackModal({
                       onChangeText={(text) => {
                         if (text.length <= MAX_CHARACTERS) {
                           setFeedback(text);
+                          // Clear error when user starts typing
+                          if (error) {
+                            setError(undefined);
+                          }
                         }
                       }}
                       textAlignVertical="top"
@@ -283,12 +311,20 @@ export default function LeaveFeedbackModal({
                     />
                     {/* Character Counter */}
                     <View style={styles.counterContainer}>
-                      <Text style={styles.counterText}>
+                      <Text
+                        style={[
+                          styles.counterText,
+                          characterCount > MAX_CHARACTERS && {
+                            color: "#EF4444",
+                          },
+                        ]}
+                      >
                         {characterCount}/{MAX_CHARACTERS}
                       </Text>
                       <PenIcon size={14} color="#A3A3A3" />
                     </View>
                   </View>
+                  {error && <Text style={styles.errorText}>{error}</Text>}
                 </ScrollView>
 
                 {/* Action Button - Fixed at bottom */}
@@ -361,7 +397,10 @@ export default function LeaveFeedbackModal({
                   <View style={styles.inputContainer}>
                     <TextInput
                       ref={inputRef}
-                      style={styles.textInput}
+                      style={[
+                        styles.textInput,
+                        error && { borderColor: "#EF4444" },
+                      ]}
                       placeholder="Say something about this session."
                       placeholderTextColor="#A3A3A3"
                       multiline
@@ -369,6 +408,10 @@ export default function LeaveFeedbackModal({
                       onChangeText={(text) => {
                         if (text.length <= MAX_CHARACTERS) {
                           setFeedback(text);
+                          // Clear error when user starts typing
+                          if (error) {
+                            setError(undefined);
+                          }
                         }
                       }}
                       textAlignVertical="top"
@@ -377,12 +420,20 @@ export default function LeaveFeedbackModal({
                     />
                     {/* Character Counter */}
                     <View style={styles.counterContainer}>
-                      <Text style={styles.counterText}>
+                      <Text
+                        style={[
+                          styles.counterText,
+                          characterCount > MAX_CHARACTERS && {
+                            color: "#EF4444",
+                          },
+                        ]}
+                      >
                         {characterCount}/{MAX_CHARACTERS}
                       </Text>
                       <PenIcon size={14} color="#A3A3A3" />
                     </View>
                   </View>
+                  {error && <Text style={styles.errorText}>{error}</Text>}
                 </ScrollView>
 
                 {/* Action Button - Fixed at bottom */}
@@ -518,6 +569,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#A3A3A3",
     fontWeight: "400",
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#EF4444",
+    marginTop: 4,
+    marginLeft: 24,
+    marginRight: 24,
   },
   buttonContainer: {
     backgroundColor: "#FFFFFF",

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useImperativeHandle } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -16,6 +17,8 @@ import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
+import Toast from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 
 // Industry/Sector options from filter modals
 const INDUSTRY_OPTIONS = [
@@ -67,6 +70,186 @@ const COUNTRY_OPTIONS = [
   { id: "united-arab-emirates", label: "United Arab Emirates", flag: "🇦🇪" },
   { id: "saudi-arabia", label: "Saudi Arabia", flag: "🇸🇦" },
 ];
+
+// Validation Helper Functions
+const validateFullName = (name: string): { valid: boolean; error?: string } => {
+  if (!name.trim()) {
+    return { valid: false, error: "Full name is required" };
+  }
+  if (name.trim().length < 2) {
+    return { valid: false, error: "Full name must be at least 2 characters" };
+  }
+  if (name.trim().length > 100) {
+    return {
+      valid: false,
+      error: "Full name must be less than 100 characters",
+    };
+  }
+  if (!/^[a-zA-Z\s'-]+$/.test(name.trim())) {
+    return {
+      valid: false,
+      error:
+        "Full name can only contain letters, spaces, hyphens, and apostrophes",
+    };
+  }
+  return { valid: true };
+};
+
+const validateJobTitle = (
+  title: string
+): { valid: boolean; error?: string } => {
+  if (!title.trim()) {
+    return { valid: false, error: "Job title is required" };
+  }
+  if (title.trim().length < 2) {
+    return { valid: false, error: "Job title must be at least 2 characters" };
+  }
+  if (title.trim().length > 100) {
+    return {
+      valid: false,
+      error: "Job title must be less than 100 characters",
+    };
+  }
+  return { valid: true };
+};
+
+const validateCompany = (
+  company: string
+): { valid: boolean; error?: string } => {
+  if (!company.trim()) {
+    return { valid: false, error: "Company name is required" };
+  }
+  if (company.trim().length < 2) {
+    return {
+      valid: false,
+      error: "Company name must be at least 2 characters",
+    };
+  }
+  if (company.trim().length > 200) {
+    return {
+      valid: false,
+      error: "Company name must be less than 200 characters",
+    };
+  }
+  return { valid: true };
+};
+
+const validateLinkedIn = (
+  linkedIn: string
+): { valid: boolean; error?: string } => {
+  if (!linkedIn.trim()) {
+    return { valid: false, error: "LinkedIn profile is required" };
+  }
+  // Allow both URLs and handles
+  const linkedInUrlPattern =
+    /^(https?:\/\/)?(www\.)?(linkedin\.com\/in\/|linkedin\.com\/pub\/)[a-zA-Z0-9-]+\/?/i;
+  const linkedInHandlePattern = /^[a-zA-Z0-9-]+$/;
+
+  if (
+    !linkedInUrlPattern.test(linkedIn.trim()) &&
+    !linkedInHandlePattern.test(linkedIn.trim())
+  ) {
+    return {
+      valid: false,
+      error: "Please enter a valid LinkedIn profile URL or handle",
+    };
+  }
+  return { valid: true };
+};
+
+const validateBio = (bio: string): { valid: boolean; error?: string } => {
+  if (!bio.trim()) {
+    return { valid: false, error: "Bio is required" };
+  }
+  if (bio.trim().length < 10) {
+    return { valid: false, error: "Bio must be at least 10 characters" };
+  }
+  if (bio.length > 200) {
+    return { valid: false, error: "Bio must be less than 200 characters" };
+  }
+  return { valid: true };
+};
+
+const validateWebsite = (
+  website: string
+): { valid: boolean; error?: string } => {
+  if (!website.trim()) {
+    return { valid: false, error: "Website is required" };
+  }
+  // Allow URLs with or without protocol
+  const websitePattern =
+    /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(\/.*)?$/i;
+
+  if (!websitePattern.test(website.trim())) {
+    return { valid: false, error: "Please enter a valid website URL" };
+  }
+  return { valid: true };
+};
+
+const validateBoothNumber = (
+  booth: string
+): { valid: boolean; error?: string } => {
+  if (!booth.trim()) {
+    return { valid: false, error: "Booth number is required" };
+  }
+  if (booth.trim().length > 50) {
+    return {
+      valid: false,
+      error: "Booth number must be less than 50 characters",
+    };
+  }
+  return { valid: true };
+};
+
+const validateCompanyDescription = (
+  description: string
+): { valid: boolean; error?: string } => {
+  if (!description.trim()) {
+    return { valid: false, error: "Company description is required" };
+  }
+  if (description.trim().length < 10) {
+    return {
+      valid: false,
+      error: "Company description must be at least 10 characters",
+    };
+  }
+  if (description.length > 200) {
+    return {
+      valid: false,
+      error: "Company description must be less than 200 characters",
+    };
+  }
+  return { valid: true };
+};
+
+const validateInterests = (
+  interests: string[]
+): { valid: boolean; error?: string } => {
+  if (interests.length < 2) {
+    return { valid: false, error: "Please select at least 2 interests" };
+  }
+  if (interests.length > 5) {
+    return { valid: false, error: "Please select no more than 5 interests" };
+  }
+  return { valid: true };
+};
+
+const validateSocialHandle = (
+  handle: string,
+  platform: string
+): { valid: boolean; error?: string } => {
+  // Social handles are optional, but if provided must be valid format
+  if (!handle.trim()) {
+    return { valid: true }; // Empty is allowed
+  }
+  // Basic validation for social media handles (alphanumeric, underscores, dots, hyphens)
+  const handlePattern = /^[a-zA-Z0-9._-]+$/;
+
+  if (!handlePattern.test(handle.trim())) {
+    return { valid: false, error: `Please enter a valid ${platform} handle` };
+  }
+  return { valid: true };
+};
 
 interface IconProps {
   size?: number;
@@ -567,7 +750,14 @@ function SegmentedControl({
   );
 }
 
-function PersonalProfileSection() {
+function PersonalProfileSection({
+  onSave,
+  saveTrigger,
+}: {
+  onSave?: () => void;
+  saveTrigger?: number;
+}) {
+  const { toast, showToast, hideToast } = useToast();
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
@@ -577,12 +767,11 @@ function PersonalProfileSection() {
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([
-    "AI/ML",
-    "SaaS",
-    "Product Strategy",
-  ]);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -606,11 +795,73 @@ function PersonalProfileSection() {
     if (selectedInterests.includes(interest)) {
       setSelectedInterests(selectedInterests.filter((i) => i !== interest));
     } else {
-      if (selectedInterests.length < 12) {
+      if (selectedInterests.length < 5) {
         setSelectedInterests([...selectedInterests, interest]);
       }
     }
   };
+
+  const handleSave = async () => {
+    // Clear previous errors
+    setValidationErrors({});
+
+    // Validate all required fields
+    const errors: Record<string, string> = {};
+
+    const fullNameValidation = validateFullName(fullName);
+    if (!fullNameValidation.valid) {
+      errors.fullName = fullNameValidation.error || "";
+    }
+
+    const jobTitleValidation = validateJobTitle(jobTitle);
+    if (!jobTitleValidation.valid) {
+      errors.jobTitle = jobTitleValidation.error || "";
+    }
+
+    const companyValidation = validateCompany(company);
+    if (!companyValidation.valid) {
+      errors.company = companyValidation.error || "";
+    }
+
+    const linkedInValidation = validateLinkedIn(linkedIn);
+    if (!linkedInValidation.valid) {
+      errors.linkedIn = linkedInValidation.error || "";
+    }
+
+    const bioValidation = validateBio(bio);
+    if (!bioValidation.valid) {
+      errors.bio = bioValidation.error || "";
+    }
+
+    const interestsValidation = validateInterests(selectedInterests);
+    if (!interestsValidation.valid) {
+      errors.interests = interestsValidation.error || "";
+    }
+
+    // If there are validation errors, show them
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      const firstError = Object.values(errors)[0];
+      Alert.alert("Validation Error", firstError);
+      return false;
+    }
+
+    // Show success toast
+    showToast("Profile saved successfully!", "success");
+
+    // Call onSave callback if provided
+    if (onSave) {
+      onSave();
+    }
+    return true;
+  };
+
+  React.useEffect(() => {
+    if (saveTrigger && saveTrigger > 0) {
+      handleSave();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveTrigger]);
 
   return (
     <KeyboardAvoidingView
@@ -618,6 +869,12 @@ function PersonalProfileSection() {
       className="flex-1"
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        onHide={hideToast}
+      />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -699,41 +956,79 @@ function PersonalProfileSection() {
             {/* Job Title */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Job Title
+                Job Title <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.jobTitle ? "border-red-500" : "border-neutral-300"
+                }`}
                 value={jobTitle}
-                onChangeText={setJobTitle}
+                onChangeText={(text) => {
+                  setJobTitle(text);
+                  if (validationErrors.jobTitle) {
+                    setValidationErrors({ ...validationErrors, jobTitle: "" });
+                  }
+                }}
                 placeholder="Enter job title"
               />
+              {validationErrors.jobTitle && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.jobTitle}
+                </Text>
+              )}
             </View>
 
             {/* Company */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Company
+                Company <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.company ? "border-red-500" : "border-neutral-300"
+                }`}
                 value={company}
-                onChangeText={setCompany}
+                onChangeText={(text) => {
+                  setCompany(text);
+                  if (validationErrors.company) {
+                    setValidationErrors({ ...validationErrors, company: "" });
+                  }
+                }}
                 placeholder="Enter company name"
               />
+              {validationErrors.company && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.company}
+                </Text>
+              )}
             </View>
 
             {/* LinkedIn */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                LinkedIn
+                LinkedIn <Text className="text-red-500">*</Text>
               </Text>
               <View className="flex-row items-center gap-2">
-                <TextInput
-                  className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
-                  value={linkedIn}
-                  onChangeText={setLinkedIn}
-                  placeholder="Insert profile link"
-                />
+                <View className="flex-1">
+                  <TextInput
+                    className={`flex-1 bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                      validationErrors.linkedIn ? "border-red-500" : "border-neutral-300"
+                    }`}
+                    value={linkedIn}
+                    onChangeText={(text) => {
+                      setLinkedIn(text);
+                      if (validationErrors.linkedIn) {
+                        setValidationErrors({ ...validationErrors, linkedIn: "" });
+                      }
+                    }}
+                    placeholder="LinkedIn profile URL or handle"
+                  />
+                  {validationErrors.linkedIn && (
+                    <Text className="text-red-500 text-xs mt-1">
+                      {validationErrors.linkedIn}
+                    </Text>
+                  )}
+                </View>
                 <Pressable className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
                   <Text className="text-sm font-medium text-black">
                     Paste link
@@ -782,14 +1077,21 @@ function PersonalProfileSection() {
             {/* Bio */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Bio
+                Bio <Text className="text-red-500">*</Text>
               </Text>
               <View className="relative">
                 <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black min-h-[100px]"
+                  className={`bg-white border rounded-xl px-4 py-3 text-base text-black min-h-[100px] ${
+                    validationErrors.bio ? "border-red-500" : "border-neutral-300"
+                  }`}
                   value={bio}
-                  onChangeText={setBio}
-                  placeholder="Tell us about yourself"
+                  onChangeText={(text) => {
+                    setBio(text);
+                    if (validationErrors.bio) {
+                      setValidationErrors({ ...validationErrors, bio: "" });
+                    }
+                  }}
+                  placeholder="Tell us about yourself (10-200 characters)"
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -809,24 +1111,39 @@ function PersonalProfileSection() {
                   </Svg>
                 </View>
               </View>
+              {validationErrors.bio && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.bio}
+                </Text>
+              )}
             </View>
           </View>
 
           {/* Top Interests */}
           <View className="mb-6 rounded-2xl border border-neutral-200 p-4">
             <Text className="text-sm font-medium text-neutral-700 mb-1">
-              Top Interests
+              Top Interests <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500 mb-3">
-              Select 5-12 sectors you want to connect with
+              Select 2-5 sectors you want to connect with
             </Text>
+            {validationErrors.interests && (
+              <Text className="text-red-500 text-xs mb-2">
+                {validationErrors.interests}
+              </Text>
+            )}
             <View className="flex-row flex-wrap gap-2">
               {interests.map((interest) => {
                 const isSelected = selectedInterests.includes(interest);
                 return (
                   <Pressable
                     key={interest}
-                    onPress={() => toggleInterest(interest)}
+                    onPress={() => {
+                      toggleInterest(interest);
+                      if (validationErrors.interests) {
+                        setValidationErrors({ ...validationErrors, interests: "" });
+                      }
+                    }}
                     className={`px-4 py-2 rounded-full ${
                       isSelected
                         ? "bg-black"
@@ -879,7 +1196,14 @@ function PersonalProfileSection() {
   );
 }
 
-function AttendeeProfileSection() {
+function AttendeeProfileSection({
+  onSave,
+  saveTrigger,
+}: {
+  onSave?: () => void;
+  saveTrigger?: number;
+}) {
+  const { toast, showToast, hideToast } = useToast();
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
@@ -888,12 +1212,11 @@ function AttendeeProfileSection() {
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([
-    "AI/ML",
-    "SaaS",
-    "Product Strategy",
-  ]);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -917,11 +1240,68 @@ function AttendeeProfileSection() {
     if (selectedInterests.includes(interest)) {
       setSelectedInterests(selectedInterests.filter((i) => i !== interest));
     } else {
-      if (selectedInterests.length < 12) {
+      if (selectedInterests.length < 5) {
         setSelectedInterests([...selectedInterests, interest]);
       }
     }
   };
+
+  const handleSave = async () => {
+    // Clear previous errors
+    setValidationErrors({});
+
+    // Validate all required fields
+    const errors: Record<string, string> = {};
+
+    const fullNameValidation = validateFullName(fullName);
+    if (!fullNameValidation.valid) {
+      errors.fullName = fullNameValidation.error || "";
+    }
+
+    const jobTitleValidation = validateJobTitle(jobTitle);
+    if (!jobTitleValidation.valid) {
+      errors.jobTitle = jobTitleValidation.error || "";
+    }
+
+    const companyValidation = validateCompany(company);
+    if (!companyValidation.valid) {
+      errors.company = companyValidation.error || "";
+    }
+
+    const bioValidation = validateBio(bio);
+    if (!bioValidation.valid) {
+      errors.bio = bioValidation.error || "";
+    }
+
+    const interestsValidation = validateInterests(selectedInterests);
+    if (!interestsValidation.valid) {
+      errors.interests = interestsValidation.error || "";
+    }
+
+    // If there are validation errors, show them
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      const firstError = Object.values(errors)[0];
+      Alert.alert("Validation Error", firstError);
+      return false;
+    }
+
+    // Show success toast
+    showToast("Profile saved successfully!", "success");
+
+    // Call onSave callback if provided
+    if (onSave) {
+      onSave();
+    }
+    return true;
+  };
+
+  React.useEffect(() => {
+    if (saveTrigger && saveTrigger > 0) {
+      handleSave();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveTrigger]);
 
   return (
     <KeyboardAvoidingView
@@ -929,6 +1309,12 @@ function AttendeeProfileSection() {
       className="flex-1"
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        onHide={hideToast}
+      />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -997,40 +1383,76 @@ function AttendeeProfileSection() {
             {/* Full Name */}
             <View className="mb-4 pt-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Full Name
+                Full Name <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.fullName ? "border-red-500" : "border-neutral-300"
+                }`}
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={(text) => {
+                  setFullName(text);
+                  if (validationErrors.fullName) {
+                    setValidationErrors({ ...validationErrors, fullName: "" });
+                  }
+                }}
                 placeholder="Enter full name"
               />
+              {validationErrors.fullName && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.fullName}
+                </Text>
+              )}
             </View>
 
             {/* Job Title */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Job Title
+                Job Title <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.jobTitle ? "border-red-500" : "border-neutral-300"
+                }`}
                 value={jobTitle}
-                onChangeText={setJobTitle}
+                onChangeText={(text) => {
+                  setJobTitle(text);
+                  if (validationErrors.jobTitle) {
+                    setValidationErrors({ ...validationErrors, jobTitle: "" });
+                  }
+                }}
                 placeholder="Enter job title"
               />
+              {validationErrors.jobTitle && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.jobTitle}
+                </Text>
+              )}
             </View>
 
             {/* Company */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Company
+                Company <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.company ? "border-red-500" : "border-neutral-300"
+                }`}
                 value={company}
-                onChangeText={setCompany}
+                onChangeText={(text) => {
+                  setCompany(text);
+                  if (validationErrors.company) {
+                    setValidationErrors({ ...validationErrors, company: "" });
+                  }
+                }}
                 placeholder="Enter company name"
               />
+              {validationErrors.company && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.company}
+                </Text>
+              )}
             </View>
 
             {/* Country */}
@@ -1073,14 +1495,21 @@ function AttendeeProfileSection() {
             {/* Bio */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Bio
+                Bio <Text className="text-red-500">*</Text>
               </Text>
               <View className="relative">
                 <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black min-h-[100px]"
+                  className={`bg-white border rounded-xl px-4 py-3 text-base text-black min-h-[100px] ${
+                    validationErrors.bio ? "border-red-500" : "border-neutral-300"
+                  }`}
                   value={bio}
-                  onChangeText={setBio}
-                  placeholder="Tell us about yourself"
+                  onChangeText={(text) => {
+                    setBio(text);
+                    if (validationErrors.bio) {
+                      setValidationErrors({ ...validationErrors, bio: "" });
+                    }
+                  }}
+                  placeholder="Tell us about yourself (10-200 characters)"
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -1100,24 +1529,39 @@ function AttendeeProfileSection() {
                   </Svg>
                 </View>
               </View>
+              {validationErrors.bio && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.bio}
+                </Text>
+              )}
             </View>
           </View>
 
           {/* Top Interests */}
           <View className="mb-6 rounded-2xl border border-neutral-200 p-4">
             <Text className="text-sm font-medium text-neutral-700 mb-1">
-              Top Interests
+              Top Interests <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500 mb-3">
-              Select 5-12 sectors you want to connect with
+              Select 2-5 sectors you want to connect with
             </Text>
+            {validationErrors.interests && (
+              <Text className="text-red-500 text-xs mb-2">
+                {validationErrors.interests}
+              </Text>
+            )}
             <View className="flex-row flex-wrap gap-2">
               {interests.map((interest) => {
                 const isSelected = selectedInterests.includes(interest);
                 return (
                   <Pressable
                     key={interest}
-                    onPress={() => toggleInterest(interest)}
+                    onPress={() => {
+                      toggleInterest(interest);
+                      if (validationErrors.interests) {
+                        setValidationErrors({ ...validationErrors, interests: "" });
+                      }
+                    }}
                     className={`px-4 py-2 rounded-full ${
                       isSelected
                         ? "bg-black"
@@ -1170,7 +1614,14 @@ function AttendeeProfileSection() {
   );
 }
 
-function CompanyProfileSection() {
+function CompanyProfileSection({
+  onSave,
+  saveTrigger,
+}: {
+  onSave?: () => void;
+  saveTrigger?: number;
+}) {
+  const { toast, showToast, hideToast } = useToast();
   const [companyName, setCompanyName] = useState("");
   const [boothNumber, setBoothNumber] = useState("");
   const [website, setWebsite] = useState("");
@@ -1195,10 +1646,11 @@ function CompanyProfileSection() {
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [newJobRole, setNewJobRole] = useState("");
   const [newJobLink, setNewJobLink] = useState("");
-  const [positions, setPositions] = useState<string[]>([
-    "Chief Operating Officer",
-  ]);
+  const [positions, setPositions] = useState<string[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -1235,7 +1687,103 @@ function CompanyProfileSection() {
     setPositions(positions.filter((p) => p !== position));
   };
 
-  // Removed getOfferColor - now using color from offer object directly
+  const handleSave = async () => {
+    // Clear previous errors
+    setValidationErrors({});
+
+    // Validate all required fields
+    const errors: Record<string, string> = {};
+
+    const companyNameValidation = validateCompany(companyName);
+    if (!companyNameValidation.valid) {
+      errors.companyName = companyNameValidation.error || "";
+    }
+
+    const boothValidation = validateBoothNumber(boothNumber);
+    if (!boothValidation.valid) {
+      errors.boothNumber = boothValidation.error || "";
+    }
+
+    const websiteValidation = validateWebsite(website);
+    if (!websiteValidation.valid) {
+      errors.website = websiteValidation.error || "";
+    }
+
+    const descriptionValidation = validateCompanyDescription(companyDescription);
+    if (!descriptionValidation.valid) {
+      errors.companyDescription = descriptionValidation.error || "";
+    }
+
+    // Validate social links - at least one must be provided
+    const hasAnySocialLink =
+      linkedIn.trim() ||
+      facebook.trim() ||
+      instagram.trim() ||
+      xHandle.trim();
+
+    if (!hasAnySocialLink) {
+      errors.socialLinks = "Please provide at least one social media handle";
+    }
+
+    // Validate format of provided social links
+    if (linkedIn.trim()) {
+      const linkedInValidation = validateSocialHandle(linkedIn, "LinkedIn");
+      if (!linkedInValidation.valid) {
+        errors.linkedIn = linkedInValidation.error || "";
+      }
+    }
+
+    if (facebook.trim()) {
+      const facebookValidation = validateSocialHandle(facebook, "Facebook");
+      if (!facebookValidation.valid) {
+        errors.facebook = facebookValidation.error || "";
+      }
+    }
+
+    if (instagram.trim()) {
+      const instagramValidation = validateSocialHandle(instagram, "Instagram");
+      if (!instagramValidation.valid) {
+        errors.instagram = instagramValidation.error || "";
+      }
+    }
+
+    if (xHandle.trim()) {
+      const xValidation = validateSocialHandle(xHandle, "X/Twitter");
+      if (!xValidation.valid) {
+        errors.xHandle = xValidation.error || "";
+      }
+    }
+
+    // Validate positions if recruiting is enabled
+    if (isRecruiting && positions.length === 0) {
+      errors.positions =
+        "Please add at least one position when recruiting is enabled";
+    }
+
+    // If there are validation errors, show them
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      const firstError = Object.values(errors)[0];
+      Alert.alert("Validation Error", firstError);
+      return false;
+    }
+
+    // Show success toast
+    showToast("Profile saved successfully!", "success");
+
+    // Call onSave callback if provided
+    if (onSave) {
+      onSave();
+    }
+    return true;
+  };
+
+  React.useEffect(() => {
+    if (saveTrigger && saveTrigger > 0) {
+      handleSave();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveTrigger]);
 
   return (
     <KeyboardAvoidingView
@@ -1243,6 +1791,12 @@ function CompanyProfileSection() {
       className="flex-1"
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        onHide={hideToast}
+      />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -1309,41 +1863,79 @@ function CompanyProfileSection() {
             {/* Company Name */}
             <View className="mb-4 pt-4">
               <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
-                Company Name
+                Company Name <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.companyName ? "border-red-500" : "border-neutral-300"
+                }`}
                 value={companyName}
-                onChangeText={setCompanyName}
+                onChangeText={(text) => {
+                  setCompanyName(text);
+                  if (validationErrors.companyName) {
+                    setValidationErrors({ ...validationErrors, companyName: "" });
+                  }
+                }}
                 placeholder="Enter company name"
               />
+              {validationErrors.companyName && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.companyName}
+                </Text>
+              )}
             </View>
 
             {/* Booth Number */}
             <View className="mb-4">
               <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
-                Booth Number
+                Booth Number <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.boothNumber ? "border-red-500" : "border-neutral-300"
+                }`}
                 value={boothNumber}
-                onChangeText={setBoothNumber}
+                onChangeText={(text) => {
+                  setBoothNumber(text);
+                  if (validationErrors.boothNumber) {
+                    setValidationErrors({ ...validationErrors, boothNumber: "" });
+                  }
+                }}
                 placeholder="Enter booth number"
               />
+              {validationErrors.boothNumber && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.boothNumber}
+                </Text>
+              )}
             </View>
 
             {/* Website */}
             <View className="mb-4">
               <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
-                Website
+                Website <Text className="text-red-500">*</Text>
               </Text>
               <View className="flex-row items-center gap-2">
-                <TextInput
-                  className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
-                  value={website}
-                  onChangeText={setWebsite}
-                  placeholder="Enter website URL"
-                />
+                <View className="flex-1">
+                  <TextInput
+                    className={`flex-1 bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                      validationErrors.website ? "border-red-500" : "border-neutral-300"
+                    }`}
+                    value={website}
+                    onChangeText={(text) => {
+                      setWebsite(text);
+                      if (validationErrors.website) {
+                        setValidationErrors({ ...validationErrors, website: "" });
+                      }
+                    }}
+                    placeholder="Enter website URL"
+                  />
+                  {validationErrors.website && (
+                    <Text className="text-red-500 text-xs mt-1">
+                      {validationErrors.website}
+                    </Text>
+                  )}
+                </View>
                 <Pressable className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
                   <Text className="text-sm font-medium text-black">
                     Paste link
@@ -1392,14 +1984,21 @@ function CompanyProfileSection() {
             {/* Company Description */}
             <View className="mb-4">
               <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
-                Company Description
+                Company Description <Text className="text-red-500">*</Text>
               </Text>
               <View className="relative">
                 <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-gray-500 min-h-[100px]"
+                  className={`bg-white border rounded-xl px-4 py-3 text-base text-black min-h-[100px] ${
+                    validationErrors.companyDescription ? "border-red-500" : "border-neutral-300"
+                  }`}
                   value={companyDescription}
-                  onChangeText={setCompanyDescription}
-                  placeholder="Describe your company"
+                  onChangeText={(text) => {
+                    setCompanyDescription(text);
+                    if (validationErrors.companyDescription) {
+                      setValidationErrors({ ...validationErrors, companyDescription: "" });
+                    }
+                  }}
+                  placeholder="Describe your company (10-200 characters)"
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -1419,6 +2018,11 @@ function CompanyProfileSection() {
                   </Svg>
                 </View>
               </View>
+              {validationErrors.companyDescription && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.companyDescription}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -1760,6 +2364,22 @@ export default function ProfileScreen() {
     "Personal"
   );
   const { completeProfile } = useAuth();
+  
+  const [personalSaveTrigger, setPersonalSaveTrigger] = useState(0);
+  const [companySaveTrigger, setCompanySaveTrigger] = useState(0);
+  const [attendeeSaveTrigger, setAttendeeSaveTrigger] = useState(0);
+
+  const handleSavePersonal = () => {
+    setPersonalSaveTrigger((prev) => prev + 1);
+  };
+
+  const handleSaveCompany = () => {
+    setCompanySaveTrigger((prev) => prev + 1);
+  };
+
+  const handleSaveAttendee = () => {
+    setAttendeeSaveTrigger((prev) => prev + 1);
+  };
 
   return (
     <View className="flex-1 bg-white">
@@ -1767,16 +2387,15 @@ export default function ProfileScreen() {
         <Header />
         {userRole === "attendee" ? (
           <>
-            <AttendeeProfileSection />
+            <AttendeeProfileSection
+              saveTrigger={attendeeSaveTrigger}
+              onSave={completeProfile}
+            />
             {/* Save Changes Button */}
             <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
               <Pressable
                 className="bg-black rounded-xl py-4 items-center justify-center"
-                onPress={async () => {
-                  // TODO: Save profile data to backend
-                  // For now, just complete the profile to proceed to main app
-                  await completeProfile();
-                }}
+                onPress={handleSaveAttendee}
               >
                 <Text className="text-white text-base font-inter-semibold">
                   Save Changes
@@ -1791,19 +2410,23 @@ export default function ProfileScreen() {
               onTabChange={setActiveTab}
             />
             {activeTab === "Personal" ? (
-              <PersonalProfileSection />
+              <PersonalProfileSection
+                saveTrigger={personalSaveTrigger}
+                onSave={completeProfile}
+              />
             ) : (
-              <CompanyProfileSection />
+              <CompanyProfileSection
+                saveTrigger={companySaveTrigger}
+                onSave={completeProfile}
+              />
             )}
             {/* Save Changes Button */}
             <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
               <Pressable
                 className="bg-black rounded-xl py-4 items-center justify-center"
-                onPress={async () => {
-                  // TODO: Save profile data to backend
-                  // For now, just complete the profile to proceed to main app
-                  await completeProfile();
-                }}
+                onPress={
+                  activeTab === "Personal" ? handleSavePersonal : handleSaveCompany
+                }
               >
                 <Text className="text-white text-base font-semibold">
                   Save Changes

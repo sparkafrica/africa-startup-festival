@@ -10,7 +10,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ArrowRightIcon } from "./icons";
 
 interface BannerCardProps {
-  badge?: string;
   title: string;
   description: string;
   buttonText: string;
@@ -20,7 +19,6 @@ interface BannerCardProps {
 }
 
 export default function BannerCard({
-  badge,
   title,
   description,
   buttonText,
@@ -49,14 +47,9 @@ export default function BannerCard({
         end={{ x: 1, y: 1 }}
         className="p-5 rounded-b-3xl"
       >
-        {badge && (
-          <Text className="text-[11px] text-white/70 uppercase tracking-wide mb-2">
-            {badge}
-          </Text>
-        )}
+        
 
-        <Text className="text-[22px] text-white font-inter-semibold leading-tight mb-2" >
-
+        <Text className="text-[22px] text-white font-inter-semibold leading-tight mb-2">
           {title}
         </Text>
 

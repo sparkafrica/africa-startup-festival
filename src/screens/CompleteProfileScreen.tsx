@@ -21,6 +21,8 @@ import type {
 import { useAuth } from "../context/AuthContext";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
+import Toast from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 
 // Industry/Sector options
 const INDUSTRY_OPTIONS = [
@@ -82,6 +84,229 @@ const OFFER_COLORS = [
   { id: "orange", label: "Orange", color: "#F59E0B" },
   { id: "pink", label: "Pink", color: "#EC4899" },
 ];
+
+// Validation Helper Functions
+const validateFullName = (name: string): { valid: boolean; error?: string } => {
+  if (!name.trim()) {
+    return { valid: false, error: "Full name is required" };
+  }
+  if (name.trim().length < 2) {
+    return { valid: false, error: "Full name must be at least 2 characters" };
+  }
+  if (name.trim().length > 100) {
+    return {
+      valid: false,
+      error: "Full name must be less than 100 characters",
+    };
+  }
+  if (!/^[a-zA-Z\s'-]+$/.test(name.trim())) {
+    return {
+      valid: false,
+      error:
+        "Full name can only contain letters, spaces, hyphens, and apostrophes",
+    };
+  }
+  return { valid: true };
+};
+
+const validateJobTitle = (
+  title: string
+): { valid: boolean; error?: string } => {
+  if (!title.trim()) {
+    return { valid: false, error: "Job title is required" };
+  }
+  if (title.trim().length < 2) {
+    return { valid: false, error: "Job title must be at least 2 characters" };
+  }
+  if (title.trim().length > 100) {
+    return {
+      valid: false,
+      error: "Job title must be less than 100 characters",
+    };
+  }
+  return { valid: true };
+};
+
+const validateCompany = (
+  company: string
+): { valid: boolean; error?: string } => {
+  if (!company.trim()) {
+    return { valid: false, error: "Company name is required" };
+  }
+  if (company.trim().length < 2) {
+    return {
+      valid: false,
+      error: "Company name must be at least 2 characters",
+    };
+  }
+  if (company.trim().length > 200) {
+    return {
+      valid: false,
+      error: "Company name must be less than 200 characters",
+    };
+  }
+  return { valid: true };
+};
+
+const validateLinkedIn = (
+  linkedIn: string
+): { valid: boolean; error?: string } => {
+  if (!linkedIn.trim()) {
+    return { valid: false, error: "LinkedIn profile is required" };
+  }
+  // Allow both URLs and handles
+  const linkedInUrlPattern =
+    /^(https?:\/\/)?(www\.)?(linkedin\.com\/in\/|linkedin\.com\/pub\/)[a-zA-Z0-9-]+\/?/i;
+  const linkedInHandlePattern = /^[a-zA-Z0-9-]+$/;
+
+  if (
+    !linkedInUrlPattern.test(linkedIn.trim()) &&
+    !linkedInHandlePattern.test(linkedIn.trim())
+  ) {
+    return {
+      valid: false,
+      error: "Please enter a valid LinkedIn profile URL or handle",
+    };
+  }
+  return { valid: true };
+};
+
+const validateBio = (bio: string): { valid: boolean; error?: string } => {
+  if (!bio.trim()) {
+    return { valid: false, error: "Bio is required" };
+  }
+  if (bio.trim().length < 10) {
+    return { valid: false, error: "Bio must be at least 10 characters" };
+  }
+  if (bio.length > 200) {
+    return { valid: false, error: "Bio must be less than 200 characters" };
+  }
+  return { valid: true };
+};
+
+const validateWebsite = (
+  website: string
+): { valid: boolean; error?: string } => {
+  if (!website.trim()) {
+    return { valid: false, error: "Website is required" };
+  }
+  // Allow URLs with or without protocol
+  const websitePattern =
+    /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(\/.*)?$/i;
+
+  if (!websitePattern.test(website.trim())) {
+    return { valid: false, error: "Please enter a valid website URL" };
+  }
+  return { valid: true };
+};
+
+const validateBoothNumber = (
+  booth: string
+): { valid: boolean; error?: string } => {
+  if (!booth.trim()) {
+    return { valid: false, error: "Booth number is required" };
+  }
+  if (booth.trim().length > 50) {
+    return {
+      valid: false,
+      error: "Booth number must be less than 50 characters",
+    };
+  }
+  return { valid: true };
+};
+
+const validateCompanyDescription = (
+  description: string
+): { valid: boolean; error?: string } => {
+  if (!description.trim()) {
+    return { valid: false, error: "Company description is required" };
+  }
+  if (description.trim().length < 10) {
+    return {
+      valid: false,
+      error: "Company description must be at least 10 characters",
+    };
+  }
+  if (description.length > 200) {
+    return {
+      valid: false,
+      error: "Company description must be less than 200 characters",
+    };
+  }
+  return { valid: true };
+};
+
+const validateInterests = (
+  interests: string[]
+): { valid: boolean; error?: string } => {
+  if (interests.length < 2) {
+    return { valid: false, error: "Please select at least 2 interests" };
+  }
+  if (interests.length > 5) {
+    return { valid: false, error: "Please select no more than 5 interests" };
+  }
+  return { valid: true };
+};
+
+const validateOfferTitle = (
+  title: string
+): { valid: boolean; error?: string } => {
+  if (!title.trim()) {
+    return { valid: false, error: "Offer title is required" };
+  }
+  if (title.trim().length < 3) {
+    return { valid: false, error: "Offer title must be at least 3 characters" };
+  }
+  if (title.trim().length > 100) {
+    return {
+      valid: false,
+      error: "Offer title must be less than 100 characters",
+    };
+  }
+  return { valid: true };
+};
+
+const validateJobRole = (role: string): { valid: boolean; error?: string } => {
+  if (!role.trim()) {
+    return { valid: false, error: "Job role is required" };
+  }
+  if (role.trim().length < 2) {
+    return { valid: false, error: "Job role must be at least 2 characters" };
+  }
+  if (role.trim().length > 100) {
+    return { valid: false, error: "Job role must be less than 100 characters" };
+  }
+  return { valid: true };
+};
+
+const validateJobLink = (link: string): { valid: boolean; error?: string } => {
+  if (!link.trim()) {
+    return { valid: false, error: "Job link is required" };
+  }
+  const urlPattern =
+    /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(\/.*)?$/i;
+
+  if (!urlPattern.test(link.trim())) {
+    return { valid: false, error: "Please enter a valid job application URL" };
+  }
+  return { valid: true };
+};
+
+const validateSocialHandle = (
+  handle: string,
+  platform: string
+): { valid: boolean; error?: string } => {
+  if (!handle.trim()) {
+    return { valid: false, error: `${platform} handle is required` };
+  }
+  // Basic validation for social media handles (alphanumeric, underscores, dots, hyphens)
+  const handlePattern = /^[a-zA-Z0-9._-]+$/;
+
+  if (!handlePattern.test(handle.trim())) {
+    return { valid: false, error: `Please enter a valid ${platform} handle` };
+  }
+  return { valid: true };
+};
 
 interface IconProps {
   size?: number;
@@ -517,24 +742,22 @@ function OfferColorModal({
 // Attendee Profile Form Component (single screen, no progress bar)
 function AttendeeProfileForm() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const [fullName, setFullName] = useState("John Doe");
-  const [jobTitle, setJobTitle] = useState("Product Manager");
-  const [company, setCompany] = useState("TechCorp");
+  const { toast, showToast, hideToast } = useToast();
+  const [fullName, setFullName] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [company, setCompany] = useState("");
   const [linkedIn, setLinkedIn] = useState("");
-  const [bio, setBio] = useState(
-    "Passionate about building innovative products that solve real problems."
-  );
+  const [bio, setBio] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([
-    "AI/ML",
-    "SaaS",
-    "Product Strategy",
-  ]);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -558,24 +781,54 @@ function AttendeeProfileForm() {
     if (selectedInterests.includes(interest)) {
       setSelectedInterests(selectedInterests.filter((i) => i !== interest));
     } else {
-      if (selectedInterests.length < 12) {
+      if (selectedInterests.length < 5) {
         setSelectedInterests([...selectedInterests, interest]);
       }
     }
   };
 
   const handleCompleteProfile = async () => {
-    // Validate required fields
-    if (!fullName.trim()) {
-      Alert.alert("Required Field", "Please enter your full name");
-      return;
+    // Clear previous errors
+    setValidationErrors({});
+
+    // Validate all required fields
+    const errors: Record<string, string> = {};
+
+    const fullNameValidation = validateFullName(fullName);
+    if (!fullNameValidation.valid) {
+      errors.fullName = fullNameValidation.error || "";
     }
 
-    if (selectedInterests.length < 5) {
-      Alert.alert(
-        "Interests Required",
-        "Please select at least 5 interests (up to 12)"
-      );
+    const jobTitleValidation = validateJobTitle(jobTitle);
+    if (!jobTitleValidation.valid) {
+      errors.jobTitle = jobTitleValidation.error || "";
+    }
+
+    const companyValidation = validateCompany(company);
+    if (!companyValidation.valid) {
+      errors.company = companyValidation.error || "";
+    }
+
+    const linkedInValidation = validateLinkedIn(linkedIn);
+    if (!linkedInValidation.valid) {
+      errors.linkedIn = linkedInValidation.error || "";
+    }
+
+    const bioValidation = validateBio(bio);
+    if (!bioValidation.valid) {
+      errors.bio = bioValidation.error || "";
+    }
+
+    const interestsValidation = validateInterests(selectedInterests);
+    if (!interestsValidation.valid) {
+      errors.interests = interestsValidation.error || "";
+    }
+
+    // If there are validation errors, show them
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      const firstError = Object.values(errors)[0];
+      Alert.alert("Validation Error", firstError);
       return;
     }
 
@@ -585,12 +838,16 @@ function AttendeeProfileForm() {
       // TODO: Save profile data to backend API
       // await api.post('/profile/complete', { fullName, jobTitle, company, ... });
 
+      // Show success toast
+      showToast("Profile completed successfully!", "success");
+
       // Navigate to success screen (completeProfile will be called there)
-      console.log("Navigating to ProfileCreatedScreen...");
-      navigation.navigate("ProfileCreated");
+      setTimeout(() => {
+        navigation.navigate("ProfileCreated");
+      }, 500);
     } catch (error) {
       console.error("Error completing profile:", error);
-      Alert.alert("Error", "Failed to complete profile. Please try again.");
+      showToast("Failed to complete profile. Please try again.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -602,6 +859,12 @@ function AttendeeProfileForm() {
       className="flex-1"
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        onHide={hideToast}
+      />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -661,54 +924,115 @@ function AttendeeProfileForm() {
             {/* Full Name */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Full Name
+                Full Name <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.fullName
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={(text) => {
+                  setFullName(text);
+                  if (validationErrors.fullName) {
+                    setValidationErrors({ ...validationErrors, fullName: "" });
+                  }
+                }}
                 placeholder="Enter full name"
               />
+              {validationErrors.fullName && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.fullName}
+                </Text>
+              )}
             </View>
 
             {/* Job Title */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Job Title
+                Job Title <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.jobTitle
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
                 value={jobTitle}
-                onChangeText={setJobTitle}
+                onChangeText={(text) => {
+                  setJobTitle(text);
+                  if (validationErrors.jobTitle) {
+                    setValidationErrors({ ...validationErrors, jobTitle: "" });
+                  }
+                }}
                 placeholder="Enter job title"
               />
+              {validationErrors.jobTitle && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.jobTitle}
+                </Text>
+              )}
             </View>
 
             {/* Company */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Company
+                Company <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.company
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
                 value={company}
-                onChangeText={setCompany}
+                onChangeText={(text) => {
+                  setCompany(text);
+                  if (validationErrors.company) {
+                    setValidationErrors({ ...validationErrors, company: "" });
+                  }
+                }}
                 placeholder="Enter company name"
               />
+              {validationErrors.company && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.company}
+                </Text>
+              )}
             </View>
 
             {/* LinkedIn */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                LinkedIn
+                LinkedIn <Text className="text-red-500">*</Text>
               </Text>
               <View className="flex-row items-center gap-2">
-                <TextInput
-                  className="flex-1 bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
-                  value={linkedIn}
-                  onChangeText={setLinkedIn}
-                  placeholder="Insert profile link"
-                />
+                <View className="flex-1">
+                  <TextInput
+                    className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                      validationErrors.linkedIn
+                        ? "border-red-500"
+                        : "border-neutral-300"
+                    }`}
+                    value={linkedIn}
+                    onChangeText={(text) => {
+                      setLinkedIn(text);
+                      if (validationErrors.linkedIn) {
+                        setValidationErrors({
+                          ...validationErrors,
+                          linkedIn: "",
+                        });
+                      }
+                    }}
+                    placeholder="LinkedIn profile URL or handle"
+                  />
+                  {validationErrors.linkedIn && (
+                    <Text className="text-red-500 text-xs mt-1">
+                      {validationErrors.linkedIn}
+                    </Text>
+                  )}
+                </View>
                 <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
                   <Text className="text-sm font-medium text-black">
                     Paste link
@@ -757,14 +1081,23 @@ function AttendeeProfileForm() {
             {/* Bio */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Bio
+                Bio <Text className="text-red-500">*</Text>
               </Text>
               <View className="relative">
                 <TextInput
-                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[100px]"
+                  className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[100px] ${
+                    validationErrors.bio
+                      ? "border-red-500"
+                      : "border-neutral-300"
+                  }`}
                   value={bio}
-                  onChangeText={setBio}
-                  placeholder="Tell us about yourself"
+                  onChangeText={(text) => {
+                    setBio(text);
+                    if (validationErrors.bio) {
+                      setValidationErrors({ ...validationErrors, bio: "" });
+                    }
+                  }}
+                  placeholder="Tell us about yourself (10-200 characters)"
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -784,24 +1117,42 @@ function AttendeeProfileForm() {
                   </Svg>
                 </View>
               </View>
+              {validationErrors.bio && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.bio}
+                </Text>
+              )}
             </View>
           </View>
 
           {/* Top Interests */}
           <View className="mb-6 rounded-2xl border border-neutral-200 p-4">
             <Text className="text-sm font-medium text-neutral-700 mb-1">
-              Top Interests
+              Top Interests <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500 mb-3">
-              Select 5-12 sectors you want to connect with
+              Select 2-5 sectors you want to connect with
             </Text>
+            {validationErrors.interests && (
+              <Text className="text-red-500 text-xs mb-2">
+                {validationErrors.interests}
+              </Text>
+            )}
             <View className="flex-row flex-wrap gap-2">
               {interests.map((interest) => {
                 const isSelected = selectedInterests.includes(interest);
                 return (
                   <Pressable
                     key={interest}
-                    onPress={() => toggleInterest(interest)}
+                    onPress={() => {
+                      toggleInterest(interest);
+                      if (validationErrors.interests) {
+                        setValidationErrors({
+                          ...validationErrors,
+                          interests: "",
+                        });
+                      }
+                    }}
                     className={`px-4 py-2 rounded-full ${
                       isSelected
                         ? "bg-black"
@@ -832,14 +1183,14 @@ function AttendeeProfileForm() {
       >
         <Pressable
           onPress={handleCompleteProfile}
-          disabled={isSubmitting || selectedInterests.length < 5}
+          disabled={isSubmitting || selectedInterests.length < 2}
           className={`rounded-xl py-4 items-center justify-center ${
-            selectedInterests.length >= 5 && !isSubmitting
+            selectedInterests.length >= 2 && !isSubmitting
               ? "bg-black"
               : "bg-neutral-300"
           }`}
           style={{
-            opacity: selectedInterests.length >= 5 && !isSubmitting ? 1 : 0.6,
+            opacity: selectedInterests.length >= 2 && !isSubmitting ? 1 : 0.6,
           }}
         >
           <Text className="text-white text-base font-semibold">
@@ -880,24 +1231,22 @@ function AttendeeProfileForm() {
 // Personal Profile Form Component (Step 1 of 2 for Company/Partner accounts)
 function PersonalProfileForm() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const [fullName, setFullName] = useState("John Doe");
-  const [jobTitle, setJobTitle] = useState("Product Manager");
-  const [company, setCompany] = useState("TechCorp");
+  const { toast, showToast, hideToast } = useToast();
+  const [fullName, setFullName] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [company, setCompany] = useState("");
   const [linkedIn, setLinkedIn] = useState("");
-  const [bio, setBio] = useState(
-    "Passionate about building innovative products that solve real problems."
-  );
+  const [bio, setBio] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([
-    "AI/ML",
-    "SaaS",
-    "Product Strategy",
-  ]);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -921,24 +1270,54 @@ function PersonalProfileForm() {
     if (selectedInterests.includes(interest)) {
       setSelectedInterests(selectedInterests.filter((i) => i !== interest));
     } else {
-      if (selectedInterests.length < 12) {
+      if (selectedInterests.length < 5) {
         setSelectedInterests([...selectedInterests, interest]);
       }
     }
   };
 
   const handleNext = async () => {
-    // Validate required fields
-    if (!fullName.trim()) {
-      Alert.alert("Required Field", "Please enter your full name");
-      return;
+    // Clear previous errors
+    setValidationErrors({});
+
+    // Validate all required fields
+    const errors: Record<string, string> = {};
+
+    const fullNameValidation = validateFullName(fullName);
+    if (!fullNameValidation.valid) {
+      errors.fullName = fullNameValidation.error || "";
     }
 
-    if (selectedInterests.length < 5) {
-      Alert.alert(
-        "Interests Required",
-        "Please select at least 5 interests (up to 12)"
-      );
+    const jobTitleValidation = validateJobTitle(jobTitle);
+    if (!jobTitleValidation.valid) {
+      errors.jobTitle = jobTitleValidation.error || "";
+    }
+
+    const companyValidation = validateCompany(company);
+    if (!companyValidation.valid) {
+      errors.company = companyValidation.error || "";
+    }
+
+    const linkedInValidation = validateLinkedIn(linkedIn);
+    if (!linkedInValidation.valid) {
+      errors.linkedIn = linkedInValidation.error || "";
+    }
+
+    const bioValidation = validateBio(bio);
+    if (!bioValidation.valid) {
+      errors.bio = bioValidation.error || "";
+    }
+
+    const interestsValidation = validateInterests(selectedInterests);
+    if (!interestsValidation.valid) {
+      errors.interests = interestsValidation.error || "";
+    }
+
+    // If there are validation errors, show them
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      const firstError = Object.values(errors)[0];
+      Alert.alert("Validation Error", firstError);
       return;
     }
 
@@ -948,11 +1327,16 @@ function PersonalProfileForm() {
       // TODO: Save personal profile data to backend API
       // await api.post('/profile/personal', { fullName, jobTitle, company, ... });
 
+      // Show success toast
+      showToast("Personal profile saved!", "success");
+
       // Navigate to company profile (step 2)
-      navigation.navigate("CompleteProfile", { step: "company" });
+      setTimeout(() => {
+        navigation.navigate("CompleteProfile", { step: "company" });
+      }, 500);
     } catch (error) {
       console.error("Error saving personal profile:", error);
-      Alert.alert("Error", "Failed to save profile. Please try again.");
+      showToast("Failed to save profile. Please try again.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -964,6 +1348,12 @@ function PersonalProfileForm() {
       className="flex-1"
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        onHide={hideToast}
+      />
       <ProgressIndicator currentStep={1} totalSteps={2} />
       <ScrollView
         className="flex-1"
@@ -1024,54 +1414,115 @@ function PersonalProfileForm() {
             {/* Full Name */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Full Name
+                Full Name <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.fullName
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={(text) => {
+                  setFullName(text);
+                  if (validationErrors.fullName) {
+                    setValidationErrors({ ...validationErrors, fullName: "" });
+                  }
+                }}
                 placeholder="Enter full name"
               />
+              {validationErrors.fullName && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.fullName}
+                </Text>
+              )}
             </View>
 
             {/* Job Title */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Job Title
+                Job Title <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.jobTitle
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
                 value={jobTitle}
-                onChangeText={setJobTitle}
+                onChangeText={(text) => {
+                  setJobTitle(text);
+                  if (validationErrors.jobTitle) {
+                    setValidationErrors({ ...validationErrors, jobTitle: "" });
+                  }
+                }}
                 placeholder="Enter job title"
               />
+              {validationErrors.jobTitle && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.jobTitle}
+                </Text>
+              )}
             </View>
 
             {/* Company */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Company
+                Company <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.company
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
                 value={company}
-                onChangeText={setCompany}
+                onChangeText={(text) => {
+                  setCompany(text);
+                  if (validationErrors.company) {
+                    setValidationErrors({ ...validationErrors, company: "" });
+                  }
+                }}
                 placeholder="Enter company name"
               />
+              {validationErrors.company && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.company}
+                </Text>
+              )}
             </View>
 
             {/* LinkedIn */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                LinkedIn
+                LinkedIn <Text className="text-red-500">*</Text>
               </Text>
               <View className="flex-row items-center gap-2">
-                <TextInput
-                  className="flex-1 bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
-                  value={linkedIn}
-                  onChangeText={setLinkedIn}
-                  placeholder="Insert profile link"
-                />
+                <View className="flex-1">
+                  <TextInput
+                    className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                      validationErrors.linkedIn
+                        ? "border-red-500"
+                        : "border-neutral-300"
+                    }`}
+                    value={linkedIn}
+                    onChangeText={(text) => {
+                      setLinkedIn(text);
+                      if (validationErrors.linkedIn) {
+                        setValidationErrors({
+                          ...validationErrors,
+                          linkedIn: "",
+                        });
+                      }
+                    }}
+                    placeholder="LinkedIn profile URL or handle"
+                  />
+                  {validationErrors.linkedIn && (
+                    <Text className="text-red-500 text-xs mt-1">
+                      {validationErrors.linkedIn}
+                    </Text>
+                  )}
+                </View>
                 <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
                   <Text className="text-sm font-medium text-black">
                     Paste link
@@ -1120,14 +1571,23 @@ function PersonalProfileForm() {
             {/* Bio */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Bio
+                Bio <Text className="text-red-500">*</Text>
               </Text>
               <View className="relative">
                 <TextInput
-                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[100px]"
+                  className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[100px] ${
+                    validationErrors.bio
+                      ? "border-red-500"
+                      : "border-neutral-300"
+                  }`}
                   value={bio}
-                  onChangeText={setBio}
-                  placeholder="Tell us about yourself"
+                  onChangeText={(text) => {
+                    setBio(text);
+                    if (validationErrors.bio) {
+                      setValidationErrors({ ...validationErrors, bio: "" });
+                    }
+                  }}
+                  placeholder="Tell us about yourself (10-200 characters)"
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -1147,24 +1607,42 @@ function PersonalProfileForm() {
                   </Svg>
                 </View>
               </View>
+              {validationErrors.bio && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.bio}
+                </Text>
+              )}
             </View>
           </View>
 
           {/* Top Interests */}
           <View className="mb-6 rounded-2xl border border-neutral-200 p-4">
             <Text className="text-sm font-medium text-neutral-700 mb-1">
-              Top Interests
+              Top Interests <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500 mb-3">
-              Select 5-12 sectors you want to connect with
+              Select 2-5 sectors you want to connect with
             </Text>
+            {validationErrors.interests && (
+              <Text className="text-red-500 text-xs mb-2">
+                {validationErrors.interests}
+              </Text>
+            )}
             <View className="flex-row flex-wrap gap-2">
               {interests.map((interest) => {
                 const isSelected = selectedInterests.includes(interest);
                 return (
                   <Pressable
                     key={interest}
-                    onPress={() => toggleInterest(interest)}
+                    onPress={() => {
+                      toggleInterest(interest);
+                      if (validationErrors.interests) {
+                        setValidationErrors({
+                          ...validationErrors,
+                          interests: "",
+                        });
+                      }
+                    }}
                     className={`px-4 py-2 rounded-full ${
                       isSelected
                         ? "bg-black"
@@ -1195,14 +1673,12 @@ function PersonalProfileForm() {
       >
         <Pressable
           onPress={handleNext}
-          disabled={isSubmitting || selectedInterests.length < 5}
+          disabled={isSubmitting}
           className={`rounded-xl py-4 items-center justify-center ${
-            selectedInterests.length >= 5 && !isSubmitting
-              ? "bg-black"
-              : "bg-neutral-300"
+            !isSubmitting ? "bg-black" : "bg-neutral-300"
           }`}
           style={{
-            opacity: selectedInterests.length >= 5 && !isSubmitting ? 1 : 0.6,
+            opacity: !isSubmitting ? 1 : 0.6,
           }}
         >
           <Text className="text-white text-base font-semibold">Next</Text>
@@ -1242,41 +1718,44 @@ function PersonalProfileForm() {
 function CompanyProfileForm() {
   const { completeProfile } = useAuth();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const [companyName, setCompanyName] = useState("TechCorp Inc");
-  const [boothNumber, setBoothNumber] = useState("Booth 24");
-  const [website, setWebsite] = useState("techcorp.com");
+  const { toast, showToast, hideToast } = useToast();
+  const [companyName, setCompanyName] = useState("");
+  const [boothNumber, setBoothNumber] = useState("");
+  const [website, setWebsite] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
-  const [companyDescription, setCompanyDescription] = useState(
-    "Empowering innovation across Africa. High-growth tech company showcasing new products at Spark Summit."
-  );
+  const [companyDescription, setCompanyDescription] = useState("");
   const [offers, setOffers] = useState<
     Array<{ id: string; title: string; color: string }>
-  >([
-    { id: "1", title: "Startup Mentorship", color: "purple" },
-    { id: "2", title: "Free Azure Credits", color: "green" },
-  ]);
+  >([]);
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [newOfferTitle, setNewOfferTitle] = useState("");
   const [newOfferColor, setNewOfferColor] = useState("purple");
   const [showColorModal, setShowColorModal] = useState(false);
   const [socialLinks, setSocialLinks] = useState({
-    linkedin: "TechCorp_ng",
-    facebook: "TechCorp_ng",
-    instagram: "TechCorp_ng",
-    x: "TechCorp_ng",
+    linkedin: "",
+    facebook: "",
+    instagram: "",
+    x: "",
   });
-  const [isRecruiting, setIsRecruiting] = useState(true);
+  const [isRecruiting, setIsRecruiting] = useState(false);
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [newPositionRole, setNewPositionRole] = useState("");
   const [newPositionLink, setNewPositionLink] = useState("");
   const [positions, setPositions] = useState<
     Array<{ id: string; role: string; link: string }>
-  >([{ id: "1", role: "Chief Operating Officer", link: "" }]);
+  >([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
+  const [offerErrors, setOfferErrors] = useState<Record<string, string>>({});
+  const [positionErrors, setPositionErrors] = useState<Record<string, string>>(
+    {}
+  );
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -1286,19 +1765,24 @@ function CompanyProfileForm() {
     COUNTRY_OPTIONS[0];
 
   const handleAddOffer = () => {
-    if (newOfferTitle.trim()) {
-      setOffers([
-        ...offers,
-        {
-          id: Date.now().toString(),
-          title: newOfferTitle,
-          color: newOfferColor,
-        },
-      ]);
-      setNewOfferTitle("");
-      setNewOfferColor("purple");
-      setShowAddOffer(false);
+    const offerValidation = validateOfferTitle(newOfferTitle);
+    if (!offerValidation.valid) {
+      setOfferErrors({ newOfferTitle: offerValidation.error || "" });
+      return;
     }
+
+    setOffers([
+      ...offers,
+      {
+        id: Date.now().toString(),
+        title: newOfferTitle,
+        color: newOfferColor,
+      },
+    ]);
+    setNewOfferTitle("");
+    setNewOfferColor("purple");
+    setShowAddOffer(false);
+    setOfferErrors({});
   };
 
   const handleRemoveOffer = (id: string) => {
@@ -1306,19 +1790,34 @@ function CompanyProfileForm() {
   };
 
   const handleAddPosition = () => {
-    if (newPositionRole.trim()) {
-      setPositions([
-        ...positions,
-        {
-          id: Date.now().toString(),
-          role: newPositionRole,
-          link: newPositionLink,
-        },
-      ]);
-      setNewPositionRole("");
-      setNewPositionLink("");
-      setShowAddPosition(false);
+    const roleValidation = validateJobRole(newPositionRole);
+    const linkValidation = validateJobLink(newPositionLink);
+
+    const errors: Record<string, string> = {};
+    if (!roleValidation.valid) {
+      errors.newPositionRole = roleValidation.error || "";
     }
+    if (!linkValidation.valid) {
+      errors.newPositionLink = linkValidation.error || "";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setPositionErrors(errors);
+      return;
+    }
+
+    setPositions([
+      ...positions,
+      {
+        id: Date.now().toString(),
+        role: newPositionRole,
+        link: newPositionLink,
+      },
+    ]);
+    setNewPositionRole("");
+    setNewPositionLink("");
+    setShowAddPosition(false);
+    setPositionErrors({});
   };
 
   const handleRemovePosition = (id: string) => {
@@ -1326,8 +1825,109 @@ function CompanyProfileForm() {
   };
 
   const handleDone = async () => {
-    if (!companyName.trim()) {
-      Alert.alert("Required Field", "Please enter company name");
+    // Clear previous errors
+    setValidationErrors({});
+
+    // Validate all required fields
+    const errors: Record<string, string> = {};
+
+    const companyNameValidation = validateCompany(companyName);
+    if (!companyNameValidation.valid) {
+      errors.companyName = companyNameValidation.error || "";
+    }
+
+    const boothValidation = validateBoothNumber(boothNumber);
+    if (!boothValidation.valid) {
+      errors.boothNumber = boothValidation.error || "";
+    }
+
+    const websiteValidation = validateWebsite(website);
+    if (!websiteValidation.valid) {
+      errors.website = websiteValidation.error || "";
+    }
+
+    const descriptionValidation =
+      validateCompanyDescription(companyDescription);
+    if (!descriptionValidation.valid) {
+      errors.companyDescription = descriptionValidation.error || "";
+    }
+
+    // Validate social links - at least one must be provided, and if provided must be valid format
+    const hasAnySocialLink =
+      socialLinks.linkedin.trim() ||
+      socialLinks.facebook.trim() ||
+      socialLinks.instagram.trim() ||
+      socialLinks.x.trim();
+
+    if (!hasAnySocialLink) {
+      errors.socialLinks = "Please provide at least one social media handle";
+    }
+
+    // Validate format of provided social links
+    if (socialLinks.linkedin.trim()) {
+      const linkedInValidation = validateSocialHandle(
+        socialLinks.linkedin,
+        "LinkedIn"
+      );
+      if (!linkedInValidation.valid) {
+        errors.linkedIn = linkedInValidation.error || "";
+      }
+    }
+
+    if (socialLinks.facebook.trim()) {
+      const facebookValidation = validateSocialHandle(
+        socialLinks.facebook,
+        "Facebook"
+      );
+      if (!facebookValidation.valid) {
+        errors.facebook = facebookValidation.error || "";
+      }
+    }
+
+    if (socialLinks.instagram.trim()) {
+      const instagramValidation = validateSocialHandle(
+        socialLinks.instagram,
+        "Instagram"
+      );
+      if (!instagramValidation.valid) {
+        errors.instagram = instagramValidation.error || "";
+      }
+    }
+
+    if (socialLinks.x.trim()) {
+      const xValidation = validateSocialHandle(socialLinks.x, "X/Twitter");
+      if (!xValidation.valid) {
+        errors.x = xValidation.error || "";
+      }
+    }
+
+    // Validate positions if recruiting is enabled
+    if (isRecruiting && positions.length === 0) {
+      errors.positions =
+        "Please add at least one position when recruiting is enabled";
+    }
+
+    // Validate each position
+    positions.forEach((position, index) => {
+      const roleValidation = validateJobRole(position.role);
+      const linkValidation = validateJobLink(position.link);
+      if (!roleValidation.valid) {
+        errors[`position_role_${index}`] = `Position ${index + 1}: ${
+          roleValidation.error
+        }`;
+      }
+      if (!linkValidation.valid) {
+        errors[`position_link_${index}`] = `Position ${index + 1}: ${
+          linkValidation.error
+        }`;
+      }
+    });
+
+    // If there are validation errors, show them
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      const firstError = Object.values(errors)[0];
+      Alert.alert("Validation Error", firstError);
       return;
     }
 
@@ -1337,11 +1937,16 @@ function CompanyProfileForm() {
       // TODO: Save company profile data to backend API
       // await api.post('/company/profile/complete', { companyName, boothNumber, ... });
 
+      // Show success toast
+      showToast("Company profile completed successfully!", "success");
+
       // Navigate to success screen (completeProfile will be called there)
-      navigation.navigate("ProfileCreated");
+      setTimeout(() => {
+        navigation.navigate("ProfileCreated");
+      }, 500);
     } catch (error) {
       console.error("Error completing profile:", error);
-      Alert.alert("Error", "Failed to complete profile. Please try again.");
+      showToast("Failed to complete profile. Please try again.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -1353,6 +1958,12 @@ function CompanyProfileForm() {
       className="flex-1"
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        onHide={hideToast}
+      />
       <ProgressIndicator currentStep={2} totalSteps={2} />
       <ScrollView
         className="flex-1"
@@ -1413,41 +2024,94 @@ function CompanyProfileForm() {
             {/* Company Name */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Company Name
+                Company Name <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.companyName
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
                 value={companyName}
-                onChangeText={setCompanyName}
+                onChangeText={(text) => {
+                  setCompanyName(text);
+                  if (validationErrors.companyName) {
+                    setValidationErrors({
+                      ...validationErrors,
+                      companyName: "",
+                    });
+                  }
+                }}
                 placeholder="Enter company name"
               />
+              {validationErrors.companyName && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.companyName}
+                </Text>
+              )}
             </View>
 
             {/* Booth Number */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Booth Number
+                Booth Number <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.boothNumber
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
                 value={boothNumber}
-                onChangeText={setBoothNumber}
+                onChangeText={(text) => {
+                  setBoothNumber(text);
+                  if (validationErrors.boothNumber) {
+                    setValidationErrors({
+                      ...validationErrors,
+                      boothNumber: "",
+                    });
+                  }
+                }}
                 placeholder="Enter booth number"
               />
+              {validationErrors.boothNumber && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.boothNumber}
+                </Text>
+              )}
             </View>
 
             {/* Website */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Website
+                Website <Text className="text-red-500">*</Text>
               </Text>
               <View className="flex-row items-center gap-2">
-                <TextInput
-                  className="flex-1 bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
-                  value={website}
-                  onChangeText={setWebsite}
-                  placeholder="Enter website URL"
-                />
+                <View className="flex-1">
+                  <TextInput
+                    className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                      validationErrors.website
+                        ? "border-red-500"
+                        : "border-neutral-300"
+                    }`}
+                    value={website}
+                    onChangeText={(text) => {
+                      setWebsite(text);
+                      if (validationErrors.website) {
+                        setValidationErrors({
+                          ...validationErrors,
+                          website: "",
+                        });
+                      }
+                    }}
+                    placeholder="Enter website URL"
+                  />
+                  {validationErrors.website && (
+                    <Text className="text-red-500 text-xs mt-1">
+                      {validationErrors.website}
+                    </Text>
+                  )}
+                </View>
                 <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
                   <Text className="text-sm font-medium text-black">
                     Paste link
@@ -1496,14 +2160,26 @@ function CompanyProfileForm() {
             {/* Company Description */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Company Description
+                Company Description <Text className="text-red-500">*</Text>
               </Text>
               <View className="relative">
                 <TextInput
-                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[100px]"
+                  className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[100px] ${
+                    validationErrors.companyDescription
+                      ? "border-red-500"
+                      : "border-neutral-300"
+                  }`}
                   value={companyDescription}
-                  onChangeText={setCompanyDescription}
-                  placeholder="Tell us about your company"
+                  onChangeText={(text) => {
+                    setCompanyDescription(text);
+                    if (validationErrors.companyDescription) {
+                      setValidationErrors({
+                        ...validationErrors,
+                        companyDescription: "",
+                      });
+                    }
+                  }}
+                  placeholder="Tell us about your company (10-200 characters)"
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -1523,6 +2199,11 @@ function CompanyProfileForm() {
                   </Svg>
                 </View>
               </View>
+              {validationErrors.companyDescription && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.companyDescription}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -1590,7 +2271,7 @@ function CompanyProfileForm() {
             )}
 
             {/* Existing Offers */}
-            <View className="flex-row flex-wrap gap-2">
+            <View className="flex-row flex-wrap gap-2 py-2">
               {offers.map((offer) => {
                 const colorData = OFFER_COLORS.find(
                   (c) => c.id === offer.color
@@ -1612,27 +2293,59 @@ function CompanyProfileForm() {
               })}
             </View>
           </View>
+
           {/* Social Links */}
           <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
             <View className=" p-2">
-              <Text className="text-[14px] font-semibold text-neutral-700 mb-3">
-                Social Links
+              <Text className="text-[14px] font-semibold text-neutral-700 mb-1">
+                Social Links <Text className="text-red-500">*</Text>
               </Text>
+              <Text className="text-xs text-neutral-500 mb-3">
+                At least one social media handle is required
+              </Text>
+              {validationErrors.socialLinks && (
+                <Text className="text-red-500 text-xs mb-2">
+                  {validationErrors.socialLinks}
+                </Text>
+              )}
 
               <View className="mb-3">
                 <View className="flex-row items-center">
                   <View className="w-10 items-center justify-center border border-neutral-300 p-2 rounded-full mr-3">
                     <LinkedInIcon size={22} color="#404040" />
                   </View>
-                  <TextInput
-                    className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={socialLinks.linkedin}
-                    onChangeText={(text) =>
-                      setSocialLinks({ ...socialLinks, linkedin: text })
-                    }
-                    placeholder="LinkedIn handle"
-                    style={{ height: 42, minHeight: 42, maxHeight: 42 }}
-                  />
+                  <View className="flex-1">
+                    <TextInput
+                      className={`flex-1 bg-white border rounded-xl px-4 py-2 text-base text-black ${
+                        validationErrors.linkedIn
+                          ? "border-red-500"
+                          : "border-neutral-300"
+                      }`}
+                      value={socialLinks.linkedin}
+                      onChangeText={(text) => {
+                        setSocialLinks({ ...socialLinks, linkedin: text });
+                        if (validationErrors.linkedIn) {
+                          setValidationErrors({
+                            ...validationErrors,
+                            linkedIn: "",
+                          });
+                        }
+                        if (validationErrors.socialLinks) {
+                          setValidationErrors({
+                            ...validationErrors,
+                            socialLinks: "",
+                          });
+                        }
+                      }}
+                      placeholder="LinkedIn handle"
+                      style={{ height: 42, minHeight: 42, maxHeight: 42 }}
+                    />
+                    {validationErrors.linkedIn && (
+                      <Text className="text-red-500 text-xs mt-1">
+                        {validationErrors.linkedIn}
+                      </Text>
+                    )}
+                  </View>
                 </View>
               </View>
 
@@ -1641,15 +2354,38 @@ function CompanyProfileForm() {
                   <View className="w-10 items-center justify-center border border-neutral-300 p-2 rounded-full mr-3">
                     <FacebookIcon size={22} color="#404040" />
                   </View>
-                  <TextInput
-                    className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={socialLinks.facebook}
-                    onChangeText={(text) =>
-                      setSocialLinks({ ...socialLinks, facebook: text })
-                    }
-                    placeholder="Facebook handle"
-                    style={{ height: 42, minHeight: 42, maxHeight: 42 }}
-                  />
+                  <View className="flex-1">
+                    <TextInput
+                      className={`flex-1 bg-white border rounded-xl px-4 py-2 text-base text-black ${
+                        validationErrors.facebook
+                          ? "border-red-500"
+                          : "border-neutral-300"
+                      }`}
+                      value={socialLinks.facebook}
+                      onChangeText={(text) => {
+                        setSocialLinks({ ...socialLinks, facebook: text });
+                        if (validationErrors.facebook) {
+                          setValidationErrors({
+                            ...validationErrors,
+                            facebook: "",
+                          });
+                        }
+                        if (validationErrors.socialLinks) {
+                          setValidationErrors({
+                            ...validationErrors,
+                            socialLinks: "",
+                          });
+                        }
+                      }}
+                      placeholder="Facebook handle"
+                      style={{ height: 42, minHeight: 42, maxHeight: 42 }}
+                    />
+                    {validationErrors.facebook && (
+                      <Text className="text-red-500 text-xs mt-1">
+                        {validationErrors.facebook}
+                      </Text>
+                    )}
+                  </View>
                 </View>
               </View>
 
@@ -1658,15 +2394,38 @@ function CompanyProfileForm() {
                   <View className="w-10 items-center justify-center border border-neutral-300 p-2 rounded-full mr-3">
                     <InstagramIcon size={22} color="#404040" />
                   </View>
-                  <TextInput
-                    className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={socialLinks.instagram}
-                    onChangeText={(text) =>
-                      setSocialLinks({ ...socialLinks, instagram: text })
-                    }
-                    placeholder="Instagram handle"
-                    style={{ height: 42, minHeight: 42, maxHeight: 42 }}
-                  />
+                  <View className="flex-1">
+                    <TextInput
+                      className={`flex-1 bg-white border rounded-xl px-4 py-2 text-base text-black ${
+                        validationErrors.instagram
+                          ? "border-red-500"
+                          : "border-neutral-300"
+                      }`}
+                      value={socialLinks.instagram}
+                      onChangeText={(text) => {
+                        setSocialLinks({ ...socialLinks, instagram: text });
+                        if (validationErrors.instagram) {
+                          setValidationErrors({
+                            ...validationErrors,
+                            instagram: "",
+                          });
+                        }
+                        if (validationErrors.socialLinks) {
+                          setValidationErrors({
+                            ...validationErrors,
+                            socialLinks: "",
+                          });
+                        }
+                      }}
+                      placeholder="Instagram handle"
+                      style={{ height: 42, minHeight: 42, maxHeight: 42 }}
+                    />
+                    {validationErrors.instagram && (
+                      <Text className="text-red-500 text-xs mt-1">
+                        {validationErrors.instagram}
+                      </Text>
+                    )}
+                  </View>
                 </View>
               </View>
 
@@ -1675,15 +2434,35 @@ function CompanyProfileForm() {
                   <View className="w-10 items-center justify-center border border-neutral-300 p-2 rounded-full mr-3">
                     <XIcon size={22} color="#404040" />
                   </View>
-                  <TextInput
-                    className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={socialLinks.x}
-                    onChangeText={(text) =>
-                      setSocialLinks({ ...socialLinks, x: text })
-                    }
-                    placeholder="X handle"
-                    style={{ height: 42, minHeight: 42, maxHeight: 42 }}
-                  />
+                  <View className="flex-1">
+                    <TextInput
+                      className={`flex-1 bg-white border rounded-xl px-4 py-2 text-base text-black ${
+                        validationErrors.x
+                          ? "border-red-500"
+                          : "border-neutral-300"
+                      }`}
+                      value={socialLinks.x}
+                      onChangeText={(text) => {
+                        setSocialLinks({ ...socialLinks, x: text });
+                        if (validationErrors.x) {
+                          setValidationErrors({ ...validationErrors, x: "" });
+                        }
+                        if (validationErrors.socialLinks) {
+                          setValidationErrors({
+                            ...validationErrors,
+                            socialLinks: "",
+                          });
+                        }
+                      }}
+                      placeholder="X handle"
+                      style={{ height: 42, minHeight: 42, maxHeight: 42 }}
+                    />
+                    {validationErrors.x && (
+                      <Text className="text-red-500 text-xs mt-1">
+                        {validationErrors.x}
+                      </Text>
+                    )}
+                  </View>
                 </View>
               </View>
             </View>

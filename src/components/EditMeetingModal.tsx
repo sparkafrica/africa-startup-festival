@@ -68,6 +68,15 @@ export default function EditMeetingModal({
     initialData?.description || ""
   );
 
+  // Validation errors
+  const [errors, setErrors] = useState<{
+    title?: string;
+    tableNumber?: string;
+    meetingLink?: string;
+    date?: string;
+    description?: string;
+  }>({});
+
   const translateY = useRef(new Animated.Value(0)).current;
   const keyboardOffset = useRef(new Animated.Value(0)).current;
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -148,6 +157,9 @@ export default function EditMeetingModal({
       setTime(initialData.time || "10:30 AM - 10:50 AM");
       setDate(initialData.date || "");
       setDescription(initialData.description || "");
+      setErrors({}); // Clear errors when modal opens
+    } else if (!visible) {
+      setErrors({}); // Clear errors when modal closes
     }
   }, [visible, initialData]);
 
@@ -205,20 +217,110 @@ export default function EditMeetingModal({
     }
   }, [visible, keyboardOffset]);
 
+  // Validation functions
+  const validateTitle = (value: string): string | undefined => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return "Meeting title is required";
+    }
+    if (trimmed.length < 3) {
+      return "Meeting title must be at least 3 characters";
+    }
+    if (trimmed.length > 100) {
+      return "Meeting title must be less than 100 characters";
+    }
+    return undefined;
+  };
+
+  const validateTableNumber = (value: string): string | undefined => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return "Table number is required for physical meetings";
+    }
+    return undefined;
+  };
+
+  const validateMeetingLink = (value: string): string | undefined => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return "Meeting link is required for virtual meetings";
+    }
+    // Basic URL validation
+    try {
+      const url = new URL(trimmed);
+      if (!["http:", "https:"].includes(url.protocol)) {
+        return "Meeting link must be a valid HTTP or HTTPS URL";
+      }
+    } catch {
+      return "Please enter a valid meeting link (e.g., https://meet.example.com)";
+    }
+    return undefined;
+  };
+
+  const validateDate = (value: string): string | undefined => {
+    if (!value || value.trim().length === 0) {
+      return "Date is required";
+    }
+    return undefined;
+  };
+
+  const validateDescription = (value: string): string | undefined => {
+    if (value.length > MAX_CHARACTERS) {
+      return `Description must be less than ${MAX_CHARACTERS} characters`;
+    }
+    return undefined;
+  };
+
   const handleSave = () => {
-    if (title.trim().length === 0) {
-      // TODO: Show validation error
+    const newErrors: typeof errors = {};
+
+    // Validate title
+    const titleError = validateTitle(title);
+    if (titleError) {
+      newErrors.title = titleError;
+    }
+
+    // Validate based on meeting type
+    if (meetingType === "physical") {
+      const tableError = validateTableNumber(tableNumber);
+      if (tableError) {
+        newErrors.tableNumber = tableError;
+      }
+    } else {
+      const linkError = validateMeetingLink(meetingLink);
+      if (linkError) {
+        newErrors.meetingLink = linkError;
+      }
+    }
+
+    // Validate date
+    const dateError = validateDate(date);
+    if (dateError) {
+      newErrors.date = dateError;
+    }
+
+    // Validate description
+    const descError = validateDescription(description);
+    if (descError) {
+      newErrors.description = descError;
+    }
+
+    // If there are errors, set them and return
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
+    // Clear errors and save
+    setErrors({});
     Keyboard.dismiss();
     onSave({
       title: title.trim(),
       meetingType,
-      tableNumber: meetingType === "physical" ? tableNumber : undefined,
-      meetingLink: meetingType === "virtual" ? meetingLink : undefined,
+      tableNumber: meetingType === "physical" ? tableNumber.trim() : undefined,
+      meetingLink: meetingType === "virtual" ? meetingLink.trim() : undefined,
       time,
-      date,
+      date: date.trim(),
       description: description.trim(),
     });
   };
@@ -242,7 +344,8 @@ export default function EditMeetingModal({
   };
 
   const characterCount = description.length;
-  const isSaveDisabled = title.trim().length === 0;
+  // Save button is enabled if title has at least 3 characters
+  const isSaveDisabled = title.trim().length < 3;
 
   // Combine translateY and keyboardOffset for iOS only
   const combinedTranslateY = Animated.add(translateY, keyboardOffset);
@@ -301,14 +404,27 @@ export default function EditMeetingModal({
                   Meeting Title
                 </Text>
                 <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3.5 text-base"
+                  className={`bg-white border rounded-xl px-4 py-3.5 text-base ${
+                    errors.title ? "border-red-500" : "border-neutral-300"
+                  }`}
                   placeholder="e.g., Product Discussion"
                   placeholderTextColor="#9CA3AF"
                   value={title}
-                  onChangeText={setTitle}
+                  onChangeText={(text) => {
+                    setTitle(text);
+                    // Clear error when user starts typing
+                    if (errors.title) {
+                      setErrors((prev) => ({ ...prev, title: undefined }));
+                    }
+                  }}
                   returnKeyType="next"
                   onSubmitEditing={handleTitleSubmit}
                 />
+                {errors.title && (
+                  <Text className="text-red-500 text-xs mt-1 ml-1">
+                    {errors.title}
+                  </Text>
+                )}
               </View>
 
               {/* Meeting Type */}
@@ -362,25 +478,51 @@ export default function EditMeetingModal({
                   <Text className="text-sm font-medium text-black mb-2">
                     Table Number
                   </Text>
-                  <Pressable className="flex-row items-center justify-between bg-white border border-neutral-300 rounded-xl px-4 py-3.5">
+                  <Pressable
+                    className={`flex-row items-center justify-between bg-white border rounded-xl px-4 py-3.5 ${
+                      errors.tableNumber
+                        ? "border-red-500"
+                        : "border-neutral-300"
+                    }`}
+                  >
                     <Text className="text-base text-black flex-1">
                       {tableNumber}
                     </Text>
                     <ChevronDownIcon size={20} color="#6B7280" />
                   </Pressable>
+                  {errors.tableNumber && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {errors.tableNumber}
+                    </Text>
+                  )}
                 </View>
               ) : (
                 <View className="mb-4">
                   <Text className="text-sm font-medium text-black mb-2">
                     Meeting Link
                   </Text>
-                  <View className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 gap-2">
+                  <View
+                    className={`flex-row items-center bg-white border rounded-xl px-4 gap-2 ${
+                      errors.meetingLink
+                        ? "border-red-500"
+                        : "border-neutral-300"
+                    }`}
+                  >
                     <TextInput
                       className="flex-1 py-3.5 text-base"
                       placeholder="Paste your meeting link"
                       placeholderTextColor="#9CA3AF"
                       value={meetingLink}
-                      onChangeText={setMeetingLink}
+                      onChangeText={(text) => {
+                        setMeetingLink(text);
+                        // Clear error when user starts typing
+                        if (errors.meetingLink) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            meetingLink: undefined,
+                          }));
+                        }
+                      }}
                       keyboardType="url"
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -396,6 +538,11 @@ export default function EditMeetingModal({
                       </Text>
                     </Pressable>
                   </View>
+                  {errors.meetingLink && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {errors.meetingLink}
+                    </Text>
+                  )}
                 </View>
               )}
 
@@ -413,7 +560,11 @@ export default function EditMeetingModal({
                   </Text>
                   <ChevronDownIcon size={20} color="#6B7280" />
                 </Pressable>
-                <Pressable className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5">
+                <Pressable
+                  className={`flex-row items-center bg-white border rounded-xl px-4 py-3.5 ${
+                    errors.date ? "border-red-500" : "border-neutral-300"
+                  }`}
+                >
                   <View className="mr-2">
                     <Text className="text-lg">📅</Text>
                   </View>
@@ -426,6 +577,11 @@ export default function EditMeetingModal({
                   </Text>
                   <ChevronDownIcon size={20} color="#6B7280" />
                 </Pressable>
+                {errors.date && (
+                  <Text className="text-red-500 text-xs mt-1 ml-1">
+                    {errors.date}
+                  </Text>
+                )}
               </View>
 
               {/* Description */}
@@ -433,7 +589,11 @@ export default function EditMeetingModal({
                 <Text className="text-sm font-medium text-black mb-2">
                   Description
                 </Text>
-                <View className="relative bg-white border border-neutral-300 rounded-xl p-3 min-h-[96px]">
+                <View
+                  className={`relative bg-white border rounded-xl p-3 min-h-[96px] ${
+                    errors.description ? "border-red-500" : "border-neutral-300"
+                  }`}
+                >
                   <TextInput
                     className="text-base text-black min-h-[72px] pb-6"
                     placeholder="Briefly describe the meeting purpose..."
@@ -443,6 +603,13 @@ export default function EditMeetingModal({
                     onChangeText={(text) => {
                       if (text.length <= MAX_CHARACTERS) {
                         setDescription(text);
+                        // Clear error when user starts typing
+                        if (errors.description) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            description: undefined,
+                          }));
+                        }
                       }
                     }}
                     textAlignVertical="top"
@@ -450,11 +617,22 @@ export default function EditMeetingModal({
                     blurOnSubmit={true}
                   />
                   <View className="absolute bottom-2 right-3">
-                    <Text className="text-xs text-neutral-500">
+                    <Text
+                      className={`text-xs ${
+                        characterCount > MAX_CHARACTERS
+                          ? "text-red-500"
+                          : "text-neutral-500"
+                      }`}
+                    >
                       {characterCount}/{MAX_CHARACTERS}
                     </Text>
                   </View>
                 </View>
+                {errors.description && (
+                  <Text className="text-red-500 text-xs mt-1 ml-1">
+                    {errors.description}
+                  </Text>
+                )}
               </View>
 
               {/* Action Button */}
@@ -520,14 +698,27 @@ export default function EditMeetingModal({
                   Meeting Title
                 </Text>
                 <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3.5 text-base"
+                  className={`bg-white border rounded-xl px-4 py-3.5 text-base ${
+                    errors.title ? "border-red-500" : "border-neutral-300"
+                  }`}
                   placeholder="e.g., Product Discussion"
                   placeholderTextColor="#9CA3AF"
                   value={title}
-                  onChangeText={setTitle}
+                  onChangeText={(text) => {
+                    setTitle(text);
+                    // Clear error when user starts typing
+                    if (errors.title) {
+                      setErrors((prev) => ({ ...prev, title: undefined }));
+                    }
+                  }}
                   returnKeyType="next"
                   onSubmitEditing={handleTitleSubmit}
                 />
+                {errors.title && (
+                  <Text className="text-red-500 text-xs mt-1 ml-1">
+                    {errors.title}
+                  </Text>
+                )}
               </View>
 
               {/* Meeting Type */}
@@ -581,25 +772,51 @@ export default function EditMeetingModal({
                   <Text className="text-sm font-medium text-black mb-2">
                     Table Number
                   </Text>
-                  <Pressable className="flex-row items-center justify-between bg-white border border-neutral-300 rounded-xl px-4 py-3.5">
+                  <Pressable
+                    className={`flex-row items-center justify-between bg-white border rounded-xl px-4 py-3.5 ${
+                      errors.tableNumber
+                        ? "border-red-500"
+                        : "border-neutral-300"
+                    }`}
+                  >
                     <Text className="text-base text-black flex-1">
                       {tableNumber}
                     </Text>
                     <ChevronDownIcon size={20} color="#6B7280" />
                   </Pressable>
+                  {errors.tableNumber && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {errors.tableNumber}
+                    </Text>
+                  )}
                 </View>
               ) : (
                 <View className="mb-4">
                   <Text className="text-sm font-medium text-black mb-2">
                     Meeting Link
                   </Text>
-                  <View className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 gap-2">
+                  <View
+                    className={`flex-row items-center bg-white border rounded-xl px-4 gap-2 ${
+                      errors.meetingLink
+                        ? "border-red-500"
+                        : "border-neutral-300"
+                    }`}
+                  >
                     <TextInput
                       className="flex-1 py-3.5 text-base"
                       placeholder="Paste your meeting link"
                       placeholderTextColor="#9CA3AF"
                       value={meetingLink}
-                      onChangeText={setMeetingLink}
+                      onChangeText={(text) => {
+                        setMeetingLink(text);
+                        // Clear error when user starts typing
+                        if (errors.meetingLink) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            meetingLink: undefined,
+                          }));
+                        }
+                      }}
                       keyboardType="url"
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -615,6 +832,11 @@ export default function EditMeetingModal({
                       </Text>
                     </Pressable>
                   </View>
+                  {errors.meetingLink && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {errors.meetingLink}
+                    </Text>
+                  )}
                 </View>
               )}
 
@@ -632,7 +854,11 @@ export default function EditMeetingModal({
                   </Text>
                   <ChevronDownIcon size={20} color="#6B7280" />
                 </Pressable>
-                <Pressable className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5">
+                <Pressable
+                  className={`flex-row items-center bg-white border rounded-xl px-4 py-3.5 ${
+                    errors.date ? "border-red-500" : "border-neutral-300"
+                  }`}
+                >
                   <View className="mr-2">
                     <Text className="text-lg">📅</Text>
                   </View>
@@ -645,6 +871,11 @@ export default function EditMeetingModal({
                   </Text>
                   <ChevronDownIcon size={20} color="#6B7280" />
                 </Pressable>
+                {errors.date && (
+                  <Text className="text-red-500 text-xs mt-1 ml-1">
+                    {errors.date}
+                  </Text>
+                )}
               </View>
 
               {/* Description */}
@@ -652,7 +883,11 @@ export default function EditMeetingModal({
                 <Text className="text-sm font-medium text-black mb-2">
                   Description
                 </Text>
-                <View className="relative bg-white border border-neutral-300 rounded-xl p-3 min-h-[96px]">
+                <View
+                  className={`relative bg-white border rounded-xl p-3 min-h-[96px] ${
+                    errors.description ? "border-red-500" : "border-neutral-300"
+                  }`}
+                >
                   <TextInput
                     className="text-base text-black min-h-[72px] pb-6"
                     placeholder="Briefly describe the meeting purpose..."
@@ -662,6 +897,13 @@ export default function EditMeetingModal({
                     onChangeText={(text) => {
                       if (text.length <= MAX_CHARACTERS) {
                         setDescription(text);
+                        // Clear error when user starts typing
+                        if (errors.description) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            description: undefined,
+                          }));
+                        }
                       }
                     }}
                     textAlignVertical="top"
@@ -669,11 +911,22 @@ export default function EditMeetingModal({
                     blurOnSubmit={true}
                   />
                   <View className="absolute bottom-2 right-3">
-                    <Text className="text-xs text-neutral-500">
+                    <Text
+                      className={`text-xs ${
+                        characterCount > MAX_CHARACTERS
+                          ? "text-red-500"
+                          : "text-neutral-500"
+                      }`}
+                    >
                       {characterCount}/{MAX_CHARACTERS}
                     </Text>
                   </View>
                 </View>
+                {errors.description && (
+                  <Text className="text-red-500 text-xs mt-1 ml-1">
+                    {errors.description}
+                  </Text>
+                )}
               </View>
 
               {/* Action Button */}

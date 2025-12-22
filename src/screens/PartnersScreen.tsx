@@ -249,7 +249,7 @@ export default function PartnersScreen() {
                   }
                 />
                 <Text className="text-xs text-neutral-600 text-center mt-2">
-                  Tap to view details
+                  {partner.name}
                 </Text>
               </View>
             ))}
