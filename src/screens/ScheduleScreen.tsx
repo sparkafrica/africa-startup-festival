@@ -154,6 +154,15 @@ export default function ScheduleScreen() {
     },
   ];
 
+  // TODO: BACKEND INTEGRATION - Replace mock event data with API call
+  // API Endpoint: GET /api/events
+  // Query Params: ?stage={stage}&day={day}&time={time}&page={page}&limit={limit}
+  // Response: { events: Event[], total: number, page: number }
+  // Real-time: Consider WebSocket for event updates (time changes, cancellations, new events)
+  // TODO: BACKEND - Fetch events on component mount and when stage/filters change
+  // TODO: BACKEND - Handle pagination/infinite scroll
+  // TODO: BACKEND - Cache events in state management
+  // TODO: BACKEND - Handle loading and error states
   // Sample event data - replace with actual data from API/state
   const events = [
     {
@@ -319,7 +328,10 @@ export default function ScheduleScreen() {
             selectedValue={selectedStage}
             onSelect={(value) => {
               setSelectedStage(value);
-              // TODO: Filter events by stage
+              // TODO: BACKEND INTEGRATION - Filter events by stage via API
+              // API Call: await api.get(`/events?stage=${value}`)
+              // TODO: BACKEND - Refetch events when stage changes
+              // TODO: BACKEND - Update URL params for deep linking
             }}
             width="65%"
           />

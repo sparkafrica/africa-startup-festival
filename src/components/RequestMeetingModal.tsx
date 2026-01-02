@@ -253,6 +253,11 @@ export default function RequestMeetingModal({
     }
   };
 
+  // TODO: BACKEND INTEGRATION - Fetch available dates from backend
+  // API Endpoint: GET /api/meetings/available-dates?attendeeId={attendeeId}
+  // Response: { dates: { id: string, label: string, value: string }[] }
+  // TODO: BACKEND - Filter by attendee availability
+  // TODO: BACKEND - Exclude past dates and dates outside event window
   // Sample dates - in production, these would come from backend
   const availableDates = [
     { id: "1", label: "26th June, 2025", value: "2025-06-26" },
@@ -266,6 +271,12 @@ export default function RequestMeetingModal({
     { id: "3", label: "11:00 AM - 11:30 AM", value: "11:00-11:30" },
   ];
 
+  // TODO: BACKEND INTEGRATION - Fetch available tables from backend
+  // API Endpoint: GET /api/meetings/available-tables?date={date}&time={time}
+  // Response: { tables: { id: string, label: string, value: string }[] }
+  // TODO: BACKEND - Only fetch for physical meetings
+  // TODO: BACKEND - Filter by date and time slot availability
+  // TODO: BACKEND - Real-time validation as user selects date/time
   // Sample tables - in production, these would come from backend
   const availableTables = [
     { id: "1", label: "Table 15", value: "15" },

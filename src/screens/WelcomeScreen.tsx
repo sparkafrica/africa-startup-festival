@@ -712,7 +712,14 @@ interface Ticket {
   color: string;
 }
 
-// Mock ticket data - will be replaced with API call
+// TODO: BACKEND INTEGRATION - Replace mock ticket data with API call
+// API Endpoint: GET /api/user/tickets
+// Request Headers: { Authorization: `Bearer ${token}` }
+// Response: { tickets: Ticket[] }
+// Real-time: Consider WebSocket for ticket updates (transfers, assignments)
+// TODO: BACKEND - Fetch tickets on component mount
+// TODO: BACKEND - Handle loading and error states
+// TODO: BACKEND - Cache tickets in state management (Redux/Context)
 const mockTickets: Ticket[] = [
   {
     id: "1",

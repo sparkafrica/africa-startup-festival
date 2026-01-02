@@ -92,9 +92,22 @@ export default function ContactScreen() {
   const [selectedTopic, setSelectedTopic] = useState("Select Topic");
   const [message, setMessage] = useState("");
 
+  // TODO: BACKEND INTEGRATION - Send contact message to backend
+  // API Endpoint: POST /api/contact
+  // Request Body: { name: string, email: string, topic?: string, message: string }
+  // Response: { success: boolean, messageId?: string }
+  // Error Handling: Handle validation errors, rate limiting
+  // TODO: BACKEND - Validate form fields before submission
+  // TODO: BACKEND - Show loading state during submission
+  // TODO: BACKEND - Show success/error messages
+  // TODO: BACKEND - Send confirmation email to user
+  // TODO: BACKEND - Track analytics for contact form submissions
   const handleSendMessage = () => {
     console.log("Send Message", { name, email, selectedTopic, message });
-    // TODO: Implement send message functionality
+    // TODO: BACKEND - Call API: await api.post('/contact', { name, email, topic: selectedTopic, message })
+    // TODO: BACKEND - Handle API response and errors
+    // TODO: BACKEND - Clear form on success
+    // TODO: BACKEND - Show success toast/modal
   };
 
   return (
@@ -124,7 +137,10 @@ export default function ContactScreen() {
                   elevation: 2,
                 }}
                 onPress={() => {
-                  // TODO: Open email client or copy email
+                  // TODO: BACKEND INTEGRATION - Open email client or copy email
+                  // TODO: BACKEND - Use Linking.openURL('mailto:support@sparkevent.com')
+                  // TODO: BACKEND - Or copy email to clipboard with Clipboard API
+                  // TODO: BACKEND - Track analytics for email support clicks
                   console.log("Email Support pressed");
                 }}
               >
@@ -227,6 +243,3 @@ export default function ContactScreen() {
     </View>
   );
 }
-
-
-

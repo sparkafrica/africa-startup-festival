@@ -539,8 +539,8 @@ function TicketCard({
                     Transfer Personal Ticket Unavailable
                   </Text>
                   <Text className="text-xs text-orange-700 leading-4">
-                    You have {availableToAssignCount} available ticket(s) to assign.
-                    Please assign the available ticket
+                    You have {availableToAssignCount} available ticket(s) to
+                    assign. Please assign the available ticket
                     {availableToAssignCount !== 1 ? "s" : ""} before
                     transferring your personal ticket.
                   </Text>
@@ -3659,6 +3659,15 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   } | null>(null);
 
   // Ticket state management
+  // TODO: BACKEND INTEGRATION - Replace mock ticket data with API call
+  // API Endpoint: GET /api/user/tickets
+  // Request Headers: { Authorization: `Bearer ${token}` }
+  // Response: { tickets: Ticket[] }
+  // Real-time: WebSocket for ticket updates (transfers, assignments, revocations)
+  // TODO: BACKEND - Fetch tickets on component mount
+  // TODO: BACKEND - Handle loading and error states
+  // TODO: BACKEND - Cache tickets in state management
+  // TODO: BACKEND - Refresh tickets after operations (assign, transfer, revoke)
   const [tickets, setTickets] = useState<Ticket[]>([
     {
       id: "1",
@@ -3763,12 +3772,22 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     }, 300);
   };
 
+  // TODO: BACKEND INTEGRATION - Transfer ticket to recipient via API
+  // API Endpoint: POST /api/tickets/{ticketId}/transfer
+  // Request Body: { recipient: { fullName, email, phoneNumber, countryCode } }
+  // Response: { success: boolean, ticket: Ticket, message?: string }
+  // Error Handling: Handle validation errors, insufficient permissions, already transferred tickets
+  // TODO: BACKEND - Call API before updating local state
+  // TODO: BACKEND - Update local state only after successful API response
+  // TODO: BACKEND - Handle API errors and show error messages
+  // TODO: BACKEND - Refresh tickets list after successful transfer
   const handleRecipientTransfer = (data: {
     fullName: string;
     email: string;
     phoneNumber: string;
     countryCode: string;
   }) => {
+    // TODO: BACKEND - Call API: await api.post(`/tickets/${ticketId}/transfer`, { recipient: data })
     // Update the ticket state - mark the ticket as assigned
     // Use functional update to ensure we have the latest state
     setTickets((prevTickets: Ticket[]) => {
@@ -3828,6 +3847,13 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     // Don't navigate away - let user see the updated state
   };
 
+  // TODO: BACKEND INTEGRATION - Assign ticket to recipient via API
+  // API Endpoint: POST /api/tickets/{ticketId}/assign
+  // Request Body: { recipient: { fullName, email, phoneNumber, countryCode } }
+  // Response: { success: boolean, ticket: Ticket, message?: string }
+  // TODO: BACKEND - Call API before updating local state
+  // TODO: BACKEND - Handle validation errors
+  // TODO: BACKEND - Refresh tickets list after successful assignment
   const handleAssignTicket = (ticket: {
     title: string;
     ticketNumber: string;
@@ -3838,6 +3864,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       recipient: recipientData,
       originalTicket: transferModalData,
     });
+    // TODO: BACKEND - Call API: await api.post(`/tickets/${ticketId}/assign`, { recipient: recipientData })
     setAssigningTicketsModalVisible(false);
     setRecipientData(null);
     // Add your assign/transfer logic here
@@ -3904,8 +3931,17 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     }, 300);
   };
 
+  // TODO: BACKEND INTEGRATION - Revoke ticket access via API
+  // API Endpoint: POST /api/tickets/{ticketId}/revoke
+  // Request Body: { reason: string }
+  // Response: { success: boolean, ticket: Ticket, message?: string }
+  // Error Handling: Handle validation (can't revoke assigned tickets), insufficient permissions
+  // TODO: BACKEND - Call API before updating local state
+  // TODO: BACKEND - Handle API errors and show error messages
+  // TODO: BACKEND - Refresh tickets list after successful revocation
   const handleRevokeAccessConfirm = (reason: string) => {
     console.log("Revoke access with reason:", reason);
+    // TODO: BACKEND - Call API: await api.post(`/tickets/${ticketId}/revoke`, { reason })
 
     // Update ticket state - move ticket back to available to assign
     if (editAssignedTicketData) {
@@ -3941,7 +3977,17 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     setEditAssignedTicketData(null);
   };
 
+  // TODO: BACKEND INTEGRATION - Scan QR code and validate ticket
+  // API Endpoint: POST /api/tickets/scan
+  // Request Body: { qrCode: string }
+  // Response: { ticket: Ticket, isValid: boolean, message?: string }
+  // Error Handling: Handle invalid QR codes, already scanned tickets, expired tickets
+  // TODO: BACKEND - Integrate with camera/QR scanner library (expo-camera or react-native-vision-camera)
+  // TODO: BACKEND - Call API when QR code is scanned
+  // TODO: BACKEND - Show ticket profile after successful scan
   const handleQRCodePress = () => {
+    // TODO: BACKEND - Open camera/QR scanner
+    // TODO: BACKEND - On scan, call API: await api.post('/tickets/scan', { qrCode: scannedCode })
     setScannedTicketProfileVisible(true);
   };
 
@@ -3949,8 +3995,16 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     setManualCodeEntryModalVisible(true);
   };
 
+  // TODO: BACKEND INTEGRATION - Submit manually entered ticket code
+  // API Endpoint: POST /api/tickets/scan or POST /api/tickets/manual
+  // Request Body: { ticketId: string, type?: string }
+  // Response: { ticket: Ticket, isValid: boolean, message?: string }
+  // TODO: BACKEND - Validate code format before API call
+  // TODO: BACKEND - Call API with manual code
+  // TODO: BACKEND - Show ticket profile after successful validation
   const handleCodeSubmit = (code: string) => {
     console.log("Submitted code:", code);
+    // TODO: BACKEND - Call API: await api.post('/tickets/manual', { ticketId: code })
     // Process the code and show the scanned ticket profile
     // For now, we'll just show the profile modal
     setTimeout(() => {

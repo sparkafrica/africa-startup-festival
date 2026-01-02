@@ -50,6 +50,12 @@ export default function SpeakerDetailScreen({ route }: Props) {
     meetingTitle: string;
   } | null>(null);
 
+  // TODO: BACKEND INTEGRATION - Replace mock speaker data with API call
+  // API Endpoint: GET /api/speakers/{speakerId}
+  // Response: { speaker: Speaker, speakingSessions: Session[], interests: string[], tags: Tag[] }
+  // TODO: BACKEND - Fetch speaker data on component mount using route.params.speakerId
+  // TODO: BACKEND - Handle loading and error states
+  // TODO: BACKEND - Cache speaker data in state management
   // TODO: Replace with backend data
   const speakerData = {
     name: "Ada Okafor",
@@ -226,7 +232,10 @@ export default function SpeakerDetailScreen({ route }: Props) {
             <Pressable
               className="bg-neutral-100 rounded-xl py-4 items-center flex-row justify-center"
               onPress={() => {
-                // TODO: Open LinkedIn profile
+                // TODO: BACKEND INTEGRATION - Open LinkedIn profile
+                // TODO: BACKEND - Use Linking.openURL() to open external link
+                // TODO: BACKEND - Track analytics for LinkedIn clicks
+                // TODO: BACKEND - Handle URL validation and errors
                 console.log("Connect on LinkedIn");
               }}
               style={{
@@ -297,7 +306,12 @@ export default function SpeakerDetailScreen({ route }: Props) {
           });
           setIsRequestMeetingModalVisible(false);
           setIsMeetingRequestMessageVisible(true);
-          // TODO: Send meeting request to backend
+          // TODO: BACKEND INTEGRATION - Send meeting request to backend
+          // API Endpoint: POST /api/meetings/request
+          // Request Body: { speakerId: string, title, meetingType, date, time, tableNumber?, meetingLink?, description }
+          // TODO: BACKEND - Handle validation errors, conflicts, unavailable slots
+          // TODO: BACKEND - Show success/error messages
+          // TODO: BACKEND - Refresh meetings list after successful request
         }}
         attendeeName={speakerData.name}
       />

@@ -46,8 +46,14 @@ export default function HomeScreen() {
   // Track if checklist has been auto-collapsed (to prevent re-collapsing on manual opens)
   const [hasAutoCollapsed, setHasAutoCollapsed] = useState(false);
 
-  // TODO: Replace with backend data - check if there are unread notifications
-  // This would typically come from an API call or context/state management
+  // TODO: BACKEND INTEGRATION - Replace with backend data - check if there are unread notifications
+  // API Endpoint: GET /api/notifications/unread-count
+  // Request Headers: { Authorization: `Bearer ${token}` }
+  // Response: { count: number, hasUnread: boolean }
+  // Real-time: Consider WebSocket for real-time notification updates
+  // TODO: BACKEND - Fetch unread count on component mount
+  // TODO: BACKEND - Subscribe to notification updates (WebSocket/polling)
+  // TODO: BACKEND - Update count when notifications are read
   const [hasUnreadNotifications] = useState(false);
 
   // Auto-collapse checklist when all items are completed (only once)

@@ -91,6 +91,7 @@ export default function VerificationCodeScreen() {
   const handleSubmit = async () => {
     const codeString = code.join("");
 
+    // TODO: BACKEND INTEGRATION - Client-side validation (keep this)
     // For testing: accept any 4 characters
     if (codeString.length !== 4) {
       Alert.alert("Invalid Code", "Please enter a 4-digit code");
@@ -99,16 +100,25 @@ export default function VerificationCodeScreen() {
 
     try {
       setIsSubmitting(true);
+      // TODO: BACKEND INTEGRATION - verifyCode will call backend API
+      // TODO: BACKEND - Handle API response (success/error)
+      // TODO: BACKEND - Handle rate limiting (too many attempts)
+      // TODO: BACKEND - Handle expired code
       await verifyCode(email, codeString);
 
       console.log("Code verified, navigating to Welcome...");
+      // TODO: BACKEND - Navigation should happen after successful API response
 
       // Navigate to Welcome screen immediately
       // The navigation should work since Welcome is in the same AuthNavigator stack
       navigation.navigate("Welcome");
     } catch (error) {
+      // TODO: BACKEND - Show specific error messages based on error type (invalid code, expired, rate limit)
       Alert.alert("Error", "Invalid verification code. Please try again.");
       console.error("Error verifying code:", error);
+      // TODO: BACKEND - Clear code inputs on error for better UX
+      setCode(["", "", "", ""]);
+      inputRefs[0].current?.focus();
     } finally {
       setIsSubmitting(false);
     }
@@ -117,13 +127,18 @@ export default function VerificationCodeScreen() {
   const handleResendCode = async () => {
     try {
       setIsResending(true);
+      // TODO: BACKEND INTEGRATION - requestVerificationCode will call backend API
+      // TODO: BACKEND - Handle rate limiting (prevent spam resend requests)
+      // TODO: BACKEND - Track resend attempts and enforce cooldown period
       await requestVerificationCode(email);
       Alert.alert("Success", "Verification code has been resent to your email");
+      // TODO: BACKEND - Show countdown timer before allowing another resend
 
       // Clear current code
       setCode(["", "", "", ""]);
       inputRefs[0].current?.focus();
     } catch (error) {
+      // TODO: BACKEND - Handle specific error types (rate limit, email not found, etc.)
       Alert.alert(
         "Error",
         "Failed to resend verification code. Please try again."

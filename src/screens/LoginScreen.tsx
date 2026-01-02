@@ -63,12 +63,16 @@ export default function LoginScreen() {
   };
 
   const handleGetTicket = () => {
-    // TODO: Navigate to ticket purchase page or open external link
+    // TODO: BACKEND INTEGRATION - Navigate to ticket purchase page or open external link
+    // TODO: BACKEND - Consider deep linking to ticket purchase flow
+    // TODO: BACKEND - Track analytics for ticket purchase clicks
     Alert.alert("Get Ticket", "This will open the ticket purchase page");
   };
 
   const handleContactUs = () => {
-    // TODO: Navigate to contact page or open support
+    // TODO: BACKEND INTEGRATION - Navigate to contact page or open support
+    // TODO: BACKEND - Consider opening ContactScreen or external support URL
+    // TODO: BACKEND - Track analytics for support requests
     Alert.alert("Contact Us", "This will open the contact/support page");
   };
 

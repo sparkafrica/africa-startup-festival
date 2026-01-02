@@ -46,11 +46,11 @@ export default function CompanyDetailScreen({ route }: Props) {
   const navigation = useNavigation<NavigationProp<any>>();
   const { exhibitorId, name = "Flutterwave" } = route.params;
   const { markRequestMeetingComplete } = useChecklist();
-  
+
   // Request Meeting Modal state
   const [isRequestMeetingModalVisible, setIsRequestMeetingModalVisible] =
     useState(false);
-  
+
   // Meeting Request Message Modal state
   const [isMeetingRequestMessageVisible, setIsMeetingRequestMessageVisible] =
     useState(false);
@@ -60,6 +60,12 @@ export default function CompanyDetailScreen({ route }: Props) {
     meetingTitle: string;
   } | null>(null);
 
+  // TODO: BACKEND INTEGRATION - Replace mock company data with API call
+  // API Endpoint: GET /api/companies/{companyId}
+  // Response: { company: Company, offers: Offer[], socialLinks: SocialLink[], positions: Position[], teamMembers: Member[] }
+  // TODO: BACKEND - Fetch company data on component mount using route.params.exhibitorId
+  // TODO: BACKEND - Handle loading and error states
+  // TODO: BACKEND - Cache company data in state management
   // TODO: Replace with backend data
   const companyData = {
     name: "Flutterwave",
@@ -381,7 +387,12 @@ export default function CompanyDetailScreen({ route }: Props) {
           });
           setIsRequestMeetingModalVisible(false);
           setIsMeetingRequestMessageVisible(true);
-          // TODO: Send meeting request to backend
+          // TODO: BACKEND INTEGRATION - Send meeting request to backend
+          // API Endpoint: POST /api/meetings/request
+          // Request Body: { companyId: string, title, meetingType, date, time, tableNumber?, meetingLink?, description }
+          // TODO: BACKEND - Handle validation errors, conflicts, unavailable slots
+          // TODO: BACKEND - Show success/error messages
+          // TODO: BACKEND - Refresh meetings list after successful request
         }}
         attendeeName={name}
       />

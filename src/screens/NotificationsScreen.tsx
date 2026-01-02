@@ -7,7 +7,12 @@ import type { RootStackParamList } from "../navigation/types";
 import { StatusBar } from "expo-status-bar";
 import NotificationItem from "../components/NotificationItem";
 import NotificationDetailModal from "../components/NotificationDetailModal";
-import { CloseIcon, ProfileIcon, CalendarIcon, OffersIcon } from "../components/MenuIcons";
+import {
+  CloseIcon,
+  ProfileIcon,
+  CalendarIcon,
+  OffersIcon,
+} from "../components/MenuIcons";
 import { BellIcon } from "../components/HeaderIcons";
 import { ChevronRightIcon } from "../components/MenuIcons";
 
@@ -15,6 +20,16 @@ export default function NotificationsScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Notifications">>();
   const [selectedNotification, setSelectedNotification] = useState<any>(null);
+  // TODO: BACKEND INTEGRATION - Replace mock notifications with API call
+  // API Endpoint: GET /api/notifications
+  // Query Params: ?page={page}&limit={limit}&unreadOnly={boolean}
+  // Response: { notifications: Notification[], total: number, page: number }
+  // Real-time: WebSocket for new notifications, status changes
+  // TODO: BACKEND - Fetch notifications on component mount
+  // TODO: BACKEND - Handle pagination/infinite scroll
+  // TODO: BACKEND - Cache notifications in state management
+  // TODO: BACKEND - Handle loading and error states
+  // TODO: BACKEND - Subscribe to WebSocket for real-time updates
   const [notifications, setNotifications] = useState([
     {
       id: "1",
@@ -148,13 +163,22 @@ export default function NotificationsScreen() {
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 
+  // TODO: BACKEND INTEGRATION - Mark notification as read via API
+  // API Endpoint: PUT /api/notifications/{notificationId}/read
+  // TODO: BACKEND - Update local state optimistically
+  // TODO: BACKEND - Handle API errors and rollback on failure
   const markAsRead = (id: string) => {
+    // TODO: BACKEND - Call API: await api.put(`/notifications/${id}/read`)
     setNotifications(
       notifications.map((n) => (n.id === id ? { ...n, unread: false } : n))
     );
   };
 
+  // TODO: BACKEND INTEGRATION - Mark all notifications as read via API
+  // API Endpoint: PUT /api/notifications/read-all
+  // TODO: BACKEND - Update local state optimistically
   const markAllAsRead = () => {
+    // TODO: BACKEND - Call API: await api.put('/notifications/read-all')
     setNotifications(notifications.map((n) => ({ ...n, unread: false })));
   };
 
@@ -221,14 +245,17 @@ export default function NotificationsScreen() {
                   if (notification.unread) {
                     markAsRead(notification.id);
                   }
-                  
+
                   // Show modal for meeting time change requests and cancelled meetings
-                  if (notification.type === "meeting_time_change" || notification.type === "meeting_cancelled") {
+                  if (
+                    notification.type === "meeting_time_change" ||
+                    notification.type === "meeting_cancelled"
+                  ) {
                     setSelectedNotification(notification);
                   } else {
                     // Close the notifications modal first, then navigate
                     navigation.goBack();
-                    
+
                     // Use setTimeout to ensure modal closes before navigation
                     setTimeout(() => {
                       // Navigate to appropriate screen based on notification type
@@ -265,11 +292,14 @@ export default function NotificationsScreen() {
 
       {/* Notification Detail Modal - For meeting time change requests and cancelled meetings */}
       <NotificationDetailModal
-        visible={selectedNotification !== null && (selectedNotification?.type === "meeting_time_change" || selectedNotification?.type === "meeting_cancelled")}
+        visible={
+          selectedNotification !== null &&
+          (selectedNotification?.type === "meeting_time_change" ||
+            selectedNotification?.type === "meeting_cancelled")
+        }
         onClose={() => setSelectedNotification(null)}
         notification={selectedNotification}
       />
     </View>
   );
 }
-

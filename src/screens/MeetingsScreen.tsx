@@ -116,6 +116,19 @@ export default function MeetingsScreen({ route }: Props) {
     },
   ];
 
+  // TODO: BACKEND INTEGRATION - Replace mock meeting data with API calls
+  // API Endpoints:
+  //   - GET /api/meetings/inbound?status=pending|scheduled|cancelled&page={page}
+  //   - GET /api/meetings/outbound?status=pending|scheduled|cancelled&page={page}
+  //   - GET /api/meetings/scheduled?direction=inbound|outbound&page={page}
+  //   - GET /api/meetings/cancelled?page={page}
+  // Response: { meetings: Meeting[], total: number, page: number }
+  // Real-time: WebSocket for meeting status changes, new requests, time changes
+  // TODO: BACKEND - Fetch meetings on component mount and when tabs change
+  // TODO: BACKEND - Handle pagination/infinite scroll
+  // TODO: BACKEND - Cache meetings in state management
+  // TODO: BACKEND - Handle loading and error states
+  // TODO: BACKEND - Refresh meetings after actions (approve, decline, cancel, edit)
   // Sample meeting data - replace with actual data from API/state
   const inboundMeetings = [
     {

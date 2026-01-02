@@ -90,6 +90,14 @@ export default function ExhibitorsScreen() {
     return id;
   };
 
+  // TODO: BACKEND INTEGRATION - Replace mock exhibitor data with API call
+  // API Endpoint: GET /api/companies?type=exhibitor
+  // Query Params: ?filters={encodedFilters}&page={page}&limit={limit}
+  // Response: { companies: Company[], total: number, page: number }
+  // TODO: BACKEND - Fetch exhibitors on component mount and when filters change
+  // TODO: BACKEND - Handle pagination/infinite scroll
+  // TODO: BACKEND - Cache exhibitors in state management
+  // TODO: BACKEND - Handle loading and error states
   // TODO: Replace with backend data
   const exhibitors = [
     { name: "Kora", logoColor: "#2762C7" },

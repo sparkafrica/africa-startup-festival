@@ -90,6 +90,14 @@ export default function PartnersScreen() {
     return id;
   };
 
+  // TODO: BACKEND INTEGRATION - Replace mock partner data with API call
+  // API Endpoint: GET /api/companies?type=partner
+  // Query Params: ?filters={encodedFilters}&page={page}&limit={limit}
+  // Response: { companies: Company[], total: number, page: number }
+  // TODO: BACKEND - Fetch partners on component mount and when filters change
+  // TODO: BACKEND - Handle pagination/infinite scroll
+  // TODO: BACKEND - Cache partners in state management
+  // TODO: BACKEND - Handle loading and error states
   // TODO: Replace with backend data
   const partners = [
     { name: "Kora", logoColor: "#2762C7" },

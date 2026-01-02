@@ -161,6 +161,15 @@ export default function ConnectionsScreen() {
   const bottomSheetDragY = useRef(new Animated.Value(0)).current;
   const dragStartY = useRef(0);
 
+  // TODO: BACKEND INTEGRATION - Replace mock connections data with API call
+  // API Endpoint: GET /api/connections
+  // Query Params: ?search={query}&page={page}&limit={limit}
+  // Response: { connections: Connection[], total: number, page: number }
+  // Real-time: WebSocket for new connections, connection status changes
+  // TODO: BACKEND - Fetch connections on component mount
+  // TODO: BACKEND - Handle pagination/infinite scroll
+  // TODO: BACKEND - Cache connections in state management
+  // TODO: BACKEND - Handle loading and error states
   // Mock connections data - replace with actual data source
   const connections: Connection[] = [
     {
@@ -732,7 +741,12 @@ export default function ConnectionsScreen() {
         }}
         onSubmit={(data: MeetingFormData) => {
           console.log("Meeting Request Submitted:", data);
-          // TODO: Send meeting request to backend
+          // TODO: BACKEND INTEGRATION - Send meeting request to backend
+          // API Endpoint: POST /api/meetings/request
+          // Request Body: { attendeeId: string, title, meetingType, date, time, tableNumber?, meetingLink?, description }
+          // TODO: BACKEND - Handle validation errors, conflicts, unavailable slots
+          // TODO: BACKEND - Show success/error messages
+          // TODO: BACKEND - Refresh meetings list after successful request
         }}
         attendeeName={meetingConnection?.name}
       />

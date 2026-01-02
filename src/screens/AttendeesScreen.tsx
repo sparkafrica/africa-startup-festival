@@ -658,7 +658,8 @@ function AttendeeCard({
 export default function AttendeesScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
-  const { markConnectAttendeesComplete, markRequestMeetingComplete } = useChecklist();
+  const { markConnectAttendeesComplete, markRequestMeetingComplete } =
+    useChecklist();
   const [activeTab, setActiveTab] = useState<"Recommended" | "All">(
     "Recommended"
   );
@@ -680,10 +681,12 @@ export default function AttendeesScreen() {
 
   // Connect Message Modal state
   const [isConnectMessageVisible, setIsConnectMessageVisible] = useState(false);
-  const [connectedAttendeeName, setConnectedAttendeeName] = useState<string>("");
+  const [connectedAttendeeName, setConnectedAttendeeName] =
+    useState<string>("");
 
   // Meeting Request Message Modal state
-  const [isMeetingRequestMessageVisible, setIsMeetingRequestMessageVisible] = useState(false);
+  const [isMeetingRequestMessageVisible, setIsMeetingRequestMessageVisible] =
+    useState(false);
   const [meetingRequestData, setMeetingRequestData] = useState<{
     attendeeName: string;
     meetingType: "Physical" | "Virtual";
@@ -745,10 +748,16 @@ export default function AttendeesScreen() {
   ];
 
   // Filter handlers
+  // TODO: BACKEND INTEGRATION - Apply filters via API call
+  // API Endpoint: GET /api/attendees?filters={encodedFilters}
+  // TODO: BACKEND - Encode filter IDs into query params
+  // TODO: BACKEND - Refetch attendees when filters change
+  // TODO: BACKEND - Handle filter combinations (AND/OR logic)
   const handleApplyFilters = (filterIds: string[]) => {
     setSelectedFilterIds(filterIds);
     console.log("Applied filters:", filterIds);
-    // TODO: Apply filters to displayedAttendees when backend is integrated
+    // TODO: BACKEND - Apply filters to displayedAttendees when backend is integrated
+    // TODO: BACKEND - Call API with filters: await api.get(`/attendees?filters=${encodeFilters(filterIds)}`)
   };
 
   // Helper function to get filter label from ID
@@ -764,6 +773,15 @@ export default function AttendeesScreen() {
     setSelectedFilterIds(selectedFilterIds.filter((id) => id !== filterId));
   };
 
+  // TODO: BACKEND INTEGRATION - Replace mock attendee data with API call
+  // API Endpoint: GET /api/attendees
+  // Query Params: ?tab=recommended|all&search={query}&filters={encodedFilters}&page={page}&limit={limit}
+  // Response: { attendees: Attendee[], total: number, page: number }
+  // Real-time: Consider WebSocket for attendee updates (new attendees, profile changes)
+  // TODO: BACKEND - Fetch attendees on component mount and when filters/search change
+  // TODO: BACKEND - Handle pagination/infinite scroll
+  // TODO: BACKEND - Cache attendees in state management (Redux/Context)
+  // TODO: BACKEND - Handle loading and error states
   // Mock data - replace with actual data source
   const allAttendees: Attendee[] = [
     {
@@ -1217,22 +1235,22 @@ export default function AttendeesScreen() {
         {/* View Dropdown and Filter Dropdowns */}
         <View className="px-4 pb-6 flex-row">
           <View className="flex-1 mr-2" style={{ position: "relative" }}>
-          <Pressable
+            <Pressable
               onPress={() => setShowViewDropdown(!showViewDropdown)}
               className="flex-row items-center justify-center bg-white rounded-xl px-4 py-3 border border-neutral-200"
-          >
+            >
               {viewMode === "card" ? (
-            <GridIcon size={16} color="#404040" />
+                <GridIcon size={16} color="#404040" />
               ) : (
                 <ListIcon size={16} color="#404040" />
               )}
-            <Text className="text-sm font-medium text-neutral-900 ml-2">
+              <Text className="text-sm font-medium text-neutral-900 ml-2">
                 {viewMode === "card" ? "Card View" : "List View"}
-            </Text>
-            <View className="ml-2">
-              <ChevronDownIcon size={14} color="#A3A3A3" />
-            </View>
-          </Pressable>
+              </Text>
+              <View className="ml-2">
+                <ChevronDownIcon size={14} color="#A3A3A3" />
+              </View>
+            </Pressable>
             {/* Dropdown Menu */}
             {showViewDropdown && (
               <View
@@ -1246,7 +1264,7 @@ export default function AttendeesScreen() {
                   zIndex: 50,
                 }}
               >
-          <Pressable
+                <Pressable
                   onPress={() => {
                     setViewMode("card");
                     setShowViewDropdown(false);
@@ -1324,10 +1342,7 @@ export default function AttendeesScreen() {
                 autoCorrect={false}
               />
               {searchQuery.length > 0 && (
-                <Pressable
-                  onPress={() => setSearchQuery("")}
-                  className="ml-2"
-                >
+                <Pressable onPress={() => setSearchQuery("")} className="ml-2">
                   <Text className="text-sm font-medium text-neutral-600">
                     Clear
                   </Text>
@@ -1364,8 +1379,8 @@ export default function AttendeesScreen() {
                   {displayedAttendees
                     .slice(currentCardIndex, currentCardIndex + 5)
                     .map((attendee, index) => (
-              <AttendeeCard
-                key={attendee.id}
+                      <AttendeeCard
+                        key={attendee.id}
                         attendee={attendee}
                         onSwipeLeft={handleReject}
                         onSwipeRight={handleAccept}
@@ -1392,9 +1407,9 @@ export default function AttendeesScreen() {
                   Swiping left skips, swiping right connects.
                 </Text>
               </>
-          ) : (
-            <View className="items-center justify-center py-12">
-              <Text className="text-base text-neutral-500 mb-2">
+            ) : (
+              <View className="items-center justify-center py-12">
+                <Text className="text-base text-neutral-500 mb-2">
                   {displayedAttendees.length === 0
                     ? "No attendees found"
                     : "No more attendees"}
@@ -1422,10 +1437,10 @@ export default function AttendeesScreen() {
             ) : (
               <View className="items-center justify-center py-12">
                 <Text className="text-base text-neutral-500">
-                No attendees found
-              </Text>
-            </View>
-          )}
+                  No attendees found
+                </Text>
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -1594,7 +1609,10 @@ export default function AttendeesScreen() {
                     <Pressable
                       onPress={() => {
                         // TODO: Open LinkedIn URL
-                        console.log("Open LinkedIn:", selectedAttendee.linkedInUrl);
+                        console.log(
+                          "Open LinkedIn:",
+                          selectedAttendee.linkedInUrl
+                        );
                       }}
                       className="flex-row items-center bg-neutral-100 rounded-full px-4 py-2.5 self-start"
                     >
@@ -1637,8 +1655,8 @@ export default function AttendeesScreen() {
                       Connect
                     </Text>
                   </Pressable>
-        </View>
-      </ScrollView>
+                </View>
+              </ScrollView>
             </Pressable>
           </Animated.View>
         </View>

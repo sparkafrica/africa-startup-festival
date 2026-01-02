@@ -59,7 +59,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Development: Set to true to force login every time (clears stored auth)
   // Set to false to allow persistent sessions
-  const FORCE_LOGIN_ON_START = false; // Change to true to force login every app start
+  const FORCE_LOGIN_ON_START = true; // Change to true to force login every app start
 
   const checkAuthState = useCallback(async () => {
     try {
@@ -165,12 +165,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [checkAuthState]);
 
   // Request verification code to be sent to email
+  // TODO: BACKEND INTEGRATION - Replace mock with actual API call
+  // API Endpoint: POST /api/auth/request-verification-code
+  // Request Body: { email: string }
+  // Response: { success: boolean, message?: string }
+  // Error Handling: Handle network errors, invalid email, rate limiting
+  // Real-time: Consider WebSocket for immediate code delivery status
   const requestVerificationCode = async (email: string) => {
     try {
       setIsLoading(true);
 
-      // TODO: Replace with actual API call
+      // TODO: BACKEND - Replace with actual API call
       // await api.post('/auth/request-code', { email });
+      // TODO: BACKEND - Handle API response and errors
+      // TODO: BACKEND - Implement rate limiting on frontend (prevent spam)
+      // TODO: BACKEND - Add retry logic with exponential backoff
+      // TODO: BACKEND - Store request timestamp to prevent duplicate requests
 
       // Mock: In real app, this would send verification code to email
       console.log(`Verification code requested for: ${email}`);
@@ -178,6 +188,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // For development, we'll just proceed (no actual email sent)
     } catch (error) {
       console.error("Request verification code error:", error);
+      // TODO: BACKEND - Handle specific error types (network, server, validation)
       throw error;
     } finally {
       setIsLoading(false);
@@ -185,14 +196,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   // Verify the code sent to email
+  // TODO: BACKEND INTEGRATION - Replace mock verification with actual API call
+  // API Endpoint: POST /api/auth/verify-code
+  // Request Body: { email: string, code: string }
+  // Response: { user: User, token: string, refreshToken?: string }
+  // Error Handling: Handle invalid code, expired code, too many attempts
+  // Real-time: Consider WebSocket for real-time verification status
   const verifyCode = async (email: string, code: string) => {
     try {
       // Don't set isLoading here - it causes AppNavigator to show loading spinner
       // which interrupts navigation. The screen can handle its own loading state.
 
-      // TODO: Replace with actual API call
+      // TODO: BACKEND - Replace with actual API call
       // const response = await api.post('/auth/verify-code', { email, code });
-      // const { user, token } = response.data;
+      // const { user, token, refreshToken } = response.data;
+      // TODO: BACKEND - Validate response structure
+      // TODO: BACKEND - Store refreshToken if provided for token renewal
+      // TODO: BACKEND - Handle token expiration and refresh logic
+      // TODO: BACKEND - Implement code attempt tracking (prevent brute force)
 
       // Mock verification for now - will be replaced with API call
       // In real app, this would validate the code with backend
@@ -207,22 +228,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
       };
       const mockToken = "mock-token-123";
 
+      // TODO: BACKEND - Store actual user data and tokens from API response
       // Store user and token (but not authenticated yet - need to complete profile)
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, mockToken);
+      // TODO: BACKEND - Store refreshToken if provided
+      // TODO: BACKEND - Encrypt sensitive token data before storage
 
       setUser(mockUser);
       // User is verified but not fully authenticated until profile is completed
       // Profile completion will set isAuthenticated to true
     } catch (error) {
       console.error("Verify code error:", error);
+      // TODO: BACKEND - Handle specific error types (invalid code, expired, rate limit)
       throw error;
     }
   };
 
+  // Logout user and clear all session data
+  // TODO: BACKEND INTEGRATION - Call logout API endpoint to invalidate server-side session
+  // API Endpoint: POST /api/auth/logout
+  // Request Headers: { Authorization: `Bearer ${token}` }
+  // Response: { success: boolean }
+  // Real-time: Consider WebSocket disconnect on logout
   const logout = async () => {
     try {
       setIsLoading(true);
+
+      // TODO: BACKEND - Call logout API to invalidate token on server
+      // await api.post('/auth/logout', {}, { headers: { Authorization: `Bearer ${token}` } });
+      // TODO: BACKEND - Handle logout errors gracefully (network issues shouldn't block local logout)
 
       // Clear all stored data for a complete logout
       await AsyncStorage.multiRemove([
@@ -232,6 +267,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         STORAGE_KEYS.PROFILE_COMPLETE,
         STORAGE_KEYS.ONBOARDING_COMPLETE,
       ]);
+      // TODO: BACKEND - Also clear refreshToken if stored separately
 
       // Reset all state
       setUser(null);
@@ -239,8 +275,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setHasCompletedProfile(false);
       setHasCompletedOnboarding(false);
       setHasSeenWelcome(false);
+      // TODO: BACKEND - Clear any cached API responses
+      // TODO: BACKEND - Cancel any pending API requests
     } catch (error) {
       console.error("Logout error:", error);
+      // TODO: BACKEND - Even if API call fails, still clear local data
     } finally {
       setIsLoading(false);
     }
@@ -264,12 +303,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  // Mark profile as completed
+  // TODO: BACKEND INTEGRATION - This should be called after profile data is successfully saved to backend
+  // This function should be called from ProfileScreen after successful API submission
+  // TODO: BACKEND - Profile completion should be determined by backend response, not just local storage
+  // TODO: BACKEND - Consider moving this logic to ProfileScreen after successful API call
   const completeProfile = async () => {
     try {
+      // TODO: BACKEND - Remove this local storage update, let backend determine completion status
       await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
       setHasCompletedProfile(true);
       // Once profile is completed, user is fully authenticated
       setIsAuthenticated(true);
+      // TODO: BACKEND - Backend should return updated user object with profile completion status
     } catch (error) {
       console.error("Error completing profile:", error);
     }

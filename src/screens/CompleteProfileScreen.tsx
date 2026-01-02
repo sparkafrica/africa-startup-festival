@@ -35,6 +35,11 @@ const INDUSTRY_OPTIONS = [
   { id: "transportation", label: "Transportation" },
 ];
 
+// TODO: BACKEND INTEGRATION - Fetch country options from backend
+// API Endpoint: GET /api/metadata/countries
+// Response: { countries: { id: string, label: string, flag: string, code: string }[] }
+// TODO: BACKEND - Cache country options in state management
+// TODO: BACKEND - Handle loading and error states
 // Country options with flags
 const COUNTRY_OPTIONS = [
   { id: "nigeria", label: "Nigeria", flag: "🇳🇬" },
@@ -835,8 +840,16 @@ function AttendeeProfileForm() {
     try {
       setIsSubmitting(true);
 
-      // TODO: Save profile data to backend API
+      // TODO: BACKEND INTEGRATION - Save profile data to backend API
+      // API Endpoint: POST /api/user/profile/complete
+      // Request Body: { fullName, email, phoneNumber, countryCode, country, industry, jobTitle, company, linkedIn, bio, website, interests, tags, ... }
+      // Response: { success: boolean, user: User, message?: string }
+      // TODO: BACKEND - Handle validation errors from backend
+      // TODO: BACKEND - Handle duplicate email/phone validation
+      // TODO: BACKEND - Upload profile image if provided (multipart form data)
+      // TODO: BACKEND - Call completeProfile() in AuthContext after successful API response
       // await api.post('/profile/complete', { fullName, jobTitle, company, ... });
+      // await completeProfile(); // Only call after successful API response
 
       // Show success toast
       showToast("Profile completed successfully!", "success");
@@ -846,6 +859,7 @@ function AttendeeProfileForm() {
         navigation.navigate("ProfileCreated");
       }, 500);
     } catch (error) {
+      // TODO: BACKEND - Handle specific error types (network, validation, server errors)
       console.error("Error completing profile:", error);
       showToast("Failed to complete profile. Please try again.", "error");
     } finally {
@@ -2626,7 +2640,11 @@ type Props = RootStackScreenProps<"CompleteProfile">;
 export default function CompleteProfileScreen({ route }: Props) {
   const { user } = useAuth();
 
-  // TODO: Determine user type from backend/context based on email
+  // TODO: BACKEND INTEGRATION - Determine user type from backend/context based on email
+  // API Endpoint: GET /api/user/type or check user object from AuthContext
+  // Response: { userType: "attendee" | "company" }
+  // TODO: BACKEND - Fetch user type on component mount
+  // TODO: BACKEND - Handle loading and error states
   // For now, checking route params for step, or defaulting based on email domain
   // In production, this should come from backend API based on user's email
   const getUserType = (): "attendee" | "company" => {
@@ -2635,7 +2653,8 @@ export default function CompleteProfileScreen({ route }: Props) {
       return "company";
     }
 
-    // TODO: Check user email against backend to determine if attendee or company
+    // TODO: BACKEND - Check user email against backend to determine if attendee or company
+    // TODO: BACKEND - Call API: await api.get('/user/type') or check user.type from AuthContext
     // For now, defaulting to "attendee" - update this logic based on your backend
     // Example: if (user?.email?.endsWith("@company.com")) return "company";
 
