@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { NavigationContainer } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Text, View, ActivityIndicator, Image } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider } from "./src/context/AuthContext";
 import { ChecklistProvider } from "./src/context/ChecklistContext";
 import AppNavigator from "./src/navigation/AppNavigator";
@@ -72,6 +73,7 @@ export default function App() {
   (Text as any).defaultProps.style = { fontFamily: "InterDisplay-Regular" };
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <View className="flex-1 font-sans">
       <AuthProvider>
         <ChecklistProvider>
@@ -82,5 +84,6 @@ export default function App() {
         </ChecklistProvider>
       </AuthProvider>
     </View>
+    </GestureHandlerRootView>
   );
 }

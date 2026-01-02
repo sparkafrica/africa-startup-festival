@@ -4,12 +4,22 @@ import {
   Text,
   Pressable,
   Dimensions,
-  PanResponder,
-  Animated,
   ScrollView,
   FlatList,
   TextInput,
+  Platform,
+  Animated as RNAnimated,
+  PanResponder,
 } from "react-native";
+import { GestureDetector, Gesture, Pressable as GesturePressable } from "react-native-gesture-handler";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  runOnJS,
+  interpolate,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -217,23 +227,24 @@ function AttendeeCard({
   const screenWidth = Dimensions.get("window").width;
   const cardWidth = screenWidth - 32; // 16px padding on each side
 
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const rotate = useRef(new Animated.Value(0)).current;
-  const leftOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const rightOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const leftOverlayScale = useRef(new Animated.Value(0)).current;
-  const rightOverlayScale = useRef(new Animated.Value(0)).current;
+  // Use shared values for animations
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const rotate = useSharedValue(0);
+  const leftOverlayOpacity = useSharedValue(0);
+  const rightOverlayOpacity = useSharedValue(0);
+  const leftOverlayScale = useSharedValue(0);
+  const rightOverlayScale = useSharedValue(0);
 
   // Reset position when attendee changes
   React.useEffect(() => {
-    translateX.setValue(0);
-    translateY.setValue(0);
-    rotate.setValue(0);
-    leftOverlayOpacity.setValue(0);
-    rightOverlayOpacity.setValue(0);
-    leftOverlayScale.setValue(0);
-    rightOverlayScale.setValue(0);
+    translateX.value = 0;
+    translateY.value = 0;
+    rotate.value = 0;
+    leftOverlayOpacity.value = 0;
+    rightOverlayOpacity.value = 0;
+    leftOverlayScale.value = 0;
+    rightOverlayScale.value = 0;
   }, [attendee.id]);
 
   const handleSwipeComplete = (direction: "left" | "right") => {
@@ -244,196 +255,152 @@ function AttendeeCard({
     }
   };
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (evt, gestureState) => {
-        // Calculate new position relative to start
-        const newX = gestureState.dx;
-        const newY = gestureState.dy;
+  // Create pan gesture with better button compatibility
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      translateX.value = event.translationX;
+      translateY.value = event.translationY;
 
-        translateX.setValue(newX);
-        translateY.setValue(newY);
+      // Calculate rotation
+      rotate.value = (event.translationX / screenWidth) * ROTATION_MAX;
 
-        // Calculate rotation
-        const rotationValue = (newX / screenWidth) * ROTATION_MAX;
-        rotate.setValue(rotationValue);
-
-        // Update overlay opacity and scale
-        if (newX < 0) {
-          // Swiping left
-          const opacity = Math.min(Math.abs(newX) / SWIPE_THRESHOLD, 1);
-          const scale = Math.min(Math.abs(newX) / SWIPE_THRESHOLD, 1);
-          leftOverlayOpacity.setValue(opacity);
-          leftOverlayScale.setValue(scale);
-          rightOverlayOpacity.setValue(0);
-          rightOverlayScale.setValue(0);
-        } else if (newX > 0) {
-          // Swiping right
-          const opacity = Math.min(newX / SWIPE_THRESHOLD, 1);
-          const scale = Math.min(newX / SWIPE_THRESHOLD, 1);
-          rightOverlayOpacity.setValue(opacity);
-          rightOverlayScale.setValue(scale);
-          leftOverlayOpacity.setValue(0);
-          leftOverlayScale.setValue(0);
-        }
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        const swipeDistance = gestureState.dx;
-        const swipeVelocity = gestureState.vx;
-        const currentX = gestureState.dx;
-        const currentY = gestureState.dy;
-
-        if (
-          Math.abs(swipeDistance) > SWIPE_THRESHOLD ||
-          Math.abs(swipeVelocity) > 0.5
-        ) {
-          if (swipeDistance < -SWIPE_THRESHOLD || swipeVelocity < -0.5) {
-            // Swipe left
-            Animated.parallel([
-              Animated.spring(translateX, {
-                toValue: -screenWidth * 1.5,
-                useNativeDriver: true,
-                tension: 50,
-                friction: 8,
-              }),
-              Animated.spring(translateY, {
-                toValue: 0,
-                useNativeDriver: true,
-                tension: 50,
-                friction: 8,
-              }),
-            ]).start(() => {
-              handleSwipeComplete("left");
-            });
-          } else if (swipeDistance > SWIPE_THRESHOLD || swipeVelocity > 0.5) {
-            // Swipe right
-            Animated.parallel([
-              Animated.spring(translateX, {
-                toValue: screenWidth * 1.5,
-                useNativeDriver: true,
-                tension: 50,
-                friction: 8,
-              }),
-              Animated.spring(translateY, {
-                toValue: 0,
-                useNativeDriver: true,
-                tension: 50,
-                friction: 8,
-              }),
-            ]).start(() => {
-              handleSwipeComplete("right");
-            });
-          }
-        } else {
-          // Snap back
-          Animated.parallel([
-            Animated.spring(translateX, {
-              toValue: 0,
-              useNativeDriver: true,
-              tension: 50,
-              friction: 8,
-            }),
-            Animated.spring(translateY, {
-              toValue: 0,
-              useNativeDriver: true,
-              tension: 50,
-              friction: 8,
-            }),
-            Animated.spring(rotate, {
-              toValue: 0,
-              useNativeDriver: true,
-              tension: 50,
-              friction: 8,
-            }),
-            Animated.timing(leftOverlayOpacity, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-            Animated.timing(rightOverlayOpacity, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-            Animated.timing(leftOverlayScale, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-            Animated.timing(rightOverlayScale, {
-              toValue: 0,
-              duration: 200,
-              useNativeDriver: true,
-            }),
-          ]).start();
-        }
-      },
+      // Update overlay opacity and scale
+      if (event.translationX < 0) {
+        // Swiping left
+        const progress = Math.min(Math.abs(event.translationX) / SWIPE_THRESHOLD, 1);
+        leftOverlayOpacity.value = progress;
+        leftOverlayScale.value = progress;
+        rightOverlayOpacity.value = 0;
+        rightOverlayScale.value = 0;
+      } else if (event.translationX > 0) {
+        // Swiping right
+        const progress = Math.min(event.translationX / SWIPE_THRESHOLD, 1);
+        rightOverlayOpacity.value = progress;
+        rightOverlayScale.value = progress;
+        leftOverlayOpacity.value = 0;
+        leftOverlayScale.value = 0;
+      }
     })
-  ).current;
+    .onEnd((event) => {
+      const swipeDistance = event.translationX;
+      const swipeVelocity = event.velocityX;
 
-  // Calculate scale: top card is 100%, others scale down slightly but consistently
-  const getScale = () => {
+      if (
+        Math.abs(swipeDistance) > SWIPE_THRESHOLD ||
+        Math.abs(swipeVelocity) > 500
+      ) {
+        if (swipeDistance < -SWIPE_THRESHOLD || swipeVelocity < -500) {
+          // Swipe left
+          translateX.value = withSpring(-screenWidth * 1.5, {
+            damping: 8,
+            stiffness: 50,
+          });
+          translateY.value = withSpring(0, {
+            damping: 8,
+            stiffness: 50,
+          });
+          runOnJS(handleSwipeComplete)("left");
+        } else if (swipeDistance > SWIPE_THRESHOLD || swipeVelocity > 500) {
+          // Swipe right
+          translateX.value = withSpring(screenWidth * 1.5, {
+            damping: 8,
+            stiffness: 50,
+          });
+          translateY.value = withSpring(0, {
+            damping: 8,
+            stiffness: 50,
+          });
+          runOnJS(handleSwipeComplete)("right");
+        }
+      } else {
+        // Snap back
+        translateX.value = withSpring(0, {
+          damping: 8,
+          stiffness: 50,
+        });
+        translateY.value = withSpring(0, {
+          damping: 8,
+          stiffness: 50,
+        });
+        rotate.value = withSpring(0, {
+          damping: 8,
+          stiffness: 50,
+        });
+        leftOverlayOpacity.value = withTiming(0, { duration: 200 });
+        rightOverlayOpacity.value = withTiming(0, { duration: 200 });
+        leftOverlayScale.value = withTiming(0, { duration: 200 });
+        rightOverlayScale.value = withTiming(0, { duration: 200 });
+      }
+    })
+    .activeOffsetX([-15, 15]) // Increased threshold: only activate after 15px horizontal movement
+    .failOffsetY([-15, 15]) // Fail if vertical movement is more than 15px (allows button taps)
+    .minDistance(10); // Minimum distance before gesture activates
+
+  // Calculate scale and opacity values (static, based on index)
+  // These are calculated outside the worklet since index doesn't change during animation
+  const cardScale = (() => {
     if (index === 0) return 1;
     if (index === 1) return 0.97;
     if (index === 2) return 0.95;
     if (index === 3) return 0.93;
     return 0.92; // index 4
-  };
+  })();
 
-  // Calculate opacity: top card is 100%, others fade slightly but stay visible
-  const getOpacity = () => {
+  const cardOpacity = (() => {
     if (index === 0) return 1;
     if (index === 1) return 0.92;
     if (index === 2) return 0.88;
     if (index === 3) return 0.84;
     return 0.8; // index 4
-  };
+  })();
 
-  const cardStyle = {
-    transform: [
-      { translateX },
-      { translateY },
-      {
-        rotate: rotate.interpolate({
-          inputRange: [-ROTATION_MAX, 0, ROTATION_MAX],
-          outputRange: ["-15deg", "0deg", "15deg"],
-        }),
-      },
-      {
-        scale: getScale(),
-      },
-    ],
-    opacity: getOpacity(),
-    zIndex: totalCards - index,
-  };
+  // Animated styles using useAnimatedStyle
+  const cardAnimatedStyle = useAnimatedStyle(() => {
+    const rotation = interpolate(
+      rotate.value,
+      [-ROTATION_MAX, 0, ROTATION_MAX],
+      [-15, 0, 15]
+    );
 
-  const leftOverlayStyle = {
-    opacity: leftOverlayOpacity,
-    transform: [{ scale: leftOverlayScale }],
-  };
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { rotate: `${rotation}deg` },
+        { scale: cardScale },
+      ],
+      opacity: cardOpacity,
+      zIndex: totalCards - index,
+    };
+  });
 
-  const rightOverlayStyle = {
-    opacity: rightOverlayOpacity,
-    transform: [{ scale: rightOverlayScale }],
-  };
+  const leftOverlayAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: leftOverlayOpacity.value,
+      transform: [{ scale: leftOverlayScale.value }],
+    };
+  });
+
+  const rightOverlayAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: rightOverlayOpacity.value,
+      transform: [{ scale: rightOverlayScale.value }],
+    };
+  });
 
   if (index > 4) return null; // Only show top 5 cards
 
   return (
-    <Animated.View
-      style={[
-        {
-          position: "absolute",
-          width: cardWidth,
-          // marginTop: hasFilters ? 16 : 8, // More top spacing when filters applied
-          // marginBottom: hasFilters ? 12 : 8, // More bottom spacing when filters applied
-        },
-        cardStyle,
-      ]}
-      {...panResponder.panHandlers}
-    >
+    <GestureDetector gesture={panGesture}>
+      <Animated.View
+        style={[
+          {
+            position: "absolute",
+            width: cardWidth,
+          },
+          cardAnimatedStyle,
+        ]}
+      >
       <View
         className={`bg-white rounded-2xl mb-4 ${hasFilters ? "p-2.5" : "p-4"}`}
         style={{
@@ -460,7 +427,7 @@ function AttendeeCard({
               justifyContent: "center",
               zIndex: 10,
             },
-            leftOverlayStyle,
+            leftOverlayAnimatedStyle,
           ]}
         >
           <View className="w-32 h-32 rounded-full bg-red-500 items-center justify-center">
@@ -483,7 +450,7 @@ function AttendeeCard({
               justifyContent: "center",
               zIndex: 10,
             },
-            rightOverlayStyle,
+            rightOverlayAnimatedStyle,
           ]}
         >
           <View className="w-32 h-32 rounded-full bg-green-500 items-center justify-center">
@@ -610,12 +577,13 @@ function AttendeeCard({
 
         {/* Action Buttons - Stacked Vertically */}
         <View className={hasFilters ? "pt-2 pb-2" : "mt-1"}>
-          <Pressable
+          <GesturePressable
             onPress={() => {
               if (onRequestMeeting) {
                 onRequestMeeting(attendee);
               }
             }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             className={`w-full flex-row items-center justify-center bg-black rounded-xl ${
               hasFilters ? "py-4 px-3 mb-1.5" : "py-3 px-4 mb-2"
             }`}
@@ -628,14 +596,15 @@ function AttendeeCard({
             >
               Request Meeting
             </Text>
-          </Pressable>
+          </GesturePressable>
 
-          <Pressable
+          <GesturePressable
             onPress={() => {
               if (onConnect) {
                 onConnect(attendee);
               }
             }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             className={`w-full flex-row items-center justify-center bg-neutral-100 rounded-xl ${
               hasFilters ? "py-4 px-3" : "py-3 px-4"
             }`}
@@ -648,10 +617,11 @@ function AttendeeCard({
             >
               Connect
             </Text>
-          </Pressable>
+          </GesturePressable>
         </View>
       </View>
-    </Animated.View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -697,9 +667,9 @@ export default function AttendeesScreen() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Bottom sheet animation values
-  const bottomSheetTranslateY = useRef(new Animated.Value(0)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const bottomSheetDragY = useRef(new Animated.Value(0)).current;
+  const bottomSheetTranslateY = useRef(new RNAnimated.Value(0)).current;
+  const backdropOpacity = useRef(new RNAnimated.Value(0)).current;
+  const bottomSheetDragY = useRef(new RNAnimated.Value(0)).current;
   const dragStartY = useRef(0);
 
   // Filter categories matching Figma design
@@ -910,14 +880,14 @@ export default function AttendeesScreen() {
 
       // Animate in after a brief delay
       const timer = setTimeout(() => {
-        Animated.parallel([
-          Animated.spring(bottomSheetTranslateY, {
+        RNAnimated.parallel([
+          RNAnimated.spring(bottomSheetTranslateY, {
             toValue: 0,
             useNativeDriver: true,
             tension: 65,
             friction: 11,
           }),
-          Animated.timing(backdropOpacity, {
+          RNAnimated.timing(backdropOpacity, {
             toValue: 1,
             duration: 300,
             useNativeDriver: true,
@@ -955,13 +925,24 @@ export default function AttendeesScreen() {
   };
 
   // Handle connect button press
-  const handleConnect = (attendee: Attendee) => {
-    console.log("Connect:", attendee.name);
+  // isFromCardView: true if called from card view buttons, false if from list view bottom sheet
+  const handleConnect = (
+    attendee: Attendee,
+    isFromCardView: boolean = false
+  ) => {
+    console.log("Connect:", attendee.name, "fromCardView:", isFromCardView);
     // Mark checklist item as completed when user connects
     markConnectAttendeesComplete();
     // Show connect message modal
     setConnectedAttendeeName(attendee.name);
     setIsConnectMessageVisible(true);
+
+    // If connected from card view, move to next card (same as swipe right)
+    if (isFromCardView) {
+      if (currentCardIndex < displayedAttendees.length - 1) {
+        setCurrentCardIndex(currentCardIndex + 1);
+      }
+    }
   };
 
   // Open bottom sheet with animation
@@ -974,14 +955,14 @@ export default function AttendeesScreen() {
 
   // Close bottom sheet with animation
   const closeBottomSheet = () => {
-    Animated.parallel([
-      Animated.spring(bottomSheetTranslateY, {
+    RNAnimated.parallel([
+      RNAnimated.spring(bottomSheetTranslateY, {
         toValue: 1000,
         useNativeDriver: true,
         tension: 65,
         friction: 11,
       }),
-      Animated.timing(backdropOpacity, {
+      RNAnimated.timing(backdropOpacity, {
         toValue: 0,
         duration: 250,
         useNativeDriver: true,
@@ -1021,7 +1002,7 @@ export default function AttendeesScreen() {
           closeBottomSheet();
         } else {
           // Snap back to open position
-          Animated.spring(bottomSheetDragY, {
+          RNAnimated.spring(bottomSheetDragY, {
             toValue: 0,
             useNativeDriver: true,
             tension: 65,
@@ -1235,22 +1216,22 @@ export default function AttendeesScreen() {
         {/* View Dropdown and Filter Dropdowns */}
         <View className="px-4 pb-6 flex-row">
           <View className="flex-1 mr-2" style={{ position: "relative" }}>
-            <Pressable
+          <Pressable
               onPress={() => setShowViewDropdown(!showViewDropdown)}
               className="flex-row items-center justify-center bg-white rounded-xl px-4 py-3 border border-neutral-200"
-            >
+          >
               {viewMode === "card" ? (
-                <GridIcon size={16} color="#404040" />
+            <GridIcon size={16} color="#404040" />
               ) : (
                 <ListIcon size={16} color="#404040" />
               )}
-              <Text className="text-sm font-medium text-neutral-900 ml-2">
+            <Text className="text-sm font-medium text-neutral-900 ml-2">
                 {viewMode === "card" ? "Card View" : "List View"}
-              </Text>
-              <View className="ml-2">
-                <ChevronDownIcon size={14} color="#A3A3A3" />
-              </View>
-            </Pressable>
+            </Text>
+            <View className="ml-2">
+              <ChevronDownIcon size={14} color="#A3A3A3" />
+            </View>
+          </Pressable>
             {/* Dropdown Menu */}
             {showViewDropdown && (
               <View
@@ -1264,7 +1245,7 @@ export default function AttendeesScreen() {
                   zIndex: 50,
                 }}
               >
-                <Pressable
+          <Pressable
                   onPress={() => {
                     setViewMode("card");
                     setShowViewDropdown(false);
@@ -1379,8 +1360,8 @@ export default function AttendeesScreen() {
                   {displayedAttendees
                     .slice(currentCardIndex, currentCardIndex + 5)
                     .map((attendee, index) => (
-                      <AttendeeCard
-                        key={attendee.id}
+              <AttendeeCard
+                key={attendee.id}
                         attendee={attendee}
                         onSwipeLeft={handleReject}
                         onSwipeRight={handleAccept}
@@ -1388,7 +1369,7 @@ export default function AttendeesScreen() {
                           setMeetingAttendee(attendee);
                           setIsRequestMeetingModalVisible(true);
                         }}
-                        onConnect={handleConnect}
+                        onConnect={(attendee) => handleConnect(attendee, true)}
                         index={index}
                         totalCards={Math.min(
                           5,
@@ -1407,9 +1388,9 @@ export default function AttendeesScreen() {
                   Swiping left skips, swiping right connects.
                 </Text>
               </>
-            ) : (
-              <View className="items-center justify-center py-12">
-                <Text className="text-base text-neutral-500 mb-2">
+          ) : (
+            <View className="items-center justify-center py-12">
+              <Text className="text-base text-neutral-500 mb-2">
                   {displayedAttendees.length === 0
                     ? "No attendees found"
                     : "No more attendees"}
@@ -1437,10 +1418,10 @@ export default function AttendeesScreen() {
             ) : (
               <View className="items-center justify-center py-12">
                 <Text className="text-base text-neutral-500">
-                  No attendees found
-                </Text>
-              </View>
-            )}
+                No attendees found
+              </Text>
+            </View>
+          )}
           </View>
         )}
       </View>
@@ -1468,7 +1449,7 @@ export default function AttendeesScreen() {
           pointerEvents="box-none"
         >
           {/* Backdrop */}
-          <Animated.View
+          <RNAnimated.View
             style={{
               position: "absolute",
               top: 0,
@@ -1493,10 +1474,10 @@ export default function AttendeesScreen() {
                 bottom: 0,
               }}
             />
-          </Animated.View>
+          </RNAnimated.View>
 
           {/* Bottom Sheet */}
-          <Animated.View
+          <RNAnimated.View
             style={{
               position: "absolute",
               bottom: 0,
@@ -1505,7 +1486,7 @@ export default function AttendeesScreen() {
               maxHeight: "85%",
               transform: [
                 {
-                  translateY: Animated.add(
+                  translateY: RNAnimated.add(
                     bottomSheetTranslateY,
                     bottomSheetDragY
                   ),
@@ -1655,10 +1636,10 @@ export default function AttendeesScreen() {
                       Connect
                     </Text>
                   </Pressable>
-                </View>
-              </ScrollView>
+        </View>
+      </ScrollView>
             </Pressable>
-          </Animated.View>
+          </RNAnimated.View>
         </View>
       )}
 

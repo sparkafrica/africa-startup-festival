@@ -59,7 +59,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Development: Set to true to force login every time (clears stored auth)
   // Set to false to allow persistent sessions
-  const FORCE_LOGIN_ON_START = true; // Change to true to force login every app start
+  const FORCE_LOGIN_ON_START = false; // Change to true to force login every app start
 
   const checkAuthState = useCallback(async () => {
     try {
