@@ -16,6 +16,8 @@ This document itemizes all areas in the Spark app that require backend integrati
 10. [Modals & Components](#modals--components)
 11. [Context & State Management](#context--state-management)
 12. [Navigation](#navigation)
+13. [Additional Screens](#additional-screens)
+14. [API Service Setup](#api-service-setup)
 
 ---
 
@@ -437,11 +439,99 @@ This document itemizes all areas in the Spark app that require backend integrati
 ### ContactScreen.tsx
 
 - **Location**: `src/screens/ContactScreen.tsx`
-- **Integration Points** (TODO comments to be added):
+- **TODO Comments Added**: Lines 95-98, 127-130
+- **Integration Points**:
   - **Submit Contact Form**: POST `/api/contact`
-    - Request body: `{ name, email, message }`
+    - Request body: `{ name, email, topic?, message }`
     - Handle validation, rate limiting
     - Send confirmation email
+  - **Email Support**: Open email client or copy email to clipboard
+
+### SpeakersScreen.tsx
+
+- **Location**: `src/screens/SpeakersScreen.tsx`
+- **TODO Comments Added**: Lines 93-99, 80-85
+- **Integration Points**:
+  - **Fetch Speakers**: GET `/api/speakers`
+    - Query params: `?filters={encodedFilters}&page={page}&limit={limit}`
+    - Replace mock speakers array (line 94)
+    - Handle filtering and pagination
+  - **Filter Speakers**: GET `/api/speakers?filters={encodedFilters}`
+
+### ProfileScreen.tsx
+
+- **Location**: `src/screens/ProfileScreen.tsx`
+- **TODO Comments Added**: Lines 804-857 (Personal), 1249-1297 (Attendee), 1690-1779 (Company)
+- **Integration Points**:
+  - **Fetch User Profile**: GET `/api/user/profile`
+    - Pre-fill all form fields with existing data
+  - **Update Personal Profile**: PUT `/api/user/profile/personal`
+  - **Update Attendee Profile**: PUT `/api/user/profile/attendee`
+  - **Update Company Profile**: PUT `/api/user/profile/company`
+  - All same endpoints as CompleteProfileScreen but with PUT methods
+
+### EventDetailsScreen.tsx
+
+- **Location**: `src/screens/EventDetailsScreen.tsx`
+- **TODO Comments Added**: Lines 7-13
+- **Integration Points**:
+  - **Fetch Event Details**: GET `/api/events/{eventId}`
+    - Replace placeholder with full event details
+    - Display event information, speakers, description
+  - **Add to Schedule**: POST `/api/user/schedule/events`
+  - **Leave Feedback**: POST `/api/events/{eventId}/feedback`
+
+### TicketScreen.tsx
+
+- **Location**: `src/screens/TicketScreen.tsx`
+- **TODO Comments Added**: Lines 7-13
+- **Integration Points**:
+  - **Fetch Ticket Details**: GET `/api/tickets/{ticketId}`
+    - Replace placeholder with full ticket details
+    - Display ticket information, QR code, assignment details
+  - **Ticket Actions**: Transfer, assign, revoke, download, share
+
+### SearchScreen.tsx
+
+- **Location**: `src/screens/SearchScreen.tsx`
+- **TODO Comments Added**: Lines 4-9
+- **Integration Points**:
+  - **Global Search**: GET `/api/search?q={query}&type={type}`
+    - Search across attendees, events, speakers, companies
+    - Display results by category
+
+### FavoritesScreen.tsx
+
+- **Location**: `src/screens/FavoritesScreen.tsx`
+- **TODO Comments Added**: Lines 4-9
+- **Integration Points**:
+  - **Get Favorites**: GET `/api/user/favorites`
+  - **Add Favorite**: POST `/api/user/favorites`
+  - **Remove Favorite**: DELETE `/api/user/favorites/{favoriteId}`
+  - Support favorites for events, speakers, companies, attendees
+
+### Menu.tsx
+
+- **Location**: `src/components/Menu.tsx`
+- **TODO Comments Added**: Lines 136-147
+- **Integration Points**:
+  - **Fetch User Data**: Use `useAuth()` hook to get user data
+    - Display user.name instead of hardcoded "John Doe"
+    - Display user.email instead of hardcoded email
+    - Display user.userType instead of hardcoded "Attendee"
+
+### api.ts (Service File)
+
+- **Location**: `src/services/api.ts`
+- **TODO Comments Added**: Complete file
+- **Integration Points**:
+  - **Create API Client**: Set up axios or fetch wrapper
+    - Base URL configuration
+    - Request/response interceptors
+    - Token management
+    - Error handling
+    - Retry logic
+    - Request cancellation
 
 ---
 
