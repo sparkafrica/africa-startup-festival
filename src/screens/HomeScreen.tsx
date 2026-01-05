@@ -231,6 +231,10 @@ export default function HomeScreen() {
             expanded={true}
             className="mb-4"
           >
+            {/* TODO: BACKEND INTEGRATION - Replace hardcoded exhibitor cards with API data
+            // API Endpoint: GET /api/companies?type=exhibitor&featured=true&limit=4
+            // TODO: BACKEND - Fetch featured exhibitors on component mount
+            // TODO: BACKEND - Handle loading and error states */}
             {/* Exhibitors */}
             <View className="flex-row flex-wrap -mx-1.5">
               <View className="px-1.5 mb-2" style={{ width: "50%" }}>
@@ -408,6 +412,10 @@ export default function HomeScreen() {
             expanded={true}
             className="mb-4"
           >
+            {/* TODO: BACKEND INTEGRATION - Replace hardcoded speaker cards with API data
+            // API Endpoint: GET /api/speakers?featured=true&limit=4
+            // TODO: BACKEND - Fetch featured speakers on component mount
+            // TODO: BACKEND - Handle loading and error states */}
             <View className="flex-row flex-wrap -mx-1.5">
               <View className="px-1.5 mb-3" style={{ width: "100%" }}>
                 <SpeakerCard

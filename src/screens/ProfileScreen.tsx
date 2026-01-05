@@ -673,7 +673,9 @@ function Header() {
 
   return (
     <View className="flex-row items-center justify-between px-6 pt-4 pb-4">
-      <Text className="text-[28px] font-inter-semibold text-black">Manage Profile</Text>
+      <Text className="text-[28px] font-inter-semibold text-black">
+        Manage Profile
+      </Text>
       <Pressable
         onPress={() => navigation.goBack()}
         className="w-10 h-10 items-center justify-center"
@@ -801,6 +803,13 @@ function PersonalProfileSection({
     }
   };
 
+  // TODO: BACKEND INTEGRATION - Save profile data to backend API
+  // API Endpoint: PUT /api/user/profile/personal
+  // Request Body: { fullName, jobTitle, company, linkedIn, bio, interests, tags, ... }
+  // Response: { success: boolean, profile: Profile }
+  // TODO: BACKEND - Handle validation errors from backend
+  // TODO: BACKEND - Show loading state during API call
+  // TODO: BACKEND - Handle API errors and show error messages
   const handleSave = async () => {
     // Clear previous errors
     setValidationErrors({});
@@ -846,14 +855,23 @@ function PersonalProfileSection({
       return false;
     }
 
-    // Show success toast
-    showToast("Profile saved successfully!", "success");
+    try {
+      // TODO: BACKEND - Call API: await api.put('/user/profile/personal', { fullName, jobTitle, company, linkedIn, bio, interests, tags })
+      // TODO: BACKEND - Handle API response and errors
+      // Show success toast
+      showToast("Profile saved successfully!", "success");
 
-    // Call onSave callback if provided
-    if (onSave) {
-      onSave();
+      // Call onSave callback if provided
+      if (onSave) {
+        onSave();
+      }
+      return true;
+    } catch (error) {
+      // TODO: BACKEND - Handle API errors
+      console.error("Error saving profile:", error);
+      showToast("Failed to save profile. Please try again.", "error");
+      return false;
     }
-    return true;
   };
 
   React.useEffect(() => {
@@ -960,7 +978,9 @@ function PersonalProfileSection({
               </Text>
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                  validationErrors.jobTitle ? "border-red-500" : "border-neutral-300"
+                  validationErrors.jobTitle
+                    ? "border-red-500"
+                    : "border-neutral-300"
                 }`}
                 value={jobTitle}
                 onChangeText={(text) => {
@@ -985,7 +1005,9 @@ function PersonalProfileSection({
               </Text>
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                  validationErrors.company ? "border-red-500" : "border-neutral-300"
+                  validationErrors.company
+                    ? "border-red-500"
+                    : "border-neutral-300"
                 }`}
                 value={company}
                 onChangeText={(text) => {
@@ -1012,13 +1034,18 @@ function PersonalProfileSection({
                 <View className="flex-1">
                   <TextInput
                     className={`flex-1 bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                      validationErrors.linkedIn ? "border-red-500" : "border-neutral-300"
+                      validationErrors.linkedIn
+                        ? "border-red-500"
+                        : "border-neutral-300"
                     }`}
                     value={linkedIn}
                     onChangeText={(text) => {
                       setLinkedIn(text);
                       if (validationErrors.linkedIn) {
-                        setValidationErrors({ ...validationErrors, linkedIn: "" });
+                        setValidationErrors({
+                          ...validationErrors,
+                          linkedIn: "",
+                        });
                       }
                     }}
                     placeholder="LinkedIn profile URL or handle"
@@ -1082,7 +1109,9 @@ function PersonalProfileSection({
               <View className="relative">
                 <TextInput
                   className={`bg-white border rounded-xl px-4 py-3 text-base text-black min-h-[100px] ${
-                    validationErrors.bio ? "border-red-500" : "border-neutral-300"
+                    validationErrors.bio
+                      ? "border-red-500"
+                      : "border-neutral-300"
                   }`}
                   value={bio}
                   onChangeText={(text) => {
@@ -1141,7 +1170,10 @@ function PersonalProfileSection({
                     onPress={() => {
                       toggleInterest(interest);
                       if (validationErrors.interests) {
-                        setValidationErrors({ ...validationErrors, interests: "" });
+                        setValidationErrors({
+                          ...validationErrors,
+                          interests: "",
+                        });
                       }
                     }}
                     className={`px-4 py-2 rounded-full ${
@@ -1246,6 +1278,13 @@ function AttendeeProfileSection({
     }
   };
 
+  // TODO: BACKEND INTEGRATION - Save attendee profile data to backend API
+  // API Endpoint: PUT /api/user/profile/attendee
+  // Request Body: { interests: string[], tags: string[] }
+  // Response: { success: boolean, profile: AttendeeProfile }
+  // TODO: BACKEND - Handle validation errors from backend
+  // TODO: BACKEND - Show loading state during API call
+  // TODO: BACKEND - Handle API errors and show error messages
   const handleSave = async () => {
     // Clear previous errors
     setValidationErrors({});
@@ -1286,14 +1325,23 @@ function AttendeeProfileSection({
       return false;
     }
 
-    // Show success toast
-    showToast("Profile saved successfully!", "success");
+    try {
+      // TODO: BACKEND - Call API: await api.put('/user/profile/attendee', { interests: selectedInterests, tags })
+      // TODO: BACKEND - Handle API response and errors
+      // Show success toast
+      showToast("Profile saved successfully!", "success");
 
-    // Call onSave callback if provided
-    if (onSave) {
-      onSave();
+      // Call onSave callback if provided
+      if (onSave) {
+        onSave();
+      }
+      return true;
+    } catch (error) {
+      // TODO: BACKEND - Handle API errors
+      console.error("Error saving profile:", error);
+      showToast("Failed to save profile. Please try again.", "error");
+      return false;
     }
-    return true;
   };
 
   React.useEffect(() => {
@@ -1387,7 +1435,9 @@ function AttendeeProfileSection({
               </Text>
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                  validationErrors.fullName ? "border-red-500" : "border-neutral-300"
+                  validationErrors.fullName
+                    ? "border-red-500"
+                    : "border-neutral-300"
                 }`}
                 value={fullName}
                 onChangeText={(text) => {
@@ -1412,7 +1462,9 @@ function AttendeeProfileSection({
               </Text>
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                  validationErrors.jobTitle ? "border-red-500" : "border-neutral-300"
+                  validationErrors.jobTitle
+                    ? "border-red-500"
+                    : "border-neutral-300"
                 }`}
                 value={jobTitle}
                 onChangeText={(text) => {
@@ -1437,7 +1489,9 @@ function AttendeeProfileSection({
               </Text>
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                  validationErrors.company ? "border-red-500" : "border-neutral-300"
+                  validationErrors.company
+                    ? "border-red-500"
+                    : "border-neutral-300"
                 }`}
                 value={company}
                 onChangeText={(text) => {
@@ -1500,7 +1554,9 @@ function AttendeeProfileSection({
               <View className="relative">
                 <TextInput
                   className={`bg-white border rounded-xl px-4 py-3 text-base text-black min-h-[100px] ${
-                    validationErrors.bio ? "border-red-500" : "border-neutral-300"
+                    validationErrors.bio
+                      ? "border-red-500"
+                      : "border-neutral-300"
                   }`}
                   value={bio}
                   onChangeText={(text) => {
@@ -1559,7 +1615,10 @@ function AttendeeProfileSection({
                     onPress={() => {
                       toggleInterest(interest);
                       if (validationErrors.interests) {
-                        setValidationErrors({ ...validationErrors, interests: "" });
+                        setValidationErrors({
+                          ...validationErrors,
+                          interests: "",
+                        });
                       }
                     }}
                     className={`px-4 py-2 rounded-full ${
@@ -1687,6 +1746,13 @@ function CompanyProfileSection({
     setPositions(positions.filter((p) => p !== position));
   };
 
+  // TODO: BACKEND INTEGRATION - Save company profile data to backend API
+  // API Endpoint: PUT /api/user/profile/company
+  // Request Body: { companyName, industry, country, website, description, boothNumber, offers, socialLinks, openPositions, teamMembers, ... }
+  // Response: { success: boolean, profile: CompanyProfile }
+  // TODO: BACKEND - Handle validation errors from backend
+  // TODO: BACKEND - Show loading state during API call
+  // TODO: BACKEND - Handle API errors and show error messages
   const handleSave = async () => {
     // Clear previous errors
     setValidationErrors({});
@@ -1709,17 +1775,15 @@ function CompanyProfileSection({
       errors.website = websiteValidation.error || "";
     }
 
-    const descriptionValidation = validateCompanyDescription(companyDescription);
+    const descriptionValidation =
+      validateCompanyDescription(companyDescription);
     if (!descriptionValidation.valid) {
       errors.companyDescription = descriptionValidation.error || "";
     }
 
     // Validate social links - at least one must be provided
     const hasAnySocialLink =
-      linkedIn.trim() ||
-      facebook.trim() ||
-      instagram.trim() ||
-      xHandle.trim();
+      linkedIn.trim() || facebook.trim() || instagram.trim() || xHandle.trim();
 
     if (!hasAnySocialLink) {
       errors.socialLinks = "Please provide at least one social media handle";
@@ -1768,14 +1832,23 @@ function CompanyProfileSection({
       return false;
     }
 
-    // Show success toast
-    showToast("Profile saved successfully!", "success");
+    try {
+      // TODO: BACKEND - Call API: await api.put('/user/profile/company', { companyName, industry, country, website, description, boothNumber, offers, socialLinks, openPositions, teamMembers, isRecruiting })
+      // TODO: BACKEND - Handle API response and errors
+      // Show success toast
+      showToast("Profile saved successfully!", "success");
 
-    // Call onSave callback if provided
-    if (onSave) {
-      onSave();
+      // Call onSave callback if provided
+      if (onSave) {
+        onSave();
+      }
+      return true;
+    } catch (error) {
+      // TODO: BACKEND - Handle API errors
+      console.error("Error saving profile:", error);
+      showToast("Failed to save profile. Please try again.", "error");
+      return false;
     }
-    return true;
   };
 
   React.useEffect(() => {
@@ -1867,13 +1940,18 @@ function CompanyProfileSection({
               </Text>
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                  validationErrors.companyName ? "border-red-500" : "border-neutral-300"
+                  validationErrors.companyName
+                    ? "border-red-500"
+                    : "border-neutral-300"
                 }`}
                 value={companyName}
                 onChangeText={(text) => {
                   setCompanyName(text);
                   if (validationErrors.companyName) {
-                    setValidationErrors({ ...validationErrors, companyName: "" });
+                    setValidationErrors({
+                      ...validationErrors,
+                      companyName: "",
+                    });
                   }
                 }}
                 placeholder="Enter company name"
@@ -1892,13 +1970,18 @@ function CompanyProfileSection({
               </Text>
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                  validationErrors.boothNumber ? "border-red-500" : "border-neutral-300"
+                  validationErrors.boothNumber
+                    ? "border-red-500"
+                    : "border-neutral-300"
                 }`}
                 value={boothNumber}
                 onChangeText={(text) => {
                   setBoothNumber(text);
                   if (validationErrors.boothNumber) {
-                    setValidationErrors({ ...validationErrors, boothNumber: "" });
+                    setValidationErrors({
+                      ...validationErrors,
+                      boothNumber: "",
+                    });
                   }
                 }}
                 placeholder="Enter booth number"
@@ -1919,13 +2002,18 @@ function CompanyProfileSection({
                 <View className="flex-1">
                   <TextInput
                     className={`flex-1 bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                      validationErrors.website ? "border-red-500" : "border-neutral-300"
+                      validationErrors.website
+                        ? "border-red-500"
+                        : "border-neutral-300"
                     }`}
                     value={website}
                     onChangeText={(text) => {
                       setWebsite(text);
                       if (validationErrors.website) {
-                        setValidationErrors({ ...validationErrors, website: "" });
+                        setValidationErrors({
+                          ...validationErrors,
+                          website: "",
+                        });
                       }
                     }}
                     placeholder="Enter website URL"
@@ -1989,13 +2077,18 @@ function CompanyProfileSection({
               <View className="relative">
                 <TextInput
                   className={`bg-white border rounded-xl px-4 py-3 text-base text-black min-h-[100px] ${
-                    validationErrors.companyDescription ? "border-red-500" : "border-neutral-300"
+                    validationErrors.companyDescription
+                      ? "border-red-500"
+                      : "border-neutral-300"
                   }`}
                   value={companyDescription}
                   onChangeText={(text) => {
                     setCompanyDescription(text);
                     if (validationErrors.companyDescription) {
-                      setValidationErrors({ ...validationErrors, companyDescription: "" });
+                      setValidationErrors({
+                        ...validationErrors,
+                        companyDescription: "",
+                      });
                     }
                   }}
                   placeholder="Describe your company (10-200 characters)"
@@ -2364,7 +2457,7 @@ export default function ProfileScreen() {
     "Personal"
   );
   const { completeProfile } = useAuth();
-  
+
   const [personalSaveTrigger, setPersonalSaveTrigger] = useState(0);
   const [companySaveTrigger, setCompanySaveTrigger] = useState(0);
   const [attendeeSaveTrigger, setAttendeeSaveTrigger] = useState(0);
@@ -2425,7 +2518,9 @@ export default function ProfileScreen() {
               <Pressable
                 className="bg-black rounded-xl py-4 items-center justify-center"
                 onPress={
-                  activeTab === "Personal" ? handleSavePersonal : handleSaveCompany
+                  activeTab === "Personal"
+                    ? handleSavePersonal
+                    : handleSaveCompany
                 }
               >
                 <Text className="text-white text-base font-semibold">

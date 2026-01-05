@@ -133,15 +133,22 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
 
                 <View className="flex-1">
                   <View className="flex-row items-center space-x-2">
+                    {/* TODO: BACKEND INTEGRATION - Fetch user data from AuthContext or API
+                    // TODO: BACKEND - Use user.name from useAuth() hook
+                    // TODO: BACKEND - Display user's actual name instead of hardcoded "John Doe" */}
                     <Text className="text-white text-[18px] font-bold">
                       John Doe
                     </Text>
 
+                    {/* TODO: BACKEND INTEGRATION - Display user type from user data
+                    // TODO: BACKEND - Use user.userType from AuthContext (attendee | company) */}
                     <View className="px-2 py-[2px] bg-white/30 rounded-full">
                       <Text className="text-white text-[12px]">Attendee</Text>
                     </View>
                   </View>
 
+                  {/* TODO: BACKEND INTEGRATION - Display user email from AuthContext
+                  // TODO: BACKEND - Use user.email from useAuth() hook */}
                   <Text className="text-white/80 text-[14px] mt-1">
                     john.doe@email.com
                   </Text>

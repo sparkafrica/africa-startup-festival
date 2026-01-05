@@ -77,8 +77,13 @@ export default function SpeakersScreen() {
     },
   ];
 
+  // TODO: BACKEND INTEGRATION - Apply filters via API call
+  // API Endpoint: GET /api/speakers?filters={encodedFilters}
+  // TODO: BACKEND - Encode filter IDs into query params
+  // TODO: BACKEND - Refetch speakers when filters change
   const handleApplyFilters = (filterIds: string[]) => {
     setSelectedFilterIds(filterIds);
+    // TODO: BACKEND - Call API with filters: await api.get(`/speakers?filters=${encodeFilters(filterIds)}`)
   };
 
   // Helper function to get filter label from ID
@@ -90,6 +95,14 @@ export default function SpeakersScreen() {
     return id;
   };
 
+  // TODO: BACKEND INTEGRATION - Replace mock speaker data with API call
+  // API Endpoint: GET /api/speakers
+  // Query Params: ?filters={encodedFilters}&page={page}&limit={limit}
+  // Response: { speakers: Speaker[], total: number, page: number }
+  // TODO: BACKEND - Fetch speakers on component mount and when filters change
+  // TODO: BACKEND - Handle pagination/infinite scroll
+  // TODO: BACKEND - Cache speakers in state management
+  // TODO: BACKEND - Handle loading and error states
   // TODO: Replace with backend data
   const speakers = [
     {
@@ -282,7 +295,9 @@ export default function SpeakersScreen() {
                   variant="vertical"
                   onPress={() =>
                     navigation.navigate("SpeakerDetail", {
-                      speakerId: speaker.name.toLowerCase().replace(/\s+/g, "-"),
+                      speakerId: speaker.name
+                        .toLowerCase()
+                        .replace(/\s+/g, "-"),
                       name: speaker.name,
                     })
                   }
