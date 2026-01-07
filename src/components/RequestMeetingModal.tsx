@@ -220,25 +220,25 @@ export default function RequestMeetingModal({
 
   const handleSubmit = () => {
     if (validateForm()) {
-      const formData: MeetingFormData = {
-        title,
-        meetingType,
-        tableNumber: meetingType === "Physical" ? tableNumber : undefined,
-        meetingLink: meetingType === "Virtual" ? meetingLink : undefined,
-        date: selectedDate || undefined,
-        time: selectedTime || undefined,
-        description,
-      };
-      onSubmit(formData);
-      // Reset form
-      setTitle("");
-      setTableNumber("");
-      setMeetingLink("");
-      setSelectedDate(null);
-      setSelectedTime(null);
-      setDescription("");
+    const formData: MeetingFormData = {
+      title,
+      meetingType,
+      tableNumber: meetingType === "Physical" ? tableNumber : undefined,
+      meetingLink: meetingType === "Virtual" ? meetingLink : undefined,
+      date: selectedDate || undefined,
+      time: selectedTime || undefined,
+      description,
+    };
+    onSubmit(formData);
+    // Reset form
+    setTitle("");
+    setTableNumber("");
+    setMeetingLink("");
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setDescription("");
       setErrors({});
-      onClose();
+    onClose();
     }
   };
 

@@ -223,7 +223,7 @@ export default function ExhibitorsScreen() {
           </Pressable>
         </View>
 
-        {/* Active Filter Tags */}
+          {/* Active Filter Tags */}
         <View className="px-4 mb-6 rounded-xl">
           {selectedFilterIds.length > 0 && (
             <View className="flex-row flex-wrap mt-3">

@@ -218,7 +218,7 @@ export default function PartnersScreen() {
                 Filter
               </Text>
             </View>
-            <ChevronDownIcon size={30} color="#404040" />
+              <ChevronDownIcon size={30} color="#404040" />
           </Pressable>
         </View>
 
