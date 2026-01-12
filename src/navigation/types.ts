@@ -21,11 +21,17 @@ export type RootStackParamList = {
   Partners: undefined;
   Speakers: undefined;
   Schedule: undefined;
-  Meetings: { primaryTab?: "requests" | "scheduled" | "cancelled"; secondaryTab?: "inbound" | "outbound" } | undefined;
+  Meetings:
+    | {
+        primaryTab?: "requests" | "scheduled" | "cancelled";
+        secondaryTab?: "inbound" | "outbound";
+      }
+    | undefined;
   Connections: undefined;
   CompanyDetail: { exhibitorId: string; name?: string };
   SpeakerDetail: { speakerId: string; name?: string };
   Contact: undefined;
+  ApiTest: undefined; // Temporary test screen - remove before production
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> =

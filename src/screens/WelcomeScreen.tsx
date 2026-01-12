@@ -20,6 +20,9 @@ import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
+import { ticketService, TicketQuota } from "../services/ticketService";
+import { EVENT_ID } from "../config/env";
+import TicketCard from "../components/TicketCard";
 import Svg, { Path, Rect, Circle } from "react-native-svg";
 
 // Checkmark Icon
@@ -704,49 +707,20 @@ function TicketTransferConfirmationModal({
   );
 }
 
-interface Ticket {
-  id: string;
-  type: string;
-  ticketId: string;
-  assignedTo?: string;
-  color: string;
-}
-
-// TODO: BACKEND INTEGRATION - Replace mock ticket data with API call
-// API Endpoint: GET /api/user/tickets
-// Request Headers: { Authorization: `Bearer ${token}` }
-// Response: { tickets: Ticket[] }
-// Real-time: Consider WebSocket for ticket updates (transfers, assignments)
-// TODO: BACKEND - Fetch tickets on component mount
-// TODO: BACKEND - Handle loading and error states
-// TODO: BACKEND - Cache tickets in state management (Redux/Context)
-const mockTickets: Ticket[] = [
-  {
-    id: "1",
-    type: "Founder Pass",
-    ticketId: "#SPK2025-1234",
-    assignedTo: "John Doe",
-    color: "#000000",
-  },
-  {
-    id: "2",
-    type: "Exhibitor Pass",
-    ticketId: "#SPK2025-5678",
-    color: "#10B981",
-  },
-  {
-    id: "3",
-    type: "Attendee Pass",
-    ticketId: "#SPK2025-5678",
-    color: "#3B82F6",
-  },
-];
+// TODO: BACKEND INTEGRATION - Display actual tickets from API
+// API Endpoint: GET /tickets/{event_id}/user/ (returns user's ticket)
+// TODO: BACKEND - Fetch and display actual ticket cards for transfer
+// TODO: BACKEND - Handle ticket selection and transfer logic
+// Note: Currently showing ticket quota count only
 
 export default function WelcomeScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { markWelcomeSeen } = useAuth();
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [ticketQuotaCount, setTicketQuotaCount] = useState<number>(0);
+  const [ticketQuotas, setTicketQuotas] = useState<TicketQuota[]>([]);
+  const [isLoadingQuotas, setIsLoadingQuotas] = useState(true);
 
   // Mark welcome as seen when component mounts
   // This happens after navigation, so AppNavigator won't reset
@@ -754,11 +728,42 @@ export default function WelcomeScreen() {
     markWelcomeSeen();
   }, [markWelcomeSeen]);
 
-  const toggleTicketSelection = (ticketId: string) => {
+  // Fetch ticket quotas on mount
+  useEffect(() => {
+    const fetchTicketQuotas = async () => {
+      try {
+        setIsLoadingQuotas(true);
+        const quotas = await ticketService.getUserQuotas(EVENT_ID);
+        
+        // DEBUG: Log the actual response
+        console.log("🔍 WelcomeScreen - Quotas response:", JSON.stringify(quotas, null, 2));
+        console.log("🔍 WelcomeScreen - Quotas array length:", quotas.length);
+        
+        // Store quotas for display
+        setTicketQuotas(quotas);
+        
+        // Calculate total quota count (sum of all quotas)
+        const totalQuota = quotas.reduce((sum, quota) => sum + quota.quota, 0);
+        console.log("🔍 WelcomeScreen - Total quota calculated:", totalQuota);
+        setTicketQuotaCount(totalQuota);
+      } catch (error) {
+        console.error("Error fetching ticket quotas:", error);
+        // On error, default to 0 (or keep previous count)
+        setTicketQuotaCount(0);
+      } finally {
+        setIsLoadingQuotas(false);
+      }
+    };
+
+    fetchTicketQuotas();
+  }, []);
+
+  const toggleTicketSelection = (quotaId: number) => {
+    const quotaIdString = quotaId.toString();
     setSelectedTickets((prev) =>
-      prev.includes(ticketId)
-        ? prev.filter((id) => id !== ticketId)
-        : [...prev, ticketId]
+      prev.includes(quotaIdString)
+        ? prev.filter((id) => id !== quotaIdString)
+        : [...prev, quotaIdString]
     );
   };
 
@@ -776,6 +781,33 @@ export default function WelcomeScreen() {
     if (selectedTickets.length === 0) {
       return;
     }
+
+    // Check if user has unassigned quota tickets
+    // User can't transfer if they have unassigned quota (they need to assign those first)
+    const hasUnassignedQuota = ticketQuotas.some((quota) => {
+      const availableQuota = quota.remaining_quota !== undefined 
+        ? quota.remaining_quota 
+        : quota.quota - quota.allocated_tickets;
+      return availableQuota > 0;
+    });
+
+    if (hasUnassignedQuota) {
+      // Count total available quota
+      const totalAvailableQuota = ticketQuotas.reduce((sum, quota) => {
+        const availableQuota = quota.remaining_quota !== undefined 
+          ? quota.remaining_quota 
+          : quota.quota - quota.allocated_tickets;
+        return sum + availableQuota;
+      }, 0);
+
+      Alert.alert(
+        "Assign Tickets First",
+        `You have ${totalAvailableQuota} available ticket${totalAvailableQuota !== 1 ? "s" : ""} in your quota. Please assign all available tickets before transferring.`,
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     // Open recipient details modal
     setRecipientModalVisible(true);
   };
@@ -839,87 +871,76 @@ export default function WelcomeScreen() {
             Welcome to ATE 2026!
           </Text>
           <Text className="text-base text-neutral-600 text-center mb-6">
-            You have {mockTickets.length} tickets in your quota
+            {isLoadingQuotas
+              ? "Loading tickets..."
+              : `You have ${ticketQuotaCount} ticket${ticketQuotaCount !== 1 ? "s" : ""} in your quota`}
           </Text>
 
-          {/* Instructional Banner */}
-          <View
-            className="rounded-xl p-4 mb-6"
-            style={{
-              backgroundColor: "#FEF3C7",
-              borderWidth: 1,
-              borderColor: "#FDE68A",
-            }}
-          >
-            <Text className="text-sm font-medium text-neutral-900 mb-1">
-              Transfer tickets to team members or attendees
-            </Text>
-            <Text className="text-xs text-neutral-700">
-              Select tickets below to transfer, or skip to continue to your
-              profile
-            </Text>
-          </View>
+          {/* Instructional Banner - Only show if user has tickets */}
+          {!isLoadingQuotas && ticketQuotaCount > 0 && (
+            <View
+              className="rounded-xl p-4 mb-6"
+              style={{
+                backgroundColor: "#FEF3C7",
+                borderWidth: 1,
+                borderColor: "#FDE68A",
+              }}
+            >
+              <Text className="text-sm font-medium text-neutral-900 mb-1">
+                Transfer tickets to team members or attendees
+              </Text>
+              <Text className="text-xs text-neutral-700">
+                Select tickets below to transfer, or skip to continue to your
+                profile
+              </Text>
+            </View>
+          )}
 
-          {/* Your Tickets Heading */}
-          <Text className="text-[16px] font-semibold text-neutral-900 mb-4">
-            Your Tickets ({mockTickets.length})
-          </Text>
+          {/* Ticket Transfer Section - Only show if user has tickets */}
+          {!isLoadingQuotas && ticketQuotaCount > 0 && (
+            <>
+              {/* Your Tickets Heading */}
+              <Text className="text-[16px] font-semibold text-neutral-900 mb-4">
+                Your Tickets ({ticketQuotaCount})
+              </Text>
 
-          {/* Ticket Cards */}
-          <View className="gap-4 mb-12">
-            {mockTickets.map((ticket) => {
-              const isSelected = selectedTickets.includes(ticket.id);
-              return (
-                <Pressable
-                  key={ticket.id}
-                  onPress={() => toggleTicketSelection(ticket.id)}
-                  className="rounded-2xl p-5 relative overflow-hidden"
-                  style={{
-                    backgroundColor: ticket.color,
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 4,
-                    elevation: 3,
-                  }}
-                >
-                  {/* Checkbox */}
-                  <View className="absolute top-4 right-4">
-                    <CheckboxIcon checked={isSelected} size={24} />
-                  </View>
-
-                  {/* Diagonal Pattern Background */}
-                  <View
-                    className="absolute right-0 top-0 bottom-0 w-32 opacity-10"
-                    style={{
-                      backgroundColor: "#FFFFFF",
-                      transform: [{ rotate: "45deg" }],
-                    }}
+              {/* Ticket Cards */}
+              {ticketQuotas.map((quota) => {
+                const quotaIdString = quota.id.toString();
+                const isSelected = selectedTickets.includes(quotaIdString);
+                const availableQuota = quota.remaining_quota !== undefined 
+                  ? quota.remaining_quota 
+                  : quota.quota - quota.allocated_tickets;
+                const ticketType = quota.ticket_class.user_type || quota.ticket_class.type || "";
+                
+                return (
+                  <TicketCard
+                    key={quota.id}
+                    ticketClassName={quota.ticket_class.name}
+                    ticketType={ticketType}
+                    quota={quota.quota}
+                    allocatedTickets={quota.allocated_tickets}
+                    remainingQuota={quota.remaining_quota}
+                    isSelected={isSelected}
+                    onPress={() => toggleTicketSelection(quota.id)}
+                    disabled={availableQuota === 0}
                   />
+                );
+              })}
+            </>
+          )}
 
-                  {/* Ticket Content */}
-                  <View className="relative z-10">
-                    <Text className="text-2xl font-bold text-white mb-2">
-                      {ticket.type}
-                    </Text>
-                    <Text className="text-sm text-neutral-300 mb-3">
-                      {ticket.ticketId}
-                    </Text>
-                    {ticket.assignedTo && (
-                      <View className="flex-row items-center">
-                        <Text className="text-sm text-neutral-300">
-                          Assigned to{" "}
-                        </Text>
-                        <Text className="text-sm font-semibold text-white">
-                          {ticket.assignedTo}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+          {/* Empty State - No Tickets */}
+          {!isLoadingQuotas && ticketQuotaCount === 0 && (
+            <View className="bg-neutral-50 rounded-xl p-6 mb-12 border border-neutral-200">
+              <Text className="text-base text-neutral-600 text-center">
+                You don't have any tickets in your quota.
+              </Text>
+              <Text className="text-sm text-neutral-500 text-center mt-2">
+                Continue to complete your profile.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -930,25 +951,27 @@ export default function WelcomeScreen() {
           paddingBottom: 34,
         }}
       >
-        {/* Transfer Tickets Button */}
-        <Pressable
-          onPress={handleTransferTickets}
-          disabled={selectedTickets.length === 0 || isProcessing}
-          className={`rounded-xl py-4 items-center justify-center mb-3 ${
-            selectedTickets.length > 0 && !isProcessing
-              ? "bg-black"
-              : "bg-neutral-300"
-          }`}
-          style={{
-            opacity: selectedTickets.length > 0 && !isProcessing ? 1 : 0.6,
-          }}
-        >
-          <Text className="text-white text-base font-semibold">
-            Transfer Tickets
-          </Text>
-        </Pressable>
+        {/* Transfer Tickets Button - Only show if user has tickets */}
+        {!isLoadingQuotas && ticketQuotaCount > 0 && (
+          <Pressable
+            onPress={handleTransferTickets}
+            disabled={selectedTickets.length === 0 || isProcessing}
+            className={`rounded-xl py-4 items-center justify-center mb-3 ${
+              selectedTickets.length > 0 && !isProcessing
+                ? "bg-black"
+                : "bg-neutral-300"
+            }`}
+            style={{
+              opacity: selectedTickets.length > 0 && !isProcessing ? 1 : 0.6,
+            }}
+          >
+            <Text className="text-white text-base font-semibold">
+              Transfer Ticket(s)
+            </Text>
+          </Pressable>
+        )}
 
-        {/* Skip Button */}
+        {/* Skip/Continue Button */}
         <Pressable
           onPress={handleSkip}
           disabled={isProcessing}
@@ -958,7 +981,7 @@ export default function WelcomeScreen() {
             <ActivityIndicator size="small" color="#000000" />
           ) : (
             <Text className="text-black text-base font-semibold">
-              Skip for now
+              {ticketQuotaCount > 0 ? "Skip for now" : "Continue to Profile"}
             </Text>
           )}
         </Pressable>

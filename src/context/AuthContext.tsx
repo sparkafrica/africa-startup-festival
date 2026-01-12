@@ -7,13 +7,31 @@ import React, {
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { authService, UserProfile, Company } from "../services/authService";
+import { api } from "../services/api";
+import { isProfileComplete } from "../utils/profileCompletion";
+import { ticketService } from "../services/ticketService";
+import { EVENT_ID } from "../config/env";
 
 // Types
+/**
+ * User interface matching backend UserProfile structure
+ * This ensures type accuracy and prevents data loss when mapping from API responses
+ */
 export interface User {
-  id: string;
+  user_id: string;
   email: string;
-  name: string;
-  // Add more user properties as needed
+  first_name?: string;
+  last_name?: string;
+  profile_pic?: string | null;
+  bio?: string | null;
+  address?: string;
+  country?: string;
+  phone_number?: string;
+  job_title?: string;
+  metadata?: any; // User metadata (interests, linkedIn, industry, etc.)
+  company?: Company | null; // Company field from backend (nullable)
+  // Add other fields as needed based on backend CustomUserDetails schema
 }
 
 interface AuthContextType {
@@ -37,13 +55,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // AsyncStorage keys
+// Note: TOKEN storage is handled by API client service layer (D2: Option C)
 const STORAGE_KEYS = {
   USER: "@spark:user",
-  TOKEN: "@spark:token",
   ONBOARDING_COMPLETE: "@spark:onboarding_complete",
   PROFILE_COMPLETE: "@spark:profile_complete",
   WELCOME_SEEN: "@spark:welcome_seen",
-};
+} as const;
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -69,11 +87,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (FORCE_LOGIN_ON_START) {
         await AsyncStorage.multiRemove([
           STORAGE_KEYS.USER,
-          STORAGE_KEYS.TOKEN,
           STORAGE_KEYS.PROFILE_COMPLETE,
           STORAGE_KEYS.ONBOARDING_COMPLETE,
           STORAGE_KEYS.WELCOME_SEEN,
         ]);
+        // Clear tokens from API client (service layer handles token storage)
+        await api.clearTokens();
         setUser(null);
         setIsAuthenticated(false);
         setHasCompletedOnboarding(false);
@@ -83,24 +102,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       // Check for existing auth token/user
+      // Service layer pattern (D2, D6): Get token from API client, not AsyncStorage directly
       const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
-      const storedToken = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+      const storedToken = await api.getToken();
 
       // Only restore auth state if both user and token exist
-      // TODO: In production, validate token with backend API before restoring
       if (storedUser && storedToken) {
         try {
-          // TODO: Validate token with backend API
-          // const isValid = await validateToken(storedToken);
-          // if (!isValid) {
-          //   // Token expired or invalid, clear storage and require re-login
-          //   await AsyncStorage.multiRemove([STORAGE_KEYS.USER, STORAGE_KEYS.TOKEN]);
-          //   return;
-          // }
+          // Fetch fresh user profile from backend to determine completion status
+          // Backend is the source of truth for profile completion
+          let userProfile: UserProfile;
+          try {
+            userProfile = await authService.getCurrentUser();
+            // Update stored user with latest data from backend
+            await AsyncStorage.setItem(
+              STORAGE_KEYS.USER,
+              JSON.stringify(userProfile)
+            );
+          } catch (fetchError) {
+            // If fetching fails (token expired, network error, etc.), use stored user as fallback
+            console.warn(
+              "Failed to fetch user profile from backend, using stored data:",
+              fetchError
+            );
+            userProfile = JSON.parse(storedUser) as UserProfile;
+          }
 
-          // Restore user from storage
-          const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
+          // Map UserProfile to User (they have the same structure)
+          const user: User = userProfile;
+          setUser(user);
 
           // Check if user has completed onboarding
           const onboardingComplete = await AsyncStorage.getItem(
@@ -108,11 +138,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
           );
           setHasCompletedOnboarding(onboardingComplete === "true");
 
-          // Check if user has completed profile
-          const profileComplete = await AsyncStorage.getItem(
-            STORAGE_KEYS.PROFILE_COMPLETE
-          );
-          setHasCompletedProfile(profileComplete === "true");
+          // Fetch ticket quotas to determine if company profile is required
+          let ticketQuotas: any[] = [];
+          try {
+            ticketQuotas = await ticketService.getUserQuotas(EVENT_ID);
+          } catch (error) {
+            console.warn(
+              "Failed to fetch ticket quotas for profile completion check:",
+              error
+            );
+            // Continue without ticket quotas - will fall back to checking if company exists
+          }
+
+          // Determine profile completion from backend data (field-based inference)
+          // Pass ticket quotas to check if company profile is required for exhibitor/partner users
+          const profileComplete = isProfileComplete(userProfile, ticketQuotas);
+          setHasCompletedProfile(profileComplete);
 
           // Check if user has seen Welcome screen
           const welcomeSeen = await AsyncStorage.getItem(
@@ -122,7 +163,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
           // Only set authenticated if profile is completed
           // This ensures users must complete the full flow
-          if (profileComplete === "true") {
+          if (profileComplete) {
             setIsAuthenticated(true);
           } else {
             // User exists but profile not completed - keep authenticated false
@@ -132,10 +173,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } catch (parseError) {
           console.error("Error parsing stored user:", parseError);
           // Clear corrupted data
-          await AsyncStorage.multiRemove([
-            STORAGE_KEYS.USER,
-            STORAGE_KEYS.TOKEN,
-          ]);
+          await AsyncStorage.removeItem(STORAGE_KEYS.USER);
+          await api.clearTokens();
         }
       } else {
         // No stored auth - user must login
@@ -164,125 +203,112 @@ export function AuthProvider({ children }: AuthProviderProps) {
     checkAuthState();
   }, [checkAuthState]);
 
-  // Request verification code to be sent to email
-  // TODO: BACKEND INTEGRATION - Replace mock with actual API call
-  // API Endpoint: POST /api/auth/request-verification-code
-  // Request Body: { email: string }
-  // Response: { success: boolean, message?: string }
-  // Error Handling: Handle network errors, invalid email, rate limiting
-  // Real-time: Consider WebSocket for immediate code delivery status
+  /**
+   * Request verification code to be sent to email
+   *
+   * Service layer pattern (D3): authService handles API call and error handling.
+   * AuthContext just passes through to service layer and lets errors bubble up to UI.
+   * No isLoading state change here - screen handles its own loading state (D4).
+   *
+   * Backend Endpoint: POST /auth/email/
+   */
   const requestVerificationCode = async (email: string) => {
-    try {
-      setIsLoading(true);
-
-      // TODO: BACKEND - Replace with actual API call
-      // await api.post('/auth/request-code', { email });
-      // TODO: BACKEND - Handle API response and errors
-      // TODO: BACKEND - Implement rate limiting on frontend (prevent spam)
-      // TODO: BACKEND - Add retry logic with exponential backoff
-      // TODO: BACKEND - Store request timestamp to prevent duplicate requests
-
-      // Mock: In real app, this would send verification code to email
-      console.log(`Verification code requested for: ${email}`);
-
-      // For development, we'll just proceed (no actual email sent)
-    } catch (error) {
-      console.error("Request verification code error:", error);
-      // TODO: BACKEND - Handle specific error types (network, server, validation)
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
+    // Service layer handles API call, error handling, and retry logic
+    // Errors from service layer bubble up to screen for display
+    await authService.requestOTP(email);
   };
 
-  // Verify the code sent to email
-  // TODO: BACKEND INTEGRATION - Replace mock verification with actual API call
-  // API Endpoint: POST /api/auth/verify-code
-  // Request Body: { email: string, code: string }
-  // Response: { user: User, token: string, refreshToken?: string }
-  // Error Handling: Handle invalid code, expired code, too many attempts
-  // Real-time: Consider WebSocket for real-time verification status
+  /**
+   * Verify OTP code and authenticate user
+   *
+   * Service layer pattern (D2, D3):
+   * - authService.verifyOTP handles API call and token storage (D2: Option C)
+   * - authService.getCurrentUser fetches user profile after token is stored
+   * - AuthContext maps UserProfile to User (they have same structure now) and updates state
+   * - Errors bubble up from service layer to screen (D3: Option A)
+   * - No isLoading state change - screen handles its own loading (D4)
+   *
+   * Backend Flow:
+   * 1. POST /auth/token/ - Verify OTP, returns token (stored by service layer)
+   * 2. GET /auth/user/ - Get user profile using stored token
+   */
   const verifyCode = async (email: string, code: string) => {
+    // Step 1: Verify OTP and store token (service layer handles storage)
+    await authService.verifyOTP(email, code);
+
+    // Step 2: Fetch user profile (token is now stored, so API client adds it to headers)
+    const userProfile = await authService.getCurrentUser();
+
+    // Step 3: Fetch ticket quotas to determine if company profile is required
+    let ticketQuotas: any[] = [];
     try {
-      // Don't set isLoading here - it causes AppNavigator to show loading spinner
-      // which interrupts navigation. The screen can handle its own loading state.
-
-      // TODO: BACKEND - Replace with actual API call
-      // const response = await api.post('/auth/verify-code', { email, code });
-      // const { user, token, refreshToken } = response.data;
-      // TODO: BACKEND - Validate response structure
-      // TODO: BACKEND - Store refreshToken if provided for token renewal
-      // TODO: BACKEND - Handle token expiration and refresh logic
-      // TODO: BACKEND - Implement code attempt tracking (prevent brute force)
-
-      // Mock verification for now - will be replaced with API call
-      // In real app, this would validate the code with backend
-      if (code.length < 4) {
-        throw new Error("Invalid verification code");
-      }
-
-      const mockUser: User = {
-        id: "1",
-        email,
-        name: "", // Name will be set during profile completion
-      };
-      const mockToken = "mock-token-123";
-
-      // TODO: BACKEND - Store actual user data and tokens from API response
-      // Store user and token (but not authenticated yet - need to complete profile)
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
-      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, mockToken);
-      // TODO: BACKEND - Store refreshToken if provided
-      // TODO: BACKEND - Encrypt sensitive token data before storage
-
-      setUser(mockUser);
-      // User is verified but not fully authenticated until profile is completed
-      // Profile completion will set isAuthenticated to true
+      ticketQuotas = await ticketService.getUserQuotas(EVENT_ID);
     } catch (error) {
-      console.error("Verify code error:", error);
-      // TODO: BACKEND - Handle specific error types (invalid code, expired, rate limit)
-      throw error;
+      console.warn(
+        "Failed to fetch ticket quotas for profile completion check:",
+        error
+      );
+      // Continue without ticket quotas - will fall back to checking if company exists
+    }
+
+    // Step 4: Map UserProfile to User (they have the same structure now, so direct assignment)
+    // User interface matches backend UserProfile structure (D1: Option B)
+    const user: User = userProfile;
+
+    // Step 5: Store user in AsyncStorage for persistence
+    await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+
+    // Step 6: Determine profile completion from backend data (field-based inference)
+    // Pass ticket quotas to check if company profile is required for exhibitor/partner users
+    const profileComplete = isProfileComplete(userProfile, ticketQuotas);
+
+    // Step 7: Update state
+    setUser(user);
+    setHasCompletedProfile(profileComplete);
+
+    // Step 8: Set authenticated status based on profile completion
+    // User is fully authenticated only if profile is completed
+    if (profileComplete) {
+      setIsAuthenticated(true);
+    } else {
+      setIsAuthenticated(false);
     }
   };
 
-  // Logout user and clear all session data
-  // TODO: BACKEND INTEGRATION - Call logout API endpoint to invalidate server-side session
-  // API Endpoint: POST /api/auth/logout
-  // Request Headers: { Authorization: `Bearer ${token}` }
-  // Response: { success: boolean }
-  // Real-time: Consider WebSocket disconnect on logout
+  /**
+   * Logout user and clear all session data
+   *
+   * Service layer pattern (D2, D3):
+   * - authService.logout calls backend API and clears tokens (D2: service handles API + tokens)
+   * - AuthContext clears local user data and state
+   * - Errors from service layer bubble up (D3: Option A)
+   * - No isLoading state change - screen/menu handles its own loading (D4)
+   *
+   * Backend Endpoint: POST /auth/logout/
+   */
   const logout = async () => {
     try {
-      setIsLoading(true);
-
-      // TODO: BACKEND - Call logout API to invalidate token on server
-      // await api.post('/auth/logout', {}, { headers: { Authorization: `Bearer ${token}` } });
-      // TODO: BACKEND - Handle logout errors gracefully (network issues shouldn't block local logout)
-
-      // Clear all stored data for a complete logout
-      await AsyncStorage.multiRemove([
-        STORAGE_KEYS.USER,
-        STORAGE_KEYS.TOKEN,
-        STORAGE_KEYS.WELCOME_SEEN,
-        STORAGE_KEYS.PROFILE_COMPLETE,
-        STORAGE_KEYS.ONBOARDING_COMPLETE,
-      ]);
-      // TODO: BACKEND - Also clear refreshToken if stored separately
-
-      // Reset all state
-      setUser(null);
-      setIsAuthenticated(false);
-      setHasCompletedProfile(false);
-      setHasCompletedOnboarding(false);
-      setHasSeenWelcome(false);
-      // TODO: BACKEND - Clear any cached API responses
-      // TODO: BACKEND - Cancel any pending API requests
+      // Service layer handles API call and token clearing
+      await authService.logout();
     } catch (error) {
-      console.error("Logout error:", error);
-      // TODO: BACKEND - Even if API call fails, still clear local data
-    } finally {
-      setIsLoading(false);
+      // Even if API call fails, still clear local data (network issues shouldn't block logout)
+      console.error("Logout API error (clearing local data anyway):", error);
     }
+
+    // Clear all local stored data (service layer already cleared tokens)
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.USER,
+      STORAGE_KEYS.WELCOME_SEEN,
+      STORAGE_KEYS.PROFILE_COMPLETE,
+      STORAGE_KEYS.ONBOARDING_COMPLETE,
+    ]);
+
+    // Reset all state
+    setUser(null);
+    setIsAuthenticated(false);
+    setHasCompletedProfile(false);
+    setHasCompletedOnboarding(false);
+    setHasSeenWelcome(false);
   };
 
   const completeOnboarding = async () => {
@@ -303,39 +329,84 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // Mark profile as completed
-  // TODO: BACKEND INTEGRATION - This should be called after profile data is successfully saved to backend
-  // This function should be called from ProfileScreen after successful API submission
-  // TODO: BACKEND - Profile completion should be determined by backend response, not just local storage
-  // TODO: BACKEND - Consider moving this logic to ProfileScreen after successful API call
+  /**
+   * Mark profile as completed
+   *
+   * This should be called after profile data is successfully saved to backend.
+   * Fetches fresh user profile from backend and determines completion status
+   * based on field-based inference (backend doesn't track completion explicitly).
+   *
+   * Called from ProfileCreatedScreen after successful profile save.
+   */
   const completeProfile = async () => {
     try {
-      // TODO: BACKEND - Remove this local storage update, let backend determine completion status
-      await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
-      setHasCompletedProfile(true);
+      // Fetch fresh user profile from backend (source of truth)
+      const userProfile = await authService.getCurrentUser();
+
+      // Fetch ticket quotas to determine if company profile is required
+      let ticketQuotas: any[] = [];
+      try {
+        ticketQuotas = await ticketService.getUserQuotas(EVENT_ID);
+      } catch (error) {
+        console.warn(
+          "Failed to fetch ticket quotas for profile completion check:",
+          error
+        );
+        // Continue without ticket quotas - will fall back to checking if company exists
+      }
+
+      // Update stored user with latest data
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.USER,
+        JSON.stringify(userProfile)
+      );
+
+      // Map UserProfile to User and update state
+      const user: User = userProfile;
+      setUser(user);
+
+      // Determine profile completion from backend data (field-based inference)
+      // Pass ticket quotas to check if company profile is required for exhibitor/partner users
+      const profileComplete = isProfileComplete(userProfile, ticketQuotas);
+      // Debug logging removed for production - uncomment if needed for debugging
+      // console.log("Profile completion status from backend:", profileComplete);
+      setHasCompletedProfile(profileComplete);
+
       // Once profile is completed, user is fully authenticated
-      setIsAuthenticated(true);
-      // TODO: BACKEND - Backend should return updated user object with profile completion status
+      if (profileComplete) {
+        setIsAuthenticated(true);
+      }
     } catch (error) {
       console.error("Error completing profile:", error);
+      // On error, don't update state - user will need to retry
+      throw error;
     }
   };
 
   // Development helper: skip auth for UI development
   // NOTE: This bypasses the login flow - use only for development/testing
-  const skipAuth = () => {
-    const devUser = { id: "dev", email: "dev@spark.com", name: "Dev User" };
+  const skipAuth = async () => {
+    const devUser: User = {
+      user_id: "dev",
+      email: "dev@spark.com",
+      first_name: "Dev",
+      last_name: "User",
+    };
     setUser(devUser);
     setIsAuthenticated(true);
     setHasCompletedOnboarding(true);
     setHasCompletedProfile(true);
     setHasSeenWelcome(true);
-    // Also store in AsyncStorage so it persists
-    AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(devUser));
-    AsyncStorage.setItem(STORAGE_KEYS.TOKEN, "dev-token");
-    AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
-    AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_COMPLETE, "true");
-    AsyncStorage.setItem(STORAGE_KEYS.WELCOME_SEEN, "true");
+    // Store in AsyncStorage so it persists
+    await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(devUser));
+    // Store token in API client (service layer handles token storage)
+    await api.setTokens({
+      accessToken: "dev-token",
+      expiresIn: 3600,
+    });
+    await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
+    await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING_COMPLETE, "true");
+    await AsyncStorage.setItem(STORAGE_KEYS.WELCOME_SEEN, "true");
   };
 
   const value: AuthContextType = {

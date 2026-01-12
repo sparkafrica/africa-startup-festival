@@ -23,19 +23,19 @@ const environment = getEnvironment();
 // API Configuration
 export const API_CONFIG = {
   development: {
-    BASE_URL: "http://localhost:3000/api", // Local development
+    BASE_URL: "https://dev-api.africatechnologyexpo.com", // Development server
     TIMEOUT: 30000, // 30 seconds
-    WS_URL: "ws://localhost:3000",
+    WS_URL: "wss://dev-api.africatechnologyexpo.com",
   },
   staging: {
-    BASE_URL: "https://api-staging.spark-events.com/api", // Staging server
+    BASE_URL: "https://dev-api.africatechnologyexpo.com", // Staging server (update when staging URL is available)
     TIMEOUT: 30000,
-    WS_URL: "wss://api-staging.spark-events.com",
+    WS_URL: "wss://dev-api.africatechnologyexpo.com",
   },
   production: {
-    BASE_URL: "https://api.spark-events.com/api", // Production server
+    BASE_URL: "https://api.africatechnologyexpo.com", // Production server (update when production URL is available)
     TIMEOUT: 30000,
-    WS_URL: "wss://api.spark-events.com",
+    WS_URL: "wss://api.africatechnologyexpo.com",
   },
 } as const;
 
@@ -51,8 +51,13 @@ export const CDN_CONFIG = {
 
 export const CDN_BASE_URL = CDN_CONFIG[environment];
 
+// Event Configuration
+// TODO: Consider fetching current event from backend API in the future
+export const EVENT_ID = 10;
+
 // Log current environment (only in development)
 if (__DEV__) {
   console.log(`🌍 Environment: ${environment}`);
   console.log(`🔗 API Base URL: ${ENV.BASE_URL}`);
+  console.log(`🎫 Event ID: ${EVENT_ID}`);
 }

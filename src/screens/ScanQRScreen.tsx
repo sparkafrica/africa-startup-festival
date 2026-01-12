@@ -12,7 +12,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  ActivityIndicator,
+  StyleSheet,
 } from "react-native";
+import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
@@ -22,6 +25,11 @@ import { StatusBar } from "expo-status-bar";
 import Svg, { Path, Rect, Circle } from "react-native-svg";
 import { ScrollView } from "react-native";
 import { CalendarIcon } from "../components/BottomNavIcons";
+import { useToast } from "../hooks/useToast";
+import Toast from "../components/Toast";
+import { ticketService, type Attendee } from "../services/ticketService";
+import { EVENT_ID } from "../config/env";
+import QRCode from "react-native-qrcode-svg";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -264,13 +272,13 @@ function ScanFrame({ onQRCodePress }: { onQRCodePress?: () => void }) {
         />
         <Pressable
           onPress={onQRCodePress}
-          className="p-4 rounded-xl border border-neutral-200"
+          className="p-4 rounded-xl border border-neutral-200 bg-white"
         >
-          <Image
-            source={require("../assets/images/qr-code.png")}
-            style={{ width: 180, height: 180 }}
-            resizeMode="contain"
-          />
+          <View className="items-center justify-center" style={{ width: 180, height: 180 }}>
+            <View className="items-center justify-center">
+              <Text className="text-neutral-400 text-sm">Tap to Scan</Text>
+            </View>
+          </View>
         </Pressable>
         <View
           className="absolute"
@@ -463,8 +471,8 @@ function TicketCard({
         <View className="flex-row items-start justify-between">
           <View className="flex-1 pr-2">
             <Text className="text-white text-2xl font-bold mb-2">{title}</Text>
-            <Text className="text-white/50 text-base mb-10">
-              {ticketNumber}
+            <Text className="text-white/50 text-base mb-10 font-mono">
+              {formatTicketCodeForDisplay(ticketNumber)}
             </Text>
             {assignedTo && (
               <View className="flex-col">
@@ -689,16 +697,31 @@ function QRCodeModal({
           <View className="px-4">
             <View className="items-center mb-6">
               <View className="bg-white rounded-2xl p-6 border border-neutral-200 items-center">
-                <Image
-                  source={require("../assets/images/qr-code.png")}
-                  style={{ width: 240, height: 240 }}
-                  resizeMode="contain"
-                />
+                {ticketNumber ? (
+                  <QRCode
+                    value={ticketNumber}
+                    size={240}
+                    color="#000000"
+                    backgroundColor="#FFFFFF"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 240,
+                      height: 240,
+                      backgroundColor: "#F3F4F6",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text className="text-neutral-400">No QR Code</Text>
+                  </View>
+                )}
                 <Text className="text-xl font-bold text-black mt-4">
                   {title}
                 </Text>
-                <Text className="text-sm text-neutral-500 mt-1">
-                  Ticket ID: {ticketNumber}
+                <Text className="text-sm text-neutral-500 mt-1 font-mono">
+                  Ticket ID: {formatTicketCodeForDisplay(ticketNumber)}
                 </Text>
               </View>
             </View>
@@ -2263,8 +2286,8 @@ function TicketReassignedConfirmationModal({
                   <CheckmarkIcon size={56} color="#10B981" />
                 </View>
                 <View
-                  className="absolute -inset-2 rounded-full opacity-30"
-                  style={{ backgroundColor: "#10B981" }}
+                  className="absolute rounded-full opacity-30"
+                  style={{ backgroundColor: "#10B981", top: -8, left: -8, right: -8, bottom: -8 }}
                 />
               </View>
             </View>
@@ -2413,12 +2436,12 @@ function TicketRevokedConfirmationModal({
                   </View>
                 </View>
                 <View
-                  className="absolute -inset-2 rounded-full opacity-20"
-                  style={{ backgroundColor: "#EF4444" }}
+                  className="absolute rounded-full opacity-20"
+                  style={{ backgroundColor: "#EF4444", top: -8, left: -8, right: -8, bottom: -8 }}
                 />
                 <View
-                  className="absolute -inset-4 rounded-full opacity-10"
-                  style={{ backgroundColor: "#EF4444" }}
+                  className="absolute rounded-full opacity-10"
+                  style={{ backgroundColor: "#EF4444", top: -16, left: -16, right: -16, bottom: -16 }}
                 />
               </View>
             </View>
@@ -2449,16 +2472,263 @@ function TicketRevokedConfirmationModal({
   );
 }
 
+// QR Code Scanner Modal Component
+function QRScannerModal({
+  visible,
+  onClose,
+  onScan,
+  isProcessing,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onScan: (data: string) => void;
+  isProcessing?: boolean;
+}) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanned, setScanned] = useState(false);
+  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const isProcessingRef = useRef(false);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
+      },
+      onPanResponderGrant: () => {
+        translateY.setOffset((translateY as any)._value || 0);
+        translateY.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        translateY.flattenOffset();
+        if (gestureState.dy > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+          Animated.timing(translateY, {
+            toValue: SCREEN_HEIGHT,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            translateY.setValue(SCREEN_HEIGHT);
+            onClose();
+          });
+        } else {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+      setScanned(false);
+      isProcessingRef.current = false;
+    } else {
+      translateY.setValue(SCREEN_HEIGHT);
+      setScanned(false);
+      isProcessingRef.current = false;
+    }
+  }, [visible, translateY]);
+
+
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    // Prevent multiple scans - ONLY check ref (state is async)
+    if (isProcessingRef.current || !data) {
+      return;
+    }
+    
+    // Immediately set ref to prevent any other calls (before async operations)
+    isProcessingRef.current = true;
+    
+    setScanned(true);
+    onScan(data);
+  };
+
+  if (permission === null) {
+    return (
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={onClose}
+      >
+        <View className="flex-1 bg-black/50">
+          <Pressable className="flex-1" onPress={onClose} />
+          <Animated.View
+            className="bg-white rounded-t-3xl"
+            style={{
+              transform: [{ translateY }],
+            }}
+          >
+            <View className="items-center justify-center p-8">
+              <Text className="text-base text-neutral-600">
+                Requesting camera permission...
+              </Text>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={onClose}
+      >
+        <View className="flex-1 bg-black/50">
+          <Pressable className="flex-1" onPress={onClose} />
+          <Animated.View
+            className="bg-white rounded-t-3xl"
+            style={{
+              transform: [{ translateY }],
+            }}
+          >
+            <View className="px-4 py-6">
+              <Text className="text-xl font-semibold text-black mb-4 text-center">
+                Camera Permission Required
+              </Text>
+              <Text className="text-base text-neutral-600 mb-6 text-center">
+                We need access to your camera to scan QR codes.
+              </Text>
+              <Pressable
+                onPress={requestPermission}
+                className="w-full items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
+              >
+                <Text className="text-base font-medium text-white">
+                  Grant Permission
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={onClose}
+                className="w-full items-center justify-center bg-white border border-neutral-300 rounded-xl py-4 px-4"
+              >
+                <Text className="text-base font-medium text-black">Cancel</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent={true}
+    >
+      <View className="flex-1 bg-black">
+        <CameraView
+          style={StyleSheet.absoluteFillObject}
+          facing="back"
+          onBarcodeScanned={scanned || isProcessing ? undefined : handleBarCodeScanned}
+          barcodeScannerSettings={{
+            barcodeTypes: ["qr"],
+          }}
+        />
+        {/* Overlay with scan frame - using absolute positioning */}
+        <SafeAreaView edges={["top"]} className="absolute top-0 left-0 right-0 bottom-0">
+          <View className="flex-1">
+            {/* Top overlay */}
+            <View className="flex-1 bg-black/50" />
+            {/* Middle section with scan frame */}
+            <View className="flex-row">
+              <View className="flex-1 bg-black/50" />
+              <View className="w-64 h-64 border-2 border-white rounded-2xl" />
+              <View className="flex-1 bg-black/50" />
+            </View>
+            {/* Bottom overlay with controls */}
+            <View className="flex-1 bg-black/50" />
+          </View>
+        </SafeAreaView>
+        
+        {/* Bottom controls sheet */}
+        <SafeAreaView edges={["bottom"]} className="absolute bottom-0 left-0 right-0">
+          <Animated.View
+            className="bg-white rounded-t-3xl"
+            style={{
+              transform: [{ translateY }],
+            }}
+          >
+            <View
+              className="items-center pt-2 pb-4"
+              {...panResponder.panHandlers}
+            >
+              <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
+            </View>
+            <View className="px-4 pb-6">
+              <Text className="text-xl font-semibold text-black mb-2 text-center">
+                Scan QR Code
+              </Text>
+                    <Text className="text-sm text-neutral-500 text-center mb-6">
+                      Position the QR code within the frame
+                    </Text>
+                    {isProcessing && (
+                      <View className="w-full items-center justify-center bg-neutral-100 rounded-xl py-4 px-4 mb-3 flex-row gap-2">
+                        <ActivityIndicator size="small" color="#000000" />
+                        <Text className="text-base font-medium text-black">
+                          Processing...
+                        </Text>
+                      </View>
+                    )}
+                    {scanned && !isProcessing && (
+                      <Pressable
+                        onPress={() => {
+                          setScanned(false);
+                          isProcessingRef.current = false;
+                        }}
+                        className="w-full items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
+                      >
+                        <Text className="text-base font-medium text-white">
+                          Tap to Scan Again
+                        </Text>
+                      </Pressable>
+                    )}
+              <Pressable
+                onPress={onClose}
+                className="w-full items-center justify-center bg-white border border-neutral-300 rounded-xl py-4 px-4"
+              >
+                <Text className="text-base font-medium text-black">Close</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </SafeAreaView>
+      </View>
+    </Modal>
+  );
+}
+
 function ScannedTicketProfileModal({
   visible,
   onClose,
   onRequestMeeting,
   onConnect,
+  attendee,
 }: {
   visible: boolean;
   onClose: () => void;
   onRequestMeeting: () => void;
   onConnect: () => void;
+  attendee: Attendee | null;
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const offset = useRef(0);
@@ -2556,57 +2826,99 @@ function ScannedTicketProfileModal({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 24 }}
           >
-            <View className="flex-row items-start mb-4">
-              <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center mr-4">
-                <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
-                  <Circle cx="12" cy="8" r="4" fill="#000000" />
-                  <Path
-                    d="M6 21C6 17.134 9.13401 14 13 14C16.866 14 20 17.134 20 21"
-                    stroke="#000000"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                  />
-                </Svg>
-              </View>
-              <View className="flex-1">
-                <Text className="text-2xl font-bold text-black mb-1">
-                  Ada Okafor
-                </Text>
-                <Text className="text-base text-neutral-600 mb-3">
-                  VC Partner · Skyline Ventures
-                </Text>
-                <View className="flex-row flex-wrap gap-2">
-                  <View className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full">
-                    <Text className="text-sm text-black">Fintech</Text>
+            {attendee ? (
+              <>
+                <View className="flex-row items-start mb-4">
+                  <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center mr-4 overflow-hidden">
+                    {attendee.user.profile_pic ? (
+                      <Image
+                        source={{ uri: attendee.user.profile_pic }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
+                        <Circle cx="12" cy="8" r="4" fill="#000000" />
+                        <Path
+                          d="M6 21C6 17.134 9.13401 14 13 14C16.866 14 20 17.134 20 21"
+                          stroke="#000000"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                        />
+                      </Svg>
+                    )}
                   </View>
-                  <View className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full">
-                    <Text className="text-sm text-black">Nigeria</Text>
+                  <View className="flex-1">
+                    <Text className="text-2xl font-bold text-black mb-1">
+                      {attendee.user.first_name || ""}{" "}
+                      {attendee.user.last_name || ""}
+                      {!attendee.user.first_name && !attendee.user.last_name
+                        ? "Unknown User"
+                        : ""}
+                    </Text>
+                    <Text className="text-base text-neutral-600 mb-3">
+                      {attendee.user.job_title || ""}
+                      {attendee.user.job_title && attendee.user.organisation
+                        ? " · "
+                        : ""}
+                      {attendee.user.organisation || ""}
+                    </Text>
+                    <View className="flex-row flex-wrap gap-2">
+                      {attendee.ticket.type?.name && (
+                        <View className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full">
+                          <Text className="text-sm text-black">
+                            {attendee.ticket.type.name}
+                          </Text>
+                        </View>
+                      )}
+                      {attendee.user.country && (
+                        <View className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full">
+                          <Text className="text-sm text-black">
+                            {attendee.user.country}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                 </View>
-              </View>
-            </View>
 
-            <Text className="text-base text-black leading-6 mb-6">
-              Early-stage investor focused on African fintech and
-              infrastructure.
-            </Text>
+                {attendee.user.metadata?.bio && (
+                  <Text className="text-base text-black leading-6 mb-6">
+                    {attendee.user.metadata.bio}
+                  </Text>
+                )}
 
-            <View className="mb-6">
-              <Text className="text-lg font-semibold text-black mb-3">
-                Interests
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                <View className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full">
-                  <Text className="text-sm text-black">Fintech</Text>
-                </View>
-                <View className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full">
-                  <Text className="text-sm text-black">Infrastructure</Text>
-                </View>
-                <View className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full">
-                  <Text className="text-sm text-black">Developer Tools</Text>
-                </View>
+                {attendee.user.metadata?.interests &&
+                  Array.isArray(attendee.user.metadata.interests) &&
+                  attendee.user.metadata.interests.length > 0 && (
+                    <View className="mb-6">
+                      <Text className="text-lg font-semibold text-black mb-3">
+                        Interests
+                      </Text>
+                      <View className="flex-row flex-wrap gap-2">
+                        {attendee.user.metadata.interests.map(
+                          (interest: string, index: number) => (
+                            <View
+                              key={index}
+                              className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full"
+                            >
+                              <Text className="text-sm text-black">
+                                {interest}
+                              </Text>
+                            </View>
+                          )
+                        )}
+                      </View>
+                    </View>
+                  )}
+              </>
+            ) : (
+              <View className="items-center justify-center py-8">
+                <Text className="text-base text-neutral-500">
+                  No attendee data available
+                </Text>
               </View>
-            </View>
+            )}
 
             <Pressable
               onPress={onRequestMeeting}
@@ -2639,10 +2951,12 @@ function ManualCodeEntryModal({
   visible,
   onClose,
   onSubmit,
+  isSubmitting,
 }: {
   visible: boolean;
   onClose: () => void;
   onSubmit: (code: string) => void;
+  isSubmitting?: boolean;
 }) {
   const [code, setCode] = useState("");
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -2700,6 +3014,7 @@ function ManualCodeEntryModal({
       setCode("");
     } else {
       translateY.setValue(SCREEN_HEIGHT);
+      // Clear code when modal closes
       setCode("");
     }
   }, [visible, translateY]);
@@ -2727,10 +3042,10 @@ function ManualCodeEntryModal({
   }, []);
 
   const handleSubmit = () => {
-    if (code.trim().length > 0) {
+    if (code.trim().length > 0 && !isSubmitting) {
       onSubmit(code.trim());
-      setCode("");
-      onClose();
+      // Don't close modal here - let parent handle it after API call
+      // Don't clear code here - let parent handle it
     }
   };
 
@@ -2767,7 +3082,7 @@ function ManualCodeEntryModal({
               Enter Ticket Code
             </Text>
             <Text className="text-sm text-neutral-500 text-center px-4">
-              Manually enter the ticket code or QR code number
+              Enter the ticket UUID code (e.g., 123e4567-e89b-12d3-a456-426614174000)
             </Text>
           </View>
 
@@ -2799,20 +3114,19 @@ function ManualCodeEntryModal({
                   <View className="flex-row items-start">
                     <Text className="text-blue-600 mr-2">•</Text>
                     <Text className="text-sm text-black flex-1">
-                      Look for the ticket number on the physical ticket
+                      Look for the ticket UUID code on the ticket or QR code
                     </Text>
                   </View>
                   <View className="flex-row items-start">
                     <Text className="text-blue-600 mr-2">•</Text>
                     <Text className="text-sm text-black flex-1">
-                      Enter the full code including any prefixes (e.g.,
-                      SPK2025-1234)
+                      Enter the full UUID code (e.g., 123e4567-e89b-12d3-a456-426614174000)
                     </Text>
                   </View>
                   <View className="flex-row items-start">
                     <Text className="text-blue-600 mr-2">•</Text>
                     <Text className="text-sm text-black flex-1">
-                      The code is case-sensitive, enter exactly as shown
+                      The code format includes hyphens and is case-insensitive
                     </Text>
                   </View>
                 </View>
@@ -2827,14 +3141,15 @@ function ManualCodeEntryModal({
                   <TextInput
                     ref={codeInputRef}
                     className="px-4 py-4 text-base text-black"
-                    placeholder="Enter ticket code (e.g., SPK2025-1234)"
+                    placeholder="Enter ticket UUID code"
                     placeholderTextColor="#A3A3A3"
                     value={code}
                     onChangeText={setCode}
-                    autoCapitalize="characters"
+                    autoCapitalize="none"
                     autoCorrect={false}
                     returnKeyType="done"
                     onSubmitEditing={handleSubmit}
+                    editable={!isSubmitting}
                     onFocus={() => {
                       setTimeout(() => {
                         if (keyboardHeight > 0) {
@@ -2875,9 +3190,21 @@ function ManualCodeEntryModal({
                         </Text>
                       </View>
                     </View>
-                    <Text className="text-white text-lg font-mono font-semibold">
-                      {code}
-                    </Text>
+                    {/* Show formatted display if valid UUID, otherwise show full code */}
+                    {validateUUID(code).valid ? (
+                      <View>
+                        <Text className="text-white text-lg font-mono font-semibold">
+                          {formatTicketCodeForDisplay(code)}
+                        </Text>
+                        <Text className="text-white/60 text-xs font-mono mt-1">
+                          Full: {code}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text className="text-white text-lg font-mono font-semibold">
+                        {code}
+                      </Text>
+                    )}
                   </View>
                 </View>
               )}
@@ -2897,14 +3224,24 @@ function ManualCodeEntryModal({
           >
             <Pressable
               onPress={handleSubmit}
-              disabled={code.trim().length === 0}
-              className={`w-full items-center justify-center rounded-xl py-4 px-4 mb-3 ${
-                code.trim().length > 0 ? "bg-black" : "bg-neutral-200"
+              disabled={code.trim().length === 0 || isSubmitting}
+              className={`w-full items-center justify-center rounded-xl py-4 px-4 mb-3 flex-row gap-2 ${
+                code.trim().length > 0 && !isSubmitting
+                  ? "bg-black"
+                  : "bg-neutral-200"
               }`}
+              style={{
+                opacity: code.trim().length === 0 || isSubmitting ? 0.6 : 1,
+              }}
             >
+              {isSubmitting && (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              )}
               <Text
                 className={`text-base font-medium ${
-                  code.trim().length > 0 ? "text-white" : "text-neutral-400"
+                  code.trim().length > 0 && !isSubmitting
+                    ? "text-white"
+                    : "text-neutral-400"
                 }`}
               >
                 Verify Ticket
@@ -3586,8 +3923,36 @@ function MyTicketView({
 
 type ScanQRScreenProps = RootStackScreenProps<"ScanQR">;
 
+// UUID validation function
+const validateUUID = (uuid: string): { valid: boolean; error?: string } => {
+  const trimmed = uuid.trim();
+  if (!trimmed) {
+    return { valid: false, error: "Ticket code is required" };
+  }
+  // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (accepts any UUID version)
+  // More lenient regex that accepts any UUID format (v1, v4, etc.)
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(trimmed)) {
+    return {
+      valid: false,
+      error: "Invalid ticket code format. Please enter a valid UUID.",
+    };
+  }
+  return { valid: true };
+};
+
+// Format UUID for display - shows first 8 characters (e.g., "123e4567")
+const formatTicketCodeForDisplay = (uuid: string): string => {
+  if (!uuid) return "";
+  // Remove hyphens and take first 8 characters
+  const cleaned = uuid.replace(/-/g, "");
+  return cleaned.substring(0, 8).toUpperCase();
+};
+
 export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { toast, showToast, hideToast } = useToast();
   const initialTab = route.params?.initialTab || "Scan Ticket";
   const [activeTab, setActiveTab] = useState<"My Ticket" | "Scan Ticket">(
     initialTab
@@ -3649,6 +4014,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   ] = useState(false);
   const [scannedTicketProfileVisible, setScannedTicketProfileVisible] =
     useState(false);
+  const [scannedAttendee, setScannedAttendee] = useState<Attendee | null>(
+    null
+  );
+  const [isScanning, setIsScanning] = useState(false);
+  const [qrScannerModalVisible, setQrScannerModalVisible] = useState(false);
   const [manualCodeEntryModalVisible, setManualCodeEntryModalVisible] =
     useState(false);
   const [recipientData, setRecipientData] = useState<{
@@ -3672,7 +4042,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     {
       id: "1",
       title: "Founder Pass",
-      ticketNumber: "#SPK2025-1234",
+      ticketNumber: "123e4567-e89b-12d3-a456-426614174000",
       backgroundColor: "#000000",
       assignedTo: "John Doe",
       isPersonal: true,
@@ -3681,7 +4051,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     {
       id: "2",
       title: "Exhibitor Pass",
-      ticketNumber: "#SPK2025-5678",
+      ticketNumber: "223e4567-e89b-12d3-a456-426614174001",
       backgroundColor: "#10B981",
       assignedTo: "Jane Smith",
       assigneeEmail: "jane@example.com",
@@ -3693,7 +4063,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     {
       id: "3",
       title: "Attendee Pass",
-      ticketNumber: "#SPK2025-9012",
+      ticketNumber: "323e4567-e89b-12d3-a456-426614174002",
       backgroundColor: "#3B82F6",
       isPersonal: false,
       isUnassigned: true,
@@ -3977,39 +4347,131 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     setEditAssignedTicketData(null);
   };
 
-  // TODO: BACKEND INTEGRATION - Scan QR code and validate ticket
-  // API Endpoint: POST /api/tickets/scan
-  // Request Body: { qrCode: string }
-  // Response: { ticket: Ticket, isValid: boolean, message?: string }
-  // Error Handling: Handle invalid QR codes, already scanned tickets, expired tickets
-  // TODO: BACKEND - Integrate with camera/QR scanner library (expo-camera or react-native-vision-camera)
-  // TODO: BACKEND - Call API when QR code is scanned
-  // TODO: BACKEND - Show ticket profile after successful scan
+  // Handle QR code scanner press - open camera scanner modal
   const handleQRCodePress = () => {
-    // TODO: BACKEND - Open camera/QR scanner
-    // TODO: BACKEND - On scan, call API: await api.post('/tickets/scan', { qrCode: scannedCode })
-    setScannedTicketProfileVisible(true);
+    setQrScannerModalVisible(true);
+  };
+
+  // Handle QR code scanned from camera
+  const handleQRCodeScanned = async (scannedData: string) => {
+    if (!scannedData || !scannedData.trim()) {
+      showToast("Invalid QR code. Please try again.", "error");
+      return;
+    }
+
+    // Trim whitespace
+    const trimmedData = scannedData.trim();
+
+    // Validate UUID format
+    const validation = validateUUID(trimmedData);
+    
+    if (!validation.valid) {
+      showToast(validation.error || "Invalid QR code format", "error");
+      return;
+    }
+
+    setIsScanning(true);
+
+    try {
+      // Call API to scan ticket by code
+      const attendee = await ticketService.scanTicketByCode(
+        EVENT_ID,
+        trimmedData
+      );
+
+      // Store the attendee data
+      setScannedAttendee(attendee);
+
+      // Close scanner modal on success
+      setQrScannerModalVisible(false);
+
+      // Show success toast
+      showToast("Ticket scanned successfully!", "success");
+
+      // Show profile modal
+      setTimeout(() => {
+        setScannedTicketProfileVisible(true);
+      }, 300);
+    } catch (error: any) {
+      // Log detailed error info for debugging (only in console, not shown to user)
+      console.error("Error scanning QR code:", error);
+      console.error("Error type:", typeof error);
+      console.error("Error keys:", Object.keys(error || {}));
+
+      // Handle different error types - show user-friendly messages based on status code only
+      // Never use error.message directly to avoid showing technical details
+      const responseCode = error?.responseCode || error?.response_code || error?.statusCode;
+      
+      let errorMessage = "Failed to scan ticket. Please try again.";
+      
+      if (responseCode === 404) {
+        errorMessage = "Ticket not found. Please check the QR code and try again.";
+      } else if (responseCode === 401) {
+        errorMessage = "Unauthorized. Please log in and try again.";
+      } else if (responseCode === 403) {
+        errorMessage = "You don't have permission to scan this ticket.";
+      } else if (responseCode >= 500) {
+        errorMessage = "Server error. Please try again later.";
+      }
+
+      showToast(errorMessage, "error");
+      // Reset the processing ref so user can try scanning again
+      // The modal will stay open, and user can click "Tap to Scan Again" to reset scanned state
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const handleManualCodeEntry = () => {
     setManualCodeEntryModalVisible(true);
   };
 
-  // TODO: BACKEND INTEGRATION - Submit manually entered ticket code
-  // API Endpoint: POST /api/tickets/scan or POST /api/tickets/manual
-  // Request Body: { ticketId: string, type?: string }
-  // Response: { ticket: Ticket, isValid: boolean, message?: string }
-  // TODO: BACKEND - Validate code format before API call
-  // TODO: BACKEND - Call API with manual code
-  // TODO: BACKEND - Show ticket profile after successful validation
-  const handleCodeSubmit = (code: string) => {
-    console.log("Submitted code:", code);
-    // TODO: BACKEND - Call API: await api.post('/tickets/manual', { ticketId: code })
-    // Process the code and show the scanned ticket profile
-    // For now, we'll just show the profile modal
-    setTimeout(() => {
+  // Submit manually entered ticket code
+  // Backend Endpoint: GET /events/{event_id}/attendees/{ticket_code}/
+  const handleCodeSubmit = async (code: string) => {
+    // Validate UUID format
+    const validation = validateUUID(code);
+    if (!validation.valid) {
+      showToast(validation.error || "Invalid ticket code format", "error");
+      return;
+    }
+
+    setIsScanning(true);
+    try {
+      // Call API to scan ticket by code
+      const attendee = await ticketService.scanTicketByCode(EVENT_ID, code.trim());
+      
+      // Store the attendee data
+      setScannedAttendee(attendee);
+      
+      // Close manual entry modal
+      setManualCodeEntryModalVisible(false);
+      
+      // Show success toast
+      showToast("Ticket found successfully!", "success");
+      
+      // Show profile modal
       setScannedTicketProfileVisible(true);
-    }, 300);
+    } catch (error: any) {
+      // Handle different error types - use status code only (never error.message)
+      const responseCode = error?.responseCode || error?.response_code || error?.statusCode;
+      
+      let errorMessage = "Failed to scan ticket. Please try again.";
+      
+      if (responseCode === 404) {
+        errorMessage = "Ticket not found. Please check the code and try again.";
+      } else if (responseCode === 401) {
+        errorMessage = "Unauthorized. Please log in and try again.";
+      } else if (responseCode === 403) {
+        errorMessage = "You don't have permission to scan this ticket.";
+      } else if (responseCode >= 500) {
+        errorMessage = "Server error. Please try again later.";
+      }
+      
+      showToast(errorMessage, "error");
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const handleRequestMeeting = () => {
@@ -4078,12 +4540,12 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           availableTickets={[
             {
               title: "Exhibitor Pass",
-              ticketNumber: "#SPK2025-5678",
+              ticketNumber: "223e4567-e89b-12d3-a456-426614174001",
               backgroundColor: "#10B981",
             },
             {
               title: "Attendee Pass",
-              ticketNumber: "#SPK2025-9012",
+              ticketNumber: "323e4567-e89b-12d3-a456-426614174002",
               backgroundColor: "#3B82F6",
             },
           ]}
@@ -4153,16 +4615,33 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           onClose={handleRevokedConfirmationClose}
           onConfirm={handleRevokedConfirmationClose}
         />
+        <QRScannerModal
+          visible={qrScannerModalVisible}
+          onClose={() => setQrScannerModalVisible(false)}
+          onScan={handleQRCodeScanned}
+          isProcessing={isScanning}
+        />
         <ScannedTicketProfileModal
           visible={scannedTicketProfileVisible}
-          onClose={() => setScannedTicketProfileVisible(false)}
+          onClose={() => {
+            setScannedTicketProfileVisible(false);
+            setScannedAttendee(null);
+          }}
           onRequestMeeting={handleRequestMeeting}
           onConnect={handleConnect}
+          attendee={scannedAttendee}
         />
         <ManualCodeEntryModal
           visible={manualCodeEntryModalVisible}
           onClose={() => setManualCodeEntryModalVisible(false)}
           onSubmit={handleCodeSubmit}
+          isSubmitting={isScanning}
+        />
+        <Toast
+          message={toast.message}
+          visible={toast.visible}
+          type={toast.type}
+          onHide={hideToast}
         />
       </SafeAreaView>
     </View>

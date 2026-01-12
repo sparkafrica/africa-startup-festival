@@ -2,6 +2,7 @@
 export { default as IconButton } from "./IconButton";
 export { default as BannerCard } from "./BannerCard";
 export { default as Card } from "./Card";
+export { default as TicketCard } from "./TicketCard";
 export { default as ChecklistItem } from "./ChecklistItem";
 export { default as ExhibitorCard } from "./ExhibitorCard";
 export { default as BottomNavigation } from "./BottomNavigation";

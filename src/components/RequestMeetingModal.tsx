@@ -220,25 +220,25 @@ export default function RequestMeetingModal({
 
   const handleSubmit = () => {
     if (validateForm()) {
-    const formData: MeetingFormData = {
-      title,
-      meetingType,
-      tableNumber: meetingType === "Physical" ? tableNumber : undefined,
-      meetingLink: meetingType === "Virtual" ? meetingLink : undefined,
-      date: selectedDate || undefined,
-      time: selectedTime || undefined,
-      description,
-    };
-    onSubmit(formData);
-    // Reset form
-    setTitle("");
-    setTableNumber("");
-    setMeetingLink("");
-    setSelectedDate(null);
-    setSelectedTime(null);
-    setDescription("");
+      const formData: MeetingFormData = {
+        title,
+        meetingType,
+        tableNumber: meetingType === "Physical" ? tableNumber : undefined,
+        meetingLink: meetingType === "Virtual" ? meetingLink : undefined,
+        date: selectedDate || undefined,
+        time: selectedTime || undefined,
+        description,
+      };
+      onSubmit(formData);
+      // Reset form
+      setTitle("");
+      setTableNumber("");
+      setMeetingLink("");
+      setSelectedDate(null);
+      setSelectedTime(null);
+      setDescription("");
       setErrors({});
-    onClose();
+      onClose();
     }
   };
 
@@ -508,26 +508,19 @@ export default function RequestMeetingModal({
               ) : (
                 <View style={styles.fieldContainer}>
                   <Text style={styles.label}>Meeting Link</Text>
-                  <View
+                  <TextInput
                     style={[
-                      styles.linkInputContainer,
+                      styles.linkInputFull,
                       errors.meetingLink && styles.inputError,
                     ]}
-                  >
-                    <TextInput
-                      style={styles.linkInput}
-                      placeholder="Paste your meeting link"
-                      placeholderTextColor="#A3A3A3"
-                      value={meetingLink}
-                      onChangeText={(text) => {
-                        setMeetingLink(text);
-                        clearError("meetingLink");
-                      }}
-                    />
-                    <Pressable style={styles.pasteButton}>
-                      <Text style={styles.pasteButtonText}>Paste link</Text>
-                    </Pressable>
-                  </View>
+                    placeholder="Paste your meeting link"
+                    placeholderTextColor="#A3A3A3"
+                    value={meetingLink}
+                    onChangeText={(text) => {
+                      setMeetingLink(text);
+                      clearError("meetingLink");
+                    }}
+                  />
                   {errors.meetingLink && (
                     <Text style={styles.errorText}>{errors.meetingLink}</Text>
                   )}
@@ -810,12 +803,7 @@ const styles = StyleSheet.create({
   segmentTextActive: {
     color: "#171717",
   },
-  linkInputContainer: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  linkInput: {
-    flex: 1,
+  linkInputFull: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E5E5E5",
@@ -825,19 +813,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#171717",
     minHeight: 48,
-  },
-  pasteButton: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    justifyContent: "center",
-    minHeight: 48,
-  },
-  pasteButtonText: {
-    fontSize: 14,
-    color: "#171717",
-    fontWeight: "500",
   },
   pickerOptions: {
     marginTop: 8,

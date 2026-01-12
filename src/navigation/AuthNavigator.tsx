@@ -9,6 +9,7 @@ import WelcomeScreen from "../screens/WelcomeScreen";
 import CompleteProfileScreen from "../screens/CompleteProfileScreen";
 import ProfileCreatedScreen from "../screens/ProfileCreatedScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import ApiTestScreen from "../screens/ApiTestScreen"; // Temporary - remove before production
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -56,6 +57,12 @@ export default function AuthNavigator() {
       <Stack.Screen
         name="Profile"
         component={ProfileScreen}
+        options={{ headerShown: false }}
+      />
+      {/* Temporary test screen - remove before production */}
+      <Stack.Screen
+        name="ApiTest"
+        component={ApiTestScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

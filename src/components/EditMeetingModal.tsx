@@ -325,11 +325,6 @@ export default function EditMeetingModal({
     });
   };
 
-  const handlePasteLink = async () => {
-    // TODO: Implement clipboard paste functionality
-    // For now, just focus the input
-  };
-
   // Keyboard navigation handlers
   const handleTitleSubmit = () => {
     if (meetingType === "physical") {
@@ -501,43 +496,31 @@ export default function EditMeetingModal({
                   <Text className="text-sm font-medium text-black mb-2">
                     Meeting Link
                   </Text>
-                  <View
-                    className={`flex-row items-center bg-white border rounded-xl px-4 gap-2 ${
+                  <TextInput
+                    className={`bg-white border rounded-xl px-4 py-3.5 text-base ${
                       errors.meetingLink
                         ? "border-red-500"
                         : "border-neutral-300"
                     }`}
-                  >
-                    <TextInput
-                      className="flex-1 py-3.5 text-base"
-                      placeholder="Paste your meeting link"
-                      placeholderTextColor="#9CA3AF"
-                      value={meetingLink}
-                      onChangeText={(text) => {
-                        setMeetingLink(text);
-                        // Clear error when user starts typing
-                        if (errors.meetingLink) {
-                          setErrors((prev) => ({
-                            ...prev,
-                            meetingLink: undefined,
-                          }));
-                        }
-                      }}
-                      keyboardType="url"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="next"
-                      onSubmitEditing={handleLinkSubmit}
-                    />
-                    <Pressable
-                      className="bg-indigo-100 px-3 py-1.5 rounded-md"
-                      onPress={handlePasteLink}
-                    >
-                      <Text className="text-sm font-medium text-indigo-600">
-                        Paste link
-                      </Text>
-                    </Pressable>
-                  </View>
+                    placeholder="Paste your meeting link"
+                    placeholderTextColor="#9CA3AF"
+                    value={meetingLink}
+                    onChangeText={(text) => {
+                      setMeetingLink(text);
+                      // Clear error when user starts typing
+                      if (errors.meetingLink) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          meetingLink: undefined,
+                        }));
+                      }
+                    }}
+                    keyboardType="url"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="next"
+                    onSubmitEditing={handleLinkSubmit}
+                  />
                   {errors.meetingLink && (
                     <Text className="text-red-500 text-xs mt-1 ml-1">
                       {errors.meetingLink}
@@ -795,43 +778,31 @@ export default function EditMeetingModal({
                   <Text className="text-sm font-medium text-black mb-2">
                     Meeting Link
                   </Text>
-                  <View
-                    className={`flex-row items-center bg-white border rounded-xl px-4 gap-2 ${
+                  <TextInput
+                    className={`bg-white border rounded-xl px-4 py-3.5 text-base ${
                       errors.meetingLink
                         ? "border-red-500"
                         : "border-neutral-300"
                     }`}
-                  >
-                    <TextInput
-                      className="flex-1 py-3.5 text-base"
-                      placeholder="Paste your meeting link"
-                      placeholderTextColor="#9CA3AF"
-                      value={meetingLink}
-                      onChangeText={(text) => {
-                        setMeetingLink(text);
-                        // Clear error when user starts typing
-                        if (errors.meetingLink) {
-                          setErrors((prev) => ({
-                            ...prev,
-                            meetingLink: undefined,
-                          }));
-                        }
-                      }}
-                      keyboardType="url"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="next"
-                      onSubmitEditing={handleLinkSubmit}
-                    />
-                    <Pressable
-                      className="bg-indigo-100 px-3 py-1.5 rounded-md"
-                      onPress={handlePasteLink}
-                    >
-                      <Text className="text-sm font-medium text-indigo-600">
-                        Paste link
-                      </Text>
-                    </Pressable>
-                  </View>
+                    placeholder="Paste your meeting link"
+                    placeholderTextColor="#9CA3AF"
+                    value={meetingLink}
+                    onChangeText={(text) => {
+                      setMeetingLink(text);
+                      // Clear error when user starts typing
+                      if (errors.meetingLink) {
+                        setErrors((prev) => ({
+                          ...prev,
+                          meetingLink: undefined,
+                        }));
+                      }
+                    }}
+                    keyboardType="url"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="next"
+                    onSubmitEditing={handleLinkSubmit}
+                  />
                   {errors.meetingLink && (
                     <Text className="text-red-500 text-xs mt-1 ml-1">
                       {errors.meetingLink}

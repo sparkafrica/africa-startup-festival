@@ -24,7 +24,7 @@ export async function exampleRequestVerificationCode(email: string) {
       { email }
     );
 
-    if (response.success) {
+    if (response.status === "success") {
       console.log("Verification code sent!");
       return response.data;
     }
@@ -41,12 +41,17 @@ export async function exampleVerifyCode(email: string, code: string) {
       code,
     });
 
-    if (response.success && response.data) {
+    if (response.status === "success" && response.data) {
       // Store tokens
-      await api.setTokens(response.data.tokens);
+      // TODO: Update based on actual backend response structure
+      const tokens = response.data as any; // Adjust based on actual response
+      await api.setTokens({
+        accessToken: tokens.token || tokens.accessToken,
+        expiresIn: tokens.expiresIn || 3600,
+      });
 
       // Return user data
-      return response.data.user;
+      return response.data; // Adjust based on actual response structure
     }
   } catch (error) {
     handleApiError(error);
@@ -62,7 +67,7 @@ export async function exampleGetUserProfile() {
   try {
     const response = await api.get("/user/profile");
 
-    if (response.success && response.data) {
+    if (response.status === "success" && response.data) {
       return response.data;
     }
   } catch (error) {
@@ -84,7 +89,7 @@ export async function exampleRequestMeeting(
       meetingData
     );
 
-    if (response.success) {
+    if (response.status === "success") {
       console.log("Meeting requested successfully!");
       return response.data;
     }
@@ -115,8 +120,10 @@ export async function exampleUploadAvatar(imageUri: string) {
       }
     );
 
-    if (response.success && response.data) {
-      return response.data.avatarUrl;
+    if (response.status === "success" && response.data) {
+      // Extract avatar URL from response data
+      const data = response.data as any;
+      return data.avatarUrl || data.url || data.avatar;
     }
   } catch (error) {
     handleApiError(error);
@@ -142,7 +149,7 @@ export async function exampleGetMeetings(
       },
     });
 
-    if (response.success && response.data) {
+    if (response.status === "success" && response.data) {
       return response.data;
     }
   } catch (error) {

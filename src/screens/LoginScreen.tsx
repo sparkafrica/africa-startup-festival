@@ -212,6 +212,17 @@ export default function LoginScreen() {
               </Text>
             </Text>
           </Pressable>
+
+          {/* Temporary: API Test Screen Access - Remove before production */}
+          <Pressable
+            onPress={() => navigation.navigate("ApiTest")}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            className="mt-4"
+          >
+            <Text className="text-xs text-blue-600 underline">
+              🧪 API Test Screen (Development Only)
+            </Text>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

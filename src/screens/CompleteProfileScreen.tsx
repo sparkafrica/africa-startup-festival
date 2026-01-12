@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,10 @@ import {
   Modal,
   Alert,
   Switch,
+  ActivityIndicator,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -19,6 +22,10 @@ import type {
   RootStackScreenProps,
 } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
+import { ticketService } from "../services/ticketService";
+import { EVENT_ID } from "../config/env";
+import { authService } from "../services/authService";
+import { companyService } from "../services/companyService";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
 import Toast from "../components/Toast";
@@ -759,6 +766,9 @@ function AttendeeProfileForm() {
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
@@ -789,6 +799,83 @@ function AttendeeProfileForm() {
       if (selectedInterests.length < 5) {
         setSelectedInterests([...selectedInterests, interest]);
       }
+    }
+  };
+
+  // Image Picker Handlers
+  const handleTakePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request camera permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Camera permission is required to take photos."
+        );
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      showToast("Failed to take photo. Please try again.", "error");
+    }
+  };
+
+  const handleChoosePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request media library permissions
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Photo library permission is required to select photos."
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false);
+      }
+    } catch (error) {
+      console.error("Error choosing photo:", error);
+      showToast("Failed to select photo. Please try again.", "error");
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+      setSelectedImageUri(null);
+      setShouldRemovePhoto(true);
+    } catch (error) {
+      console.error("Error removing photo:", error);
+      showToast("Failed to remove photo. Please try again.", "error");
     }
   };
 
@@ -840,16 +927,48 @@ function AttendeeProfileForm() {
     try {
       setIsSubmitting(true);
 
-      // TODO: BACKEND INTEGRATION - Save profile data to backend API
-      // API Endpoint: POST /api/user/profile/complete
-      // Request Body: { fullName, email, phoneNumber, countryCode, country, industry, jobTitle, company, linkedIn, bio, website, interests, tags, ... }
-      // Response: { success: boolean, user: User, message?: string }
-      // TODO: BACKEND - Handle validation errors from backend
-      // TODO: BACKEND - Handle duplicate email/phone validation
-      // TODO: BACKEND - Upload profile image if provided (multipart form data)
-      // TODO: BACKEND - Call completeProfile() in AuthContext after successful API response
-      // await api.post('/profile/complete', { fullName, jobTitle, company, ... });
-      // await completeProfile(); // Only call after successful API response
+      // Split fullName into first_name and last_name
+      const nameParts = fullName.trim().split(/\s+/);
+      const first_name = nameParts[0] || "";
+      const last_name = nameParts.slice(1).join(" ") || "";
+
+      // Get selected industry label
+      const industryLabel =
+        INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label || "";
+
+      // Get selected country label
+      const countryLabel =
+        COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
+
+      // Build metadata object for fields that don't have direct backend fields
+      const metadata: any = {};
+      if (linkedIn.trim()) {
+        metadata.linkedIn = linkedIn.trim();
+      }
+      if (industryLabel) {
+        metadata.industry = industryLabel;
+      }
+      if (selectedInterests.length > 0) {
+        metadata.interests = selectedInterests;
+      }
+      // Note: company field is not sent to backend (company association is separate)
+
+      // Prepare API request payload
+      const profileData: any = {
+        first_name,
+        last_name,
+        job_title: jobTitle.trim(),
+        bio: bio.trim() || null,
+        country: countryLabel,
+      };
+
+      // Only include metadata if it has content
+      if (Object.keys(metadata).length > 0) {
+        profileData.metadata = metadata;
+      }
+
+      // Save profile data to backend API
+      await authService.updateProfile(profileData);
 
       // Show success toast
       showToast("Profile completed successfully!", "success");
@@ -858,10 +977,27 @@ function AttendeeProfileForm() {
       setTimeout(() => {
         navigation.navigate("ProfileCreated");
       }, 500);
-    } catch (error) {
-      // TODO: BACKEND - Handle specific error types (network, validation, server errors)
+    } catch (error: any) {
       console.error("Error completing profile:", error);
-      showToast("Failed to complete profile. Please try again.", "error");
+      
+      // Handle backend validation errors
+      if (error.responseCode === 400 && error.data) {
+        // Backend returned validation errors
+        const backendErrors: Record<string, string> = {};
+        Object.keys(error.data).forEach((field) => {
+          const fieldErrors = error.data[field];
+          if (Array.isArray(fieldErrors)) {
+            backendErrors[field] = fieldErrors[0];
+          } else if (typeof fieldErrors === "string") {
+            backendErrors[field] = fieldErrors;
+          }
+        });
+        setValidationErrors(backendErrors);
+        const firstError = Object.values(backendErrors)[0];
+        Alert.alert("Validation Error", firstError);
+      } else {
+        showToast(error.message || "Failed to complete profile. Please try again.", "error");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -900,7 +1036,14 @@ function AttendeeProfileForm() {
           {/* Profile Photo Upload Section */}
           <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
             <View className="relative mb-4">
-              <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center">
+              <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
+                {selectedImageUri ? (
+                  <Image
+                    source={{ uri: selectedImageUri }}
+                    className="w-full h-full"
+                    resizeMode="cover"
+                  />
+                ) : (
                 <Svg width={64} height={64} viewBox="0 0 24 24" fill="none">
                   <Circle
                     cx="12"
@@ -917,10 +1060,17 @@ function AttendeeProfileForm() {
                     strokeLinejoin="round"
                   />
                 </Svg>
+                )}
+                {isUploadingImage && (
+                  <View className="absolute inset-0 bg-black/50 items-center justify-center">
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  </View>
+                )}
               </View>
               <Pressable
                 className="absolute bottom-0 right-0 w-10 h-10 bg-black rounded-full items-center justify-center border-2 border-white"
                 onPress={() => setShowProfileModal(true)}
+                disabled={isUploadingImage}
               >
                 <CameraIcon size={20} color="#FFFFFF" />
               </Pressable>
@@ -1021,38 +1171,29 @@ function AttendeeProfileForm() {
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 LinkedIn <Text className="text-red-500">*</Text>
               </Text>
-              <View className="flex-row items-center gap-2">
-                <View className="flex-1">
-                  <TextInput
-                    className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
-                      validationErrors.linkedIn
-                        ? "border-red-500"
-                        : "border-neutral-300"
-                    }`}
-                    value={linkedIn}
-                    onChangeText={(text) => {
-                      setLinkedIn(text);
-                      if (validationErrors.linkedIn) {
-                        setValidationErrors({
-                          ...validationErrors,
-                          linkedIn: "",
-                        });
-                      }
-                    }}
-                    placeholder="LinkedIn profile URL or handle"
-                  />
-                  {validationErrors.linkedIn && (
-                    <Text className="text-red-500 text-xs mt-1">
-                      {validationErrors.linkedIn}
-                    </Text>
-                  )}
-                </View>
-                <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
-                  <Text className="text-sm font-medium text-black">
-                    Paste link
-                  </Text>
-                </Pressable>
-              </View>
+              <TextInput
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.linkedIn
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={linkedIn}
+                onChangeText={(text) => {
+                  setLinkedIn(text);
+                  if (validationErrors.linkedIn) {
+                    setValidationErrors({
+                      ...validationErrors,
+                      linkedIn: "",
+                    });
+                  }
+                }}
+                placeholder="LinkedIn profile URL or handle"
+              />
+              {validationErrors.linkedIn && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.linkedIn}
+                </Text>
+              )}
             </View>
 
             {/* Country */}
@@ -1217,14 +1358,8 @@ function AttendeeProfileForm() {
       <ProfilePictureModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
-        onTakePhoto={() => {
-          console.log("Take Photo");
-          setShowProfileModal(false);
-        }}
-        onChoosePhoto={() => {
-          console.log("Choose Photo");
-          setShowProfileModal(false);
-        }}
+        onTakePhoto={handleTakePhoto}
+        onChoosePhoto={handleChoosePhoto}
       />
       <IndustryDropdownModal
         visible={showIndustryModal}
@@ -1243,7 +1378,11 @@ function AttendeeProfileForm() {
 }
 
 // Personal Profile Form Component (Step 1 of 2 for Company/Partner accounts)
-function PersonalProfileForm() {
+function PersonalProfileForm({
+  onPersonalSaved,
+}: {
+  onPersonalSaved?: () => void;
+}) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
   const [fullName, setFullName] = useState("");
@@ -1257,6 +1396,9 @@ function PersonalProfileForm() {
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
@@ -1287,6 +1429,83 @@ function PersonalProfileForm() {
       if (selectedInterests.length < 5) {
         setSelectedInterests([...selectedInterests, interest]);
       }
+    }
+  };
+
+  // Image Picker Handlers
+  const handleTakePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request camera permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Camera permission is required to take photos."
+        );
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      showToast("Failed to take photo. Please try again.", "error");
+    }
+  };
+
+  const handleChoosePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request media library permissions
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Photo library permission is required to select photos."
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false);
+      }
+    } catch (error) {
+      console.error("Error choosing photo:", error);
+      showToast("Failed to select photo. Please try again.", "error");
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+      setSelectedImageUri(null);
+      setShouldRemovePhoto(true);
+    } catch (error) {
+      console.error("Error removing photo:", error);
+      showToast("Failed to remove photo. Please try again.", "error");
     }
   };
 
@@ -1338,19 +1557,105 @@ function PersonalProfileForm() {
     try {
       setIsSubmitting(true);
 
-      // TODO: Save personal profile data to backend API
-      // await api.post('/profile/personal', { fullName, jobTitle, company, ... });
+      // Handle profile picture upload
+      if (selectedImageUri) {
+        setIsUploadingImage(true);
+        try {
+          await authService.uploadProfilePicture(selectedImageUri);
+          setSelectedImageUri(null); // Clear selected image after successful upload
+          setShouldRemovePhoto(false);
+        } catch (imageError: any) {
+          console.error("Error uploading profile picture:", imageError);
+          showToast(
+            imageError.message || "Failed to upload profile picture.",
+            "error"
+          );
+          setIsUploadingImage(false);
+          setIsSubmitting(false);
+          return;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+
+      // Split fullName into first_name and last_name
+      const nameParts = fullName.trim().split(/\s+/);
+      const first_name = nameParts[0] || "";
+      const last_name = nameParts.slice(1).join(" ") || "";
+
+      // Get selected industry label
+      const industryLabel =
+        INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label || "";
+
+      // Get selected country label
+      const countryLabel =
+        COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
+
+      // Build metadata object for fields that don't have direct backend fields
+      const metadata: any = {};
+      if (linkedIn.trim()) {
+        metadata.linkedIn = linkedIn.trim();
+      }
+      if (industryLabel) {
+        metadata.industry = industryLabel;
+      }
+      if (selectedInterests.length > 0) {
+        metadata.interests = selectedInterests;
+      }
+
+      // Prepare API request payload
+      const profileData: any = {
+        first_name,
+        last_name,
+        job_title: jobTitle.trim(),
+        bio: bio.trim() || null,
+        country: countryLabel,
+      };
+
+      // Only include metadata if it has content
+      if (Object.keys(metadata).length > 0) {
+        profileData.metadata = metadata;
+      }
+
+      // Save personal profile data to backend API
+      await authService.updateProfile(profileData);
 
       // Show success toast
       showToast("Personal profile saved!", "success");
 
-      // Navigate to company profile (step 2)
+      // If onPersonalSaved callback is provided (segmented control mode), use it
+      // Otherwise, navigate to company profile (fallback for route-based navigation)
+      if (onPersonalSaved) {
+        setTimeout(() => {
+          onPersonalSaved();
+        }, 500);
+      } else {
+        // Fallback: Navigate to company profile (step 2) - for backward compatibility
       setTimeout(() => {
         navigation.navigate("CompleteProfile", { step: "company" });
       }, 500);
-    } catch (error) {
+      }
+    } catch (error: any) {
       console.error("Error saving personal profile:", error);
-      showToast("Failed to save profile. Please try again.", "error");
+      
+      // Handle backend validation errors
+      if (error.responseCode === 400 && error.data) {
+        // Backend returned validation errors
+        const backendErrors: Record<string, string> = {};
+        Object.keys(error.data).forEach((field) => {
+          const fieldErrors = error.data[field];
+          if (Array.isArray(fieldErrors)) {
+            backendErrors[field] = fieldErrors[0];
+          } else if (typeof fieldErrors === "string") {
+            backendErrors[field] = fieldErrors;
+          }
+        });
+        setValidationErrors(backendErrors);
+        const firstError = Object.values(backendErrors)[0];
+        Alert.alert("Validation Error", firstError);
+      } else {
+        showToast(error.message || "Failed to save profile. Please try again.", "error");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -1390,7 +1695,14 @@ function PersonalProfileForm() {
           {/* Profile Photo Upload Section */}
           <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
             <View className="relative mb-4">
-              <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center">
+              <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
+                {selectedImageUri ? (
+                  <Image
+                    source={{ uri: selectedImageUri }}
+                    className="w-full h-full"
+                    resizeMode="cover"
+                  />
+                ) : (
                 <Svg width={64} height={64} viewBox="0 0 24 24" fill="none">
                   <Circle
                     cx="12"
@@ -1407,10 +1719,17 @@ function PersonalProfileForm() {
                     strokeLinejoin="round"
                   />
                 </Svg>
+                )}
+                {isUploadingImage && (
+                  <View className="absolute inset-0 bg-black/50 items-center justify-center">
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  </View>
+                )}
               </View>
               <Pressable
                 className="absolute bottom-0 right-0 w-10 h-10 bg-black rounded-full items-center justify-center border-2 border-white"
                 onPress={() => setShowProfileModal(true)}
+                disabled={isUploadingImage}
               >
                 <CameraIcon size={20} color="#FFFFFF" />
               </Pressable>
@@ -1511,38 +1830,29 @@ function PersonalProfileForm() {
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 LinkedIn <Text className="text-red-500">*</Text>
               </Text>
-              <View className="flex-row items-center gap-2">
-                <View className="flex-1">
-                  <TextInput
-                    className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
-                      validationErrors.linkedIn
-                        ? "border-red-500"
-                        : "border-neutral-300"
-                    }`}
-                    value={linkedIn}
-                    onChangeText={(text) => {
-                      setLinkedIn(text);
-                      if (validationErrors.linkedIn) {
-                        setValidationErrors({
-                          ...validationErrors,
-                          linkedIn: "",
-                        });
-                      }
-                    }}
-                    placeholder="LinkedIn profile URL or handle"
-                  />
-                  {validationErrors.linkedIn && (
-                    <Text className="text-red-500 text-xs mt-1">
-                      {validationErrors.linkedIn}
-                    </Text>
-                  )}
-                </View>
-                <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
-                  <Text className="text-sm font-medium text-black">
-                    Paste link
-                  </Text>
-                </Pressable>
-              </View>
+              <TextInput
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.linkedIn
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={linkedIn}
+                onChangeText={(text) => {
+                  setLinkedIn(text);
+                  if (validationErrors.linkedIn) {
+                    setValidationErrors({
+                      ...validationErrors,
+                      linkedIn: "",
+                    });
+                  }
+                }}
+                placeholder="LinkedIn profile URL or handle"
+              />
+              {validationErrors.linkedIn && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.linkedIn}
+                </Text>
+              )}
             </View>
 
             {/* Country */}
@@ -1703,14 +2013,8 @@ function PersonalProfileForm() {
       <ProfilePictureModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
-        onTakePhoto={() => {
-          console.log("Take Photo");
-          setShowProfileModal(false);
-        }}
-        onChoosePhoto={() => {
-          console.log("Choose Photo");
-          setShowProfileModal(false);
-        }}
+        onTakePhoto={handleTakePhoto}
+        onChoosePhoto={handleChoosePhoto}
       />
       <IndustryDropdownModal
         visible={showIndustryModal}
@@ -1762,6 +2066,9 @@ function CompanyProfileForm() {
     Array<{ id: string; role: string; link: string }>
   >([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
@@ -1836,6 +2143,83 @@ function CompanyProfileForm() {
 
   const handleRemovePosition = (id: string) => {
     setPositions(positions.filter((pos) => pos.id !== id));
+  };
+
+  // Image Picker Handlers
+  const handleTakePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request camera permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Camera permission is required to take photos."
+        );
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      showToast("Failed to take photo. Please try again.", "error");
+    }
+  };
+
+  const handleChoosePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request media library permissions
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Photo library permission is required to select photos."
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false);
+      }
+    } catch (error) {
+      console.error("Error choosing photo:", error);
+      showToast("Failed to select photo. Please try again.", "error");
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+      setSelectedImageUri(null);
+      setShouldRemovePhoto(true);
+    } catch (error) {
+      console.error("Error removing photo:", error);
+      showToast("Failed to remove photo. Please try again.", "error");
+    }
   };
 
   const handleDone = async () => {
@@ -1948,8 +2332,83 @@ function CompanyProfileForm() {
     try {
       setIsSubmitting(true);
 
-      // TODO: Save company profile data to backend API
-      // await api.post('/company/profile/complete', { companyName, boothNumber, ... });
+      // Handle company logo upload (if company exists)
+      const userProfile = await authService.getCurrentUser();
+      
+      if (!userProfile.company || !userProfile.company.id) {
+        throw new Error("Company not found. Please contact support.");
+      }
+
+      const companyId = userProfile.company.id;
+
+      // Handle logo upload if image selected (mimic Personal tab pattern)
+      if (selectedImageUri) {
+        setIsUploadingImage(true);
+        try {
+          await companyService.uploadCompanyLogo(companyId, selectedImageUri);
+          setSelectedImageUri(null); // Clear selected image after successful upload
+          setShouldRemovePhoto(false);
+        } catch (imageError: any) {
+          console.error("Error uploading company logo:", imageError);
+          showToast(
+            imageError.message || "Failed to upload company logo.",
+            "error"
+          );
+          setIsUploadingImage(false);
+          setIsSubmitting(false);
+          return;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+
+      // Get selected industry label (company_sector)
+      const companySector =
+        INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label || "";
+
+      // Get selected country label
+      const countryLabel =
+        COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
+
+      // Build metadata object for fields that don't have direct backend fields
+      const metadata: any = {};
+      if (website.trim()) {
+        metadata.website = website.trim();
+      }
+      if (socialLinks.linkedin.trim() || socialLinks.facebook.trim() || socialLinks.instagram.trim() || socialLinks.x.trim()) {
+        const socialLinksObj: any = {};
+        if (socialLinks.linkedin.trim()) socialLinksObj.linkedin = socialLinks.linkedin.trim();
+        if (socialLinks.facebook.trim()) socialLinksObj.facebook = socialLinks.facebook.trim();
+        if (socialLinks.instagram.trim()) socialLinksObj.instagram = socialLinks.instagram.trim();
+        if (socialLinks.x.trim()) socialLinksObj.x = socialLinks.x.trim();
+        metadata.socialLinks = socialLinksObj;
+      }
+      if (offers.length > 0) {
+        metadata.offers = offers;
+      }
+      if (isRecruiting) {
+        metadata.isRecruiting = true;
+      }
+      if (positions.length > 0) {
+        metadata.positions = positions;
+      }
+      // Note: boothNumber is read-only (comes from booth endpoint), so we don't send it
+
+      // Prepare API request payload
+      const companyData: any = {
+        name: companyName.trim(),
+        company_sector: companySector,
+        country: countryLabel,
+        company_description: companyDescription.trim() || null,
+      };
+
+      // Only include metadata if it has content
+      if (Object.keys(metadata).length > 0) {
+        companyData.metadata = metadata;
+      }
+
+      // Update company profile via PATCH
+      await companyService.updateCompany(companyId, companyData);
 
       // Show success toast
       showToast("Company profile completed successfully!", "success");
@@ -1958,9 +2417,27 @@ function CompanyProfileForm() {
       setTimeout(() => {
         navigation.navigate("ProfileCreated");
       }, 500);
-    } catch (error) {
-      console.error("Error completing profile:", error);
-      showToast("Failed to complete profile. Please try again.", "error");
+    } catch (error: any) {
+      console.error("Error completing company profile:", error);
+      
+      // Handle backend validation errors
+      if (error.responseCode === 400 && error.data) {
+        // Backend returned validation errors
+        const backendErrors: Record<string, string> = {};
+        Object.keys(error.data).forEach((field) => {
+          const fieldErrors = error.data[field];
+          if (Array.isArray(fieldErrors)) {
+            backendErrors[field] = fieldErrors[0];
+          } else if (typeof fieldErrors === "string") {
+            backendErrors[field] = fieldErrors;
+          }
+        });
+        setValidationErrors(backendErrors);
+        const firstError = Object.values(backendErrors)[0];
+        Alert.alert("Validation Error", firstError);
+      } else {
+        showToast(error.message || "Failed to complete profile. Please try again.", "error");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -2000,7 +2477,14 @@ function CompanyProfileForm() {
           {/* Company Logo Upload Section */}
           <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
             <View className="relative mb-4">
-              <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center">
+              <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
+                {selectedImageUri ? (
+                  <Image
+                    source={{ uri: selectedImageUri }}
+                    className="w-full h-full"
+                    resizeMode="cover"
+                  />
+                ) : (
                 <Svg width={64} height={64} viewBox="0 0 24 24" fill="none">
                   <Circle
                     cx="12"
@@ -2017,10 +2501,17 @@ function CompanyProfileForm() {
                     strokeLinejoin="round"
                   />
                 </Svg>
+                )}
+                {isUploadingImage && (
+                  <View className="absolute inset-0 bg-black/50 items-center justify-center">
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  </View>
+                )}
               </View>
               <Pressable
                 className="absolute bottom-0 right-0 w-10 h-10 bg-black rounded-full items-center justify-center border-2 border-white"
                 onPress={() => setShowProfileModal(true)}
+                disabled={isUploadingImage}
               >
                 <CameraIcon size={20} color="#FFFFFF" />
               </Pressable>
@@ -2100,38 +2591,29 @@ function CompanyProfileForm() {
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Website <Text className="text-red-500">*</Text>
               </Text>
-              <View className="flex-row items-center gap-2">
-                <View className="flex-1">
-                  <TextInput
-                    className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
-                      validationErrors.website
-                        ? "border-red-500"
-                        : "border-neutral-300"
-                    }`}
-                    value={website}
-                    onChangeText={(text) => {
-                      setWebsite(text);
-                      if (validationErrors.website) {
-                        setValidationErrors({
-                          ...validationErrors,
-                          website: "",
-                        });
-                      }
-                    }}
-                    placeholder="Enter website URL"
-                  />
-                  {validationErrors.website && (
-                    <Text className="text-red-500 text-xs mt-1">
-                      {validationErrors.website}
-                    </Text>
-                  )}
-                </View>
-                <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
-                  <Text className="text-sm font-medium text-black">
-                    Paste link
-                  </Text>
-                </Pressable>
-              </View>
+              <TextInput
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
+                  validationErrors.website
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={website}
+                onChangeText={(text) => {
+                  setWebsite(text);
+                  if (validationErrors.website) {
+                    setValidationErrors({
+                      ...validationErrors,
+                      website: "",
+                    });
+                  }
+                }}
+                placeholder="Enter website URL"
+              />
+              {validationErrors.website && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.website}
+                </Text>
+              )}
             </View>
 
             {/* Industry/Sector */}
@@ -2506,19 +2988,12 @@ function CompanyProfileForm() {
                       onChangeText={setNewPositionRole}
                       placeholder="Job Role"
                     />
-                    <View className="flex-row items-center gap-2">
-                      <TextInput
-                        className="flex-1 bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
-                        value={newPositionLink}
-                        onChangeText={setNewPositionLink}
-                        placeholder="Job Link"
-                      />
-                      <Pressable className="bg-neutral-200 border border-neutral-300 rounded-xl px-4 py-3">
-                        <Text className="text-sm font-medium text-black">
-                          Paste link
-                        </Text>
-                      </Pressable>
-                    </View>
+                    <TextInput
+                      className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                      value={newPositionLink}
+                      onChangeText={setNewPositionLink}
+                      placeholder="Job Link"
+                    />
                     <View className="flex-row gap-2">
                       <Pressable
                         onPress={handleAddPosition}
@@ -2604,14 +3079,8 @@ function CompanyProfileForm() {
       <ProfilePictureModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
-        onTakePhoto={() => {
-          console.log("Take Photo");
-          setShowProfileModal(false);
-        }}
-        onChoosePhoto={() => {
-          console.log("Choose Photo");
-          setShowProfileModal(false);
-        }}
+        onTakePhoto={handleTakePhoto}
+        onChoosePhoto={handleChoosePhoto}
       />
       <IndustryDropdownModal
         visible={showIndustryModal}
@@ -2637,42 +3106,207 @@ function CompanyProfileForm() {
 
 type Props = RootStackScreenProps<"CompleteProfile">;
 
+// Segmented Control Component for Personal | Company tabs
+function SegmentedControl({
+  activeTab,
+  onTabChange,
+  isCompanyDisabled,
+}: {
+  activeTab: "personal" | "company";
+  onTabChange: (tab: "personal" | "company") => void;
+  isCompanyDisabled?: boolean;
+}) {
+  return (
+    <View className="px-6 pb-4 pt-4">
+      <View className="flex-row bg-neutral-100 rounded-2xl p-1">
+        <Pressable
+          onPress={() => onTabChange("personal")}
+          className={`flex-1 py-3 px-4 ${
+            activeTab === "personal" ? "bg-white rounded-xl" : "bg-transparent"
+          }`}
+          style={
+            activeTab === "personal"
+              ? {
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 2,
+                  elevation: 1,
+                }
+              : undefined
+          }
+        >
+          <Text
+            className={`text-sm font-medium text-center ${
+              activeTab === "personal" ? "text-black" : "text-neutral-500"
+            }`}
+          >
+            Personal
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => !isCompanyDisabled && onTabChange("company")}
+          disabled={isCompanyDisabled}
+          className={`flex-1 py-3 px-4 ${
+            activeTab === "company" ? "bg-white rounded-xl" : "bg-transparent"
+          }`}
+          style={[
+            activeTab === "company"
+              ? {
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 2,
+                  elevation: 1,
+                }
+              : undefined,
+            isCompanyDisabled && { opacity: 0.5 },
+          ]}
+        >
+          <Text
+            className={`text-sm font-medium text-center ${
+              activeTab === "company"
+                ? "text-black"
+                : isCompanyDisabled
+                ? "text-neutral-400"
+                : "text-neutral-500"
+            }`}
+          >
+            Company
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export default function CompleteProfileScreen({ route }: Props) {
   const { user } = useAuth();
+  const [hasCompanyTicket, setHasCompanyTicket] = useState<boolean | null>(null);
+  const [isCheckingTickets, setIsCheckingTickets] = useState(true);
+  const [activeTab, setActiveTab] = useState<"personal" | "company">("personal");
+  const [isPersonalComplete, setIsPersonalComplete] = useState(false);
 
-  // TODO: BACKEND INTEGRATION - Determine user type from backend/context based on email
-  // API Endpoint: GET /api/user/type or check user object from AuthContext
-  // Response: { userType: "attendee" | "company" }
-  // TODO: BACKEND - Fetch user type on component mount
-  // TODO: BACKEND - Handle loading and error states
-  // For now, checking route params for step, or defaulting based on email domain
-  // In production, this should come from backend API based on user's email
-  const getUserType = (): "attendee" | "company" => {
-    // If route has step param, use it (for company flow)
-    if (route.params?.step === "company") {
-      return "company";
-    }
+  // Check if user has ticket types that require company profile (exhibitor, partner)
+  useEffect(() => {
+    const checkTicketTypes = async () => {
+      try {
+        setIsCheckingTickets(true);
+        
+        // Try quotas first
+        let quotas = await ticketService.getUserQuotas(EVENT_ID);
+        
+        // DEBUG: Log the actual response
+        console.log("🔍 CompleteProfileScreen - Quotas response:", JSON.stringify(quotas, null, 2));
+        console.log("🔍 CompleteProfileScreen - Quotas array length:", quotas.length);
+        
+        // Ticket types that require company profile
+        const companyTicketTypes = ["exhibitor", "partner"];
+        
+        // If quotas is empty, try allocations as fallback
+        if (quotas.length === 0) {
+          console.log("🔍 CompleteProfileScreen - No quotas found, trying allocations as fallback...");
+          try {
+            const allocations = await ticketService.getUserAllocations(EVENT_ID);
+            console.log("🔍 CompleteProfileScreen - Allocations response:", JSON.stringify(allocations, null, 2));
+            
+            // Check allocations for ticket types (allocations have ticket_class_name)
+            // Note: Allocations don't have ticket_class.type, only ticket_class_name
+            // We'll need to check the ticket_class_name for patterns like "exhibitor" or "partner"
+            const hasCompanyFromAllocations = allocations.some((allocation) => {
+              const className = allocation.ticket_class_name?.toLowerCase() || "";
+              const matches = companyTicketTypes.some(type => className.includes(type));
+              console.log(`🔍 CompleteProfileScreen - Checking allocation "${allocation.ticket_class_name}": ${matches}`);
+              return matches;
+            });
+            
+            if (hasCompanyFromAllocations) {
+              console.log("🔍 CompleteProfileScreen - Found company type from allocations");
+              setHasCompanyTicket(true);
+              return;
+            }
+          } catch (allocError) {
+            console.error("Error checking allocations:", allocError);
+          }
+        }
+        
+        // Check if user has any ticket with company-requiring type from quotas
+        quotas.forEach((quota, index) => {
+          console.log(`🔍 CompleteProfileScreen - Quota ${index}:`, {
+            id: quota.id,
+            ticket_class_type: quota.ticket_class?.type,
+            ticket_class_user_type: quota.ticket_class?.user_type,
+            ticket_class_name: quota.ticket_class?.name,
+            quota: quota.quota,
+          });
+        });
+        
+        const hasCompanyType = quotas.some(
+          (quota) => {
+            // Check both type and user_type fields (backend uses user_type)
+            const type = quota.ticket_class?.type || quota.ticket_class?.user_type;
+            const matches = type && companyTicketTypes.includes(type.toLowerCase());
+            console.log(`🔍 CompleteProfileScreen - Checking quota type "${type}": ${matches}`);
+            return matches;
+          }
+        );
+        
+        console.log("🔍 CompleteProfileScreen - hasCompanyType result:", hasCompanyType);
+        setHasCompanyTicket(hasCompanyType);
+      } catch (error) {
+        console.error("Error checking ticket types:", error);
+        // On error, default to attendee (no company)
+        setHasCompanyTicket(false);
+      } finally {
+        setIsCheckingTickets(false);
+      }
+    };
 
-    // TODO: BACKEND - Check user email against backend to determine if attendee or company
-    // TODO: BACKEND - Call API: await api.get('/user/type') or check user.type from AuthContext
-    // For now, defaulting to "attendee" - update this logic based on your backend
-    // Example: if (user?.email?.endsWith("@company.com")) return "company";
+    checkTicketTypes();
+  }, []);
 
-    return "attendee";
-    // return "company";
+  // Show loading state while checking ticket types
+  if (isCheckingTickets) {
+  return (
+    <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#1BB273" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Determine which profile form to show based on ticket type
+  // If user has exhibitor/partner tickets → Show segmented control (Personal | Company)
+  // If user has attendee/basic tickets → Show Attendee profile only
+  const showCompanyProfile = hasCompanyTicket === true;
+
+  // Handle Personal profile completion
+  const handlePersonalSaved = () => {
+    setIsPersonalComplete(true);
+    // Switch to Company tab after Personal is saved
+    setActiveTab("company");
   };
-
-  const userType = getUserType();
-  const currentStep = route.params?.step;
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-      {userType === "attendee" ? (
-        <AttendeeProfileForm />
-      ) : currentStep === "company" ? (
+      {showCompanyProfile ? (
+        // Company users: Show segmented control (Personal | Company tabs)
+        <>
+          <SegmentedControl
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            isCompanyDisabled={!isPersonalComplete}
+          />
+          {activeTab === "personal" ? (
+            <PersonalProfileForm onPersonalSaved={handlePersonalSaved} />
+          ) : (
         <CompanyProfileForm />
+          )}
+        </>
       ) : (
-        <PersonalProfileForm />
+        // Attendee users: Show attendee profile only (no tabs)
+        <AttendeeProfileForm />
       )}
     </SafeAreaView>
   );

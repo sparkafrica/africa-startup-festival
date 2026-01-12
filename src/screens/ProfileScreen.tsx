@@ -9,12 +9,17 @@ import {
   Platform,
   Modal,
   Alert,
+  Image,
+  ActivityIndicator,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
+import { authService } from "../services/authService";
+import { companyService } from "../services/companyService";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
 import Toast from "../components/Toast";
@@ -671,13 +676,24 @@ function CountryDropdownModal({
 function Header() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
+  const handleClose = () => {
+    // Check if we can go back before attempting navigation
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      // If we can't go back (e.g., after profile update changes navigation state),
+      // navigate to Home screen instead
+      navigation.navigate("Home");
+    }
+  };
+
   return (
     <View className="flex-row items-center justify-between px-6 pt-4 pb-4">
       <Text className="text-[28px] font-inter-semibold text-black">
         Manage Profile
       </Text>
       <Pressable
-        onPress={() => navigation.goBack()}
+        onPress={handleClose}
         className="w-10 h-10 items-center justify-center"
         hitSlop={10}
       >
@@ -759,7 +775,9 @@ function PersonalProfileSection({
   onSave?: () => void;
   saveTrigger?: number;
 }) {
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
+  const { user } = useAuth();
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
@@ -771,9 +789,92 @@ function PersonalProfileSection({
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
+
+  // Get current profile picture from user
+  const currentProfilePic = user?.profile_pic || null;
+  // Show selected image if available, otherwise show current or null
+  const displayImageUri = shouldRemovePhoto
+    ? null
+    : selectedImageUri || currentProfilePic;
+
+  const dataLoadedRef = React.useRef(false);
+
+  // Load user data into form fields (only on initial mount to prevent overwriting user edits)
+  React.useEffect(() => {
+    if (user && !dataLoadedRef.current) {
+      // Set full name
+      if (user.first_name || user.last_name) {
+        setFullName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
+      }
+
+      // Set job title
+      if (user.job_title) {
+        setJobTitle(user.job_title);
+      }
+
+      // Set bio
+      if (user.bio) {
+        setBio(user.bio);
+      }
+
+      // Set country - find matching ID from label
+      if (user.country) {
+        const countryOption = COUNTRY_OPTIONS.find(
+          (opt) => opt.label.toLowerCase() === user.country?.toLowerCase()
+        );
+        if (countryOption) {
+          setSelectedCountry(countryOption.id);
+        }
+      }
+
+      // Parse metadata (might be string or object)
+      let metadata = user.metadata;
+      if (typeof metadata === "string") {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          console.error("Error parsing metadata:", e);
+          metadata = {};
+        }
+      }
+
+      // Set LinkedIn from metadata
+      if (metadata?.linkedIn) {
+        setLinkedIn(metadata.linkedIn);
+      }
+
+      // Set industry from metadata - find matching ID from label
+      if (metadata?.industry) {
+        const industryOption = INDUSTRY_OPTIONS.find(
+          (opt) => opt.label.toLowerCase() === metadata.industry.toLowerCase()
+        );
+        if (industryOption) {
+          setSelectedIndustry(industryOption.id);
+        }
+      }
+
+      // Set interests from metadata
+      if (metadata?.interests && Array.isArray(metadata.interests)) {
+        setSelectedInterests(metadata.interests);
+      }
+
+      // Set company name from user.company
+      if (user?.company?.name) {
+        setCompany(user.company.name);
+      }
+
+      // Clear validation errors when data loads
+      setValidationErrors({});
+
+      dataLoadedRef.current = true;
+    }
+  }, [user]);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -800,6 +901,84 @@ function PersonalProfileSection({
       if (selectedInterests.length < 5) {
         setSelectedInterests([...selectedInterests, interest]);
       }
+    }
+  };
+
+  // Image Picker Handlers
+  const handleTakePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request camera permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Camera permission is required to take photos."
+        );
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false); // Clear removal flag if user selects new image
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      showToast("Failed to take photo. Please try again.", "error");
+    }
+  };
+
+  const handleChoosePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request media library permissions
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Photo library permission is required to select photos."
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false); // Clear removal flag if user selects new image
+      }
+    } catch (error) {
+      console.error("Error choosing photo:", error);
+      showToast("Failed to select photo. Please try again.", "error");
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+      setSelectedImageUri(null);
+      setShouldRemovePhoto(true);
+      // Note: Actual removal happens on save
+    } catch (error) {
+      console.error("Error removing photo:", error);
+      showToast("Failed to remove photo. Please try again.", "error");
     }
   };
 
@@ -856,20 +1035,118 @@ function PersonalProfileSection({
     }
 
     try {
-      // TODO: BACKEND - Call API: await api.put('/user/profile/personal', { fullName, jobTitle, company, linkedIn, bio, interests, tags })
-      // TODO: BACKEND - Handle API response and errors
+      // Handle profile picture upload or removal
+      if (shouldRemovePhoto) {
+        // Remove profile picture
+        setIsUploadingImage(true);
+        try {
+          await authService.removeProfilePicture();
+          setShouldRemovePhoto(false);
+        } catch (imageError: any) {
+          console.error("Error removing profile picture:", imageError);
+          showToast(
+            imageError.message || "Failed to remove profile picture.",
+            "error"
+          );
+          setIsUploadingImage(false);
+          return false;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      } else if (selectedImageUri) {
+        // Upload new profile picture
+        setIsUploadingImage(true);
+        try {
+          await authService.uploadProfilePicture(selectedImageUri);
+          setSelectedImageUri(null); // Clear selected image after successful upload
+          setShouldRemovePhoto(false); // Clear removal flag if it was set
+        } catch (imageError: any) {
+          console.error("Error uploading profile picture:", imageError);
+          showToast(
+            imageError.message || "Failed to upload profile picture.",
+            "error"
+          );
+          setIsUploadingImage(false);
+          return false;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+
+      // Split fullName into first_name and last_name
+      const nameParts = fullName.trim().split(/\s+/);
+      const first_name = nameParts[0] || "";
+      const last_name = nameParts.slice(1).join(" ") || "";
+
+      // Get selected industry label
+      const industryLabel =
+        INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
+        "";
+
+      // Get selected country label
+      const countryLabel =
+        COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
+
+      // Build metadata object for fields that don't have direct backend fields
+      const metadata: any = {};
+      if (industryLabel) {
+        metadata.industry = industryLabel;
+      }
+      if (selectedInterests.length > 0) {
+        metadata.interests = selectedInterests;
+      }
+      if (linkedIn.trim()) {
+        metadata.linkedIn = linkedIn.trim();
+      }
+
+      // Prepare API request payload
+      const profileData: any = {
+        first_name,
+        last_name,
+        job_title: jobTitle.trim(),
+        bio: bio.trim() || null,
+        country: countryLabel,
+      };
+
+      // Only include metadata if it has content
+      if (Object.keys(metadata).length > 0) {
+        profileData.metadata = metadata;
+      }
+
+      // Save profile data to backend API
+      await authService.updateProfile(profileData);
+
       // Show success toast
       showToast("Profile saved successfully!", "success");
 
-      // Call onSave callback if provided
+      // Call onSave callback if provided (this refreshes user data)
       if (onSave) {
-        onSave();
+        await onSave();
       }
       return true;
-    } catch (error) {
-      // TODO: BACKEND - Handle API errors
+    } catch (error: any) {
       console.error("Error saving profile:", error);
-      showToast("Failed to save profile. Please try again.", "error");
+
+      // Handle backend validation errors
+      if (error.responseCode === 400 && error.data) {
+        const backendErrors: Record<string, string> = {};
+        Object.keys(error.data).forEach((field) => {
+          const fieldErrors = error.data[field];
+          if (Array.isArray(fieldErrors)) {
+            backendErrors[field] = fieldErrors[0];
+          } else if (typeof fieldErrors === "string") {
+            backendErrors[field] = fieldErrors;
+          }
+        });
+        setValidationErrors(backendErrors);
+        const firstError = Object.values(backendErrors)[0];
+        Alert.alert("Validation Error", firstError);
+      } else {
+        showToast(
+          error.message || "Failed to save profile. Please try again.",
+          "error"
+        );
+      }
       return false;
     }
   };
@@ -905,37 +1182,53 @@ function PersonalProfileSection({
           <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-2">
             <View className="flex-row items-center mb-4">
               <View className="relative">
-                <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center">
-                  <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
-                    <Circle
-                      cx="12"
-                      cy="8"
-                      r="4"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
+                <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
+                  {displayImageUri ? (
+                    <Image
+                      source={{ uri: displayImageUri }}
+                      className="w-full h-full"
+                      resizeMode="cover"
                     />
-                    <Path
-                      d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </Svg>
+                  ) : (
+                    <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
+                      <Circle
+                        cx="12"
+                        cy="8"
+                        r="4"
+                        stroke="#9CA3AF"
+                        strokeWidth={1.5}
+                      />
+                      <Path
+                        d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
+                        stroke="#9CA3AF"
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </Svg>
+                  )}
+                  {isUploadingImage && (
+                    <View className="absolute inset-0 bg-black/50 items-center justify-center">
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    </View>
+                  )}
                 </View>
                 <Pressable
                   className="absolute bottom-0 right-0 w-6 h-6 bg-black rounded-full items-center justify-center border-2 border-white"
                   onPress={() => setShowProfileModal(true)}
+                  disabled={isUploadingImage}
                 >
                   <CameraIcon size={12} color="#FFFFFF" />
                 </Pressable>
               </View>
               <View className="ml-4 flex-1">
                 <Text className="text-[18px] font-bold text-black">
-                  John Doe
+                  {user?.first_name && user?.last_name
+                    ? `${user.first_name} ${user.last_name}`.trim()
+                    : user?.first_name || user?.email?.split("@")[0] || "User"}
                 </Text>
                 <Text className="text-sm text-neutral-600 mt-1">
-                  John.doe@email.com
+                  {user?.email || ""}
                 </Text>
               </View>
             </View>
@@ -951,7 +1244,14 @@ function PersonalProfileSection({
             >
               <Text className="text-sm text-neutral-700">
                 Email cannot be changed as it's linked to your ticket.{" "}
-                <Text className="underline">Contact support</Text> if needed.
+                <Text
+                  className="underline"
+                  onPress={() => navigation.navigate("Contact")}
+                  style={{ textDecorationLine: "underline" }}
+                >
+                  Contact support
+                </Text>{" "}
+                if needed.
               </Text>
             </View>
           </View>
@@ -1030,38 +1330,29 @@ function PersonalProfileSection({
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 LinkedIn <Text className="text-red-500">*</Text>
               </Text>
-              <View className="flex-row items-center gap-2">
-                <View className="flex-1">
-                  <TextInput
-                    className={`flex-1 bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                      validationErrors.linkedIn
-                        ? "border-red-500"
-                        : "border-neutral-300"
-                    }`}
-                    value={linkedIn}
-                    onChangeText={(text) => {
-                      setLinkedIn(text);
-                      if (validationErrors.linkedIn) {
-                        setValidationErrors({
-                          ...validationErrors,
-                          linkedIn: "",
-                        });
-                      }
-                    }}
-                    placeholder="LinkedIn profile URL or handle"
-                  />
-                  {validationErrors.linkedIn && (
-                    <Text className="text-red-500 text-xs mt-1">
-                      {validationErrors.linkedIn}
-                    </Text>
-                  )}
-                </View>
-                <Pressable className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
-                  <Text className="text-sm font-medium text-black">
-                    Paste link
-                  </Text>
-                </Pressable>
-              </View>
+              <TextInput
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.linkedIn
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={linkedIn}
+                onChangeText={(text) => {
+                  setLinkedIn(text);
+                  if (validationErrors.linkedIn) {
+                    setValidationErrors({
+                      ...validationErrors,
+                      linkedIn: "",
+                    });
+                  }
+                }}
+                placeholder="LinkedIn profile URL or handle"
+              />
+              {validationErrors.linkedIn && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.linkedIn}
+                </Text>
+              )}
             </View>
 
             {/* Country */}
@@ -1199,18 +1490,9 @@ function PersonalProfileSection({
       <ProfilePictureModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
-        onTakePhoto={() => {
-          console.log("Take Photo");
-          setShowProfileModal(false);
-        }}
-        onChoosePhoto={() => {
-          console.log("Choose Photo");
-          setShowProfileModal(false);
-        }}
-        onRemovePhoto={() => {
-          console.log("Remove Photo");
-          setShowProfileModal(false);
-        }}
+        onTakePhoto={handleTakePhoto}
+        onChoosePhoto={handleChoosePhoto}
+        onRemovePhoto={handleRemovePhoto}
       />
       <IndustryDropdownModal
         visible={showIndustryModal}
@@ -1231,14 +1513,19 @@ function PersonalProfileSection({
 function AttendeeProfileSection({
   onSave,
   saveTrigger,
+  isSubmitting,
+  setIsSubmitting,
 }: {
   onSave?: () => void;
   saveTrigger?: number;
+  isSubmitting?: boolean;
+  setIsSubmitting?: (value: boolean) => void;
 }) {
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
+  const { user } = useAuth();
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
-  const [company, setCompany] = useState("");
   const [bio, setBio] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
   const [showIndustryModal, setShowIndustryModal] = useState(false);
@@ -1246,9 +1533,74 @@ function AttendeeProfileSection({
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
+
+  // Get current profile picture from user
+  const currentProfilePic = user?.profile_pic || null;
+  const displayImageUri = shouldRemovePhoto
+    ? null
+    : selectedImageUri || currentProfilePic;
+
+  // Load user data into form fields
+  React.useEffect(() => {
+    if (user) {
+      // Set full name
+      if (user.first_name || user.last_name) {
+        setFullName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
+      }
+
+      // Set job title
+      if (user.job_title) {
+        setJobTitle(user.job_title);
+      }
+
+      // Set bio
+      if (user.bio) {
+        setBio(user.bio);
+      }
+
+      // Set country - find matching ID from label
+      if (user.country) {
+        const countryOption = COUNTRY_OPTIONS.find(
+          (opt) => opt.label.toLowerCase() === user.country?.toLowerCase()
+        );
+        if (countryOption) {
+          setSelectedCountry(countryOption.id);
+        }
+      }
+
+      // Parse metadata (might be string or object)
+      let metadata = user.metadata;
+      if (typeof metadata === "string") {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          console.error("Error parsing metadata:", e);
+          metadata = {};
+        }
+      }
+
+      // Set industry from metadata - find matching ID from label
+      if (metadata?.industry) {
+        const industryOption = INDUSTRY_OPTIONS.find(
+          (opt) => opt.label.toLowerCase() === metadata.industry.toLowerCase()
+        );
+        if (industryOption) {
+          setSelectedIndustry(industryOption.id);
+        }
+      }
+
+      // Set interests from metadata
+      if (metadata?.interests && Array.isArray(metadata.interests)) {
+        setSelectedInterests(metadata.interests);
+      }
+    }
+  }, [user]);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -1278,6 +1630,83 @@ function AttendeeProfileSection({
     }
   };
 
+  // Image Picker Handlers
+  const handleTakePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request camera permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Camera permission is required to take photos."
+        );
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      showToast("Failed to take photo. Please try again.", "error");
+    }
+  };
+
+  const handleChoosePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request media library permissions
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Photo library permission is required to select photos."
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false);
+      }
+    } catch (error) {
+      console.error("Error choosing photo:", error);
+      showToast("Failed to select photo. Please try again.", "error");
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+      setSelectedImageUri(null);
+      setShouldRemovePhoto(true);
+    } catch (error) {
+      console.error("Error removing photo:", error);
+      showToast("Failed to remove photo. Please try again.", "error");
+    }
+  };
+
   // TODO: BACKEND INTEGRATION - Save attendee profile data to backend API
   // API Endpoint: PUT /api/user/profile/attendee
   // Request Body: { interests: string[], tags: string[] }
@@ -1302,11 +1731,6 @@ function AttendeeProfileSection({
       errors.jobTitle = jobTitleValidation.error || "";
     }
 
-    const companyValidation = validateCompany(company);
-    if (!companyValidation.valid) {
-      errors.company = companyValidation.error || "";
-    }
-
     const bioValidation = validateBio(bio);
     if (!bioValidation.valid) {
       errors.bio = bioValidation.error || "";
@@ -1326,20 +1750,121 @@ function AttendeeProfileSection({
     }
 
     try {
-      // TODO: BACKEND - Call API: await api.put('/user/profile/attendee', { interests: selectedInterests, tags })
-      // TODO: BACKEND - Handle API response and errors
+      if (setIsSubmitting) setIsSubmitting(true);
+      // Handle profile picture upload or removal
+      if (shouldRemovePhoto) {
+        // Remove profile picture
+        setIsUploadingImage(true);
+        try {
+          await authService.removeProfilePicture();
+          setShouldRemovePhoto(false);
+        } catch (imageError: any) {
+          console.error("Error removing profile picture:", imageError);
+          showToast(
+            imageError.message || "Failed to remove profile picture.",
+            "error"
+          );
+          setIsUploadingImage(false);
+          if (setIsSubmitting) setIsSubmitting(false);
+          return false;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      } else if (selectedImageUri) {
+        // Upload new profile picture
+        setIsUploadingImage(true);
+        try {
+          await authService.uploadProfilePicture(selectedImageUri);
+          setSelectedImageUri(null);
+          setShouldRemovePhoto(false);
+        } catch (imageError: any) {
+          console.error("Error uploading profile picture:", imageError);
+          showToast(
+            imageError.message || "Failed to upload profile picture.",
+            "error"
+          );
+          setIsUploadingImage(false);
+          if (setIsSubmitting) setIsSubmitting(false);
+          return false;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+
+      // Split fullName into first_name and last_name
+      const nameParts = fullName.trim().split(/\s+/);
+      const first_name = nameParts[0] || "";
+      const last_name = nameParts.slice(1).join(" ") || "";
+
+      // Get selected industry label
+      const industryLabel =
+        INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
+        "";
+
+      // Get selected country label
+      const countryLabel =
+        COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
+
+      // Build metadata object for fields that don't have direct backend fields
+      const metadata: any = {};
+      if (industryLabel) {
+        metadata.industry = industryLabel;
+      }
+      if (selectedInterests.length > 0) {
+        metadata.interests = selectedInterests;
+      }
+
+      // Prepare API request payload
+      const profileData: any = {
+        first_name,
+        last_name,
+        job_title: jobTitle.trim(),
+        bio: bio.trim() || null,
+        country: countryLabel,
+      };
+
+      // Only include metadata if it has content
+      if (Object.keys(metadata).length > 0) {
+        profileData.metadata = metadata;
+      }
+
+      // Save profile data to backend API
+      await authService.updateProfile(profileData);
+
       // Show success toast
       showToast("Profile saved successfully!", "success");
 
       // Call onSave callback if provided
       if (onSave) {
-        onSave();
+        await onSave();
       }
+
+      if (setIsSubmitting) setIsSubmitting(false);
       return true;
-    } catch (error) {
-      // TODO: BACKEND - Handle API errors
+    } catch (error: any) {
       console.error("Error saving profile:", error);
-      showToast("Failed to save profile. Please try again.", "error");
+
+      // Handle backend validation errors
+      if (error.responseCode === 400 && error.data) {
+        const backendErrors: Record<string, string> = {};
+        Object.keys(error.data).forEach((field) => {
+          const fieldErrors = error.data[field];
+          if (Array.isArray(fieldErrors)) {
+            backendErrors[field] = fieldErrors[0];
+          } else if (typeof fieldErrors === "string") {
+            backendErrors[field] = fieldErrors;
+          }
+        });
+        setValidationErrors(backendErrors);
+        const firstError = Object.values(backendErrors)[0];
+        Alert.alert("Validation Error", firstError);
+      } else {
+        showToast(
+          error.message || "Failed to save profile. Please try again.",
+          "error"
+        );
+      }
+      if (setIsSubmitting) setIsSubmitting(false);
       return false;
     }
   };
@@ -1375,37 +1900,53 @@ function AttendeeProfileSection({
           <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-2">
             <View className="flex-row items-center mb-4">
               <View className="relative">
-                <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center">
-                  <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
-                    <Circle
-                      cx="12"
-                      cy="8"
-                      r="4"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
+                <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
+                  {displayImageUri ? (
+                    <Image
+                      source={{ uri: displayImageUri }}
+                      className="w-full h-full"
+                      resizeMode="cover"
                     />
-                    <Path
-                      d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </Svg>
+                  ) : (
+                    <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
+                      <Circle
+                        cx="12"
+                        cy="8"
+                        r="4"
+                        stroke="#9CA3AF"
+                        strokeWidth={1.5}
+                      />
+                      <Path
+                        d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
+                        stroke="#9CA3AF"
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </Svg>
+                  )}
+                  {isUploadingImage && (
+                    <View className="absolute inset-0 bg-black/50 items-center justify-center">
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    </View>
+                  )}
                 </View>
                 <Pressable
                   className="absolute bottom-0 right-0 w-6 h-6 bg-black rounded-full items-center justify-center border-2 border-white"
                   onPress={() => setShowProfileModal(true)}
+                  disabled={isUploadingImage}
                 >
                   <CameraIcon size={12} color="#FFFFFF" />
                 </Pressable>
               </View>
               <View className="ml-4 flex-1">
                 <Text className="text-[18px] font-bold text-black">
-                  John Doe
+                  {user?.first_name && user?.last_name
+                    ? `${user.first_name} ${user.last_name}`.trim()
+                    : user?.first_name || user?.email?.split("@")[0] || "User"}
                 </Text>
                 <Text className="text-sm text-neutral-600 mt-1">
-                  John.doe@email.com
+                  {user?.email || ""}
                 </Text>
               </View>
             </View>
@@ -1421,7 +1962,14 @@ function AttendeeProfileSection({
             >
               <Text className="text-sm text-neutral-700">
                 Email cannot be changed as it's linked to your ticket.{" "}
-                <Text className="underline">Contact support</Text> if needed.
+                <Text
+                  className="underline"
+                  onPress={() => navigation.navigate("Contact")}
+                  style={{ textDecorationLine: "underline" }}
+                >
+                  Contact support
+                </Text>{" "}
+                if needed.
               </Text>
             </View>
           </View>
@@ -1482,33 +2030,6 @@ function AttendeeProfileSection({
               )}
             </View>
 
-            {/* Company */}
-            <View className="mb-4">
-              <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Company <Text className="text-red-500">*</Text>
-              </Text>
-              <TextInput
-                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                  validationErrors.company
-                    ? "border-red-500"
-                    : "border-neutral-300"
-                }`}
-                value={company}
-                onChangeText={(text) => {
-                  setCompany(text);
-                  if (validationErrors.company) {
-                    setValidationErrors({ ...validationErrors, company: "" });
-                  }
-                }}
-                placeholder="Enter company name"
-              />
-              {validationErrors.company && (
-                <Text className="text-red-500 text-xs mt-1">
-                  {validationErrors.company}
-                </Text>
-              )}
-            </View>
-
             {/* Country */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
@@ -1644,18 +2165,9 @@ function AttendeeProfileSection({
       <ProfilePictureModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
-        onTakePhoto={() => {
-          console.log("Take Photo");
-          setShowProfileModal(false);
-        }}
-        onChoosePhoto={() => {
-          console.log("Choose Photo");
-          setShowProfileModal(false);
-        }}
-        onRemovePhoto={() => {
-          console.log("Remove Photo");
-          setShowProfileModal(false);
-        }}
+        onTakePhoto={handleTakePhoto}
+        onChoosePhoto={handleChoosePhoto}
+        onRemovePhoto={handleRemovePhoto}
       />
       <IndustryDropdownModal
         visible={showIndustryModal}
@@ -1676,11 +2188,17 @@ function AttendeeProfileSection({
 function CompanyProfileSection({
   onSave,
   saveTrigger,
+  isSubmitting,
+  setIsSubmitting,
 }: {
   onSave?: () => void;
   saveTrigger?: number;
+  isSubmitting?: boolean;
+  setIsSubmitting?: (value: boolean) => void;
 }) {
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
+  const { user } = useAuth();
   const [companyName, setCompanyName] = useState("");
   const [boothNumber, setBoothNumber] = useState("");
   const [website, setWebsite] = useState("");
@@ -1705,11 +2223,129 @@ function CompanyProfileSection({
   const [showAddPosition, setShowAddPosition] = useState(false);
   const [newJobRole, setNewJobRole] = useState("");
   const [newJobLink, setNewJobLink] = useState("");
-  const [positions, setPositions] = useState<string[]>([]);
+  const [positions, setPositions] = useState<
+    Array<{ id: string; role: string; link: string }>
+  >([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<
-    Record<string, string>
-  >({});
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  // Get current company logo from user
+  const currentCompanyLogo = user?.company?.logo || null;
+  // Show selected image if available, otherwise show current or null
+  const displayImageUri = shouldRemovePhoto
+    ? null
+    : selectedImageUri || currentCompanyLogo;
+
+  const dataLoadedRef = React.useRef(false);
+
+  // Load company data into form fields (only on initial mount to prevent overwriting user edits)
+  React.useEffect(() => {
+    if (user?.company && !dataLoadedRef.current) {
+      const company = user.company;
+
+      // Set company name
+      if (company.name) {
+        setCompanyName(company.name);
+      }
+
+      // Parse metadata first (might be string or object)
+      let metadata = company.metadata;
+      if (typeof metadata === "string") {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          console.error("Error parsing company metadata:", e);
+          metadata = {};
+        }
+      }
+
+      // Set booth number from metadata (check after parsing)
+      if (metadata?.boothNumber) {
+        setBoothNumber(metadata.boothNumber);
+      }
+
+      // Set website from metadata
+      if (metadata?.website) {
+        setWebsite(metadata.website);
+      }
+
+      // Set company description
+      if (company.company_description) {
+        setCompanyDescription(company.company_description);
+      }
+
+      // Set industry - find matching ID from label
+      if (company.company_sector) {
+        const industryOption = INDUSTRY_OPTIONS.find(
+          (opt) =>
+            opt.label.toLowerCase() === company.company_sector?.toLowerCase()
+        );
+        if (industryOption) {
+          setSelectedIndustry(industryOption.id);
+        }
+      }
+
+      // Set country - find matching ID from label
+      if (company.country) {
+        const countryOption = COUNTRY_OPTIONS.find(
+          (opt) => opt.label.toLowerCase() === company.country?.toLowerCase()
+        );
+        if (countryOption) {
+          setSelectedCountry(countryOption.id);
+        }
+      }
+
+      // Set social links from metadata (check both direct and nested socialLinks object)
+      // Note: metadata is already parsed above
+      const socialLinks = metadata?.socialLinks || {};
+      if (metadata?.linkedIn || socialLinks?.linkedin) {
+        setLinkedIn(metadata?.linkedIn || socialLinks?.linkedin || "");
+      }
+      if (metadata?.facebook || socialLinks?.facebook) {
+        setFacebook(metadata?.facebook || socialLinks?.facebook || "");
+      }
+      if (metadata?.instagram || socialLinks?.instagram) {
+        setInstagram(metadata?.instagram || socialLinks?.instagram || "");
+      }
+      if (
+        metadata?.xHandle ||
+        metadata?.twitter ||
+        socialLinks?.x ||
+        socialLinks?.xHandle
+      ) {
+        setXHandle(
+          metadata?.xHandle ||
+            metadata?.twitter ||
+            socialLinks?.x ||
+            socialLinks?.xHandle ||
+            ""
+        );
+      }
+
+      // Set offers from metadata
+      if (metadata?.offers && Array.isArray(metadata.offers)) {
+        setOffers(metadata.offers);
+      }
+
+      // Set positions from metadata
+      if (metadata?.positions && Array.isArray(metadata.positions)) {
+        setPositions(metadata.positions);
+      }
+
+      // Set recruiting status
+      if (typeof metadata?.isRecruiting === "boolean") {
+        setIsRecruiting(metadata.isRecruiting);
+      }
+
+      // Clear validation errors when data loads
+      setValidationErrors({});
+
+      dataLoadedRef.current = true;
+    }
+  }, [user?.company]);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -1735,15 +2371,99 @@ function CompanyProfileSection({
 
   const addPosition = () => {
     if (newJobRole.trim()) {
-      setPositions([...positions, newJobRole]);
+      setPositions([
+        ...positions,
+        {
+          id: Date.now().toString(),
+          role: newJobRole.trim(),
+          link: newJobLink.trim() || "",
+        },
+      ]);
       setNewJobRole("");
       setNewJobLink("");
       setShowAddPosition(false);
     }
   };
 
-  const removePosition = (position: string) => {
-    setPositions(positions.filter((p) => p !== position));
+  const removePosition = (id: string) => {
+    setPositions(positions.filter((p) => p.id !== id));
+  };
+
+  // Image Picker Handlers
+  const handleTakePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request camera permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Camera permission is required to take photos."
+        );
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false); // Clear removal flag if user selects new image
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      showToast("Failed to take photo. Please try again.", "error");
+    }
+  };
+
+  const handleChoosePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+
+      // Request media library permissions
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Photo library permission is required to select photos."
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+        setShouldRemovePhoto(false); // Clear removal flag if user selects new image
+      }
+    } catch (error) {
+      console.error("Error choosing photo:", error);
+      showToast("Failed to select photo. Please try again.", "error");
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      setShowProfileModal(false);
+      setShouldRemovePhoto(true);
+      setSelectedImageUri(null);
+    } catch (error) {
+      console.error("Error removing photo:", error);
+      showToast("Failed to remove photo. Please try again.", "error");
+    }
   };
 
   // TODO: BACKEND INTEGRATION - Save company profile data to backend API
@@ -1832,21 +2552,159 @@ function CompanyProfileSection({
       return false;
     }
 
+    if (setIsSubmitting) {
+      console.log("🔄 Setting isSubmitting to true");
+      setIsSubmitting(true);
+    }
     try {
-      // TODO: BACKEND - Call API: await api.put('/user/profile/company', { companyName, industry, country, website, description, boothNumber, offers, socialLinks, openPositions, teamMembers, isRecruiting })
-      // TODO: BACKEND - Handle API response and errors
-      // Show success toast
-      showToast("Profile saved successfully!", "success");
-
-      // Call onSave callback if provided
-      if (onSave) {
-        onSave();
+      if (!user?.company?.id) {
+        showToast("Company not found. Please contact support.", "error");
+        if (setIsSubmitting) setIsSubmitting(false);
+        return false;
       }
+
+      // Handle company logo upload or removal
+      if (shouldRemovePhoto) {
+        // Remove company logo
+        setIsUploadingImage(true);
+        try {
+          // TODO: Implement logo removal API call if available
+          // await companyService.removeCompanyLogo(user.company.id);
+          setShouldRemovePhoto(false);
+        } catch (imageError: any) {
+          console.error("Error removing company logo:", imageError);
+          showToast(
+            imageError.message || "Failed to remove company logo.",
+            "error"
+          );
+          setIsUploadingImage(false);
+          return false;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      } else if (selectedImageUri) {
+        // Upload new company logo (mimic Personal tab pattern)
+        console.log("📸 Starting company logo upload...", selectedImageUri);
+        setIsUploadingImage(true);
+        try {
+          console.log(
+            "📸 Calling uploadCompanyLogo with companyId:",
+            user.company.id
+          );
+          await companyService.uploadCompanyLogo(
+            user.company.id,
+            selectedImageUri
+          );
+          console.log("✅ Company logo uploaded successfully!");
+          setSelectedImageUri(null); // Clear selected image after successful upload
+          setShouldRemovePhoto(false); // Clear removal flag if it was set
+        } catch (imageError: any) {
+          console.error("❌ Error uploading company logo:", imageError);
+          showToast(
+            imageError.message || "Failed to upload company logo.",
+            "error"
+          );
+          setIsUploadingImage(false);
+          return false;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+
+      // Get selected industry label
+      const industryLabel =
+        INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
+        "";
+
+      // Get selected country label
+      const countryLabel =
+        COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
+
+      // Build metadata object for fields that don't have direct backend fields
+      // Social links should be nested in socialLinks object for backend consistency
+      const socialLinksObj: any = {};
+      if (linkedIn.trim()) socialLinksObj.linkedin = linkedIn.trim();
+      if (facebook.trim()) socialLinksObj.facebook = facebook.trim();
+      if (instagram.trim()) socialLinksObj.instagram = instagram.trim();
+      if (xHandle.trim()) socialLinksObj.x = xHandle.trim();
+
+      const metadata: any = {
+        boothNumber: boothNumber.trim() || undefined,
+        website: website.trim() || undefined,
+        offers: offers.length > 0 ? offers : undefined,
+        positions: positions.length > 0 ? positions : undefined,
+        isRecruiting,
+      };
+
+      // Only include socialLinks if at least one link exists
+      if (Object.keys(socialLinksObj).length > 0) {
+        metadata.socialLinks = socialLinksObj;
+      }
+
+      // Remove undefined values from metadata
+      Object.keys(metadata).forEach((key) => {
+        if (metadata[key] === undefined) {
+          delete metadata[key];
+        }
+      });
+
+      // Prepare API request payload
+      const companyData: any = {
+        name: companyName.trim(),
+        company_sector: industryLabel,
+        country: countryLabel,
+        company_description: companyDescription.trim() || null,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      };
+
+      // Remove undefined values
+      Object.keys(companyData).forEach((key) => {
+        if (companyData[key] === undefined) {
+          delete companyData[key];
+        }
+      });
+
+      // Save company data to backend API
+      await companyService.updateCompany(user.company.id, companyData);
+
+      // Show success toast
+      showToast("Company profile saved successfully!", "success");
+
+      // Call onSave callback if provided (this refreshes user data)
+      // Await to ensure user data is refreshed before component re-renders
+      if (onSave) {
+        await onSave();
+      }
+
+      // Clear selectedImageUri after user data is refreshed (so displayImageUri uses currentCompanyLogo from backend)
+      setSelectedImageUri(null);
+
+      if (setIsSubmitting) setIsSubmitting(false);
       return true;
-    } catch (error) {
-      // TODO: BACKEND - Handle API errors
-      console.error("Error saving profile:", error);
-      showToast("Failed to save profile. Please try again.", "error");
+    } catch (error: any) {
+      console.error("Error saving company profile:", error);
+
+      // Handle backend validation errors
+      if (error.responseCode === 400 && error.data) {
+        const backendErrors: Record<string, string> = {};
+        Object.keys(error.data).forEach((field) => {
+          const fieldErrors = error.data[field];
+          if (Array.isArray(fieldErrors)) {
+            backendErrors[field] = fieldErrors[0];
+          } else if (typeof fieldErrors === "string") {
+            backendErrors[field] = fieldErrors;
+          }
+        });
+        setValidationErrors(backendErrors);
+        const firstError = Object.values(backendErrors)[0];
+        Alert.alert("Validation Error", firstError);
+      } else {
+        showToast(
+          error.message || "Failed to save company profile. Please try again.",
+          "error"
+        );
+      }
+      if (setIsSubmitting) setIsSubmitting(false);
       return false;
     }
   };
@@ -1882,23 +2740,31 @@ function CompanyProfileSection({
           <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
             <View className="flex-row items-center mb-4 pt-3">
               <View className="relative">
-                <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center">
-                  <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
-                    <Circle
-                      cx="12"
-                      cy="8"
-                      r="4"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
+                <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
+                  {displayImageUri ? (
+                    <Image
+                      source={{ uri: displayImageUri }}
+                      className="w-full h-full"
+                      resizeMode="cover"
                     />
-                    <Path
-                      d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
-                      stroke="#9CA3AF"
-                      strokeWidth={1.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </Svg>
+                  ) : (
+                    <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
+                      <Circle
+                        cx="12"
+                        cy="8"
+                        r="4"
+                        stroke="#9CA3AF"
+                        strokeWidth={1.5}
+                      />
+                      <Path
+                        d="M6 21C6 17.6863 8.68629 15 12 15C15.3137 15 18 17.6863 18 21"
+                        stroke="#9CA3AF"
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </Svg>
+                  )}
                 </View>
                 <Pressable
                   className="absolute bottom-0 right-0 w-6 h-6 bg-black rounded-full items-center justify-center border-2 border-white"
@@ -1909,9 +2775,11 @@ function CompanyProfileSection({
               </View>
               <View className="ml-4 flex-1">
                 <Text className="text-[18px] font-bold text-black">
-                  TechCorp Inc
+                  {companyName || "Company Name"}
                 </Text>
-                <Text className="text-sm text-neutral-600 mt-1">Booth 24</Text>
+                <Text className="text-sm text-neutral-600 mt-1">
+                  {boothNumber ? `Booth ${boothNumber}` : "No booth assigned"}
+                </Text>
               </View>
             </View>
 
@@ -1926,7 +2794,14 @@ function CompanyProfileSection({
             >
               <Text className="text-sm text-neutral-700">
                 Email cannot be changed as it's linked to your ticket.{" "}
-                <Text className="underline">Contact support</Text> if needed.
+                <Text
+                  className="underline"
+                  onPress={() => navigation.navigate("Contact")}
+                  style={{ textDecorationLine: "underline" }}
+                >
+                  Contact support
+                </Text>{" "}
+                if needed.
               </Text>
             </View>
           </View>
@@ -1998,38 +2873,29 @@ function CompanyProfileSection({
               <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
                 Website <Text className="text-red-500">*</Text>
               </Text>
-              <View className="flex-row items-center gap-2">
-                <View className="flex-1">
-                  <TextInput
-                    className={`flex-1 bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                      validationErrors.website
-                        ? "border-red-500"
-                        : "border-neutral-300"
-                    }`}
-                    value={website}
-                    onChangeText={(text) => {
-                      setWebsite(text);
-                      if (validationErrors.website) {
-                        setValidationErrors({
-                          ...validationErrors,
-                          website: "",
-                        });
-                      }
-                    }}
-                    placeholder="Enter website URL"
-                  />
-                  {validationErrors.website && (
-                    <Text className="text-red-500 text-xs mt-1">
-                      {validationErrors.website}
-                    </Text>
-                  )}
-                </View>
-                <Pressable className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
-                  <Text className="text-sm font-medium text-black">
-                    Paste link
-                  </Text>
-                </Pressable>
-              </View>
+              <TextInput
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.website
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={website}
+                onChangeText={(text) => {
+                  setWebsite(text);
+                  if (validationErrors.website) {
+                    setValidationErrors({
+                      ...validationErrors,
+                      website: "",
+                    });
+                  }
+                }}
+                placeholder="Enter website URL"
+              />
+              {validationErrors.website && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.website}
+                </Text>
+              )}
             </View>
 
             {/* Industry/Sector */}
@@ -2335,19 +3201,12 @@ function CompanyProfileSection({
                       onChangeText={setNewJobRole}
                       placeholder="Job Role"
                     />
-                    <View className="flex-row items-center gap-2 mb-3">
-                      <TextInput
-                        className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
-                        value={newJobLink}
-                        onChangeText={setNewJobLink}
-                        placeholder="Job Link"
-                      />
-                      <Pressable className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
-                        <Text className="text-sm font-medium text-black">
-                          Paste link
-                        </Text>
-                      </Pressable>
-                    </View>
+                    <TextInput
+                      className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                      value={newJobLink}
+                      onChangeText={setNewJobLink}
+                      placeholder="Job Link"
+                    />
                     <View className="flex-row gap-2">
                       <Pressable
                         onPress={addPosition}
@@ -2387,13 +3246,13 @@ function CompanyProfileSection({
                 <View className="flex-row flex-wrap gap-2">
                   {positions.map((position) => (
                     <View
-                      key={position}
+                      key={position.id}
                       className="flex-row items-center px-4 py-2 rounded-full bg-white border border-neutral-300"
                     >
                       <Text className="text-sm font-medium text-black mr-2">
-                        {position}
+                        {position.role}
                       </Text>
-                      <Pressable onPress={() => removePosition(position)}>
+                      <Pressable onPress={() => removePosition(position.id)}>
                         <Svg
                           width={14}
                           height={14}
@@ -2420,18 +3279,9 @@ function CompanyProfileSection({
       <ProfilePictureModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
-        onTakePhoto={() => {
-          console.log("Take Photo");
-          setShowProfileModal(false);
-        }}
-        onChoosePhoto={() => {
-          console.log("Choose Photo");
-          setShowProfileModal(false);
-        }}
-        onRemovePhoto={() => {
-          console.log("Remove Photo");
-          setShowProfileModal(false);
-        }}
+        onTakePhoto={handleTakePhoto}
+        onChoosePhoto={handleChoosePhoto}
+        onRemovePhoto={handleRemovePhoto}
       />
       <IndustryDropdownModal
         visible={showIndustryModal}
@@ -2450,17 +3300,22 @@ function CompanyProfileSection({
 }
 
 export default function ProfileScreen() {
-  // TODO: Connect this to backend to determine user role
-  // For now, defaulting to "attendee" - backend will handle role-based access
-  const [userRole] = useState<"attendee" | "company">("attendee");
+  const { user, completeProfile } = useAuth();
+
+  // Determine user role based on company association
+  // If user has a company, show company profile tabs, otherwise show attendee profile
+  const userRole: "attendee" | "company" = user?.company
+    ? "company"
+    : "attendee";
   const [activeTab, setActiveTab] = useState<"Personal" | "Company">(
     "Personal"
   );
-  const { completeProfile } = useAuth();
-
+  
   const [personalSaveTrigger, setPersonalSaveTrigger] = useState(0);
   const [companySaveTrigger, setCompanySaveTrigger] = useState(0);
   const [attendeeSaveTrigger, setAttendeeSaveTrigger] = useState(0);
+  const [companyIsSubmitting, setCompanyIsSubmitting] = useState(false);
+  const [attendeeIsSubmitting, setAttendeeIsSubmitting] = useState(false);
 
   const handleSavePersonal = () => {
     setPersonalSaveTrigger((prev) => prev + 1);
@@ -2483,14 +3338,24 @@ export default function ProfileScreen() {
             <AttendeeProfileSection
               saveTrigger={attendeeSaveTrigger}
               onSave={completeProfile}
+              isSubmitting={attendeeIsSubmitting}
+              setIsSubmitting={setAttendeeIsSubmitting}
             />
             {/* Save Changes Button */}
             <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
               <Pressable
-                className="bg-black rounded-xl py-4 items-center justify-center"
+                className="bg-black rounded-xl items-center justify-center flex-row gap-2"
+                style={{
+                  paddingVertical: 12,
+                  opacity: attendeeIsSubmitting ? 0.6 : 1,
+                }}
                 onPress={handleSaveAttendee}
+                disabled={attendeeIsSubmitting}
               >
-                <Text className="text-white text-base font-inter-semibold">
+                {attendeeIsSubmitting && (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                )}
+                <Text className="text-white pb-2 text-base font-inter-semibold">
                   Save Changes
                 </Text>
               </Pressable>
@@ -2511,19 +3376,30 @@ export default function ProfileScreen() {
               <CompanyProfileSection
                 saveTrigger={companySaveTrigger}
                 onSave={completeProfile}
+                isSubmitting={companyIsSubmitting}
+                setIsSubmitting={setCompanyIsSubmitting}
               />
             )}
             {/* Save Changes Button */}
             <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
               <Pressable
-                className="bg-black rounded-xl py-4 items-center justify-center"
+                className="bg-black rounded-xl items-center justify-center flex-row gap-2"
+                style={{
+                  paddingVertical: 12,
+                  opacity:
+                    activeTab === "Company" && companyIsSubmitting ? 0.6 : 1,
+                }}
                 onPress={
                   activeTab === "Personal"
                     ? handleSavePersonal
                     : handleSaveCompany
                 }
+                disabled={activeTab === "Company" && companyIsSubmitting}
               >
-                <Text className="text-white text-base font-semibold">
+                {activeTab === "Company" && companyIsSubmitting && (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                )}
+                <Text className="text-white pb-2 text-base font-semibold">
                   Save Changes
                 </Text>
               </Pressable>

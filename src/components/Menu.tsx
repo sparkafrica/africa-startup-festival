@@ -1,7 +1,8 @@
 import React from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Circle } from "react-native-svg";
+import { useAuth } from "../context/AuthContext";
 
 import {
   TicketsIcon,
@@ -24,6 +25,45 @@ interface MenuProps {
 }
 
 export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
+  const { user } = useAuth();
+  
+  // Get user profile data
+  const userName = user?.first_name && user?.last_name 
+    ? `${user.first_name} ${user.last_name}`.trim()
+    : user?.first_name || user?.email?.split('@')[0] || "User";
+  
+  const userEmail = user?.email || "";
+  
+  // Determine user type badge based on company
+  // If user has company, show company type (exhibitor/partner), otherwise show "Attendee"
+  let userType = "Attendee";
+  if (user?.company?.company_type) {
+    // Capitalize first letter (exhibitor -> Exhibitor, partner -> Partner)
+    const type = user.company.company_type;
+    userType = type.charAt(0).toUpperCase() + type.slice(1);
+  }
+  
+  // Get profile picture URL if available
+  const profilePicUrl = user?.profile_pic || null;
+  
+  // Determine card background color based on user type (matching TicketCard theme)
+  const getCardBackgroundColor = () => {
+    if (!user?.company?.company_type) {
+      return "#10B981"; // Green for Attendee/General
+    }
+    
+    const type = user.company.company_type.toLowerCase();
+    if (type === "founder") {
+      return "#000000"; // Black
+    } else if (type === "exhibitor" || type === "partner") {
+      return "#3B82F6"; // Blue
+    } else {
+      return "#10B981"; // Green (default/attendee)
+    }
+  };
+  
+  const cardBackgroundColor = getCardBackgroundColor();
+  
   const menuItems = [
     {
       label: "My Ticket(s)",
@@ -86,7 +126,7 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
           <View className="px-6 mt-4">
             <View
               className="rounded-2xl p-5 overflow-hidden"
-              style={{ backgroundColor: "#1BB273" }}
+              style={{ backgroundColor: cardBackgroundColor }}
             >
               {/* Decorative Background Graphics */}
               <View className="absolute inset-0 opacity-20">
@@ -127,30 +167,33 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
               </View>
 
               <View className="flex-row items-center relative z-10">
-                <View className="w-12 h-12 rounded-full bg-white items-center justify-center mr-4">
-                  <UserAvatarIcon size={28} color="#1BB273" />
+                <View className="w-12 h-12 rounded-full bg-white items-center justify-center mr-4 overflow-hidden">
+                  {profilePicUrl ? (
+                    <Image 
+                      source={{ uri: profilePicUrl }} 
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <UserAvatarIcon size={28} color="#1BB273" />
+                  )}
                 </View>
 
                 <View className="flex-1">
                   <View className="flex-row items-center space-x-2">
-                    {/* TODO: BACKEND INTEGRATION - Fetch user data from AuthContext or API
-                    // TODO: BACKEND - Use user.name from useAuth() hook
-                    // TODO: BACKEND - Display user's actual name instead of hardcoded "John Doe" */}
                     <Text className="text-white text-[18px] font-bold">
-                      John Doe
+                      {userName}
                     </Text>
 
-                    {/* TODO: BACKEND INTEGRATION - Display user type from user data
-                    // TODO: BACKEND - Use user.userType from AuthContext (attendee | company) */}
                     <View className="px-2 py-[2px] bg-white/30 rounded-full">
-                      <Text className="text-white text-[12px]">Attendee</Text>
+                      <Text className="text-white text-[12px] capitalize">
+                        {userType}
+                      </Text>
                     </View>
                   </View>
 
-                  {/* TODO: BACKEND INTEGRATION - Display user email from AuthContext
-                  // TODO: BACKEND - Use user.email from useAuth() hook */}
                   <Text className="text-white/80 text-[14px] mt-1">
-                    john.doe@email.com
+                    {userEmail}
                   </Text>
                 </View>
               </View>

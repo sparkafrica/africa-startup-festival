@@ -54,7 +54,7 @@ export default function VerificationCodeScreen() {
   const { email } = route.params;
   const { verifyCode, requestVerificationCode } = useAuth();
 
-  const [code, setCode] = useState(["", "", "", ""]);
+  const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
@@ -63,20 +63,43 @@ export default function VerificationCodeScreen() {
     useRef<TextInput>(null),
     useRef<TextInput>(null),
     useRef<TextInput>(null),
+    useRef<TextInput>(null),
+    useRef<TextInput>(null),
   ];
 
   const handleCodeChange = (value: string, index: number) => {
-    // Only allow single character
+    // Handle paste: if multiple characters detected, distribute them across inputs
     if (value.length > 1) {
-      value = value.slice(-1);
+      // Extract only digits from pasted text
+      const digits = value.replace(/\D/g, "").slice(0, 6);
+      const newCode = [...code];
+
+      // Distribute digits starting from current index
+      digits.split("").forEach((digit, i) => {
+        if (index + i < 6) {
+          newCode[index + i] = digit;
+        }
+      });
+
+      setCode(newCode);
+
+      // Focus on the next empty input or the last filled input
+      const nextEmptyIndex = newCode.findIndex(
+        (digit, i) => !digit && i >= index
+      );
+      const focusIndex =
+        nextEmptyIndex !== -1 ? nextEmptyIndex : Math.min(index + digits.length, 5);
+      inputRefs[focusIndex].current?.focus();
+      return;
     }
 
+    // Handle single character input
     const newCode = [...code];
     newCode[index] = value;
     setCode(newCode);
 
     // Auto-focus next input
-    if (value && index < 3) {
+    if (value && index < 5) {
       inputRefs[index + 1].current?.focus();
     }
   };
@@ -92,9 +115,9 @@ export default function VerificationCodeScreen() {
     const codeString = code.join("");
 
     // TODO: BACKEND INTEGRATION - Client-side validation (keep this)
-    // For testing: accept any 4 characters
-    if (codeString.length !== 4) {
-      Alert.alert("Invalid Code", "Please enter a 4-digit code");
+    // For testing: accept any 6 characters
+    if (codeString.length !== 6) {
+      Alert.alert("Invalid Code", "Please enter a 6-digit code");
       return;
     }
 
@@ -117,7 +140,7 @@ export default function VerificationCodeScreen() {
       Alert.alert("Error", "Invalid verification code. Please try again.");
       console.error("Error verifying code:", error);
       // TODO: BACKEND - Clear code inputs on error for better UX
-      setCode(["", "", "", ""]);
+      setCode(["", "", "", "", "", ""]);
       inputRefs[0].current?.focus();
     } finally {
       setIsSubmitting(false);
@@ -135,7 +158,7 @@ export default function VerificationCodeScreen() {
       // TODO: BACKEND - Show countdown timer before allowing another resend
 
       // Clear current code
-      setCode(["", "", "", ""]);
+      setCode(["", "", "", "", "", ""]);
       inputRefs[0].current?.focus();
     } catch (error) {
       // TODO: BACKEND - Handle specific error types (rate limit, email not found, etc.)
@@ -189,17 +212,17 @@ export default function VerificationCodeScreen() {
 
               {/* Subtitle */}
               <Text className="text-base text-neutral-600 text-center mb-8">
-                We've sent a 4 digits code to{" "}
+                We've sent a 6 digits code to{" "}
                 <Text className="font-medium text-neutral-900">{email}</Text>
               </Text>
 
               {/* Code Input Fields */}
-              <View className="flex-row justify-center gap-3 mb-8">
+              <View className="flex-row justify-center gap-1.5 mb-8 px-1">
                 {code.map((digit, index) => (
                   <TextInput
                     key={index}
                     ref={inputRefs[index]}
-                    className="w-16 h-16 border border-neutral-300 rounded-xl text-center text-2xl font-bold text-neutral-900"
+                    className="w-11 h-14 border border-neutral-300 rounded-xl text-center text-xl font-bold text-neutral-900"
                     value={digit}
                     onChangeText={(value) => handleCodeChange(value, index)}
                     onKeyPress={({ nativeEvent }) =>

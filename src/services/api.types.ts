@@ -53,31 +53,15 @@ export interface User {
   userType?: "attendee" | "company" | "speaker" | "partner";
   hasCompletedProfile?: boolean;
   hasSeenWelcome?: boolean;
-  profile?: UserProfile;
+  // Profile type is defined in authService.ts (matches backend CustomUserDetails schema)
+  profile?: any; // Use UserProfile from authService.ts when needed
   createdAt?: string;
   updatedAt?: string;
 }
 
-export interface UserProfile {
-  firstName?: string;
-  lastName?: string;
-  bio?: string;
-  avatar?: string;
-  industry?: string;
-  country?: string;
-  city?: string;
-  interests?: string[];
-  socialLinks?: {
-    linkedin?: string;
-    twitter?: string;
-    website?: string;
-  };
-  company?: {
-    name?: string;
-    role?: string;
-    website?: string;
-  };
-}
+// NOTE: UserProfile interface moved to authService.ts
+// It matches the backend CustomUserDetails schema with actual field names
+// (user_id, first_name, etc.) instead of camelCase placeholders
 
 // ============================================================================
 // MEETING TYPES

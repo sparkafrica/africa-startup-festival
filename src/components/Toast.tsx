@@ -68,35 +68,25 @@ export default function Toast({
   if (!visible) return null;
 
   const backgroundColor =
-    type === "success"
-      ? "#10B981"
-      : type === "error"
-      ? "#EF4444"
-      : "#3B82F6";
+    type === "success" ? "#10B981" : type === "error" ? "#EF4444" : "#3B82F6";
 
   return (
     <SafeAreaView
       edges={["top"]}
-      pointerEvents="none"
-      style={StyleSheet.absoluteFillObject}
+      style={styles.container}
+      pointerEvents="box-none"
     >
       <Animated.View
         style={[
-          styles.container,
+          styles.toast,
           {
             opacity: fadeAnim,
             transform: [{ translateY: slideAnim }],
+            backgroundColor,
           },
         ]}
       >
-        <View
-          style={[
-            styles.toast,
-            { backgroundColor },
-          ]}
-        >
-          <Text style={styles.message}>{message}</Text>
-        </View>
+        <Text style={styles.message}>{message}</Text>
       </Animated.View>
     </SafeAreaView>
   );
@@ -110,7 +100,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 9999,
     alignItems: "center",
-    paddingTop: 8,
+    paddingTop: 2,
   },
   toast: {
     paddingHorizontal: 20,
@@ -130,5 +120,3 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-
-

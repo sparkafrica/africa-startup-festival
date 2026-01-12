@@ -41,50 +41,59 @@ export function showErrorAlert(error: unknown, title = "Error"): void {
  */
 export function handleApiError(
   error: unknown,
-  customMessages?: Record<string, string>
+  customMessages?: Record<number, string> // Changed to number keys (response codes)
 ): void {
   if (error instanceof ApiClientError) {
-    const { code, statusCode } = error;
+    const { responseCode, message } = error;
 
-    // Check for custom messages
-    if (customMessages && customMessages[code]) {
-      Alert.alert("Error", customMessages[code]);
+    // Check for custom messages by response code
+    if (customMessages && customMessages[responseCode]) {
+      Alert.alert("Error", customMessages[responseCode]);
       return;
     }
 
-    // Handle specific error codes
-    switch (code) {
-      case "NETWORK_ERROR":
+    // Handle specific HTTP status codes
+    switch (responseCode) {
+      case 0:
+        // Network error
         Alert.alert(
           "Network Error",
           "Please check your internet connection and try again."
         );
         break;
 
-      case "UNAUTHORIZED":
-      case "INVALID_TOKEN":
+      case 401:
         Alert.alert("Session Expired", "Please log in again to continue.");
         // You can trigger logout here if needed
         break;
 
-      case "VALIDATION_ERROR":
-        Alert.alert("Validation Error", error.message);
+      case 400:
+        Alert.alert("Validation Error", message);
         break;
 
-      case "NOT_FOUND":
+      case 404:
         Alert.alert("Not Found", "The requested resource was not found.");
         break;
 
-      case "RATE_LIMIT_EXCEEDED":
+      case 429:
         Alert.alert(
           "Too Many Requests",
           "Please wait a moment before trying again."
         );
         break;
 
+      case 500:
+      case 502:
+      case 503:
+        Alert.alert(
+          "Server Error",
+          "Something went wrong on our end. Please try again later."
+        );
+        break;
+
       default:
         // Show the error message from the API
-        Alert.alert("Error", error.message || "Something went wrong.");
+        Alert.alert("Error", message || "Something went wrong.");
     }
   } else {
     // Unknown error

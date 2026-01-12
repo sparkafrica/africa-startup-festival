@@ -25,33 +25,51 @@ import { ENV } from "../config/env";
 
 /**
  * Standard API Response Wrapper
+ *
+ * Matches the backend's response format:
+ * {
+ *   "status": "success" | "error" | "warning" | "info",
+ *   "message": string,
+ *   "response_code": number,
+ *   "data": T | {},
+ *   "pagination"?: PaginationMeta (for list responses)
+ * }
  */
 export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: ApiError;
+  status: "success" | "error" | "warning" | "info";
+  message: string;
+  response_code: number;
+  data: T | {};
+  pagination?: PaginationMeta;
 }
 
 /**
  * API Error Structure
+ *
+ * Errors follow the same response format, with status: "error"
+ * and response_code indicating the HTTP status
  */
 export interface ApiError {
-  code: string;
+  status: "error";
   message: string;
-  details?: any;
-  statusCode?: number;
+  response_code: number;
+  data: {};
 }
 
 /**
  * Pagination Metadata
+ *
+ * Matches backend format:
+ * {
+ *   "count": number,
+ *   "next": string | null,
+ *   "previous": string | null
+ * }
  */
 export interface PaginationMeta {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-  hasMore: boolean;
+  count: number;
+  next: string | null;
+  previous: string | null;
 }
 
 /**
@@ -73,18 +91,20 @@ export interface TokenResponse {
 
 /**
  * Custom Error Class for API Errors
+ *
+ * Wraps API error responses for easier handling in the app
  */
 export class ApiClientError extends Error {
-  code: string;
-  statusCode?: number;
-  details?: any;
+  statusCode: number;
+  responseCode: number;
+  data?: any;
 
   constructor(error: ApiError) {
     super(error.message);
     this.name = "ApiClientError";
-    this.code = error.code;
-    this.statusCode = error.statusCode;
-    this.details = error.details;
+    this.statusCode = error.response_code;
+    this.responseCode = error.response_code;
+    this.data = error.data;
   }
 }
 
@@ -134,8 +154,16 @@ class ApiClient {
         const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
 
         // Add Authorization header if token exists
+        // Backend uses "Token" prefix instead of "Bearer"
         if (token && config.headers) {
-          config.headers.Authorization = `Bearer ${token}`;
+          config.headers.Authorization = `Token ${token}`;
+        }
+
+        // If FormData is being sent, let axios automatically set Content-Type
+        // Axios will set multipart/form-data with boundary automatically
+        if (config.data instanceof FormData && config.headers) {
+          // Remove Content-Type to let axios set it automatically with boundary
+          delete config.headers['Content-Type'];
         }
 
         // Log request in development
@@ -173,7 +201,7 @@ class ApiClient {
             return new Promise((resolve) => {
               this.refreshSubscribers.push((token: string) => {
                 if (originalRequest.headers) {
-                  originalRequest.headers.Authorization = `Bearer ${token}`;
+                  originalRequest.headers.Authorization = `Token ${token}`;
                 }
                 resolve(this.client(originalRequest));
               });
@@ -192,7 +220,7 @@ class ApiClient {
 
             // Retry original request
             if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              originalRequest.headers.Authorization = `Token ${newToken}`;
             }
             return this.client(originalRequest);
           } catch (refreshError) {
@@ -281,8 +309,10 @@ class ApiClient {
 
     if (!refreshToken) {
       throw new ApiClientError({
-        code: "NO_REFRESH_TOKEN",
+        status: "error",
         message: "No refresh token available",
+        response_code: 401,
+        data: {},
       });
     }
 
@@ -298,12 +328,29 @@ class ApiClient {
         }
       );
 
-      if (response.data.success && response.data.data) {
-        const { accessToken, expiresIn } = response.data.data;
+      // Backend returns: { status: "success", data: { token: "..." }, ... }
+      if (response.data.status === "success" && response.data.data) {
+        // TODO: Verify the actual token response structure from backend
+        // This is a placeholder - update based on actual /auth/token/ response
+        const tokenData = response.data.data as any;
+        const accessToken =
+          tokenData.token || tokenData.accessToken || tokenData;
+
+        if (!accessToken || typeof accessToken !== "string") {
+          throw new ApiClientError({
+            status: "error",
+            message: "Invalid token in response",
+            response_code: 500,
+            data: {},
+          });
+        }
 
         // Update stored token
         await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
 
+        // TODO: Update expiry time if backend provides it
+        // For now, tokens might not expire (backend-dependent)
+        const expiresIn = tokenData.expiresIn || 3600; // Default 1 hour
         if (expiresIn) {
           const expiryTime = Date.now() + expiresIn * 1000;
           await AsyncStorage.setItem(
@@ -316,8 +363,10 @@ class ApiClient {
       }
 
       throw new ApiClientError({
-        code: "REFRESH_FAILED",
+        status: "error",
         message: "Token refresh failed",
+        response_code: response.data.response_code || 500,
+        data: {},
       });
     } catch (error) {
       // If refresh fails, clear all tokens
@@ -332,14 +381,18 @@ class ApiClient {
 
   /**
    * Handle and transform API errors
+   *
+   * Backend returns errors in the same format as success responses:
+   * { status: "error", message: "...", response_code: 404, data: {} }
    */
   private handleError(error: AxiosError): ApiClientError {
     // Network error (no response from server)
     if (!error.response) {
       return new ApiClientError({
-        code: "NETWORK_ERROR",
+        status: "error",
         message: "Network error. Please check your internet connection.",
-        statusCode: 0,
+        response_code: 0,
+        data: {},
       });
     }
 
@@ -347,12 +400,18 @@ class ApiClient {
     const status = error.response.status;
     const data = error.response.data as any;
 
-    // Extract error information from response
+    // Backend returns errors in standard format
+    // If it's already in the correct format, use it
+    if (data?.status === "error") {
+      return new ApiClientError(data as ApiError);
+    }
+
+    // Fallback: construct error from HTTP response
     const errorData: ApiError = {
-      code: data?.error?.code || `HTTP_${status}`,
-      message: data?.error?.message || data?.message || error.message,
-      details: data?.error?.details || data?.details,
-      statusCode: status,
+      status: "error",
+      message: data?.message || error.message || "An error occurred",
+      response_code: status,
+      data: data?.data || {},
     };
 
     return new ApiClientError(errorData);
@@ -378,8 +437,8 @@ class ApiClient {
         lastError = error;
 
         // Don't retry on 4xx errors (client errors)
-        if (error instanceof ApiClientError && error.statusCode) {
-          if (error.statusCode >= 400 && error.statusCode < 500) {
+        if (error instanceof ApiClientError && error.responseCode) {
+          if (error.responseCode >= 400 && error.responseCode < 500) {
             throw error;
           }
         }
