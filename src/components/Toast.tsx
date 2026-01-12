@@ -73,7 +73,7 @@ export default function Toast({
   return (
     <SafeAreaView
       edges={["top"]}
-      style={styles.container}
+      style={[styles.container, { zIndex: 10000 }]}
       pointerEvents="box-none"
     >
       <Animated.View
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 9999,
+    zIndex: 10000,
     alignItems: "center",
     paddingTop: 2,
   },

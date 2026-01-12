@@ -77,8 +77,22 @@ export interface TicketClass {
 }
 
 /**
+ * Company (from backend schema)
+ * Minimal Company interface for scanned attendee display
+ */
+export interface Company {
+  id: number;
+  name: string;
+  company_type?: string;
+  logo?: string | null;
+  company_sector?: string;
+  [key: string]: any;
+}
+
+/**
  * User (from backend schema)
  * Matches backend User schema
+ * Can have either organisation (string) or company (object) or both
  */
 export interface AttendeeUser {
   id: string;
@@ -93,6 +107,7 @@ export interface AttendeeUser {
   organisation?: string | null;
   organisation_website?: string | null;
   organisation_role?: string | null;
+  company?: Company | null; // Company object (if backend returns it)
   metadata?: any;
 }
 
@@ -104,7 +119,7 @@ export interface AttendeeUser {
 export interface Attendee {
   ticket: Ticket;
   user: AttendeeUser;
-  match_info: string;
+  match_info: string | null;
 }
 
 /**
@@ -220,37 +235,30 @@ export const ticketService = {
   },
 
   /**
-   * Get user's tickets
+   * Get user's ticket for a specific event
    *
-   * @param eventId - Optional event ID to filter tickets
-   * @returns Promise that resolves with array of tickets
+   * @param eventId - Event ID (required)
+   * @returns Promise that resolves with the user's ticket
    *
-   * Backend Endpoint: GET /tickets/user/ or GET /user/tickets
+   * Backend Endpoint: GET /tickets/{event_id}/user/
+   * Note: Returns a single Ticket, not an array
    */
-  async getUserTickets(eventId?: number): Promise<Ticket[]> {
-    const endpoint = eventId
-      ? `/tickets/user/?event_id=${eventId}`
-      : `/tickets/user/`;
-
-    const response = await api.get<Ticket[]>(endpoint);
+  async getUserTicket(eventId: number): Promise<Ticket> {
+    const response = await api.get<Ticket>(
+      `/tickets/${eventId}/user/`
+    );
 
     if (response.status === "success" && response.data) {
       const data = response.data as any;
-
-      if (data.results && Array.isArray(data.results)) {
-        return data.results as Ticket[];
+      
+      if (data && typeof data === "object") {
+        return data as Ticket;
       }
-
-      if (Array.isArray(data)) {
-        return data as Ticket[];
-      }
-
-      return [data as Ticket];
     }
 
     throw new ApiClientError({
       status: "error",
-      message: response.message || "Failed to get user tickets",
+      message: response.message || "Failed to get user ticket",
       response_code: response.response_code,
       data: {},
     });
@@ -274,7 +282,11 @@ export const ticketService = {
     );
 
     if (response.status === "success" && response.data) {
-      return response.data as Attendee;
+      const data = response.data as any;
+      // Check if data has the expected structure (ticket and user properties)
+      if (data && typeof data === "object" && (data.ticket || data.user)) {
+        return data as Attendee;
+      }
     }
 
     throw new ApiClientError({
