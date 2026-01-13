@@ -4,7 +4,7 @@
  * Service layer for meeting-related API calls.
  */
 
-import { api } from "./api";
+import { api, ApiResponse, PaginationMeta } from "./api";
 import { ApiClientError } from "./api";
 
 // ============================================================================
@@ -12,42 +12,114 @@ import { ApiClientError } from "./api";
 // ============================================================================
 
 /**
+ * Meeting Slot
+ * Matches backend schema: MeetingSlot
+ */
+export interface MeetingSlot {
+  id: number;
+  event: number;
+  start_time: string; // Format: time (HH:MM:SS)
+  end_time: string; // Format: time (HH:MM:SS)
+  table_number: number;
+  is_available: boolean;
+}
+
+/**
+ * Simple Company (nested in Meeting)
+ * Matches backend schema: SimpleCompany
+ */
+export interface SimpleCompany {
+  id: number;
+  name: string;
+  company_type?: string;
+  country?: string;
+  logo?: string | null;
+}
+
+/**
+ * User (nested in Meeting)
+ * Matches backend schema: User (simplified for meetings)
+ */
+export interface MeetingUser {
+  id: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  profile_pic?: string | null;
+  phone_number?: string;
+  country?: string;
+  job_title?: string;
+  organisation?: string | null;
+  metadata?: any;
+}
+
+/**
  * Meeting Response
  * Matches backend schema: Meeting
  */
 export interface Meeting {
   id: number;
-  requester: {
-    id: string;
-    email: string;
-    first_name?: string;
-    last_name?: string;
-  };
-  requestee: {
-    id: string;
-    email: string;
-    first_name?: string;
-    last_name?: string;
-  };
-  slot?: {
-    id: number;
-    start_time: string;
-    end_time: string;
-    table_number: number;
-  };
+  slot: MeetingSlot;
+  requester: string; // User ID
+  requestee: string; // User ID
   reason: string;
   status: "pending" | "accepted" | "rejected" | "cancelled";
-  created_at: string;
+  requestee_company: SimpleCompany | null;
+  requester_company: SimpleCompany | null;
+  calendar_link: string;
+  location: string;
+  requester_name: string;
+  requester_info: MeetingUser;
+  requestee_info: MeetingUser;
+  metadata: any;
+  created_at?: string; // Optional: ISO date-time string (readOnly in backend)
 }
 
 /**
  * Meeting Request
+ * Matches backend schema: MeetingRequestRequest
  */
 export interface MeetingRequest {
-  requestee_id: string;
   meeting_slot_id: number;
+  requestee_id: string;
   reason: string;
   metadata?: any;
+}
+
+/**
+ * Meeting Response Request
+ * Matches backend schema: MeetingResponseRequest
+ */
+export interface MeetingResponseRequest {
+  action: "accept" | "reject";
+}
+
+/**
+ * Meeting Cancel Request
+ * Matches backend schema: MeetingCancelRequest
+ */
+export interface MeetingCancelRequest {
+  cancellation_reason: string;
+}
+
+/**
+ * Meeting Update Request
+ * Matches backend schema: PatchedMeetingUpdateRequest
+ */
+export interface MeetingUpdateRequest {
+  slot_id?: number;
+  reason?: string;
+}
+
+/**
+ * Paginated Meeting Slot List Response
+ * Matches backend schema: PaginatedMeetingSlotList
+ */
+export interface PaginatedMeetingSlotList {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: MeetingSlot[];
 }
 
 // ============================================================================
@@ -56,25 +128,357 @@ export interface MeetingRequest {
 
 export const meetingService = {
   /**
-   * Request a meeting with another user
+   * Get all meetings for the current user
    *
-   * @param request - Meeting request data
-   * @returns Promise that resolves with the meeting
+   * @returns Promise that resolves with array of meetings
    *
-   * Backend Endpoint: POST /meetings/request/
+   * Backend Endpoint: GET /meetings/
+   * Returns array of Meeting objects
    */
-  async requestMeeting(request: MeetingRequest): Promise<Meeting> {
-    const response = await api.post<Meeting>("/meetings/request/", request);
+  async getMeetings(): Promise<Meeting[]> {
+    try {
+      const response = await api.get<any>("/meetings/");
 
-    if (response.status === "success" && response.data) {
-      return response.data as Meeting;
+      // Backend returns array of Meeting objects directly or wrapped in ApiResponse
+      const data = response as any;
+
+      // If it's an array, return it directly
+      if (Array.isArray(data)) {
+        return data as Meeting[];
+      }
+
+      // If wrapped in ApiResponse format
+      if (data?.status === "success" && data?.data) {
+        if (Array.isArray(data.data)) {
+          return data.data as Meeting[];
+        }
+      }
+
+      // Fallback: return empty array
+      return [];
+    } catch (error: any) {
+      // Re-throw ApiClientError as-is
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      // Wrap other errors
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to fetch meetings",
+        response_code: error?.response_code || 0,
+        data: {},
+      });
     }
+  },
 
-    throw new ApiClientError({
-      status: "error",
-      message: response.message || "Failed to request meeting",
-      response_code: response.response_code,
-      data: {},
-    });
+  /**
+   * Get available meeting slots for an event
+   *
+   * @param eventId - The ID of the event
+   * @param page - Page number (optional, default: 1)
+   * @param pageSize - Number of results per page (optional)
+   * @returns Promise that resolves with paginated meeting slots
+   *
+   * Backend Endpoint: GET /events/{event_id}/meeting-slots/
+   */
+  async getMeetingSlots(
+    eventId: number,
+    page: number = 1,
+    pageSize?: number
+  ): Promise<{ slots: MeetingSlot[]; pagination: PaginationMeta }> {
+    try {
+      const params: Record<string, string> = {
+        page: page.toString(),
+      };
+      if (pageSize) {
+        params.page_size = pageSize.toString();
+      }
+
+      const queryString = new URLSearchParams(params).toString();
+      const response = await api.get<any>(
+        `/events/${eventId}/meeting-slots/?${queryString}`
+      );
+
+      const data = response as any;
+
+      // Check if response has the PaginatedMeetingSlotList structure
+      if (
+        data &&
+        typeof data === "object" &&
+        "results" in data &&
+        Array.isArray(data.results)
+      ) {
+        return {
+          slots: data.results as MeetingSlot[],
+          pagination: {
+            count: data.count || 0,
+            next: data.next || null,
+            previous: data.previous || null,
+          },
+        };
+      }
+
+      // If wrapped in ApiResponse format
+      if (data?.status === "success" && data?.data) {
+        const responseData = data.data;
+        if (
+          responseData &&
+          typeof responseData === "object" &&
+          "results" in responseData &&
+          Array.isArray(responseData.results)
+        ) {
+          return {
+            slots: responseData.results as MeetingSlot[],
+            pagination: {
+              count: responseData.count || 0,
+              next: responseData.next || null,
+              previous: responseData.previous || null,
+            },
+          };
+        }
+      }
+
+      // Fallback: return empty array
+      return {
+        slots: [],
+        pagination: {
+          count: 0,
+          next: null,
+          previous: null,
+        },
+      };
+    } catch (error: any) {
+      // Re-throw ApiClientError as-is
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      // Wrap other errors
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to fetch meeting slots",
+        response_code: error?.response_code || 0,
+        data: {},
+      });
+    }
+  },
+
+  /**
+   * Create a meeting request
+   *
+   * @param eventId - The ID of the event
+   * @param request - Meeting request data
+   * @returns Promise that resolves with the created meeting
+   *
+   * Backend Endpoint: POST /events/{event_id}/request-meeting/
+   * Returns 201 Created with Meeting object
+   */
+  async createMeetingRequest(
+    eventId: number,
+    request: MeetingRequest
+  ): Promise<Meeting> {
+    try {
+      const response = await api.post<any>(
+        `/events/${eventId}/request-meeting/`,
+        request
+      );
+
+      // Handle successful response (201 Created or 200 OK)
+      // Backend might return Meeting directly or wrapped in ApiResponse
+      if (response.status === "success" && response.data) {
+        return response.data as Meeting;
+      }
+
+      // If response_code is 201, treat as success even if status is different
+      if (response.response_code === 201 && response.data) {
+        return response.data as Meeting;
+      }
+
+      // Check if response IS the Meeting object directly
+      if (response.id && response.slot && response.requester) {
+        return response as Meeting;
+      }
+
+      throw new ApiClientError({
+        status: "error",
+        message: response.message || "Failed to create meeting request",
+        response_code: response.response_code || 500,
+        data: {},
+      });
+    } catch (error: any) {
+      // Re-throw ApiClientError as-is
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      // Wrap other errors
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to create meeting request",
+        response_code: error?.response_code || 500,
+        data: {},
+      });
+    }
+  },
+
+  /**
+   * Accept or reject a meeting request
+   *
+   * @param meetingId - The ID of the meeting
+   * @param action - "accept" or "reject"
+   * @returns Promise that resolves with the updated meeting
+   *
+   * Backend Endpoint: POST /meetings/{meeting_id}/response/
+   */
+  async respondToMeeting(
+    meetingId: number,
+    action: "accept" | "reject"
+  ): Promise<Meeting> {
+    try {
+      const response = await api.post<any>(
+        `/meetings/${meetingId}/response/`,
+        { action }
+      );
+
+      // Handle successful response (200 OK)
+      // Backend might return Meeting directly or wrapped in ApiResponse
+      if (response.status === "success" && response.data) {
+        return response.data as Meeting;
+      }
+
+      // If response_code is 200, treat as success even if status is different
+      if (response.response_code === 200 && response.data) {
+        return response.data as Meeting;
+      }
+
+      // Check if response IS the Meeting object directly
+      if (response.id && response.slot && response.requester) {
+        return response as Meeting;
+      }
+
+      throw new ApiClientError({
+        status: "error",
+        message: response.message || "Failed to respond to meeting",
+        response_code: response.response_code || 500,
+        data: response.data || {},
+      });
+    } catch (error: any) {
+      // Re-throw ApiClientError as-is
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      // Wrap other errors
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to respond to meeting",
+        response_code: error?.response_code || error?.response?.status || 500,
+        data: error?.response?.data || error?.data || {},
+      });
+    }
+  },
+
+  /**
+   * Cancel a meeting
+   *
+   * @param meetingId - The ID of the meeting to cancel
+   * @param cancellationReason - Reason for cancellation
+   * @returns Promise that resolves when the meeting is cancelled
+   *
+   * Backend Endpoint: POST /meetings/{meeting_id}/cancel-meeting/
+   */
+  async cancelMeeting(
+    meetingId: number,
+    cancellationReason: string
+  ): Promise<void> {
+    try {
+      const response = await api.post<any>(
+        `/meetings/${meetingId}/cancel-meeting/`,
+        {
+          cancellation_reason: cancellationReason,
+        }
+      );
+
+      // Backend returns 200 OK on success (may or may not have response body)
+      if (
+        !response ||
+        response.status === "success" ||
+        response.response_code === 200
+      ) {
+        return;
+      }
+
+      throw new ApiClientError({
+        status: "error",
+        message: response?.message || "Failed to cancel meeting",
+        response_code: response?.response_code || 500,
+        data: {},
+      });
+    } catch (error: any) {
+      // Re-throw ApiClientError as-is
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      // Wrap other errors
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to cancel meeting",
+        response_code: error?.response_code || error?.response?.status || 500,
+        data: error?.response?.data || error?.data || {},
+      });
+    }
+  },
+
+  /**
+   * Update a meeting
+   *
+   * @param meetingId - The ID of the meeting to update
+   * @param update - Update data (slot_id and/or reason)
+   * @returns Promise that resolves with the updated meeting
+   *
+   * Backend Endpoint: PATCH /meetings/{meeting_id}/update-meeting/
+   */
+  async updateMeeting(
+    meetingId: number,
+    update: MeetingUpdateRequest
+  ): Promise<Meeting> {
+    try {
+      const response = await api.patch<any>(
+        `/meetings/${meetingId}/update-meeting/`,
+        update
+      );
+
+      // Handle successful response (200 OK)
+      // Backend might return Meeting directly or wrapped in ApiResponse
+      if (response.status === "success" && response.data) {
+        return response.data as Meeting;
+      }
+
+      // If response_code is 200, treat as success even if status is different
+      if (response.response_code === 200 && response.data) {
+        return response.data as Meeting;
+      }
+
+      // Check if response IS the Meeting object directly
+      if (response.id && response.slot && response.requester) {
+        return response as Meeting;
+      }
+
+      throw new ApiClientError({
+        status: "error",
+        message: response.message || "Failed to update meeting",
+        response_code: response.response_code || 500,
+        data: response.data || {},
+      });
+    } catch (error: any) {
+      // Re-throw ApiClientError as-is
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      // Wrap other errors
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to update meeting",
+        response_code: error?.response_code || error?.response?.status || 500,
+        data: error?.response?.data || error?.data || {},
+      });
+    }
   },
 };

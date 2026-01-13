@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, Animated, StyleSheet } from "react-native";
+import { View, Text, Animated, StyleSheet, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface ToastProps {
@@ -73,7 +73,10 @@ export default function Toast({
   return (
     <SafeAreaView
       edges={["top"]}
-      style={[styles.container, { zIndex: 10000 }]}
+      style={[
+        styles.container,
+        Platform.OS === "ios" && { zIndex: 10000 },
+      ]}
       pointerEvents="box-none"
     >
       <Animated.View
@@ -98,9 +101,12 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 10000,
+    zIndex: 9999,
     alignItems: "center",
     paddingTop: 2,
+  },
+  iosContainer: {
+    zIndex: 10000,
   },
   toast: {
     paddingHorizontal: 20,
@@ -108,15 +114,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginHorizontal: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 8,
   },
   message: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     textAlign: "center",
   },
 });

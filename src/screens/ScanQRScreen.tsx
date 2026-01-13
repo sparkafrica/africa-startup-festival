@@ -30,6 +30,7 @@ import Toast from "../components/Toast";
 import { ticketService, type Attendee } from "../services/ticketService";
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
+import { useAuth } from "../context/AuthContext";
 import { EVENT_ID } from "../config/env";
 import QRCode from "react-native-qrcode-svg";
 import RequestMeetingModal, {
@@ -2766,12 +2767,14 @@ function ScannedTicketProfileModal({
   onRequestMeeting,
   onConnect,
   attendee,
+  isConnecting,
 }: {
   visible: boolean;
   onClose: () => void;
   onRequestMeeting: () => void;
   onConnect: () => void;
   attendee: Attendee | null;
+  isConnecting?: boolean;
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const offset = useRef(0);
@@ -2848,13 +2851,15 @@ function ScannedTicketProfileModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-black/50">
+      <View className="flex-1" style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}>
         <Pressable className="flex-1" onPress={onClose} />
         <Animated.View
           className="bg-white rounded-t-3xl"
           style={{
             transform: [{ translateY }],
             maxHeight: Dimensions.get("window").height * 0.8,
+            borderTopWidth: 1,
+            borderTopColor: "#E5E5E5",
           }}
         >
           <View
@@ -2984,11 +2989,17 @@ function ScannedTicketProfileModal({
 
             <Pressable
               onPress={onConnect}
+              disabled={isConnecting}
               className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-4 px-4 mb-2"
+              style={{ opacity: isConnecting ? 0.6 : 1 }}
             >
-              <ConnectIcon size={20} color="#000000" />
+              {isConnecting ? (
+                <ActivityIndicator size="small" color="#000000" />
+              ) : (
+                <ConnectIcon size={20} color="#000000" />
+              )}
               <Text className="text-base font-medium text-black ml-2">
-                Connect
+                {isConnecting ? "Connecting..." : "Connect"}
               </Text>
             </Pressable>
           </ScrollView>
@@ -3704,6 +3715,7 @@ const formatTicketCodeForDisplay = (uuid: string): string => {
 export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
+  const { user } = useAuth();
   const initialTab = route.params?.initialTab || "Scan Ticket";
   const [activeTab, setActiveTab] = useState<"My Ticket" | "Scan Ticket">(
     initialTab
@@ -3767,6 +3779,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     useState(false);
   const [scannedAttendee, setScannedAttendee] = useState<Attendee | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [qrScannerModalVisible, setQrScannerModalVisible] = useState(false);
   const [requestMeetingModalVisible, setRequestMeetingModalVisible] =
     useState(false);
@@ -4236,35 +4249,74 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   };
 
   const handleConnect = async () => {
-    // TODO: Enable when connections screen is ready
-    if (__DEV__) {
-      console.log(
-        "Connect button clicked - disabled until connections screen is ready"
-      );
+    // Prevent duplicate requests
+    if (isConnecting) {
+      return;
     }
-    return;
 
-    // Disabled code:
-    // if (!scannedAttendee) {
-    //   showToast("No attendee data available", "error");
-    //   return;
-    // }
-    // try {
-    //   await connectionService.createConnection(scannedAttendee.user.id);
-    //   showToast("Connection request sent successfully!", "success");
-    // } catch (error: any) {
-    //   const responseCode =
-    //     error?.responseCode || error?.response_code || error?.statusCode;
-    //   let errorMessage = "Failed to send connection request. Please try again.";
-    //   if (responseCode === 400) {
-    //     errorMessage = "Invalid connection request.";
-    //   } else if (responseCode === 409) {
-    //     errorMessage = "Connection request already exists.";
-    //   } else if (responseCode === 404) {
-    //     errorMessage = "User not found.";
-    //   }
-    //   showToast(errorMessage, "error");
-    // }
+    if (!scannedAttendee) {
+      showToast("No attendee data available", "error");
+      return;
+    }
+
+    // Get current user ID from auth context
+    const currentUser = user;
+    if (!currentUser?.user_id) {
+      showToast("User authentication required", "error");
+      return;
+    }
+
+    setIsConnecting(true);
+
+    try {
+      await connectionService.createConnection(
+        currentUser.user_id,
+        scannedAttendee.user.id
+      );
+      showToast("Connection request sent successfully!", "success");
+    } catch (error: any) {
+      const responseCode =
+        error?.responseCode || error?.response_code || error?.statusCode;
+      const errorMessageText = error?.message || "";
+      
+      // Check if error message contains "Connection already exists"
+      // Backend returns 400 with this message, but connection might have been created
+      const isAlreadyExists = 
+        errorMessageText.toLowerCase().includes("connection already exists") ||
+        errorMessageText.toLowerCase().includes("already exists");
+
+      let errorMessage = "Failed to send connection request. Please try again.";
+      let isSuccessCase = false;
+      
+      // Handle specific error codes and messages
+      if (responseCode === 400 && isAlreadyExists) {
+        // Connection already exists - treat as success since connection was likely created
+        errorMessage = "Connection request already exists.";
+        isSuccessCase = true;
+        showToast(errorMessage, "success");
+      } else if (responseCode === 409) {
+        errorMessage = "Connection request already exists.";
+        isSuccessCase = true;
+        showToast(errorMessage, "success");
+      } else if (responseCode === 400) {
+        errorMessage = "Invalid connection request.";
+        showToast(errorMessage, "error");
+      } else if (responseCode === 404) {
+        errorMessage = "User not found.";
+        showToast(errorMessage, "error");
+      } else {
+        showToast(errorMessage, "error");
+      }
+      
+      // Only log actual errors, not "already exists" cases (which are success scenarios)
+      if (__DEV__ && !isSuccessCase) {
+        console.error("Error creating connection:", error);
+        console.error("Error response code:", responseCode);
+        console.error("Error message:", errorMessageText);
+      }
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
   return (
@@ -4414,6 +4466,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           onRequestMeeting={handleRequestMeeting}
           onConnect={handleConnect}
           attendee={scannedAttendee}
+          isConnecting={isConnecting}
         />
         <RequestMeetingModal
           visible={requestMeetingModalVisible}

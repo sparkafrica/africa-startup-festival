@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,11 @@ import {
   ScrollView,
   Animated,
   PanResponder,
+  ActivityIndicator,
+  Image,
+  RefreshControl,
+  Linking,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -34,6 +39,11 @@ import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import type { MeetingFormData } from "../components";
 import Svg, { Circle, Path } from "react-native-svg";
+import { useAuth } from "../context/AuthContext";
+import { connectionService, type Connection as BackendConnection } from "../services/connectionService";
+import { ApiClientError } from "../services/api";
+import { useToast } from "../hooks/useToast";
+import Toast from "../components/Toast";
 
 // Person Icon Component (for profile placeholder)
 function PersonIcon({
@@ -76,8 +86,13 @@ interface SpeakingSession {
   time: string;
 }
 
+/**
+ * UI-friendly Connection interface
+ * Mapped from backend Connection for display purposes
+ */
 interface Connection {
-  id: string;
+  id: string; // Backend connection ID as string
+  backendConnectionId: number; // Original backend ID for API calls
   name: string;
   title?: string;
   company?: string;
@@ -88,6 +103,8 @@ interface Connection {
   speakingSessions?: SpeakingSession[];
   linkedInUrl?: string;
   isSpeaker?: boolean; // Only speakers have speaking sessions
+  status: "pending" | "accepted" | "rejected" | "blocked";
+  isFromCurrentUser: boolean; // Whether the current user sent the request
 }
 
 // Connection Card Component
@@ -97,6 +114,40 @@ interface ConnectionCardProps {
 }
 
 function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
+  // Status indicator colors and text
+  const getStatusIndicator = () => {
+    switch (connection.status) {
+      case "pending":
+        return {
+          color: "#F59E0B", // Orange/amber for pending
+          text: connection.isFromCurrentUser ? "Sent" : "Pending",
+          bgColor: "#FEF3C7", // Light amber background
+        };
+      case "accepted":
+        return {
+          color: "#10B981", // Green for accepted
+          text: "Connected",
+          bgColor: "#D1FAE5", // Light green background
+        };
+      case "rejected":
+        return {
+          color: "#EF4444", // Red for rejected
+          text: "Declined",
+          bgColor: "#FEE2E2", // Light red background
+        };
+      case "blocked":
+        return {
+          color: "#6B7280", // Gray for blocked
+          text: "Blocked",
+          bgColor: "#F3F4F6", // Light gray background
+        };
+      default:
+        return null;
+    }
+  };
+
+  const statusIndicator = getStatusIndicator();
+
   return (
     <Pressable
       onPress={onPress}
@@ -111,19 +162,43 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
     >
       <View className="flex-row items-center p-4">
         {/* Profile Picture - Circular */}
-        <View className="w-14 h-14 rounded-full bg-neutral-100 items-center justify-center mr-3 flex-shrink-0">
-          <PersonIcon size={28} color="#000000" />
+        <View className="w-14 h-14 rounded-full bg-neutral-100 items-center justify-center mr-3 flex-shrink-0 overflow-hidden">
+          {connection.avatar && typeof connection.avatar === "string" ? (
+            <Image
+              source={{ uri: connection.avatar }}
+              className="w-full h-full"
+              resizeMode="cover"
+            />
+          ) : (
+            <PersonIcon size={28} color="#000000" />
+          )}
         </View>
 
         {/* Name and Title/Company - Stacked vertically */}
         <View className="flex-1">
           {/* Name - Bold and prominent */}
-          <Text
-            className="text-base font-bold text-neutral-900 mb-0.5"
-            numberOfLines={1}
-          >
-            {connection.name}
-          </Text>
+          <View className="flex-row items-center mb-0.5">
+            <Text
+              className="text-base font-bold text-neutral-900 flex-1"
+              numberOfLines={1}
+            >
+              {connection.name}
+            </Text>
+            {/* Status Indicator */}
+            {statusIndicator && (
+              <View
+                className="px-2 py-0.5 rounded-full ml-2"
+                style={{ backgroundColor: statusIndicator.bgColor }}
+              >
+                <Text
+                  className="text-xs font-medium"
+                  style={{ color: statusIndicator.color }}
+                >
+                  {statusIndicator.text}
+                </Text>
+              </View>
+            )}
+          </View>
 
           {/* Title and Company - Lighter text */}
           <Text className="text-sm text-neutral-600" numberOfLines={1}>
@@ -145,7 +220,15 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
 export default function ConnectionsScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
-  const [searchQuery, setSearchQuery] = useState("");
+  const { user } = useAuth();
+  const { toast, showToast, hideToast } = useToast();
+  
+  // Search state (commented out for now)
+  // const [searchQuery, setSearchQuery] = useState("");
+  
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedConnection, setSelectedConnection] =
     useState<Connection | null>(null);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
@@ -154,6 +237,8 @@ export default function ConnectionsScreen() {
   const [meetingConnection, setMeetingConnection] = useState<Connection | null>(
     null
   );
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
+  const isProcessingActionRef = useRef(false);
 
   // Bottom sheet animation values
   const bottomSheetTranslateY = useRef(new Animated.Value(0)).current;
@@ -161,125 +246,251 @@ export default function ConnectionsScreen() {
   const bottomSheetDragY = useRef(new Animated.Value(0)).current;
   const dragStartY = useRef(0);
 
-  // TODO: BACKEND INTEGRATION - Replace mock connections data with API call
-  // API Endpoint: GET /api/connections
-  // Query Params: ?search={query}&page={page}&limit={limit}
-  // Response: { connections: Connection[], total: number, page: number }
-  // Real-time: WebSocket for new connections, connection status changes
-  // TODO: BACKEND - Fetch connections on component mount
-  // TODO: BACKEND - Handle pagination/infinite scroll
-  // TODO: BACKEND - Cache connections in state management
-  // TODO: BACKEND - Handle loading and error states
-  // Mock connections data - replace with actual data source
-  const connections: Connection[] = [
-    {
-      id: "1",
-      name: "Ada Okafor",
-      title: "VC Partner",
-      company: "Skyline Ventures",
-      tags: [
-        { label: "Fintech", borderColor: "#ADD8E6" },
-        { label: "Nigeria", borderColor: "#90EE90" },
-      ],
-      about:
-        "Empowering innovation across Africa. High-growth tech company showcasing new products at Spark Summit.",
-      interests: ["Fintech", "Infrastructure", "Developer Tools"],
-      speakingSessions: [
-        {
-          title: "The Future of African Fintech",
-          location: "Main Stage",
-          time: "10:00 AM",
-        },
-      ],
-      linkedInUrl: "https://linkedin.com/in/ada-okafor",
-      isSpeaker: true, // Only speakers have speaking sessions
-    },
-    {
-      id: "2",
-      name: "Dr. Jane Smith",
-      title: "VC Partner",
-      company: "TechVentures Inc",
-      tags: [
-        { label: "Technology", borderColor: "#ADD8E6" },
-        { label: "Healthcare", borderColor: "#FFB6C1" },
-      ],
-      about:
-        "Leading venture capital investments in healthcare technology. Passionate about supporting innovative startups that improve patient outcomes.",
-      interests: ["Healthcare", "AI/ML", "SaaS"],
-      linkedInUrl: "https://linkedin.com/in/jane-smith",
-    },
-    {
-      id: "3",
-      name: "Sarah Johnson",
-      title: "Product Manager",
-      company: "Innovate Labs",
-      tags: [
-        { label: "Product", borderColor: "#DDA0DD" },
-        { label: "UX/UI", borderColor: "#F0E68C" },
-      ],
-      about:
-        "Product strategist with 10+ years of experience building user-centric products. Specialized in B2B SaaS platforms and mobile applications.",
-      interests: ["Product Design", "User Experience", "Strategy"],
-      linkedInUrl: "https://linkedin.com/in/sarah-johnson",
-    },
-    {
-      id: "4",
-      name: "Michael Chen",
-      title: "CTO",
-      company: "DataFlow Inc",
-      tags: [
-        { label: "AI/ML", borderColor: "#ADD8E6" },
-        { label: "Singapore", borderColor: "#90EE90" },
-      ],
-      about:
-        "Leading AI innovation in Southeast Asia with a focus on machine learning solutions. Building scalable infrastructure for data-driven companies.",
-      interests: [
-        "Artificial Intelligence",
-        "Machine Learning",
-        "Data Science",
-      ],
-      linkedInUrl: "https://linkedin.com/in/michael-chen",
-    },
-    {
-      id: "5",
-      name: "Amina Hassan",
-      title: "Marketing Director",
-      company: "Growth Partners",
-      tags: [
-        { label: "Marketing", borderColor: "#FFB6C1" },
-        { label: "Kenya", borderColor: "#90EE90" },
-      ],
-      about:
-        "Expert in growth marketing and brand strategy for African markets. Helping startups scale through data-driven marketing campaigns.",
-      interests: ["Digital Marketing", "Brand Strategy", "Growth Hacking"],
-      linkedInUrl: "https://linkedin.com/in/amina-hassan",
-    },
-    {
-      id: "6",
-      name: "David Kim",
-      title: "Founder & CEO",
-      company: "Cloud Solutions",
-      tags: [
-        { label: "Cloud", borderColor: "#ADD8E6" },
-        { label: "DevOps", borderColor: "#DDA0DD" },
-      ],
-      about:
-        "Cloud architecture expert helping companies scale efficiently. Building the next generation of cloud infrastructure solutions.",
-      interests: ["Cloud Computing", "DevOps", "Architecture"],
-      linkedInUrl: "https://linkedin.com/in/david-kim",
-    },
-  ];
+  /**
+   * Map backend Connection to UI-friendly Connection
+   */
+  const mapBackendConnectionToUI = (
+    backendConnection: BackendConnection
+  ): Connection => {
+    // Determine which user to display (the other user, not the current user)
+    const currentUserId = user?.user_id;
+    const otherUser =
+      backendConnection.from_user.id === currentUserId
+        ? backendConnection.to_user
+        : backendConnection.from_user;
+    const isFromCurrentUser =
+      backendConnection.from_user.id === currentUserId;
 
-  // Filter connections based on search query
-  const filteredConnections = connections.filter((connection) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      connection.name.toLowerCase().includes(query) ||
-      connection.title?.toLowerCase().includes(query) ||
-      connection.company?.toLowerCase().includes(query)
-    );
-  });
+    // Extract interests from metadata
+    const interests = otherUser.metadata?.interests || [];
+    const interestsArray = Array.isArray(interests) ? interests : [];
+
+    // Extract bio from metadata
+    const bio = otherUser.metadata?.bio || "";
+
+    // Extract LinkedIn URL from metadata
+    const linkedInUrl = otherUser.metadata?.linkedIn || otherUser.metadata?.linkedin_url || undefined;
+
+    // Build tags - show country and industry/sector (not interests, to avoid duplication)
+    const tags: ConnectionTag[] = [];
+    if (otherUser.country) {
+      tags.push({ label: otherUser.country, borderColor: "#90EE90" });
+    }
+    // Check for sector/industry in company object or metadata
+    const sector = 
+      (otherUser as any).company?.company_sector ||
+      otherUser.metadata?.sector ||
+      otherUser.metadata?.industry ||
+      undefined;
+    if (sector) {
+      tags.push({ label: sector, borderColor: "#ADD8E6" });
+    }
+    // Note: Interests are displayed separately in the Interests section, not as tags
+
+    return {
+      id: backendConnection.id.toString(),
+      backendConnectionId: backendConnection.id,
+      name: `${otherUser.first_name || ""} ${otherUser.last_name || ""}`.trim() || otherUser.email,
+      title: otherUser.job_title || undefined,
+      company: otherUser.organisation || undefined,
+      avatar: otherUser.profile_pic || undefined,
+      tags: tags.length > 0 ? tags : undefined,
+      about: bio || undefined,
+      interests: interestsArray.length > 0 ? interestsArray : undefined,
+      linkedInUrl,
+      isSpeaker: false, // TODO: Determine from backend data if needed
+      status: backendConnection.status,
+      isFromCurrentUser,
+    };
+  };
+
+  /**
+   * Fetch connections from backend
+   */
+  const fetchConnections = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await connectionService.getConnections(1, 50); // Fetch first 50 connections
+      const mappedConnections = response.connections.map(mapBackendConnectionToUI);
+      setConnections(mappedConnections);
+    } catch (err: any) {
+      const errorMessage =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to load connections. Please try again.";
+      setError(errorMessage);
+      showToast(errorMessage, "error");
+      if (__DEV__) {
+        console.error("Error fetching connections:", err);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch connections on mount
+  useEffect(() => {
+    fetchConnections();
+  }, []);
+
+  // Filter connections based on search query (commented out for now)
+  // const filteredConnections = connections.filter((connection) => {
+  //   if (!searchQuery.trim()) return true;
+  //   const query = searchQuery.toLowerCase();
+  //   return (
+  //     connection.name.toLowerCase().includes(query) ||
+  //     connection.title?.toLowerCase().includes(query) ||
+  //     connection.company?.toLowerCase().includes(query)
+  //   );
+  // });
+  const filteredConnections = connections;
+
+  /**
+   * Handle accept connection
+   */
+  const handleAcceptConnection = useCallback(async (connection: Connection) => {
+    // Prevent duplicate requests using ref (immediate synchronous check)
+    if (isProcessingActionRef.current) {
+      return;
+    }
+
+    try {
+      isProcessingActionRef.current = true;
+      setIsProcessingAction(true);
+      await connectionService.acceptConnection(connection.backendConnectionId);
+      showToast("Connection accepted successfully!", "success");
+      // Refresh connections list
+      await fetchConnections();
+      closeBottomSheet();
+    } catch (err: any) {
+      let errorMessage = "Failed to accept connection. Please try again.";
+      const isBackendConfigError = err instanceof ApiClientError && 
+        err.message?.includes("FRONTEND_PORTAL_URL");
+      
+      if (err instanceof ApiClientError) {
+        if (isBackendConfigError) {
+          // Backend configuration error - connection might still be accepted
+          // Refresh to check actual status, but show a warning
+          errorMessage = "Backend configuration error. Refreshing connection status...";
+          showToast(errorMessage, "error");
+          // Still refresh connections to see if it was actually accepted
+          try {
+            await fetchConnections();
+          } catch (refreshErr) {
+            if (__DEV__) {
+              console.error("Error refreshing connections:", refreshErr);
+            }
+          }
+        } else {
+          errorMessage = err.message;
+          showToast(errorMessage, "error");
+        }
+      } else {
+        showToast(errorMessage, "error");
+      }
+      
+      if (__DEV__) {
+        console.error("❌ Error accepting connection:", {
+          message: err?.message || "Unknown error",
+          statusCode: err?.statusCode || err?.responseCode || err?.response_code,
+          responseCode: err?.responseCode || err?.response_code,
+          errorData: err?.data || err?.response?.data,
+          isBackendConfigError,
+        });
+      }
+    } finally {
+      isProcessingActionRef.current = false;
+      setIsProcessingAction(false);
+    }
+  }, [showToast, fetchConnections, closeBottomSheet]);
+
+  /**
+   * Handle reject connection
+   */
+  const handleRejectConnection = useCallback(async (connection: Connection) => {
+    // Prevent duplicate requests using ref (immediate synchronous check)
+    if (isProcessingActionRef.current) {
+      return;
+    }
+
+    try {
+      isProcessingActionRef.current = true;
+      setIsProcessingAction(true);
+      await connectionService.rejectConnection(connection.backendConnectionId);
+      showToast("Connection declined", "error");
+      // Refresh connections list
+      await fetchConnections();
+      closeBottomSheet();
+    } catch (err: any) {
+      const errorMessage =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to reject connection. Please try again.";
+      showToast(errorMessage, "error");
+      if (__DEV__) {
+        console.error("❌ Error rejecting connection:", {
+          message: err?.message || "Unknown error",
+          statusCode: err?.statusCode || err?.responseCode || err?.response_code,
+          responseCode: err?.responseCode || err?.response_code,
+          errorData: err?.data || err?.response?.data,
+          fullError: JSON.stringify(err, Object.getOwnPropertyNames(err), 2),
+        });
+      }
+    } finally {
+      isProcessingActionRef.current = false;
+      setIsProcessingAction(false);
+    }
+  }, [showToast, fetchConnections, closeBottomSheet]);
+
+  /**
+   * Handle delete/remove connection
+   */
+  const handleDeleteConnection = useCallback(async (connection: Connection) => {
+    // Prevent duplicate requests using ref (immediate synchronous check)
+    if (isProcessingActionRef.current) {
+      return;
+    }
+
+    try {
+      isProcessingActionRef.current = true;
+      setIsProcessingAction(true);
+      await connectionService.deleteConnection(connection.backendConnectionId);
+      showToast("Connection removed", "error");
+      // Refresh connections list
+      await fetchConnections();
+      closeBottomSheet();
+    } catch (err: any) {
+      // If connection not found, it might have been deleted by the other party
+      // In this case, just refresh the list and close - connection is already gone
+      const responseCode =
+        err?.responseCode || err?.response_code || err?.statusCode;
+      if (responseCode === 404) {
+        // Connection already deleted - treat as success
+        showToast("Connection removed", "error");
+        await fetchConnections();
+        closeBottomSheet();
+      } else {
+        const errorMessage =
+          err instanceof ApiClientError
+            ? err.message
+            : "Failed to remove connection. Please try again.";
+        showToast(errorMessage, "error");
+        if (__DEV__) {
+          console.error("❌ Error deleting connection:", {
+            message: err?.message || "Unknown error",
+            statusCode: err?.statusCode || err?.responseCode || err?.response_code,
+            responseCode: err?.responseCode || err?.response_code,
+            errorData: err?.data || err?.response?.data,
+            fullError: JSON.stringify(err, Object.getOwnPropertyNames(err), 2),
+          });
+        }
+      }
+    } finally {
+      isProcessingActionRef.current = false;
+      setIsProcessingAction(false);
+    }
+  }, [showToast, fetchConnections, closeBottomSheet]);
 
   const bottomNavItems = [
     {
@@ -447,8 +658,8 @@ export default function ConnectionsScreen() {
       />
 
       <View className="flex-1">
-        {/* Search Bar */}
-        <View className="px-4 pt-4 pb-3">
+        {/* Search Bar - Commented out for now */}
+        {/* <View className="px-4 pt-4 pb-3">
           <View
             className="flex-row items-center bg-white rounded-xl px-4 py-3 border border-neutral-200"
             style={{
@@ -468,25 +679,52 @@ export default function ConnectionsScreen() {
               onChangeText={setSearchQuery}
             />
           </View>
-        </View>
+        </View> */}
 
         {/* Connections List */}
-        <FlatList
-          data={filteredConnections}
-          renderItem={renderConnectionItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: 16 }}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View className="items-center justify-center py-12 px-4">
-              <Text className="text-base text-neutral-500">
-                {searchQuery.trim()
-                  ? "No connections found"
-                  : "No connections yet"}
-              </Text>
-            </View>
-          }
-        />
+        {isLoading ? (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator size="large" color="#1BB273" />
+            <Text className="text-base text-neutral-500 mt-4">
+              Loading connections...
+            </Text>
+          </View>
+        ) : error ? (
+          <View className="flex-1 items-center justify-center px-4">
+            <Text className="text-base text-neutral-500 text-center mb-4">
+              {error}
+            </Text>
+            <Pressable
+              onPress={fetchConnections}
+              className="bg-neutral-900 rounded-xl px-6 py-3"
+            >
+              <Text className="text-white font-semibold">Retry</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredConnections}
+            renderItem={renderConnectionItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingTop: 16, paddingBottom: 16 }}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isLoading}
+                onRefresh={fetchConnections}
+                tintColor="#1BB273"
+                colors={["#1BB273"]}
+              />
+            }
+            ListEmptyComponent={
+              <View className="items-center justify-center py-12 px-4">
+                <Text className="text-base text-neutral-500">
+                  No connections yet
+                </Text>
+              </View>
+            }
+          />
+        )}
       </View>
 
       {/* Connection Detail Bottom Sheet */}
@@ -572,8 +810,16 @@ export default function ConnectionsScreen() {
               >
                 {/* Profile Header */}
                 <View className="flex-row items-start mb-4">
-                  <View className="w-16 h-16 rounded-full bg-neutral-100 items-center justify-center mr-4 flex-shrink-0">
-                    <PersonIcon size={32} color="#404040" />
+                  <View className="w-16 h-16 rounded-full bg-neutral-100 items-center justify-center mr-4 flex-shrink-0 overflow-hidden">
+                    {selectedConnection.avatar && typeof selectedConnection.avatar === "string" ? (
+                      <Image
+                        source={{ uri: selectedConnection.avatar }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <PersonIcon size={32} color="#404040" />
+                    )}
                   </View>
                   <View className="flex-1">
                     <Text className="text-2xl font-bold text-neutral-900 mb-1">
@@ -667,42 +913,143 @@ export default function ConnectionsScreen() {
 
                 {/* Action Buttons */}
                 <View className="mt-2">
-                  <Pressable
-                    onPress={() => {
-                      setMeetingConnection(selectedConnection);
-                      closeBottomSheet();
-                      setIsRequestMeetingModalVisible(true);
-                    }}
-                    className="w-full flex-row items-center justify-center bg-neutral-900 rounded-xl py-3.5 px-4 mb-3"
-                  >
-                    <CalendarIconWhite size={20} color="#FFFFFF" />
-                    <Text className="text-base font-semibold text-white ml-2">
-                      Request Meeting
-                    </Text>
-                  </Pressable>
+                  {/* Show Accept/Reject buttons for pending connections where current user is the recipient */}
+                  {selectedConnection.status === "pending" &&
+                    !selectedConnection.isFromCurrentUser && (
+                      <>
+                        <Pressable
+                          onPress={() => handleAcceptConnection(selectedConnection)}
+                          disabled={isProcessingAction}
+                          className="w-full flex-row items-center justify-center bg-[#1BB273] rounded-xl py-3.5 px-4 mb-3"
+                        >
+                          {isProcessingAction ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text className="text-base font-semibold text-white">
+                              Accept Connection
+                            </Text>
+                          )}
+                        </Pressable>
+                        <Pressable
+                          onPress={() => handleRejectConnection(selectedConnection)}
+                          disabled={isProcessingAction}
+                          className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4 mb-3"
+                          style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
+                        >
+                          {isProcessingAction ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text className="text-base font-semibold text-white">
+                              Decline
+                            </Text>
+                          )}
+                        </Pressable>
+                      </>
+                    )}
 
-                  <Pressable
-                    onPress={() => {
-                      if (selectedConnection.linkedInUrl) {
-                        // TODO: Open LinkedIn URL
-                        console.log(
-                          "Connect on LinkedIn:",
-                          selectedConnection.linkedInUrl
-                        );
-                      } else {
-                        console.log(
-                          "Connect on LinkedIn:",
-                          selectedConnection.name
-                        );
-                      }
-                    }}
-                    className="w-full flex-row items-center justify-center bg-neutral-200 rounded-xl py-3.5 px-4"
-                  >
-                    <LinkedInIcon size={20} color="#0A66C2" />
-                    <Text className="text-base font-semibold text-neutral-700 ml-2">
-                      Connect on LinkedIn
-                    </Text>
-                  </Pressable>
+                  {/* Show Request Meeting button for accepted connections */}
+                  {selectedConnection.status === "accepted" && (
+                    <Pressable
+                      onPress={() => {
+                        setMeetingConnection(selectedConnection);
+                        closeBottomSheet();
+                        setIsRequestMeetingModalVisible(true);
+                      }}
+                      className="w-full flex-row items-center justify-center bg-neutral-900 rounded-xl py-3.5 px-4 mb-3"
+                    >
+                      <CalendarIconWhite size={20} color="#FFFFFF" />
+                      <Text className="text-base font-semibold text-white ml-2">
+                        Request Meeting
+                      </Text>
+                    </Pressable>
+                  )}
+
+                  {/* Show Delete/Remove button for rejected/declined connections */}
+                  {selectedConnection.status === "rejected" && (
+                    <Pressable
+                      onPress={() => handleDeleteConnection(selectedConnection)}
+                      disabled={isProcessingAction}
+                      className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4 mb-3"
+                      style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
+                    >
+                      {isProcessingAction ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text className="text-base font-semibold text-white">
+                          Remove Connection
+                        </Text>
+                      )}
+                    </Pressable>
+                  )}
+
+                  {/* LinkedIn button - only show if LinkedIn URL exists */}
+                  {selectedConnection.linkedInUrl && (
+                    <Pressable
+                      onPress={async () => {
+                        if (selectedConnection.linkedInUrl) {
+                          try {
+                            const url = selectedConnection.linkedInUrl;
+                            // Ensure URL has protocol
+                            const formattedUrl = url.startsWith("http://") || url.startsWith("https://")
+                              ? url
+                              : `https://${url}`;
+                            
+                            // Try to open URL directly
+                            // On iOS, canOpenURL may return false even for valid URLs if not whitelisted,
+                            // so we'll try to open directly and catch errors
+                            const supported = await Linking.canOpenURL(formattedUrl);
+                            if (supported) {
+                              await Linking.openURL(formattedUrl);
+                            } else {
+                              // Still try to open - might work even if canOpenURL returns false
+                              try {
+                                await Linking.openURL(formattedUrl);
+                              } catch (openError) {
+                                Alert.alert(
+                                  "Cannot Open LinkedIn",
+                                  "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
+                                  [{ text: "OK" }]
+                                );
+                              }
+                            }
+                          } catch (error) {
+                            if (__DEV__) {
+                              console.error("Error opening LinkedIn URL:", error);
+                            }
+                            Alert.alert(
+                              "Error",
+                              "Failed to open LinkedIn profile. Please try again.",
+                              [{ text: "OK" }]
+                            );
+                          }
+                        }
+                      }}
+                      className="w-full flex-row items-center justify-center bg-neutral-200 rounded-xl py-3.5 px-4 mb-3"
+                    >
+                      <LinkedInIcon size={20} color="#0A66C2" />
+                      <Text className="text-base font-semibold text-neutral-700 ml-2">
+                        Connect on LinkedIn
+                      </Text>
+                    </Pressable>
+                  )}
+
+                  {/* Show Remove Connection button for accepted connections (below LinkedIn) */}
+                  {selectedConnection.status === "accepted" && (
+                    <Pressable
+                      onPress={() => handleDeleteConnection(selectedConnection)}
+                      disabled={isProcessingAction}
+                      className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4"
+                      style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
+                    >
+                      {isProcessingAction ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text className="text-base font-semibold text-white">
+                          Remove Connection
+                        </Text>
+                      )}
+                    </Pressable>
+                  )}
                 </View>
               </ScrollView>
             </Pressable>
@@ -725,8 +1072,6 @@ export default function ConnectionsScreen() {
               navigation.navigate("Meetings");
             } else if (route === "Connections") {
               // Already on Connections screen
-            } else {
-              console.log(`Navigate to ${route}`);
             }
           }}
         />
@@ -740,7 +1085,6 @@ export default function ConnectionsScreen() {
           setMeetingConnection(null);
         }}
         onSubmit={(data: MeetingFormData) => {
-          console.log("Meeting Request Submitted:", data);
           // TODO: BACKEND INTEGRATION - Send meeting request to backend
           // API Endpoint: POST /api/meetings/request
           // Request Body: { attendeeId: string, title, meetingType, date, time, tableNumber?, meetingLink?, description }
@@ -749,6 +1093,14 @@ export default function ConnectionsScreen() {
           // TODO: BACKEND - Refresh meetings list after successful request
         }}
         attendeeName={meetingConnection?.name}
+      />
+
+      {/* Toast */}
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        onHide={hideToast}
       />
     </View>
   );

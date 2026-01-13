@@ -21,3 +21,5 @@ export * from "./api.helpers";
 export * from "./authService";
 export * from "./ticketService";
 export * from "./companyService";
+export * from "./connectionService";
+export * from "./meetingService";

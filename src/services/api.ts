@@ -166,10 +166,7 @@ class ApiClient {
           delete config.headers['Content-Type'];
         }
 
-        // Log request in development
-        if (__DEV__) {
-          console.log(`📤 ${config.method?.toUpperCase()} ${config.url}`);
-        }
+        // Request logged only in development if needed for debugging
 
         return config;
       },
@@ -181,10 +178,7 @@ class ApiClient {
     // Response Interceptor - Handle errors and token refresh
     this.client.interceptors.response.use(
       (response) => {
-        // Log response in development
-        if (__DEV__) {
-          console.log(`📥 ${response.status} ${response.config.url}`);
-        }
+        // Response logged only in development if needed for debugging
         return response;
       },
       async (error: AxiosError) => {
@@ -403,15 +397,94 @@ class ApiClient {
     // Backend returns errors in standard format
     // If it's already in the correct format, use it
     if (data?.status === "error") {
+      // Check if this is a "Connection already exists" case that we handle as success
+      const errorMessage = data?.message || "";
+      const isConnectionAlreadyExists = 
+        status === 400 && 
+        (errorMessage.toLowerCase().includes("connection already exists") ||
+         errorMessage.toLowerCase().includes("already exists"));
+      
+      // Skip logging for "Connection already exists" (400) as it's handled as success in the UI
+      if (__DEV__ && !isConnectionAlreadyExists) {
+        const logData = typeof data === "string" && data.length > 500 
+          ? { _truncated: true, length: data.length, preview: data.substring(0, 300) + "..." }
+          : data;
+        console.log("🔍 API Error Response:", {
+          status,
+          data: logData,
+          url: error.config?.url,
+        });
+      }
+      
       return new ApiClientError(data as ApiError);
+    }
+
+    // Extract error message from various possible formats
+    let errorMessage = "An error occurred";
+    let errorDetails: any = {};
+    
+    // Check if this is a "Connection already exists" case for logging purposes
+    const extractedMessage = data?.message || data?.error || data?.detail || "";
+    const isConnectionAlreadyExists = 
+      status === 400 && 
+      (extractedMessage.toLowerCase().includes("connection already exists") ||
+       extractedMessage.toLowerCase().includes("already exists"));
+
+    // Log raw error details in development for debugging (avoid logging huge HTML strings)
+    // Skip logging for "Connection already exists" (400) as it's handled as success in the UI
+    if (__DEV__ && !isConnectionAlreadyExists) {
+      const logData = typeof data === "string" && data.length > 500 
+        ? { _truncated: true, length: data.length, preview: data.substring(0, 300) + "..." }
+        : data;
+      console.log("🔍 API Error Response:", {
+        status,
+        data: logData,
+        url: error.config?.url,
+      });
+    }
+
+    if (data?.message) {
+      errorMessage = data.message;
+    } else if (data?.error) {
+      errorMessage = typeof data.error === "string" ? data.error : JSON.stringify(data.error);
+    } else if (data?.detail) {
+      errorMessage = data.detail;
+    } else if (data?.non_field_errors && Array.isArray(data.non_field_errors)) {
+      errorMessage = data.non_field_errors.join(", ");
+    } else if (typeof data === "string") {
+      // Handle Django debug page HTML - extract just the error message
+      const htmlString = data;
+      // Try to extract Exception Type and Exception Value from Django debug page
+      const exceptionTypeMatch = htmlString.match(/Exception Type:\s*([^\n<]+)/);
+      const exceptionValueMatch = htmlString.match(/Exception Value:\s*([^\n<]+)/);
+      if (exceptionTypeMatch && exceptionValueMatch) {
+        errorMessage = `${exceptionTypeMatch[1].trim()}: ${exceptionValueMatch[1].trim()}`;
+      } else {
+        // If it's HTML but we can't parse it, use a generic message
+        errorMessage = "Server error occurred";
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
+    // Include error data for debugging (but avoid huge HTML strings)
+    if (data && typeof data === "object") {
+      errorDetails = data;
+    } else if (typeof data === "string" && data.length > 1000) {
+      // For large HTML strings, just store a summary
+      errorDetails = { 
+        _truncated: true,
+        length: data.length,
+        preview: data.substring(0, 200) + "..."
+      };
     }
 
     // Fallback: construct error from HTTP response
     const errorData: ApiError = {
       status: "error",
-      message: data?.message || error.message || "An error occurred",
+      message: errorMessage,
       response_code: status,
-      data: data?.data || {},
+      data: errorDetails,
     };
 
     return new ApiClientError(errorData);
@@ -526,6 +599,9 @@ class ApiClient {
 
   /**
    * DELETE request
+   * 
+   * Note: DELETE requests may return 204 No Content with no response body.
+   * In such cases, response.data will be empty/undefined.
    */
   async delete<T = any>(
     url: string,
@@ -533,6 +609,16 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     return this.requestWithRetry(async () => {
       const response = await this.client.delete<ApiResponse<T>>(url, config);
+      // For 204 No Content, response.data may be empty/undefined
+      // Return a minimal success response structure
+      if (response.status === 204 || !response.data) {
+        return {
+          status: "success",
+          message: "Deleted successfully",
+          response_code: 204,
+          data: undefined as any,
+        } as ApiResponse<T>;
+      }
       return response.data;
     });
   }
