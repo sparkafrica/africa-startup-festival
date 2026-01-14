@@ -982,13 +982,12 @@ function PersonalProfileSection({
     }
   };
 
-  // TODO: BACKEND INTEGRATION - Save profile data to backend API
-  // API Endpoint: PUT /api/user/profile/personal
+  // Save profile data to backend API
+  // Implementation: Uses authService.updateProfile() which calls PUT /user/profile/
   // Request Body: { fullName, jobTitle, company, linkedIn, bio, interests, tags, ... }
-  // Response: { success: boolean, profile: Profile }
-  // TODO: BACKEND - Handle validation errors from backend
-  // TODO: BACKEND - Show loading state during API call
-  // TODO: BACKEND - Handle API errors and show error messages
+  // Response: Updated UserProfile object
+  // Error handling: Validation errors and API errors are handled via try/catch and toast messages
+  // Loading state: Managed via setIsSaving state
   const handleSave = async () => {
     // Clear previous errors
     setValidationErrors({});
@@ -1707,13 +1706,12 @@ function AttendeeProfileSection({
     }
   };
 
-  // TODO: BACKEND INTEGRATION - Save attendee profile data to backend API
-  // API Endpoint: PUT /api/user/profile/attendee
-  // Request Body: { interests: string[], tags: string[] }
-  // Response: { success: boolean, profile: AttendeeProfile }
-  // TODO: BACKEND - Handle validation errors from backend
-  // TODO: BACKEND - Show loading state during API call
-  // TODO: BACKEND - Handle API errors and show error messages
+  // Save attendee profile data to backend API
+  // Implementation: Uses authService.updateProfile() which calls PUT /user/profile/
+  // Request Body: { interests: string[], tags: string[], ... }
+  // Response: Updated UserProfile object
+  // Error handling: Validation errors and API errors are handled via try/catch and toast messages
+  // Loading state: Managed via setIsSaving state
   const handleSave = async () => {
     // Clear previous errors
     setValidationErrors({});
@@ -2568,7 +2566,8 @@ function CompanyProfileSection({
         // Remove company logo
         setIsUploadingImage(true);
         try {
-          // TODO: Implement logo removal API call if available
+          // Logo removal: Currently handled via authService.updateProfile() with null logo
+          // Future enhancement: Dedicated endpoint for logo removal if needed
           // await companyService.removeCompanyLogo(user.company.id);
           setShouldRemovePhoto(false);
         } catch (imageError: any) {

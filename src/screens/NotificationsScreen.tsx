@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, ScrollView, Pressable } from "react-native";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -15,172 +15,230 @@ import {
 } from "../components/MenuIcons";
 import { BellIcon } from "../components/HeaderIcons";
 import { ChevronRightIcon } from "../components/MenuIcons";
+import { notificationService } from "../services/notificationService";
+import { ApiClientError } from "../services/api";
+import { mapBackendNotificationToUI, fetchNotificationDetails, type UINotification } from "../utils/notificationUtils";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../hooks/useToast";
+import Toast from "../components/Toast";
 
 export default function NotificationsScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Notifications">>();
-  const [selectedNotification, setSelectedNotification] = useState<any>(null);
-  // TODO: BACKEND INTEGRATION - Replace mock notifications with API call
-  // API Endpoint: GET /api/notifications
-  // Query Params: ?page={page}&limit={limit}&unreadOnly={boolean}
-  // Response: { notifications: Notification[], total: number, page: number }
-  // Real-time: WebSocket for new notifications, status changes
-  // TODO: BACKEND - Fetch notifications on component mount
-  // TODO: BACKEND - Handle pagination/infinite scroll
-  // TODO: BACKEND - Cache notifications in state management
-  // TODO: BACKEND - Handle loading and error states
-  // TODO: BACKEND - Subscribe to WebSocket for real-time updates
-  const [notifications, setNotifications] = useState([
-    {
-      id: "1",
-      type: "meeting_time_change",
-      icon: (
-        <View
-          className="w-12 h-12 rounded-lg items-center justify-center"
-          style={{ backgroundColor: "#FFF7ED" }}
-        >
-          <CalendarIcon size={24} color="#F97316" />
-        </View>
-      ),
-      title: "Meeting Time Change Request",
-      description: "Sarah Johnson wants to reschedule",
-      time: "1 hour ago",
-      unread: true,
-      requester: {
-        name: "Sarah Johnson",
-        role: "VC Partner",
-        company: "TechVentures Inc",
-        avatar: { uri: "https://i.pravatar.cc/150?img=1" },
-      },
-      meetingDetails: {
-        title: "Product Discussion",
-        originalTime: "March 15 • 10:00 AM - 10:20 AM",
-        newTime: "March 16 • 4:00 PM - 4:20 PM",
-      },
-      reason:
-        "I have a conflicting session at the original time. Would 4 PM tomorrow work better for you?",
-      onAccept: () => console.log("Meeting time change accepted"),
-      onDecline: () => console.log("Meeting time change declined"),
-    },
-    {
-      id: "2",
-      type: "meeting_approved",
-      icon: (
-        <View
-          className="w-12 h-12 rounded-lg items-center justify-center"
-          style={{ backgroundColor: "#F0FDF4" }}
-        >
-          <CalendarIcon size={24} color="#1BB273" />
-        </View>
-      ),
-      title: "Meeting Request Approved",
-      description: "Sarah Johnson approved your meeting request for March 15",
-      time: "2 hours ago",
-      unread: false,
-      direction: "outbound", // "outbound" = user requested, "inbound" = someone else requested
-    },
-    {
-      id: "2b",
-      type: "meeting_approved",
-      icon: (
-        <View
-          className="w-12 h-12 rounded-lg items-center justify-center"
-          style={{ backgroundColor: "#F0FDF4" }}
-        >
-          <CalendarIcon size={24} color="#1BB273" />
-        </View>
-      ),
-      title: "Meeting Request Approved",
-      description: "You approved Michael Chen's meeting request for March 16",
-      time: "3 hours ago",
-      unread: true,
-      direction: "inbound", // "inbound" = someone else requested, user approved
-    },
-    {
-      id: "3",
-      type: "connection",
-      icon: (
-        <View
-          className="w-12 h-12 rounded-lg items-center justify-center"
-          style={{ backgroundColor: "#EDF2FB" }}
-        >
-          <ProfileIcon size={24} color="#2762C7" />
-        </View>
-      ),
-      title: "New Connection",
-      description: "Michael Chen accepted your connection request",
-      time: "5 hours ago",
-      unread: false,
-    },
-    {
-      id: "4",
-      type: "reminder",
-      icon: (
-        <View
-          className="w-12 h-12 rounded-lg items-center justify-center"
-          style={{ backgroundColor: "#FFF7ED" }}
-        >
-          <BellIcon size={24} color="#F97316" />
-        </View>
-      ),
-      title: "Meeting Reminder",
-      description: "You have a meeting with Emma Rodriguez in 30 minutes",
-      time: "Yesterday",
-      unread: false,
-      direction: "outbound", // "outbound" = user requested, "inbound" = someone else requested
-    },
-    {
-      id: "5",
-      type: "meeting_cancelled",
-      icon: (
-        <View
-          className="w-12 h-12 rounded-lg items-center justify-center"
-          style={{ backgroundColor: "#FEF2F2" }}
-        >
-          <CalendarIcon size={24} color="#EF4444" />
-        </View>
-      ),
-      title: "Meeting Cancelled",
-      description: "Michael Chen cancelled your meeting request",
-      time: "3 hours ago",
-      unread: true,
-      requester: {
-        name: "Michael Chen",
-        role: "CEO",
-        company: "InnovateTech Solutions",
-        avatar: { uri: "https://i.pravatar.cc/150?img=12" },
-      },
-      meetingDetails: {
-        title: "Investment Opportunity",
-        originalTime: "March 16 • 2:00 PM - 2:20 PM",
-        location: "Table T-22",
-      },
-      reason:
-        "I have an urgent conflict that requires my immediate attention. I apologize for the inconvenience and would be happy to reschedule at your convenience.",
-      cancelledBy: "them", // "them" or "you" - who cancelled
-    },
-  ]);
+  const { user } = useAuth();
+  const { showToast, hideToast, toast } = useToast();
+  
+  // State
+  const [notifications, setNotifications] = useState<UINotification[]>([]);
+  const [selectedNotification, setSelectedNotification] = useState<UINotification | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const PAGE_SIZE = 20;
+  
+  // Prevent duplicate calls
+  const isFetchingRef = useRef(false);
+
+  /**
+   * Fetch notifications from backend
+   */
+  const fetchNotifications = useCallback(async (page: number = 1, isRefresh: boolean = false) => {
+    // Prevent duplicate calls
+    if (isFetchingRef.current) return;
+    
+    try {
+      isFetchingRef.current = true;
+      
+      if (isRefresh) {
+        setIsRefreshing(true);
+      } else if (page === 1) {
+        setIsLoading(true);
+      } else {
+        setIsLoadingMore(true);
+      }
+      setError(null);
+
+      const response = await notificationService.getNotifications(
+        page,
+        PAGE_SIZE,
+        "-timestamp" // Order by timestamp descending (latest first)
+      );
+
+      const uiNotifications = response.notifications.map((notif) =>
+        mapBackendNotificationToUI(notif, user?.user_id)
+      );
+
+      if (page === 1) {
+        setNotifications(uiNotifications);
+      } else {
+        setNotifications((prev) => [...prev, ...uiNotifications]);
+      }
+
+      // Check if there are more pages
+      setHasMore(!!response.pagination.next);
+      setCurrentPage(page);
+    } catch (err: any) {
+      const errorMessage =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to load notifications. Please try again.";
+      setError(errorMessage);
+      if (page === 1) {
+        showToast(errorMessage, "error");
+      }
+      if (__DEV__) {
+        console.error("Error fetching notifications:", err);
+      }
+    } finally {
+      isFetchingRef.current = false;
+      setIsLoading(false);
+      setIsRefreshing(false);
+      setIsLoadingMore(false);
+    }
+  }, [user?.user_id, showToast]);
+
+  /**
+   * Load more notifications (infinite scroll)
+   */
+  const loadMore = useCallback(() => {
+    if (!isLoadingMore && hasMore && !isFetchingRef.current) {
+      fetchNotifications(currentPage + 1, false);
+    }
+  }, [currentPage, hasMore, isLoadingMore, fetchNotifications]);
+
+  /**
+   * Mark notification as read
+   * Called when:
+   * - User clicks action button in modal (accept/decline)
+   * - User navigates to another screen from notification
+   */
+  const markAsRead = useCallback(async (notification: UINotification) => {
+    // Optimistically update UI
+    setNotifications((prev) =>
+      prev.map((n) =>
+        n.id === notification.id ? { ...n, unread: false } : n
+      )
+    );
+
+    try {
+      await notificationService.markAsRead(notification.backendNotificationId);
+    } catch (err: any) {
+      // Rollback on error
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === notification.id ? { ...n, unread: true } : n
+        )
+      );
+      if (__DEV__) {
+        console.error("Error marking notification as read:", err);
+      }
+    }
+  }, []);
+
+  /**
+   * Handle notification press
+   */
+  const handleNotificationPress = useCallback(async (notification: UINotification) => {
+    // For notifications that open modals (meeting_time_change, meeting_cancelled)
+    if (
+      notification.type === "meeting_time_change" ||
+      notification.type === "meeting_cancelled"
+    ) {
+      // Fetch details before opening modal (lazy loading)
+      setIsLoadingDetails(true);
+      try {
+        const enrichedNotification = await fetchNotificationDetails(
+          notification,
+          user?.user_id
+        );
+        setSelectedNotification(enrichedNotification);
+      } catch (err: any) {
+        if (__DEV__) {
+          console.error("Error fetching notification details:", err);
+        }
+        // Still open modal with basic data
+        setSelectedNotification(notification);
+      } finally {
+        setIsLoadingDetails(false);
+      }
+    } else {
+      // For notifications that navigate to other screens
+      // Mark as read when navigation happens
+      await markAsRead(notification);
+      
+      // Close notifications screen first
+      navigation.goBack();
+
+      // Navigate after a short delay
+      setTimeout(() => {
+        if (notification.route) {
+          // Use route field if available
+          // Parse route (e.g., "/meetings/123" or "Meetings")
+          const routeParts = notification.route.split("/").filter(Boolean);
+          if (routeParts.length > 0) {
+            const routeName = routeParts[0];
+            // Map route to navigation screen
+            if (routeName === "meetings" || routeName === "Meetings") {
+              navigation.navigate("Meetings", {
+                primaryTab: notification.meeting_id ? "scheduled" : "requests",
+                secondaryTab: notification.direction || "outbound",
+              });
+            } else if (routeName === "connections" || routeName === "Connections") {
+              navigation.navigate("Connections");
+            }
+          }
+        } else {
+          // Fallback: Navigate based on type
+          switch (notification.type) {
+            case "meeting_approved":
+            case "reminder":
+              navigation.navigate("Meetings", {
+                primaryTab: "scheduled",
+                secondaryTab: notification.direction || "outbound",
+              });
+              break;
+            case "connection":
+              navigation.navigate("Connections");
+              break;
+            default:
+              break;
+          }
+        }
+      }, 100);
+    }
+  }, [markAsRead, navigation, user?.user_id]);
+
+  /**
+   * Handle modal action (accept/decline) - mark as read when action is done
+   */
+  const handleModalAction = useCallback(async (
+    notification: UINotification,
+    action: "accept" | "decline"
+  ) => {
+    // Mark as read when action button is clicked
+    await markAsRead(notification);
+    
+    // Close modal
+    setSelectedNotification(null);
+    
+    // Handle the actual action (accept/decline meeting time change)
+    // Note: Full meeting action integration will be in Task 4 (Meeting Actions)
+    // For now, the action is logged and modal closes
+    // The actual API call to accept/decline will be added when integrating meeting actions
+  }, [markAsRead]);
+
+  // Fetch notifications on mount
+  useEffect(() => {
+    fetchNotifications(1, false);
+  }, [fetchNotifications]);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
-
-  // TODO: BACKEND INTEGRATION - Mark notification as read via API
-  // API Endpoint: PUT /api/notifications/{notificationId}/read
-  // TODO: BACKEND - Update local state optimistically
-  // TODO: BACKEND - Handle API errors and rollback on failure
-  const markAsRead = (id: string) => {
-    // TODO: BACKEND - Call API: await api.put(`/notifications/${id}/read`)
-    setNotifications(
-      notifications.map((n) => (n.id === id ? { ...n, unread: false } : n))
-    );
-  };
-
-  // TODO: BACKEND INTEGRATION - Mark all notifications as read via API
-  // API Endpoint: PUT /api/notifications/read-all
-  // TODO: BACKEND - Update local state optimistically
-  const markAllAsRead = () => {
-    // TODO: BACKEND - Call API: await api.put('/notifications/read-all')
-    setNotifications(notifications.map((n) => ({ ...n, unread: false })));
-  };
 
   return (
     <View className="flex-1 bg-white">
@@ -212,7 +270,26 @@ export default function NotificationsScreen() {
         </View>
 
         {/* Notifications List */}
-        {notifications.length === 0 ? (
+        {isLoading && notifications.length === 0 ? (
+          <View className="flex-1 items-center justify-center px-6">
+            <ActivityIndicator size="large" color="#1BB273" />
+            <Text className="text-base text-neutral-500 mt-4">
+              Loading notifications...
+            </Text>
+          </View>
+        ) : error && notifications.length === 0 ? (
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-base text-neutral-500 text-center mb-4">
+              {error}
+            </Text>
+            <Pressable
+              onPress={() => fetchNotifications(1, false)}
+              className="bg-neutral-900 rounded-xl px-6 py-3"
+            >
+              <Text className="text-white font-semibold">Retry</Text>
+            </Pressable>
+          </View>
+        ) : notifications.length === 0 ? (
           <View className="flex-1 items-center justify-center px-6">
             <View
               className="w-16 h-16 rounded-full items-center justify-center mb-4"
@@ -223,15 +300,43 @@ export default function NotificationsScreen() {
             <Text className="text-lg font-semibold text-neutral-900 mb-2">
               No notifications
             </Text>
-            <Text className="text-sm text-neutral-500 text-center">
+            <Text className="text-sm text-neutral-500 text-center mb-4">
               You're all caught up! New notifications will appear here.
             </Text>
+            {/* Temporary message - remove when backend creates notifications automatically */}
+            {__DEV__ && (
+              <View className="mt-4 px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+                <Text className="text-xs text-yellow-800 text-center">
+                  Note: Notifications will appear here once the backend creates them automatically for connection requests, meeting requests, etc.
+                </Text>
+              </View>
+            )}
           </View>
         ) : (
           <ScrollView
             className="flex-1"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 20 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={() => fetchNotifications(1, true)}
+                tintColor="#1BB273"
+                colors={["#1BB273"]}
+              />
+            }
+            onScroll={({ nativeEvent }) => {
+              // Infinite scroll: Load more when near bottom
+              const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+              const paddingToBottom = 20;
+              if (
+                layoutMeasurement.height + contentOffset.y >=
+                contentSize.height - paddingToBottom
+              ) {
+                loadMore();
+              }
+            }}
+            scrollEventThrottle={400}
           >
             {notifications.map((notification) => (
               <NotificationItem
@@ -241,51 +346,16 @@ export default function NotificationsScreen() {
                 description={notification.description}
                 time={notification.time}
                 unread={notification.unread}
-                onPress={() => {
-                  if (notification.unread) {
-                    markAsRead(notification.id);
-                  }
-
-                  // Show modal for meeting time change requests and cancelled meetings
-                  if (
-                    notification.type === "meeting_time_change" ||
-                    notification.type === "meeting_cancelled"
-                  ) {
-                    setSelectedNotification(notification);
-                  } else {
-                    // Close the notifications modal first, then navigate
-                    navigation.goBack();
-
-                    // Use setTimeout to ensure modal closes before navigation
-                    setTimeout(() => {
-                      // Navigate to appropriate screen based on notification type
-                      switch (notification.type) {
-                        case "meeting_approved":
-                          // Navigate to Meetings → Scheduled tab → appropriate direction tab
-                          navigation.navigate("Meetings", {
-                            primaryTab: "scheduled",
-                            secondaryTab: notification.direction || "outbound",
-                          });
-                          break;
-                        case "reminder":
-                          // Navigate to Meetings → Scheduled tab → appropriate direction tab
-                          navigation.navigate("Meetings", {
-                            primaryTab: "scheduled",
-                            secondaryTab: notification.direction || "outbound",
-                          });
-                          break;
-                        case "connection":
-                          navigation.navigate("Connections");
-                          break;
-                        default:
-                          // For any other types, just mark as read
-                          break;
-                      }
-                    }, 100);
-                  }
-                }}
+                onPress={() => handleNotificationPress(notification)}
               />
             ))}
+            
+            {/* Loading more indicator */}
+            {isLoadingMore && (
+              <View className="py-4 items-center">
+                <ActivityIndicator size="small" color="#1BB273" />
+              </View>
+            )}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -298,7 +368,52 @@ export default function NotificationsScreen() {
             selectedNotification?.type === "meeting_cancelled")
         }
         onClose={() => setSelectedNotification(null)}
-        notification={selectedNotification}
+        notification={selectedNotification ? {
+          id: selectedNotification.id,
+          type: selectedNotification.type as any,
+          title: selectedNotification.title,
+          requester: selectedNotification.requester ? {
+            name: selectedNotification.requester.name,
+            role: selectedNotification.requester.role || "",
+            company: selectedNotification.requester.company || "",
+            avatar: selectedNotification.requester.avatar,
+          } : undefined,
+          meetingDetails: selectedNotification.meetingDetails,
+          reason: selectedNotification.reason,
+          cancelledBy: selectedNotification.cancelledBy,
+          onAccept: selectedNotification.type === "meeting_time_change"
+            ? () => handleModalAction(selectedNotification, "accept")
+            : undefined,
+          onDecline: selectedNotification.type === "meeting_time_change"
+            ? () => handleModalAction(selectedNotification, "decline")
+            : undefined,
+        } : null}
+      />
+      
+      {/* Loading overlay for details */}
+      {isLoadingDetails && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.3)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </View>
+      )}
+
+      {/* Toast */}
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        onHide={hideToast}
       />
     </View>
   );

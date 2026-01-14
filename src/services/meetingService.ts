@@ -201,13 +201,28 @@ export const meetingService = {
 
       const data = response as any;
 
-      // Check if response has the PaginatedMeetingSlotList structure
+      if (__DEV__) {
+        console.log("🔍 Raw meeting slots response:", {
+          hasData: !!data,
+          dataType: typeof data,
+          keys: data ? Object.keys(data) : [],
+          hasResults: data?.results !== undefined,
+          hasDataResults: data?.data?.results !== undefined,
+          resultsLength: data?.results?.length || data?.data?.results?.length || 0,
+          fullResponse: JSON.stringify(data, null, 2).substring(0, 500),
+        });
+      }
+
+      // Check if response has the PaginatedMeetingSlotList structure (direct)
       if (
         data &&
         typeof data === "object" &&
         "results" in data &&
         Array.isArray(data.results)
       ) {
+        if (__DEV__) {
+          console.log("✅ Found direct PaginatedMeetingSlotList structure");
+        }
         return {
           slots: data.results as MeetingSlot[],
           pagination: {
@@ -219,14 +234,34 @@ export const meetingService = {
       }
 
       // If wrapped in ApiResponse format
-      if (data?.status === "success" && data?.data) {
+      if (data?.status === "success" && data?.data !== undefined) {
         const responseData = data.data;
+        
+        // Check if data.data is directly an array (ApiResponse with array data)
+        if (Array.isArray(responseData)) {
+          if (__DEV__) {
+            console.log("✅ Found array directly in data.data (ApiResponse format)");
+          }
+          return {
+            slots: responseData as MeetingSlot[],
+            pagination: {
+              count: responseData.length,
+              next: null,
+              previous: null,
+            },
+          };
+        }
+        
+        // Check if data.data is a PaginatedMeetingSlotList object with results
         if (
           responseData &&
           typeof responseData === "object" &&
           "results" in responseData &&
           Array.isArray(responseData.results)
         ) {
+          if (__DEV__) {
+            console.log("✅ Found ApiResponse wrapped PaginatedMeetingSlotList structure");
+          }
           return {
             slots: responseData.results as MeetingSlot[],
             pagination: {
@@ -238,7 +273,25 @@ export const meetingService = {
         }
       }
 
+      // Check if data is directly an array
+      if (Array.isArray(data)) {
+        if (__DEV__) {
+          console.log("✅ Found array directly in response");
+        }
+        return {
+          slots: data as MeetingSlot[],
+          pagination: {
+            count: data.length,
+            next: null,
+            previous: null,
+          },
+        };
+      }
+
       // Fallback: return empty array
+      if (__DEV__) {
+        console.warn("⚠️ Could not parse meeting slots response, returning empty array");
+      }
       return {
         slots: [],
         pagination: {

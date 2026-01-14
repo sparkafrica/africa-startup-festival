@@ -41,9 +41,11 @@ import type { MeetingFormData } from "../components";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
 import { connectionService, type Connection as BackendConnection } from "../services/connectionService";
+import { meetingService } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
+import { EVENT_ID } from "../config/env";
 
 // Person Icon Component (for profile placeholder)
 function PersonIcon({
@@ -93,6 +95,7 @@ interface SpeakingSession {
 interface Connection {
   id: string; // Backend connection ID as string
   backendConnectionId: number; // Original backend ID for API calls
+  userId: string; // The other user's ID (stringified)
   name: string;
   title?: string;
   company?: string;
@@ -239,6 +242,7 @@ export default function ConnectionsScreen() {
   );
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const isProcessingActionRef = useRef(false);
+  const [isSubmittingMeeting, setIsSubmittingMeeting] = useState(false);
 
   // Bottom sheet animation values
   const bottomSheetTranslateY = useRef(new Animated.Value(0)).current;
@@ -260,6 +264,10 @@ export default function ConnectionsScreen() {
         : backendConnection.from_user;
     const isFromCurrentUser =
       backendConnection.from_user.id === currentUserId;
+    const otherUserId =
+      otherUser && otherUser.id !== undefined && otherUser.id !== null
+        ? otherUser.id.toString()
+        : "";
 
     // Extract interests from metadata
     const interests = otherUser.metadata?.interests || [];
@@ -290,6 +298,7 @@ export default function ConnectionsScreen() {
     return {
       id: backendConnection.id.toString(),
       backendConnectionId: backendConnection.id,
+      userId: otherUserId,
       name: `${otherUser.first_name || ""} ${otherUser.last_name || ""}`.trim() || otherUser.email,
       title: otherUser.job_title || undefined,
       company: otherUser.organisation || undefined,
@@ -345,6 +354,70 @@ export default function ConnectionsScreen() {
   //   );
   // });
   const filteredConnections = connections;
+
+  /**
+   * Handle meeting request submission
+   */
+  const handleMeetingRequestSubmit = useCallback(
+    async (data: MeetingFormData) => {
+      if (!meetingConnection || !user?.user_id) {
+        showToast("Unable to send meeting request", "error");
+        return;
+      }
+
+      // Validate that we have a slot ID
+      if (!data.meeting_slot_id) {
+        showToast(
+          "Please select a valid date, time, and table for the meeting",
+          "error"
+        );
+        return;
+      }
+
+      try {
+        setIsSubmittingMeeting(true);
+
+        // Prepare meeting request
+        const meetingRequest = {
+          meeting_slot_id: data.meeting_slot_id,
+          requestee_id: meetingConnection.userId, // The connection's user ID
+          reason: data.description,
+          metadata: {
+            title: data.title,
+            meetingType: data.meetingType,
+            meetingLink: data.meetingLink,
+            selectedDate: data.date,
+            selectedTime: data.time,
+            tableNumber: data.tableNumber,
+          },
+        };
+
+        // Submit meeting request to backend
+        await meetingService.createMeetingRequest(EVENT_ID, meetingRequest);
+
+        // Show success message
+        showToast("Meeting request sent successfully!", "success");
+
+        // Close modal and reset
+        setIsRequestMeetingModalVisible(false);
+        setMeetingConnection(null);
+      } catch (error: any) {
+        if (__DEV__) {
+          console.error("Error submitting meeting request:", error);
+        }
+
+        // Show error message
+        const errorMessage =
+          error instanceof ApiClientError
+            ? error.message
+            : "Failed to send meeting request. Please try again.";
+        showToast(errorMessage, "error");
+      } finally {
+        setIsSubmittingMeeting(false);
+      }
+    },
+    [meetingConnection, user?.user_id, showToast]
+  );
 
   /**
    * Handle accept connection
@@ -1081,18 +1154,14 @@ export default function ConnectionsScreen() {
       <RequestMeetingModal
         visible={isRequestMeetingModalVisible}
         onClose={() => {
-          setIsRequestMeetingModalVisible(false);
-          setMeetingConnection(null);
+          if (!isSubmittingMeeting) {
+            setIsRequestMeetingModalVisible(false);
+            setMeetingConnection(null);
+          }
         }}
-        onSubmit={(data: MeetingFormData) => {
-          // TODO: BACKEND INTEGRATION - Send meeting request to backend
-          // API Endpoint: POST /api/meetings/request
-          // Request Body: { attendeeId: string, title, meetingType, date, time, tableNumber?, meetingLink?, description }
-          // TODO: BACKEND - Handle validation errors, conflicts, unavailable slots
-          // TODO: BACKEND - Show success/error messages
-          // TODO: BACKEND - Refresh meetings list after successful request
-        }}
+        onSubmit={handleMeetingRequestSubmit}
         attendeeName={meetingConnection?.name}
+        eventId={EVENT_ID}
       />
 
       {/* Toast */}

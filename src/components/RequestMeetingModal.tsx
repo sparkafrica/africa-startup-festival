@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -21,6 +22,8 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
 } from "./icons";
+import { meetingService, type MeetingSlot } from "../services/meetingService";
+import { EVENT_ID } from "../config/env";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -30,6 +33,7 @@ interface RequestMeetingModalProps {
   onClose: () => void;
   onSubmit: (data: MeetingFormData) => void;
   attendeeName?: string;
+  eventId?: number; // Allow override, defaults to EVENT_ID
 }
 
 export interface MeetingFormData {
@@ -40,6 +44,9 @@ export interface MeetingFormData {
   date?: string;
   time?: string;
   description: string;
+  // Backend-specific fields
+  meeting_slot_id?: number; // The actual slot ID from backend
+  slot?: MeetingSlot; // Full slot data for reference
 }
 
 export default function RequestMeetingModal({
@@ -47,6 +54,7 @@ export default function RequestMeetingModal({
   onClose,
   onSubmit,
   attendeeName,
+  eventId = EVENT_ID,
 }: RequestMeetingModalProps) {
   const [meetingType, setMeetingType] = useState<"Physical" | "Virtual">(
     "Physical"
@@ -56,11 +64,18 @@ export default function RequestMeetingModal({
   const [meetingLink, setMeetingLink] = useState("");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedTimeKey, setSelectedTimeKey] = useState<string | null>(null); // Store timeKey for filtering
+  const [selectedSlot, setSelectedSlot] = useState<MeetingSlot | null>(null);
   const [description, setDescription] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showTablePicker, setShowTablePicker] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Backend data
+  const [meetingSlots, setMeetingSlots] = useState<MeetingSlot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
 
   // Validation errors
   const [errors, setErrors] = useState<{
@@ -118,6 +133,7 @@ export default function RequestMeetingModal({
     })
   ).current;
 
+  // Fetch meeting slots when modal opens
   useEffect(() => {
     if (visible) {
       // Smooth entrance animation
@@ -133,15 +149,52 @@ export default function RequestMeetingModal({
       setMeetingLink("");
       setSelectedDate(null);
       setSelectedTime(null);
+      setSelectedTimeKey(null);
+      setSelectedSlot(null);
       setDescription("");
       setShowDatePicker(false);
       setShowTimePicker(false);
       setKeyboardHeight(0);
       setErrors({});
+      setSlotsError(null);
+
+      // Fetch available meeting slots
+      fetchMeetingSlots();
     } else {
       translateY.setValue(SCREEN_HEIGHT);
     }
   }, [visible, translateY]);
+
+  const fetchMeetingSlots = async () => {
+    try {
+      setIsLoadingSlots(true);
+      setSlotsError(null);
+      const response = await meetingService.getMeetingSlots(eventId);
+      const availableSlots = response.slots.filter(slot => slot.is_available);
+      setMeetingSlots(availableSlots);
+      
+      if (__DEV__) {
+        console.log("📅 Fetched meeting slots:", {
+          total: response.slots.length,
+          available: availableSlots.length,
+          slots: availableSlots.map(s => ({
+            id: s.id,
+            start: s.start_time,
+            end: s.end_time,
+            table: s.table_number,
+            available: s.is_available
+          }))
+        });
+      }
+    } catch (error: any) {
+      setSlotsError(error?.message || "Failed to load meeting slots");
+      if (__DEV__) {
+        console.error("❌ Error fetching meeting slots:", error);
+      }
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
 
   // Handle keyboard show/hide
   useEffect(() => {
@@ -228,6 +281,8 @@ export default function RequestMeetingModal({
         date: selectedDate || undefined,
         time: selectedTime || undefined,
         description,
+        meeting_slot_id: selectedSlot?.id,
+        slot: selectedSlot || undefined,
       };
       onSubmit(formData);
       // Reset form
@@ -236,6 +291,8 @@ export default function RequestMeetingModal({
       setMeetingLink("");
       setSelectedDate(null);
       setSelectedTime(null);
+      setSelectedTimeKey(null);
+      setSelectedSlot(null);
       setDescription("");
       setErrors({});
       onClose();
@@ -253,36 +310,87 @@ export default function RequestMeetingModal({
     }
   };
 
-  // TODO: BACKEND INTEGRATION - Fetch available dates from backend
-  // API Endpoint: GET /api/meetings/available-dates?attendeeId={attendeeId}
-  // Response: { dates: { id: string, label: string, value: string }[] }
-  // TODO: BACKEND - Filter by attendee availability
-  // TODO: BACKEND - Exclude past dates and dates outside event window
-  // Sample dates - in production, these would come from backend
+  // Format time from backend (HH:MM:SS) to display format (HH:MM AM/PM)
+  const formatTime = (timeStr: string): string => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
+
+  // Available dates for the event (25th and 26th June, 2026)
+  // Show dates regardless of slot loading status - slots will be filtered by date selection
   const availableDates = [
-    { id: "1", label: "26th June, 2025", value: "2025-06-26" },
-    { id: "2", label: "27th June, 2025", value: "2025-06-27" },
+    { id: "1", label: "25th June, 2026", value: "2026-06-25" },
+    { id: "2", label: "26th June, 2026", value: "2026-06-26" },
   ];
 
-  // Sample times - in production, these would come from backend
-  const availableTimes = [
-    { id: "1", label: "10:30 AM - 11:00 AM", value: "10:30-11:00" },
-    { id: "2", label: "10:30 AM - 10:50 AM", value: "10:30-10:50" },
-    { id: "3", label: "11:00 AM - 11:30 AM", value: "11:00-11:30" },
-  ];
+  // Get slots for selected date (or all slots if no date selected yet)
+  const getAvailableSlotsForDate = (): MeetingSlot[] => {
+    // Since we're hardcoding dates and backend slots don't include date info,
+    // return all slots regardless of date selection
+    // In production, you would filter slots by the selected date value
+    return meetingSlots;
+  };
 
-  // TODO: BACKEND INTEGRATION - Fetch available tables from backend
-  // API Endpoint: GET /api/meetings/available-tables?date={date}&time={time}
-  // Response: { tables: { id: string, label: string, value: string }[] }
-  // TODO: BACKEND - Only fetch for physical meetings
-  // TODO: BACKEND - Filter by date and time slot availability
-  // TODO: BACKEND - Real-time validation as user selects date/time
-  // Sample tables - in production, these would come from backend
-  const availableTables = [
-    { id: "1", label: "Table 15", value: "15" },
-    { id: "2", label: "Table 20", value: "20" },
-    { id: "3", label: "Table 25", value: "25" },
-  ];
+  // Get slots for the selected date
+  const slotsForDate = getAvailableSlotsForDate();
+  
+  // Debug logging
+  if (__DEV__ && selectedDate) {
+    console.log("🔍 Date selected:", selectedDate);
+    console.log("🔍 Total slots:", meetingSlots.length);
+    console.log("🔍 Slots for date:", slotsForDate.length);
+  }
+  
+  // Generate time options from available slots (remove duplicates)
+  const uniqueTimeSlots = new Map<string, { slot: MeetingSlot; label: string }>();
+  
+  slotsForDate.forEach((slot: MeetingSlot) => {
+    const timeKey = `${slot.start_time}-${slot.end_time}`;
+    if (!uniqueTimeSlots.has(timeKey)) {
+      uniqueTimeSlots.set(timeKey, {
+        slot,
+        label: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
+      });
+    }
+  });
+
+  const availableTimes = Array.from(uniqueTimeSlots.entries()).map(([timeKey, data]) => ({
+    id: data.slot.id.toString(),
+    label: data.label,
+    value: timeKey,
+    slotId: data.slot.id,
+    tableNumber: data.slot.table_number,
+  }));
+
+  // Debug logging for times
+  if (__DEV__ && selectedDate) {
+    console.log("🔍 Available times:", availableTimes.length, availableTimes.map(t => t.label));
+  }
+
+  // Get all tables for selected time slot (multiple slots can have same time but different tables)
+  // Use selectedTimeKey (e.g., "09:30:00-09:50:00") to match slots, not selectedTime (display label)
+  const availableTables = selectedTimeKey
+    ? slotsForDate
+        .filter((slot: MeetingSlot) => `${slot.start_time}-${slot.end_time}` === selectedTimeKey)
+        .map((slot: MeetingSlot) => ({
+          id: slot.id.toString(),
+          label: `Table ${slot.table_number}`,
+          value: slot.table_number.toString(),
+          slotId: slot.id,
+        }))
+    : [];
+
+  // Debug logging for tables
+  if (__DEV__ && selectedTimeKey) {
+    console.log("🔍 Selected time (label):", selectedTime);
+    console.log("🔍 Selected timeKey:", selectedTimeKey);
+    console.log("🔍 Available tables:", availableTables.length, availableTables.map(t => t.label));
+    if (availableTables.length === 0) {
+      console.log("🔍 Debug: Matching slots for timeKey:", slotsForDate.filter((s: MeetingSlot) => `${s.start_time}-${s.end_time}` === selectedTimeKey).length);
+    }
+  }
 
   return (
     <Modal
@@ -332,6 +440,29 @@ export default function RequestMeetingModal({
                   that, any unconfirmed slots will be reopened to the public.
                 </Text>
               </View>
+
+              {/* Loading/Error State for Slots */}
+              {isLoadingSlots && (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#1BB273" />
+                  <Text style={styles.loadingText}>Loading available slots...</Text>
+                </View>
+              )}
+              {slotsError && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorBannerText}>{slotsError}</Text>
+                  <Pressable onPress={fetchMeetingSlots} style={styles.retryButton}>
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                  </Pressable>
+                </View>
+              )}
+              {!isLoadingSlots && !slotsError && meetingSlots.length === 0 && (
+                <View style={styles.noSlotsContainer}>
+                  <Text style={styles.noSlotsText}>
+                    No meeting slots are currently available for this event. Please contact support or try again later.
+                  </Text>
+                </View>
+              )}
 
               {/* Meeting Title */}
               <View style={styles.fieldContainer}>
@@ -424,29 +555,114 @@ export default function RequestMeetingModal({
                 {/* Date Options */}
                 {showDatePicker && (
                   <View style={styles.pickerOptions}>
-                    {availableDates.map((date) => (
-                      <Pressable
-                        key={date.id}
-                        style={styles.pickerOption}
-                        onPress={() => {
-                          setSelectedDate(date.label);
-                          setShowDatePicker(false);
-                          clearError("date");
-                        }}
-                      >
-                        <CalendarIcon size={20} active={true} />
-                        <Text style={styles.pickerOptionText}>
-                          {date.label}
+                    {availableDates.length === 0 ? (
+                      <View style={styles.emptyState}>
+                        <Text style={styles.emptyStateText}>
+                          No available dates
                         </Text>
-                        {selectedDate === date.label && (
-                          <Text style={styles.checkmark}>✓</Text>
-                        )}
-                      </Pressable>
-                    ))}
+                      </View>
+                    ) : (
+                      availableDates.map((date) => (
+                        <Pressable
+                          key={date.id}
+                          style={styles.pickerOption}
+                          onPress={() => {
+                            setSelectedDate(date.label);
+                            setSelectedTime(null); // Reset time when date changes
+                            setSelectedTimeKey(null); // Reset timeKey
+                            setTableNumber(""); // Reset table
+                            setSelectedSlot(null);
+                            setShowDatePicker(false);
+                            clearError("date");
+                          }}
+                        >
+                          <CalendarIcon size={20} active={true} />
+                          <Text style={styles.pickerOptionText}>
+                            {date.label}
+                          </Text>
+                          {selectedDate === date.label && (
+                            <Text style={styles.checkmark}>✓</Text>
+                          )}
+                        </Pressable>
+                      ))
+                    )}
                   </View>
                 )}
                 {errors.date && (
                   <Text style={styles.errorText}>{errors.date}</Text>
+                )}
+              </View>
+
+              {/* Time Picker */}
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Time</Text>
+                <Pressable
+                  style={[styles.input, errors.time && styles.inputError]}
+                  onPress={() => {
+                    setShowTimePicker(!showTimePicker);
+                    setShowDatePicker(false);
+                    setShowTablePicker(false);
+                    clearError("time");
+                  }}
+                >
+                  <ClockIcon size={20} />
+                  <Text
+                    style={[
+                      styles.inputText,
+                      { marginLeft: 12 },
+                      !selectedTime && styles.placeholderText,
+                    ]}
+                  >
+                    {selectedTime || "Select time"}
+                  </Text>
+                  {showTimePicker ? (
+                    <ChevronUpIcon size={20} color="#A3A3A3" />
+                  ) : (
+                    <ChevronDownIcon size={20} color="#A3A3A3" />
+                  )}
+                </Pressable>
+
+                {/* Time Options */}
+                {showTimePicker && (
+                  <View style={styles.pickerOptions}>
+                    {availableTimes.length === 0 ? (
+                      <View style={styles.emptyState}>
+                        <Text style={styles.emptyStateText}>
+                          {selectedDate
+                            ? "No available times for this date"
+                            : "Please select a date first"}
+                        </Text>
+                      </View>
+                    ) : (
+                      availableTimes.map((time) => (
+                        <Pressable
+                          key={time.id}
+                          style={styles.pickerOption}
+                          onPress={() => {
+                            setSelectedTime(time.label); // Display label for UI
+                            setSelectedTimeKey(time.value); // TimeKey for filtering (e.g., "09:30:00-09:50:00")
+                            setTableNumber(""); // Reset table when time changes
+                            setShowTimePicker(false);
+                            clearError("time");
+                            
+                            // If virtual or only one slot for this time, auto-select
+                            if (meetingType === "Virtual" || availableTimes.filter(t => t.value === time.value).length === 1) {
+                              const slot = meetingSlots.find(s => s.id === (time as any).slotId);
+                              setSelectedSlot(slot || null);
+                            }
+                          }}
+                        >
+                          <ClockIcon size={20} active={true} />
+                          <Text style={styles.pickerOptionText}>
+                            {time.label}
+                          </Text>
+                        </Pressable>
+                      ))
+                    )}
+                  </View>
+                )}
+                {errors.time && (
+                  <Text style={styles.errorText}>{errors.time}</Text>
                 )}
               </View>
 
@@ -484,21 +700,36 @@ export default function RequestMeetingModal({
                   {/* Table Options */}
                   {showTablePicker && (
                     <View style={styles.pickerOptions}>
-                      {availableTables.map((table) => (
-                        <Pressable
-                          key={table.id}
-                          style={styles.pickerOption}
-                          onPress={() => {
-                            setTableNumber(table.label);
-                            setShowTablePicker(false);
-                            clearError("tableNumber");
-                          }}
-                        >
-                          <Text style={styles.pickerOptionText}>
-                            {table.label}
+                      {availableTables.length === 0 ? (
+                        <View style={styles.emptyState}>
+                          <Text style={styles.emptyStateText}>
+                            Please select a date and time first
                           </Text>
-                        </Pressable>
-                      ))}
+                        </View>
+                      ) : (
+                        availableTables.map((table: any) => (
+                          <Pressable
+                            key={table.id}
+                            style={styles.pickerOption}
+                            onPress={() => {
+                              setTableNumber(table.label);
+                              setShowTablePicker(false);
+                              clearError("tableNumber");
+                              
+                              // Set the selected slot
+                              const slot = meetingSlots.find((s: MeetingSlot) => s.id === table.slotId);
+                              setSelectedSlot(slot || null);
+                            }}
+                          >
+                            <Text style={styles.pickerOptionText}>
+                              {table.label}
+                            </Text>
+                            {tableNumber === table.label && (
+                              <Text style={styles.checkmark}>✓</Text>
+                            )}
+                          </Pressable>
+                        ))
+                      )}
                     </View>
                   )}
                   {errors.tableNumber && (
@@ -526,61 +757,6 @@ export default function RequestMeetingModal({
                   )}
                 </View>
               )}
-
-              {/* Time Picker */}
-              <View style={styles.fieldContainer}>
-                <Text style={styles.label}>Time</Text>
-                <Pressable
-                  style={[styles.input, errors.time && styles.inputError]}
-                  onPress={() => {
-                    setShowTimePicker(!showTimePicker);
-                    setShowDatePicker(false);
-                    setShowTablePicker(false);
-                    clearError("time");
-                  }}
-                >
-                  <ClockIcon size={20} />
-                  <Text
-                    style={[
-                      styles.inputText,
-                      { marginLeft: 12 },
-                      !selectedTime && styles.placeholderText,
-                    ]}
-                  >
-                    {selectedTime || "Select time"}
-                  </Text>
-                  {showTimePicker ? (
-                    <ChevronUpIcon size={20} color="#A3A3A3" />
-                  ) : (
-                    <ChevronDownIcon size={20} color="#A3A3A3" />
-                  )}
-                </Pressable>
-
-                {/* Time Options */}
-                {showTimePicker && (
-                  <View style={styles.pickerOptions}>
-                    {availableTimes.map((time) => (
-                      <Pressable
-                        key={time.id}
-                        style={styles.pickerOption}
-                        onPress={() => {
-                          setSelectedTime(time.label);
-                          setShowTimePicker(false);
-                          clearError("time");
-                        }}
-                      >
-                        <ClockIcon size={20} active={true} />
-                        <Text style={styles.pickerOptionText}>
-                          {time.label}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-                {errors.time && (
-                  <Text style={styles.errorText}>{errors.time}</Text>
-                )}
-              </View>
 
               {/* Description */}
               <View
@@ -907,5 +1083,69 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     color: "#A3A3A3",
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#F0FDF4",
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  loadingText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: "#166534",
+  },
+  errorContainer: {
+    backgroundColor: "#FEE2E2",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#991B1B",
+    lineHeight: 20,
+  },
+  retryButton: {
+    backgroundColor: "#DC2626",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  emptyState: {
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: "#A3A3A3",
+  },
+  noSlotsContainer: {
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FCA5A5",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  noSlotsText: {
+    fontSize: 14,
+    color: "#991B1B",
+    lineHeight: 20,
+    textAlign: "center",
   },
 });
