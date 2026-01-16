@@ -12,10 +12,13 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Keyboard,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ClockIcon } from "./BottomNavIcons";
-import { ChevronDownIcon } from "./icons";
+import { ChevronDownIcon, ChevronUpIcon } from "./icons";
+import { meetingService, type MeetingSlot } from "../services/meetingService";
+import { EVENT_ID } from "../config/env";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -34,6 +37,7 @@ export interface EditMeetingModalProps {
     time: string;
     date: string;
     description: string;
+    slotId?: number; // Selected slot ID for rescheduling
   }) => void;
   initialData?: {
     title: string;
@@ -76,6 +80,23 @@ export default function EditMeetingModal({
     date?: string;
     description?: string;
   }>({});
+
+  // Picker states
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showTablePicker, setShowTablePicker] = useState(false);
+  const [selectedTimeKey, setSelectedTimeKey] = useState<string | null>(null);
+  const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null); // Track selected slot ID
+  
+  // Meeting slots state
+  const [meetingSlots, setMeetingSlots] = useState<MeetingSlot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
+
+  // Helper to clear specific error
+  const clearError = (field: keyof typeof errors) => {
+    setErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
 
   const translateY = useRef(new Animated.Value(0)).current;
   const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -147,6 +168,45 @@ export default function EditMeetingModal({
     }
   }, [visible, translateY]);
 
+  // Format time helper (HH:MM:SS to HH:MM AM/PM)
+  const formatTime = (timeStr: string): string => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
+
+  // Available dates for the event (26th and 27th June, 2026)
+  const availableDates = [
+    { id: "1", label: "26th June, 2026", value: "2026-06-26" },
+    { id: "2", label: "27th June, 2026", value: "2026-06-27" },
+  ];
+
+  // Fetch meeting slots
+  const fetchMeetingSlots = async () => {
+    try {
+      setIsLoadingSlots(true);
+      setSlotsError(null);
+      const response = await meetingService.getMeetingSlots(EVENT_ID);
+      const availableSlots = response.slots.filter(slot => slot.is_available);
+      setMeetingSlots(availableSlots);
+    } catch (error: any) {
+      setSlotsError("Failed to load meeting slots");
+      if (__DEV__) {
+        console.error("Error fetching meeting slots:", error);
+      }
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
+
+  // Fetch slots when modal opens
+  useEffect(() => {
+    if (visible) {
+      fetchMeetingSlots();
+    }
+  }, [visible]);
+
   // Reset form when modal opens with initial data
   useEffect(() => {
     if (visible && initialData) {
@@ -158,10 +218,74 @@ export default function EditMeetingModal({
       setDate(initialData.date || "");
       setDescription(initialData.description || "");
       setErrors({}); // Clear errors when modal opens
+      // Reset pickers
+      setShowDatePicker(false);
+      setShowTimePicker(false);
+      setShowTablePicker(false);
+      
+      // Find matching timeKey for the initial time (after slots are loaded)
+      // This will be set in a separate effect after meetingSlots are available
+      setSelectedTimeKey(null);
+      setSelectedSlotId(null);
     } else if (!visible) {
       setErrors({}); // Clear errors when modal closes
     }
   }, [visible, initialData]);
+
+  // Match initial time to timeKey once slots are loaded
+  useEffect(() => {
+    if (visible && initialData && meetingSlots.length > 0 && !selectedTimeKey) {
+      const initialTime = initialData.time;
+      if (initialTime) {
+        // Find the matching timeKey for the initial time
+        // initialTime format: "10:00 AM - 10:20 AM"
+        // We need to find a slot with matching start_time and end_time
+        const matchingSlot = meetingSlots.find((slot) => {
+          const slotLabel = `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`;
+          return slotLabel === initialTime;
+        });
+        
+        if (matchingSlot) {
+          const timeKey = `${matchingSlot.start_time}-${matchingSlot.end_time}`;
+          setSelectedTimeKey(timeKey);
+          if (meetingType === "virtual") {
+            setSelectedSlotId(matchingSlot.id);
+          }
+        }
+      }
+    }
+  }, [visible, initialData, meetingSlots, selectedTimeKey, meetingType]);
+
+  // Generate time options from available slots
+  const uniqueTimeSlots = new Map<string, { slot: MeetingSlot; label: string }>();
+  meetingSlots.forEach((slot: MeetingSlot) => {
+    const timeKey = `${slot.start_time}-${slot.end_time}`;
+    if (!uniqueTimeSlots.has(timeKey)) {
+      uniqueTimeSlots.set(timeKey, {
+        slot,
+        label: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
+      });
+    }
+  });
+
+  const availableTimes = Array.from(uniqueTimeSlots.entries()).map(([timeKey, data]) => ({
+    id: data.slot.id.toString(),
+    label: data.label,
+    value: timeKey,
+    slotId: data.slot.id,
+  }));
+
+  // Get tables for selected time
+  const availableTables = selectedTimeKey
+    ? meetingSlots
+        .filter((slot: MeetingSlot) => `${slot.start_time}-${slot.end_time}` === selectedTimeKey)
+        .map((slot: MeetingSlot) => ({
+          id: slot.id.toString(),
+          label: `Table ${slot.table_number}`,
+          value: slot.table_number.toString(),
+          slotId: slot.id,
+        }))
+    : [];
 
   // Keyboard event listeners
   useEffect(() => {
@@ -314,6 +438,14 @@ export default function EditMeetingModal({
     // Clear errors and save
     setErrors({});
     Keyboard.dismiss();
+    let resolvedSlotId = selectedSlotId || undefined;
+    if (meetingType === "virtual" && !resolvedSlotId && selectedTimeKey) {
+      const matchingSlot = meetingSlots.find(
+        (slot) => `${slot.start_time}-${slot.end_time}` === selectedTimeKey
+      );
+      resolvedSlotId = matchingSlot?.id;
+    }
+
     onSave({
       title: title.trim(),
       meetingType,
@@ -322,6 +454,7 @@ export default function EditMeetingModal({
       time,
       date: date.trim(),
       description: description.trim(),
+      slotId: resolvedSlotId, // Include slot ID if selected (for rescheduling)
     });
   };
 
@@ -479,12 +612,59 @@ export default function EditMeetingModal({
                         ? "border-red-500"
                         : "border-neutral-300"
                     }`}
+                    onPress={() => {
+                      if (!selectedTimeKey) {
+                        setErrors((prev) => ({ ...prev, tableNumber: "Please select a time first" }));
+                        return;
+                      }
+                      setShowTablePicker(!showTablePicker);
+                      setShowDatePicker(false);
+                      setShowTimePicker(false);
+                      clearError("tableNumber");
+                    }}
                   >
                     <Text className="text-base text-black flex-1">
                       {tableNumber}
                     </Text>
-                    <ChevronDownIcon size={20} color="#6B7280" />
+                    {showTablePicker ? (
+                      <ChevronUpIcon size={20} color="#6B7280" />
+                    ) : (
+                      <ChevronDownIcon size={20} color="#6B7280" />
+                    )}
                   </Pressable>
+                  {showTablePicker && (
+                    <View className="mt-2 bg-white border border-neutral-300 rounded-xl max-h-48">
+                      <ScrollView nestedScrollEnabled={true}>
+                        {availableTables.length === 0 ? (
+                          <View className="px-4 py-3">
+                            <Text className="text-sm text-neutral-500 text-center">
+                              Please select a time first
+                            </Text>
+                          </View>
+                        ) : (
+                          availableTables.map((table: any) => (
+                            <Pressable
+                              key={table.id}
+                              className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
+                              onPress={() => {
+                                setTableNumber(table.label);
+                                setSelectedSlotId(table.slotId); // Store selected slot ID
+                                setShowTablePicker(false);
+                                clearError("tableNumber");
+                              }}
+                            >
+                              <Text className="text-base text-black">
+                                {table.label}
+                              </Text>
+                              {tableNumber === table.label && (
+                                <Text className="text-green-600 font-semibold">✓</Text>
+                              )}
+                            </Pressable>
+                          ))
+                        )}
+                      </ScrollView>
+                    </View>
+                  )}
                   {errors.tableNumber && (
                     <Text className="text-red-500 text-xs mt-1 ml-1">
                       {errors.tableNumber}
@@ -534,19 +714,79 @@ export default function EditMeetingModal({
                 <Text className="text-sm font-medium text-black mb-2">
                   Date & Time
                 </Text>
-                <Pressable className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5 mb-3">
+                <Pressable
+                  className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5 mb-3"
+                  onPress={() => {
+                    setShowTimePicker(!showTimePicker);
+                    setShowDatePicker(false);
+                    setShowTablePicker(false);
+                    clearError("date");
+                  }}
+                >
                   <View className="mr-2">
                     <ClockIcon size={18} color="#404040" />
                   </View>
                   <Text className="flex-1 text-base font-medium text-black">
                     {time}
                   </Text>
-                  <ChevronDownIcon size={20} color="#6B7280" />
+                  {showTimePicker ? (
+                    <ChevronUpIcon size={20} color="#6B7280" />
+                  ) : (
+                    <ChevronDownIcon size={20} color="#6B7280" />
+                  )}
                 </Pressable>
+                {showTimePicker && (
+                  <View className="mb-3 bg-white border border-neutral-300 rounded-xl max-h-48">
+                    <ScrollView nestedScrollEnabled={true}>
+                      {isLoadingSlots ? (
+                        <View className="px-4 py-3 items-center">
+                          <ActivityIndicator size="small" color="#1BB273" />
+                        </View>
+                      ) : availableTimes.length === 0 ? (
+                        <View className="px-4 py-3">
+                          <Text className="text-sm text-neutral-500 text-center">
+                            {slotsError || "No available times"}
+                          </Text>
+                        </View>
+                      ) : (
+                        availableTimes.map((timeOption: any) => (
+                          <Pressable
+                            key={timeOption.id}
+                            className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
+                            onPress={() => {
+                              setTime(timeOption.label);
+                              setSelectedTimeKey(timeOption.value);
+                              setShowTimePicker(false);
+                              clearError("date");
+                              // Reset table when time changes
+                              setTableNumber("");
+                              if (meetingType === "virtual") {
+                                setSelectedSlotId(timeOption.slotId);
+                              }
+                            }}
+                          >
+                            <Text className="text-base text-black">
+                              {timeOption.label}
+                            </Text>
+                            {time === timeOption.label && (
+                              <Text className="text-green-600 font-semibold">✓</Text>
+                            )}
+                          </Pressable>
+                        ))
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
                 <Pressable
                   className={`flex-row items-center bg-white border rounded-xl px-4 py-3.5 ${
                     errors.date ? "border-red-500" : "border-neutral-300"
                   }`}
+                  onPress={() => {
+                    setShowDatePicker(!showDatePicker);
+                    setShowTimePicker(false);
+                    setShowTablePicker(false);
+                    clearError("date");
+                  }}
                 >
                   <View className="mr-2">
                     <Text className="text-lg">📅</Text>
@@ -558,8 +798,36 @@ export default function EditMeetingModal({
                   >
                     {date || "Select date"}
                   </Text>
-                  <ChevronDownIcon size={20} color="#6B7280" />
+                  {showDatePicker ? (
+                    <ChevronUpIcon size={20} color="#6B7280" />
+                  ) : (
+                    <ChevronDownIcon size={20} color="#6B7280" />
+                  )}
                 </Pressable>
+                {showDatePicker && (
+                  <View className="mt-2 bg-white border border-neutral-300 rounded-xl max-h-48">
+                    <ScrollView nestedScrollEnabled={true}>
+                      {availableDates.map((dateOption) => (
+                        <Pressable
+                          key={dateOption.id}
+                          className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
+                          onPress={() => {
+                            setDate(dateOption.label);
+                            setShowDatePicker(false);
+                            clearError("date");
+                          }}
+                        >
+                          <Text className="text-base text-black">
+                            {dateOption.label}
+                          </Text>
+                          {date === dateOption.label && (
+                            <Text className="text-green-600 font-semibold">✓</Text>
+                          )}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
                 {errors.date && (
                   <Text className="text-red-500 text-xs mt-1 ml-1">
                     {errors.date}
@@ -761,12 +1029,59 @@ export default function EditMeetingModal({
                         ? "border-red-500"
                         : "border-neutral-300"
                     }`}
+                    onPress={() => {
+                      if (!selectedTimeKey) {
+                        setErrors((prev) => ({ ...prev, tableNumber: "Please select a time first" }));
+                        return;
+                      }
+                      setShowTablePicker(!showTablePicker);
+                      setShowDatePicker(false);
+                      setShowTimePicker(false);
+                      clearError("tableNumber");
+                    }}
                   >
                     <Text className="text-base text-black flex-1">
                       {tableNumber}
                     </Text>
-                    <ChevronDownIcon size={20} color="#6B7280" />
+                    {showTablePicker ? (
+                      <ChevronUpIcon size={20} color="#6B7280" />
+                    ) : (
+                      <ChevronDownIcon size={20} color="#6B7280" />
+                    )}
                   </Pressable>
+                  {showTablePicker && (
+                    <View className="mt-2 bg-white border border-neutral-300 rounded-xl max-h-48">
+                      <ScrollView nestedScrollEnabled={true}>
+                        {availableTables.length === 0 ? (
+                          <View className="px-4 py-3">
+                            <Text className="text-sm text-neutral-500 text-center">
+                              Please select a time first
+                            </Text>
+                          </View>
+                        ) : (
+                          availableTables.map((table: any) => (
+                            <Pressable
+                              key={table.id}
+                              className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
+                              onPress={() => {
+                                setTableNumber(table.label);
+                                setSelectedSlotId(table.slotId); // Store selected slot ID
+                                setShowTablePicker(false);
+                                clearError("tableNumber");
+                              }}
+                            >
+                              <Text className="text-base text-black">
+                                {table.label}
+                              </Text>
+                              {tableNumber === table.label && (
+                                <Text className="text-green-600 font-semibold">✓</Text>
+                              )}
+                            </Pressable>
+                          ))
+                        )}
+                      </ScrollView>
+                    </View>
+                  )}
                   {errors.tableNumber && (
                     <Text className="text-red-500 text-xs mt-1 ml-1">
                       {errors.tableNumber}
@@ -816,19 +1131,79 @@ export default function EditMeetingModal({
                 <Text className="text-sm font-medium text-black mb-2">
                   Date & Time
                 </Text>
-                <Pressable className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5 mb-3">
+                <Pressable
+                  className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5 mb-3"
+                  onPress={() => {
+                    setShowTimePicker(!showTimePicker);
+                    setShowDatePicker(false);
+                    setShowTablePicker(false);
+                    clearError("date");
+                  }}
+                >
                   <View className="mr-2">
                     <ClockIcon size={18} color="#404040" />
                   </View>
                   <Text className="flex-1 text-base font-medium text-black">
                     {time}
                   </Text>
-                  <ChevronDownIcon size={20} color="#6B7280" />
+                  {showTimePicker ? (
+                    <ChevronUpIcon size={20} color="#6B7280" />
+                  ) : (
+                    <ChevronDownIcon size={20} color="#6B7280" />
+                  )}
                 </Pressable>
+                {showTimePicker && (
+                  <View className="mb-3 bg-white border border-neutral-300 rounded-xl max-h-48">
+                    <ScrollView nestedScrollEnabled={true}>
+                      {isLoadingSlots ? (
+                        <View className="px-4 py-3 items-center">
+                          <ActivityIndicator size="small" color="#1BB273" />
+                        </View>
+                      ) : availableTimes.length === 0 ? (
+                        <View className="px-4 py-3">
+                          <Text className="text-sm text-neutral-500 text-center">
+                            {slotsError || "No available times"}
+                          </Text>
+                        </View>
+                      ) : (
+                        availableTimes.map((timeOption: any) => (
+                          <Pressable
+                            key={timeOption.id}
+                            className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
+                            onPress={() => {
+                              setTime(timeOption.label);
+                              setSelectedTimeKey(timeOption.value);
+                              setShowTimePicker(false);
+                              clearError("date");
+                              // Reset table when time changes
+                              setTableNumber("");
+                              if (meetingType === "virtual") {
+                                setSelectedSlotId(timeOption.slotId);
+                              }
+                            }}
+                          >
+                            <Text className="text-base text-black">
+                              {timeOption.label}
+                            </Text>
+                            {time === timeOption.label && (
+                              <Text className="text-green-600 font-semibold">✓</Text>
+                            )}
+                          </Pressable>
+                        ))
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
                 <Pressable
                   className={`flex-row items-center bg-white border rounded-xl px-4 py-3.5 ${
                     errors.date ? "border-red-500" : "border-neutral-300"
                   }`}
+                  onPress={() => {
+                    setShowDatePicker(!showDatePicker);
+                    setShowTimePicker(false);
+                    setShowTablePicker(false);
+                    clearError("date");
+                  }}
                 >
                   <View className="mr-2">
                     <Text className="text-lg">📅</Text>
@@ -840,8 +1215,36 @@ export default function EditMeetingModal({
                   >
                     {date || "Select date"}
                   </Text>
-                  <ChevronDownIcon size={20} color="#6B7280" />
+                  {showDatePicker ? (
+                    <ChevronUpIcon size={20} color="#6B7280" />
+                  ) : (
+                    <ChevronDownIcon size={20} color="#6B7280" />
+                  )}
                 </Pressable>
+                {showDatePicker && (
+                  <View className="mt-2 bg-white border border-neutral-300 rounded-xl max-h-48">
+                    <ScrollView nestedScrollEnabled={true}>
+                      {availableDates.map((dateOption) => (
+                        <Pressable
+                          key={dateOption.id}
+                          className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
+                          onPress={() => {
+                            setDate(dateOption.label);
+                            setShowDatePicker(false);
+                            clearError("date");
+                          }}
+                        >
+                          <Text className="text-base text-black">
+                            {dateOption.label}
+                          </Text>
+                          {date === dateOption.label && (
+                            <Text className="text-green-600 font-semibold">✓</Text>
+                          )}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
                 {errors.date && (
                   <Text className="text-red-500 text-xs mt-1 ml-1">
                     {errors.date}

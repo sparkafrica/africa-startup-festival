@@ -162,6 +162,18 @@ const validateLinkedIn = (
   return { valid: true };
 };
 
+// Optional LinkedIn validation (only validates format if provided)
+const validateLinkedInOptional = (
+  linkedIn: string
+): { valid: boolean; error?: string } => {
+  // If empty, it's valid (optional field)
+  if (!linkedIn.trim()) {
+    return { valid: true };
+  }
+  // If provided, validate format
+  return validateLinkedIn(linkedIn);
+};
+
 const validateBio = (bio: string): { valid: boolean; error?: string } => {
   if (!bio.trim()) {
     return { valid: false, error: "Bio is required" };
@@ -1525,6 +1537,7 @@ function AttendeeProfileSection({
   const { user } = useAuth();
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
+  const [linkedIn, setLinkedIn] = useState("");
   const [bio, setBio] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
   const [showIndustryModal, setShowIndustryModal] = useState(false);
@@ -1597,6 +1610,11 @@ function AttendeeProfileSection({
       // Set interests from metadata
       if (metadata?.interests && Array.isArray(metadata.interests)) {
         setSelectedInterests(metadata.interests);
+      }
+
+      // Set LinkedIn from metadata (optional for attendees)
+      if (metadata?.linkedIn) {
+        setLinkedIn(metadata.linkedIn);
       }
     }
   }, [user]);
@@ -1734,6 +1752,14 @@ function AttendeeProfileSection({
       errors.bio = bioValidation.error || "";
     }
 
+    // Validate LinkedIn if provided (optional for attendees)
+    if (linkedIn.trim()) {
+      const linkedInValidation = validateLinkedInOptional(linkedIn);
+      if (!linkedInValidation.valid) {
+        errors.linkedIn = linkedInValidation.error || "";
+      }
+    }
+
     const interestsValidation = validateInterests(selectedInterests);
     if (!interestsValidation.valid) {
       errors.interests = interestsValidation.error || "";
@@ -1810,6 +1836,10 @@ function AttendeeProfileSection({
       }
       if (selectedInterests.length > 0) {
         metadata.interests = selectedInterests;
+      }
+      // Include LinkedIn if provided (optional for attendees)
+      if (linkedIn.trim()) {
+        metadata.linkedIn = linkedIn.trim();
       }
 
       // Prepare API request payload
@@ -2024,6 +2054,33 @@ function AttendeeProfileSection({
               {validationErrors.jobTitle && (
                 <Text className="text-red-500 text-xs mt-1">
                   {validationErrors.jobTitle}
+                </Text>
+              )}
+            </View>
+
+            {/* LinkedIn */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                LinkedIn
+              </Text>
+              <TextInput
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.linkedIn
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={linkedIn}
+                onChangeText={(text) => {
+                  setLinkedIn(text);
+                  if (validationErrors.linkedIn) {
+                    setValidationErrors({ ...validationErrors, linkedIn: "" });
+                  }
+                }}
+                placeholder="LinkedIn profile URL or handle (optional)"
+              />
+              {validationErrors.linkedIn && (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.linkedIn}
                 </Text>
               )}
             </View>

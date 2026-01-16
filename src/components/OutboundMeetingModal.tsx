@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
 import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
+import { VideoIcon } from "./MenuIcons";
 import { LinkedInIcon } from "./SocialIcons";
 import EditMeetingModal, { EditMeetingModalProps } from "./EditMeetingModal";
 import MeetingCancelModal from "./MeetingCancelModal";
@@ -70,13 +71,23 @@ export interface OutboundMeetingModalProps {
   startTime: string;
   endTime: string;
   location: string;
+  meetingType?: "physical" | "virtual";
+  meetingLink?: string;
   participantName: string;
   participantRole: string;
   participantCompany: string;
   description?: string;
   expiresIn?: number; // hours
   onParticipantPress?: () => void;
-  onEdit?: () => void;
+  onEdit?: (data: {
+    title: string;
+    meetingType: "physical" | "virtual";
+    tableNumber?: string;
+    meetingLink?: string;
+    time: string;
+    date: string;
+    description: string;
+  }) => void;
   onCancel?: () => void;
   // Participant detail props
   showParticipantDetail?: boolean;
@@ -95,6 +106,8 @@ export default function OutboundMeetingModal({
   startTime,
   endTime,
   location,
+  meetingType,
+  meetingLink,
   participantName,
   participantRole,
   participantCompany,
@@ -119,6 +132,23 @@ export default function OutboundMeetingModal({
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showCancelledModal, setShowCancelledModal] = useState(false);
+
+  const resolvedMeetingType: "physical" | "virtual" =
+    meetingType || (meetingLink ? "virtual" : "physical");
+  const resolvedMeetingLink =
+    resolvedMeetingType === "virtual"
+      ? meetingLink ||
+        (location?.toLowerCase().includes("http") ? location : undefined) ||
+        ""
+      : undefined;
+  const resolvedTableNumber =
+    resolvedMeetingType === "physical"
+      ? location
+        ? location.startsWith("Table ")
+          ? location
+          : `Table ${location}`
+        : ""
+      : undefined;
 
   const handleLayout = (event: any) => {
     const { height } = event.nativeEvent.layout;
@@ -369,11 +399,20 @@ export default function OutboundMeetingModal({
               </Text>
             </View>
 
-            {/* Location */}
-            <View style={styles.infoRow}>
-              <LocationPinIcon size={18} color="#404040" />
-              <Text style={styles.infoText}>{location}</Text>
-            </View>
+            {/* Location or Meeting Link */}
+            {resolvedMeetingType === "virtual" && resolvedMeetingLink ? (
+              <View style={styles.infoRow}>
+                <VideoIcon size={18} color="#404040" />
+                <Text style={styles.infoText} numberOfLines={1} ellipsizeMode="middle">
+                  {resolvedMeetingLink}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.infoRow}>
+                <LocationPinIcon size={18} color="#404040" />
+                <Text style={styles.infoText}>{location || "TBD"}</Text>
+              </View>
+            )}
 
             {/* Participant Card */}
             <TouchableOpacity
@@ -565,16 +604,14 @@ export default function OutboundMeetingModal({
             description: string;
           }) => {
             setShowEditModal(false);
-            onEdit?.();
-            // TODO: Handle save meeting data
-            console.log("Save meeting data:", data);
+            // Call onEdit with the update data
+            onEdit?.(data);
           }}
           initialData={{
             title,
-            meetingType: "physical", // TODO: Get from meeting data
-            tableNumber: location.startsWith("Table ")
-              ? location
-              : `Table ${location}`,
+            meetingType: resolvedMeetingType,
+            tableNumber: resolvedTableNumber,
+            meetingLink: resolvedMeetingLink,
             time: `${startTime} - ${endTime}`,
             date,
             description: description || "",

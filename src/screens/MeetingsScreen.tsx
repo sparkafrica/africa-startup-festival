@@ -36,7 +36,11 @@ import type {
   RootStackScreenProps,
 } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
-import { meetingService, type Meeting as BackendMeeting } from "../services/meetingService";
+import {
+  meetingService,
+  type Meeting as BackendMeeting,
+  type VirtualMeeting,
+} from "../services/meetingService";
 import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
@@ -50,6 +54,7 @@ type Props = RootStackScreenProps<"Meetings">;
 interface UIMeeting {
   id: string;
   backendMeetingId: number; // Store backend ID for API calls
+  isVirtual: boolean; // Track if this is a virtual meeting (for API routing)
   isInbound: boolean; // Whether current user is requestee (for filtering)
   title: string; // reason from backend
   participantName: string;
@@ -86,7 +91,11 @@ export default function MeetingsScreen({ route }: Props) {
   
   // API state
   const [meetings, setMeetings] = useState<UIMeeting[]>([]);
-  const [allMeetings, setAllMeetings] = useState<UIMeeting[]>([]); // Store all meetings for counting
+  const [meetingCounts, setMeetingCounts] = useState({
+    requests: 0,
+    scheduled: 0,
+    cancelled: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,16 +133,115 @@ export default function MeetingsScreen({ route }: Props) {
   };
 
   /**
-   * Extract date from slot (assuming slot has event date info)
-   * For now, we'll use today's date or parse from created_at
-   * TODO: Backend should provide event date in slot or meeting
+   * Format date from YYYY-MM-DD to readable format like "26th June, 2026"
+   */
+  const formatDateForDisplay = (dateString: string): string => {
+    try {
+      // If already in readable format (contains letters), return as-is
+      if (/[a-zA-Z]/.test(dateString)) {
+        return dateString;
+      }
+      
+      // Parse YYYY-MM-DD format
+      const date = new Date(dateString + "T00:00:00"); // Add time to avoid timezone issues
+      if (isNaN(date.getTime())) {
+        return dateString; // Return original if parsing fails
+      }
+
+      const day = date.getDate();
+      const month = date.toLocaleString("en-US", { month: "long" });
+      const year = date.getFullYear();
+      
+      // Add ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
+      const getOrdinalSuffix = (n: number): string => {
+        const s = ["th", "st", "nd", "rd"];
+        const v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
+      };
+      
+      return `${getOrdinalSuffix(day)} ${month}, ${year}`;
+    } catch {
+      return dateString;
+    }
+  };
+
+  const normalizeMeetingType = (
+    value?: string
+  ): "physical" | "virtual" | undefined => {
+    if (!value) return undefined;
+    const normalized = value.toLowerCase();
+    if (normalized.includes("virtual")) return "virtual";
+    if (normalized.includes("physical")) return "physical";
+    return undefined;
+  };
+
+  const isLikelyMeetingUrl = (value?: string): boolean => {
+    if (!value) return false;
+    const lower = value.toLowerCase();
+    return (
+      lower.includes("http://") ||
+      lower.includes("https://") ||
+      lower.includes("zoom.us") ||
+      lower.includes("teams.microsoft") ||
+      lower.includes("meet.google")
+    );
+  };
+
+  /**
+   * Parse date label format like "26th June, 2026" to YYYY-MM-DD
+   */
+  const parseDateLabel = (dateLabel: string): string | null => {
+    try {
+      // Match patterns like "26th June, 2026" or "27th June, 2026"
+      const match = dateLabel.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(\w+),\s+(\d{4})/);
+      if (match) {
+        const [, day, monthName, year] = match;
+        const monthMap: { [key: string]: string } = {
+          january: "01", february: "02", march: "03", april: "04",
+          may: "05", june: "06", july: "07", august: "08",
+          september: "09", october: "10", november: "11", december: "12"
+        };
+        const month = monthMap[monthName.toLowerCase()];
+        if (month) {
+          return `${year}-${month}-${day.padStart(2, "0")}`;
+        }
+      }
+      // Try standard Date parsing as fallback
+      const parsed = new Date(dateLabel);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().split("T")[0];
+      }
+    } catch {
+      // Return null if parsing fails
+    }
+    return null;
+  };
+
+  /**
+   * Extract date from meeting
+   * Priority: metadata.selectedDate (value format) > metadata.selectedDate (label format) > created_at > today
    */
   const getMeetingDate = (meeting: BackendMeeting): string => {
-    // If created_at exists, extract date
+    // First check metadata.selectedDate (sent from request form)
+    const metadataDate = meeting.metadata?.selectedDate;
+    if (metadataDate) {
+      // If it's already in YYYY-MM-DD format, return it
+      if (/^\d{4}-\d{2}-\d{2}$/.test(metadataDate)) {
+        return metadataDate;
+      }
+      // Try to parse date label format like "26th June, 2026"
+      const parsed = parseDateLabel(metadataDate);
+      if (parsed) {
+        return parsed;
+      }
+    }
+    
+    // Fallback to created_at date
     if (meeting.created_at) {
       return meeting.created_at.split("T")[0];
     }
-    // Fallback: use today's date (this should be improved when backend provides event date)
+    
+    // Last resort: use today's date
     return new Date().toISOString().split("T")[0];
   };
 
@@ -173,6 +281,125 @@ export default function MeetingsScreen({ route }: Props) {
     } catch {
       return "Soon";
     }
+  };
+
+  /**
+   * Map backend VirtualMeeting to UI-friendly format
+   */
+  const mapVirtualMeetingToUI = (
+    virtualMeeting: VirtualMeeting,
+    currentUserId: string
+  ): UIMeeting => {
+    // Determine if current user is requester or requestee
+    const isRequester = virtualMeeting.requester === currentUserId;
+    const otherUser = isRequester
+      ? virtualMeeting.requestee_info
+      : virtualMeeting.requester_info;
+    const otherCompany = isRequester
+      ? virtualMeeting.requestee_company
+      : virtualMeeting.requester_company;
+
+    // Extract participant info
+    const participantName =
+      `${otherUser.first_name || ""} ${otherUser.last_name || ""}`.trim() ||
+      otherUser.email;
+    const participantRole = otherUser.job_title || undefined;
+    const company =
+      otherCompany?.name ||
+      otherUser.organisation ||
+      "No Company";
+
+    // Extract tags (country, industry/sector)
+    const tags: string[] = [];
+    if (otherUser.country) {
+      tags.push(otherUser.country);
+    }
+    const sector =
+      otherCompany?.company_type ||
+      otherUser.metadata?.sector ||
+      otherUser.metadata?.industry;
+    if (sector) {
+      tags.push(sector);
+    }
+
+    // Extract interests
+    const interests = otherUser.metadata?.interests || [];
+
+    // Extract bio
+    const bio = otherUser.metadata?.bio || "";
+
+    // Extract LinkedIn
+    const linkedInUrl =
+      otherUser.metadata?.linkedIn || otherUser.metadata?.linkedin_url;
+    const socialLabel = linkedInUrl
+      ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
+      : undefined;
+
+    // Format time from HH:MM:SS to "10:00 AM" format
+    const startTime = formatTime(virtualMeeting.scheduled_time);
+    // Calculate end time from duration (default 20 minutes if not provided)
+    const durationMinutes = virtualMeeting.duration_minutes || 20;
+    const [startHours, startMinutes] = virtualMeeting.scheduled_time.split(":");
+    const startDate = new Date(`2000-01-01T${startHours}:${startMinutes}:00`);
+    startDate.setMinutes(startDate.getMinutes() + durationMinutes);
+    const endTime = formatTime(
+      `${startDate.getHours().toString().padStart(2, "0")}:${startDate.getMinutes().toString().padStart(2, "0")}:00`
+    );
+
+    // Get date
+    const date = formatDateForDisplay(virtualMeeting.scheduled_date);
+
+    // Determine if inbound (current user is requestee)
+    const isInbound = !isRequester;
+
+    // Extract title from metadata
+    const title = virtualMeeting.metadata?.title || virtualMeeting.reason;
+
+    // Calculate expiresIn for pending meetings
+    const expiresIn =
+      virtualMeeting.status === "pending"
+        ? calculateExpiresIn(virtualMeeting.created_at)
+        : undefined;
+
+    // Calculate timeUntil for scheduled meetings
+    const timeUntil =
+      virtualMeeting.status === "accepted"
+        ? calculateTimeUntil(
+            virtualMeeting.scheduled_date,
+            virtualMeeting.scheduled_time
+          )
+        : undefined;
+
+    return {
+      id: `virtual-meeting-${virtualMeeting.id}`,
+      backendMeetingId: virtualMeeting.id,
+      isVirtual: true, // Mark as virtual meeting
+      isInbound,
+      title,
+      participantName,
+      participantRole,
+      company,
+      tags,
+      interests,
+      socialLabel,
+      bio,
+      date,
+      startTime,
+      endTime,
+      location: undefined, // Virtual meetings don't have location
+      meetingType: "virtual",
+      meetingLink: virtualMeeting.meeting_link,
+      status: virtualMeeting.status,
+      approvalMessage:
+        virtualMeeting.status === "pending"
+          ? isRequester
+            ? "Waiting for their approval."
+            : "You have a pending request."
+          : undefined,
+      expiresIn,
+      timeUntil,
+      description: virtualMeeting.reason,
+    };
   };
 
   /**
@@ -231,18 +458,35 @@ export default function MeetingsScreen({ route }: Props) {
     const startTime = formatTime(backendMeeting.slot.start_time);
     const endTime = formatTime(backendMeeting.slot.end_time);
 
-    // Get date
-    const date = getMeetingDate(backendMeeting);
+    // Get date and format for display
+    const rawDate = getMeetingDate(backendMeeting);
+    const date = formatDateForDisplay(rawDate);
+
+    const metadataMeetingType = normalizeMeetingType(
+      backendMeeting.metadata?.meetingType
+    );
+    const metadataMeetingLink =
+      typeof backendMeeting.metadata?.meetingLink === "string"
+        ? backendMeeting.metadata.meetingLink.trim()
+        : undefined;
+    const locationLooksLikeLink = isLikelyMeetingUrl(backendMeeting.location);
 
     // Determine meeting type (physical vs virtual)
-    // Backend location field should indicate this
-    const isVirtual = backendMeeting.location?.includes("http") || 
-                      backendMeeting.location?.includes("meet") ||
-                      backendMeeting.location?.includes("zoom") ||
-                      backendMeeting.location?.includes("teams");
+    const isVirtual =
+      metadataMeetingType === "virtual" ||
+      (!!metadataMeetingLink && metadataMeetingType !== "physical") ||
+      locationLooksLikeLink;
     const meetingType = isVirtual ? "virtual" : "physical";
-    const location = isVirtual ? undefined : backendMeeting.location;
-    const meetingLink = isVirtual ? backendMeeting.location : undefined;
+    const location = isVirtual
+      ? undefined
+      : backendMeeting.location || backendMeeting.metadata?.tableNumber;
+    const meetingLink = isVirtual
+      ? metadataMeetingLink ||
+        (locationLooksLikeLink ? backendMeeting.location : undefined) ||
+        (isLikelyMeetingUrl(backendMeeting.calendar_link)
+          ? backendMeeting.calendar_link
+          : undefined)
+      : undefined;
 
     // Calculate expiresIn for pending meetings
     const expiresIn =
@@ -259,11 +503,16 @@ export default function MeetingsScreen({ route }: Props) {
     // Determine if inbound (current user is requestee)
     const isInbound = !isRequester;
 
+    // Extract title from metadata (stored when creating meeting request)
+    // Fallback to reason if metadata.title doesn't exist (for backwards compatibility)
+    const title = backendMeeting.metadata?.title || backendMeeting.reason;
+
     return {
       id: `meeting-${backendMeeting.id}`,
       backendMeetingId: backendMeeting.id,
+      isVirtual: false, // Physical meetings
       isInbound,
-      title: backendMeeting.reason,
+      title, // Use metadata.title if available, otherwise fallback to reason
       participantName,
       participantRole,
       company,
@@ -286,7 +535,7 @@ export default function MeetingsScreen({ route }: Props) {
           : undefined,
       expiresIn,
       timeUntil,
-      description: backendMeeting.reason,
+      description: backendMeeting.reason, // Keep reason as description
     };
   };
 
@@ -349,6 +598,7 @@ export default function MeetingsScreen({ route }: Props) {
 
   /**
    * Fetch meetings from backend and filter by status and direction
+   * Fetches both physical and virtual meetings and merges them
    */
   const fetchMeetings = useCallback(async (isRefresh = false) => {
     if (!user?.user_id) {
@@ -364,16 +614,33 @@ export default function MeetingsScreen({ route }: Props) {
         setIsLoading(true);
       }
       setError(null);
-      const backendMeetings = await meetingService.getMeetings();
       const currentUserId = user.user_id;
 
-      // Map all meetings to UI format
-      const uiMeetings = backendMeetings.map((meeting) =>
+      // Fetch both physical and virtual meetings in parallel
+      const [physicalMeetings, virtualMeetings] = await Promise.all([
+        meetingService.getMeetings(),
+        meetingService.getVirtualMeetings(),
+      ]);
+
+      // Map physical meetings to UI format
+      const physicalUIMeetings = physicalMeetings.map((meeting) =>
         mapBackendMeetingToUI(meeting, currentUserId)
       );
 
-      // Store all meetings for counting
-      setAllMeetings(uiMeetings);
+      // Map virtual meetings to UI format
+      const virtualUIMeetings = virtualMeetings.map((meeting) =>
+        mapVirtualMeetingToUI(meeting, currentUserId)
+      );
+
+      // Merge both types of meetings
+      const uiMeetings = [...physicalUIMeetings, ...virtualUIMeetings];
+
+      // Store counts for tab badges
+      setMeetingCounts({
+        requests: uiMeetings.filter((m) => m.status === "pending").length,
+        scheduled: uiMeetings.filter((m) => m.status === "accepted").length,
+        cancelled: uiMeetings.filter((m) => m.status === "cancelled").length,
+      });
 
       // Filter by status and direction based on current tabs
       // Determine status filter
@@ -420,11 +687,26 @@ export default function MeetingsScreen({ route }: Props) {
   // ============================================================================
 
   const handleRespondToMeeting = useCallback(
-    async (meeting: UIMeeting, action: "accept" | "reject") => {
+    async (meeting: UIMeeting, action: "accept" | "reject", rejectionReason?: string) => {
       if (isActionLoading) return;
       try {
         setIsActionLoading(true);
-        await meetingService.respondToMeeting(meeting.backendMeetingId, action);
+        
+        // Use appropriate endpoint based on meeting type
+        if (meeting.isVirtual) {
+          await meetingService.respondToVirtualMeeting(
+            meeting.backendMeetingId,
+            action,
+            rejectionReason
+          );
+        } else {
+          await meetingService.respondToMeeting(
+            meeting.backendMeetingId,
+            action,
+            rejectionReason
+          );
+        }
+        
         showToast(
           action === "accept"
             ? "Meeting accepted"
@@ -470,26 +752,59 @@ export default function MeetingsScreen({ route }: Props) {
     [fetchMeetings, isActionLoading, showToast]
   );
 
+  /**
+   * Handle updating a meeting (edit/reschedule)
+   * Updates both reason (description) and slot_id (if rescheduled)
+   */
+  const handleUpdateMeeting = useCallback(
+    async (
+      meeting: UIMeeting,
+      updateData: {
+        title: string;
+        meetingType: "physical" | "virtual";
+        tableNumber?: string;
+        meetingLink?: string;
+        time: string;
+        date: string;
+        description: string;
+        slotId?: number; // Selected slot ID for rescheduling
+      }
+    ) => {
+      if (isActionLoading) return;
+      try {
+        setIsActionLoading(true);
+        
+        // Prepare update request
+        const updateRequest: { reason?: string; slot_id?: number } = {};
+        
+        // Always update reason (description)
+        updateRequest.reason = updateData.description;
+        
+        // If slot_id is provided (user selected a new time/table), include it for rescheduling
+        if (updateData.slotId) {
+          updateRequest.slot_id = updateData.slotId;
+        }
+        
+        await meetingService.updateMeeting(meeting.backendMeetingId, updateRequest);
+        showToast("Meeting updated successfully", "success");
+        setIsModalVisible(false);
+        setSelectedMeeting(null);
+        await fetchMeetings(false);
+      } catch (err: any) {
+        const message =
+          err instanceof ApiClientError
+            ? err.message
+            : "Failed to update meeting";
+        showToast(message, "error");
+      } finally {
+        setIsActionLoading(false);
+      }
+    },
+    [fetchMeetings, isActionLoading, showToast]
+  );
+
   // Calculate counts for each tab
-  const getTabCounts = () => {
-    if (allMeetings.length === 0) {
-      return { requests: 0, scheduled: 0, cancelled: 0 };
-    }
-
-    const currentUserId = user?.user_id;
-    if (!currentUserId) {
-      return { requests: 0, scheduled: 0, cancelled: 0 };
-    }
-
-    // Count by status (regardless of direction for tab badges)
-    const requests = allMeetings.filter((m) => m.status === "pending").length;
-    const scheduled = allMeetings.filter((m) => m.status === "accepted").length;
-    const cancelled = allMeetings.filter((m) => m.status === "cancelled").length;
-
-    return { requests, scheduled, cancelled };
-  };
-
-  const tabCounts = getTabCounts();
+  const tabCounts = meetingCounts;
 
   return (
     <View className="flex-1 bg-white">
@@ -630,7 +945,9 @@ export default function MeetingsScreen({ route }: Props) {
                 date={meeting.date}
                 startTime={meeting.startTime}
                 endTime={meeting.endTime}
-                location={meeting.location || "TBD"}
+                location={meeting.location}
+                meetingType={meeting.meetingType || "physical"}
+                meetingLink={meeting.meetingLink}
                 status={meeting.status === "pending" ? "pending" : meeting.status === "accepted" ? "approved" : "cancelled"}
                 approvalMessage={meeting.approvalMessage}
                 expiresIn={meeting.expiresIn}
@@ -681,7 +998,9 @@ export default function MeetingsScreen({ route }: Props) {
             date={selectedMeeting.date}
             startTime={selectedMeeting.startTime}
             endTime={selectedMeeting.endTime}
-            location={selectedMeeting.location || "TBD"}
+            location={selectedMeeting.location}
+            meetingType={selectedMeeting.meetingType || "physical"}
+            meetingLink={selectedMeeting.meetingLink}
             participantName={selectedMeeting.participantName}
             participantRole={selectedMeeting.participantRole || "Participant"}
             participantCompany={selectedMeeting.company}
@@ -699,7 +1018,7 @@ export default function MeetingsScreen({ route }: Props) {
               setIsParticipantModalVisible(false);
             }}
             onAccept={() => handleRespondToMeeting(selectedMeeting, "accept")}
-            onDecline={() => handleRespondToMeeting(selectedMeeting, "reject")}
+            onDecline={(reason) => handleRespondToMeeting(selectedMeeting, "reject", reason)}
           />
         )}
 
@@ -718,6 +1037,8 @@ export default function MeetingsScreen({ route }: Props) {
             startTime={selectedMeeting.startTime}
             endTime={selectedMeeting.endTime}
             location={selectedMeeting.location || "TBD"}
+            meetingType={selectedMeeting.meetingType}
+            meetingLink={selectedMeeting.meetingLink}
             participantName={selectedMeeting.participantName}
             participantRole={selectedMeeting.participantRole || "Participant"}
             participantCompany={selectedMeeting.company}
@@ -734,8 +1055,10 @@ export default function MeetingsScreen({ route }: Props) {
             onCloseParticipantDetail={() => {
               setIsParticipantModalVisible(false);
             }}
-            onEdit={() => {
-              // Future enhancement: reschedule/update slot
+            onEdit={(editData) => {
+              if (selectedMeeting) {
+                handleUpdateMeeting(selectedMeeting, editData);
+              }
             }}
             onCancel={() => handleCancelMeeting(selectedMeeting)}
           />
@@ -773,8 +1096,10 @@ export default function MeetingsScreen({ route }: Props) {
           onCloseParticipantDetail={() => {
             setIsParticipantModalVisible(false);
           }}
-          onEdit={() => {
-            // Future enhancement: reschedule/update slot
+          onEdit={(editData) => {
+            if (selectedMeeting) {
+              handleUpdateMeeting(selectedMeeting, editData);
+            }
           }}
           onCancel={() => {
             handleCancelMeeting(selectedMeeting);

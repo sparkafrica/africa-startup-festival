@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, Pressable } from "react-native";
 import StatusTag from "./StatusTag";
 import { PersonProfileIcon, ClockIcon, LocationPinIcon } from "./icons";
+import { VideoIcon } from "./MenuIcons";
 
 export interface MeetingCardProps {
   title: string;
@@ -10,7 +11,9 @@ export interface MeetingCardProps {
   date: string;
   startTime: string;
   endTime: string;
-  location: string;
+  location?: string;
+  meetingType?: "physical" | "virtual";
+  meetingLink?: string;
   status: "pending" | "approved" | "cancelled";
   approvalMessage?: string;
   expiresIn?: number; // hours
@@ -25,11 +28,17 @@ export default function MeetingCard({
   startTime,
   endTime,
   location,
+  meetingType = "physical",
+  meetingLink,
   status,
   approvalMessage,
   expiresIn,
   onPress,
 }: MeetingCardProps) {
+  const isVirtual = meetingType === "virtual";
+  const displayLocation = isVirtual
+    ? meetingLink || "Meeting link pending"
+    : location || "TBD";
   return (
     <Pressable
       onPress={onPress}
@@ -66,11 +75,20 @@ export default function MeetingCard({
         </Text>
       </View>
 
-      {/* Location */}
-      <View className="flex-row items-center mb-3">
-        <LocationPinIcon size={16} color="#404040" />
-        <Text className="text-sm text-black ml-2">{location}</Text>
-      </View>
+      {/* Location or Meeting Link */}
+      {isVirtual && meetingLink ? (
+        <View className="flex-row items-center mb-3">
+          <VideoIcon size={16} color="#404040" />
+          <Text className="text-sm text-black ml-2" numberOfLines={1} ellipsizeMode="middle">
+            {meetingLink}
+          </Text>
+        </View>
+      ) : (
+        <View className="flex-row items-center mb-3">
+          <LocationPinIcon size={16} color="#404040" />
+          <Text className="text-sm text-black ml-2">{displayLocation}</Text>
+        </View>
+      )}
 
       {/* Approval Status Message */}
       {approvalMessage && (

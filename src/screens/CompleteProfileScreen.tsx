@@ -183,6 +183,18 @@ const validateLinkedIn = (
   return { valid: true };
 };
 
+// Optional LinkedIn validation (only validates format if provided)
+const validateLinkedInOptional = (
+  linkedIn: string
+): { valid: boolean; error?: string } => {
+  // If empty, it's valid (optional field)
+  if (!linkedIn.trim()) {
+    return { valid: true };
+  }
+  // If provided, validate format
+  return validateLinkedIn(linkedIn);
+};
+
 const validateBio = (bio: string): { valid: boolean; error?: string } => {
   if (!bio.trim()) {
     return { valid: false, error: "Bio is required" };
@@ -755,6 +767,7 @@ function OfferColorModal({
 function AttendeeProfileForm() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
+  const { user } = useAuth();
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
@@ -773,6 +786,67 @@ function AttendeeProfileForm() {
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
+
+  // Load user data into form fields on mount
+  useEffect(() => {
+    if (user) {
+      // Set full name
+      if (user.first_name || user.last_name) {
+        setFullName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
+      }
+
+      // Set job title
+      if (user.job_title) {
+        setJobTitle(user.job_title);
+      }
+
+      // Set bio
+      if (user.bio) {
+        setBio(user.bio);
+      }
+
+      // Set country - find matching ID from label
+      if (user.country) {
+        const countryOption = COUNTRY_OPTIONS.find(
+          (opt) => opt.label.toLowerCase() === user.country?.toLowerCase()
+        );
+        if (countryOption) {
+          setSelectedCountry(countryOption.id);
+        }
+      }
+
+      // Parse metadata (might be string or object)
+      let metadata = user.metadata;
+      if (typeof metadata === "string") {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          console.error("Error parsing metadata:", e);
+          metadata = {};
+        }
+      }
+
+      // Set industry from metadata - find matching ID from label
+      if (metadata?.industry) {
+        const industryOption = INDUSTRY_OPTIONS.find(
+          (opt) => opt.label.toLowerCase() === metadata.industry.toLowerCase()
+        );
+        if (industryOption) {
+          setSelectedIndustry(industryOption.id);
+        }
+      }
+
+      // Set interests from metadata
+      if (metadata?.interests && Array.isArray(metadata.interests)) {
+        setSelectedInterests(metadata.interests);
+      }
+
+      // Set LinkedIn from metadata (optional for attendees)
+      if (metadata?.linkedIn) {
+        setLinkedIn(metadata.linkedIn);
+      }
+    }
+  }, [user]);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -901,9 +975,12 @@ function AttendeeProfileForm() {
       errors.company = companyValidation.error || "";
     }
 
-    const linkedInValidation = validateLinkedIn(linkedIn);
-    if (!linkedInValidation.valid) {
-      errors.linkedIn = linkedInValidation.error || "";
+    // Validate LinkedIn if provided (optional for attendees)
+    if (linkedIn.trim()) {
+      const linkedInValidation = validateLinkedInOptional(linkedIn);
+      if (!linkedInValidation.valid) {
+        errors.linkedIn = linkedInValidation.error || "";
+      }
     }
 
     const bioValidation = validateBio(bio);
@@ -1169,7 +1246,7 @@ function AttendeeProfileForm() {
             {/* LinkedIn */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                LinkedIn <Text className="text-red-500">*</Text>
+                LinkedIn
               </Text>
               <TextInput
                 className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
@@ -1187,7 +1264,7 @@ function AttendeeProfileForm() {
                     });
                   }
                 }}
-                placeholder="LinkedIn profile URL or handle"
+                placeholder="LinkedIn profile URL or handle (optional)"
               />
               {validationErrors.linkedIn && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -1828,7 +1905,7 @@ function PersonalProfileForm({
             {/* LinkedIn */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                LinkedIn <Text className="text-red-500">*</Text>
+                LinkedIn
               </Text>
               <TextInput
                 className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 ${
@@ -1846,7 +1923,7 @@ function PersonalProfileForm({
                     });
                   }
                 }}
-                placeholder="LinkedIn profile URL or handle"
+                placeholder="LinkedIn profile URL or handle (optional)"
               />
               {validationErrors.linkedIn && (
                 <Text className="text-red-500 text-xs mt-1">

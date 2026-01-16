@@ -85,7 +85,15 @@ export interface ScheduledMeetingModalProps {
   participantCompany: string;
   description?: string;
   onParticipantPress?: () => void;
-  onEdit?: () => void;
+  onEdit?: (data: {
+    title: string;
+    meetingType: "physical" | "virtual";
+    tableNumber?: string;
+    meetingLink?: string;
+    time: string;
+    date: string;
+    description: string;
+  }) => void;
   onCancel?: () => void;
   onLeaveFeedback?: () => void;
   isOutbound?: boolean; // If true, shows Edit Meeting button
@@ -476,9 +484,7 @@ export default function ScheduledMeetingModal({
           onClose={() => setShowEditModal(false)}
           onSave={(data) => {
             setShowEditModal(false);
-            onEdit?.();
-            // TODO: Save meeting data
-            console.log("Edit meeting data:", data);
+            onEdit?.(data);
           }}
           initialData={{
             title,

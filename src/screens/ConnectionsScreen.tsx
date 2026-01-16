@@ -365,35 +365,107 @@ export default function ConnectionsScreen() {
         return;
       }
 
-      // Validate that we have a slot ID
-      if (!data.meeting_slot_id) {
-        showToast(
-          "Please select a valid date, time, and table for the meeting",
-          "error"
-        );
-        return;
+      // Validate required fields based on meeting type
+      if (data.meetingType === "Physical") {
+        if (!data.meeting_slot_id) {
+          showToast(
+            "Please select a valid date, time, and table for the meeting",
+            "error"
+          );
+          return;
+        }
+      } else if (data.meetingType === "Virtual") {
+        if (!data.meetingLink) {
+          showToast("Please provide a meeting link", "error");
+          return;
+        }
+        if (!data.date || !data.time) {
+          showToast(
+            "Please select a date and time for the virtual meeting",
+            "error"
+          );
+          return;
+        }
       }
 
       try {
         setIsSubmittingMeeting(true);
 
-        // Prepare meeting request
-        const meetingRequest = {
-          meeting_slot_id: data.meeting_slot_id,
-          requestee_id: meetingConnection.userId, // The connection's user ID
-          reason: data.description,
-          metadata: {
-            title: data.title,
-            meetingType: data.meetingType,
-            meetingLink: data.meetingLink,
-            selectedDate: data.date,
-            selectedTime: data.time,
-            tableNumber: data.tableNumber,
-          },
-        };
+        if (data.meetingType === "Virtual") {
+          // Use virtual meeting endpoint for virtual meetings
+          // Parse time from format "10:00 AM - 10:20 AM" to "10:00:00"
+          const parseTimeFromDisplay = (timeDisplay: string): string => {
+            try {
+              // Extract start time (first part before " - ")
+              const startTimeStr = timeDisplay.split(" - ")[0].trim();
+              // Parse "10:00 AM" format to "10:00:00"
+              const [timePart, period] = startTimeStr.split(" ");
+              const [hours, minutes] = timePart.split(":");
+              let hour24 = parseInt(hours, 10);
+              if (period?.toUpperCase() === "PM" && hour24 !== 12) {
+                hour24 += 12;
+              } else if (period?.toUpperCase() === "AM" && hour24 === 12) {
+                hour24 = 0;
+              }
+              return `${hour24.toString().padStart(2, "0")}:${minutes}:00`;
+            } catch {
+              // Fallback: assume it's already in HH:MM:SS format or use default
+              return "10:00:00";
+            }
+          };
 
-        // Submit meeting request to backend
-        await meetingService.createMeetingRequest(EVENT_ID, meetingRequest);
+          // Calculate duration from time range (default 20 minutes)
+          const calculateDuration = (timeDisplay: string): number => {
+            try {
+              const parts = timeDisplay.split(" - ");
+              if (parts.length === 2) {
+                const start = parts[0].trim();
+                const end = parts[1].trim();
+                // Simple calculation - could be improved
+                // For now, default to 20 minutes
+                return 20;
+              }
+            } catch {
+              // Fallback
+            }
+            return 20; // Default 20 minutes
+          };
+
+          const virtualMeetingRequest = {
+            requestee_id: meetingConnection.userId,
+            reason: data.description,
+            meeting_link: data.meetingLink!,
+            scheduled_date: data.date!, // Should be YYYY-MM-DD format
+            scheduled_time: parseTimeFromDisplay(data.time!),
+            duration_minutes: calculateDuration(data.time!),
+            metadata: {
+              title: data.title,
+              meetingType: data.meetingType,
+              selectedDate: data.date,
+              selectedTime: data.time,
+            },
+          };
+
+          await meetingService.createVirtualMeetingRequest(
+            virtualMeetingRequest
+          );
+        } else {
+          // Use physical meeting endpoint for physical meetings
+          const meetingRequest = {
+            meeting_slot_id: data.meeting_slot_id!,
+            requestee_id: meetingConnection.userId,
+            reason: data.description,
+            metadata: {
+              title: data.title,
+              meetingType: data.meetingType,
+              selectedDate: data.date,
+              selectedTime: data.time,
+              tableNumber: data.tableNumber,
+            },
+          };
+
+          await meetingService.createMeetingRequest(EVENT_ID, meetingRequest);
+        }
 
         // Show success message
         showToast("Meeting request sent successfully!", "success");
@@ -406,11 +478,26 @@ export default function ConnectionsScreen() {
           console.error("Error submitting meeting request:", error);
         }
 
-        // Show error message
-        const errorMessage =
-          error instanceof ApiClientError
-            ? error.message
-            : "Failed to send meeting request. Please try again.";
+        // Show error message with better handling for specific errors
+        let errorMessage = "Failed to send meeting request. Please try again.";
+        
+        if (error instanceof ApiClientError) {
+          // Check for slot constraint error (only for physical meetings now)
+          if (
+            data.meetingType === "Physical" &&
+            (error.message?.includes("UNIQUE constraint failed") ||
+              error.message?.includes("slot_id") ||
+              error.data?.preview?.includes(
+                "UNIQUE constraint failed: portal_meeting.slot_id"
+              ))
+          ) {
+            errorMessage =
+              "This time slot is no longer available. Please select a different time slot.";
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
         showToast(errorMessage, "error");
       } finally {
         setIsSubmittingMeeting(false);

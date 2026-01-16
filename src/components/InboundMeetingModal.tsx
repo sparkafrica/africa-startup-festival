@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
 import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
+import { VideoIcon } from "./MenuIcons";
 import { LinkedInIcon } from "./SocialIcons";
 import MeetingAcceptedModal from "./MeetingAcceptedModal";
 import MeetingDeclineModal from "./MeetingDeclineModal";
@@ -72,7 +73,9 @@ export interface InboundMeetingModalProps {
   date: string;
   startTime: string;
   endTime: string;
-  location: string;
+  location?: string;
+  meetingType?: "physical" | "virtual";
+  meetingLink?: string;
   participantName: string;
   participantRole: string;
   participantCompany: string;
@@ -80,7 +83,7 @@ export interface InboundMeetingModalProps {
   expiresIn?: number; // hours
   onParticipantPress?: () => void;
   onAccept?: () => void;
-  onDecline?: () => void;
+  onDecline?: (reason?: string) => void;
   // Participant detail props
   showParticipantDetail?: boolean;
   participantTags?: string[];
@@ -98,6 +101,8 @@ export default function InboundMeetingModal({
   startTime,
   endTime,
   location,
+  meetingType = "physical",
+  meetingLink,
   participantName,
   participantRole,
   participantCompany,
@@ -113,6 +118,7 @@ export default function InboundMeetingModal({
   participantSocialLabel,
   onCloseParticipantDetail,
 }: InboundMeetingModalProps) {
+  const isVirtual = meetingType === "virtual";
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const modalHeight = useRef(SCREEN_HEIGHT);
   const hasMeasured = useRef(false);
@@ -130,6 +136,7 @@ export default function InboundMeetingModal({
   const [showAcceptedModal, setShowAcceptedModal] = useState(false);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [showDeclinedModal, setShowDeclinedModal] = useState(false);
+  const [declineReason, setDeclineReason] = useState<string | undefined>(undefined);
 
   const handleLayout = (event: any) => {
     const { height } = event.nativeEvent.layout;
@@ -372,11 +379,20 @@ export default function InboundMeetingModal({
               </Text>
             </View>
 
-            {/* Location */}
-            <View style={styles.infoRow}>
-              <LocationPinIcon size={18} color="#404040" />
-              <Text style={styles.infoText}>{location}</Text>
-            </View>
+            {/* Location or Meeting Link */}
+            {isVirtual && meetingLink ? (
+              <View style={styles.infoRow}>
+                <VideoIcon size={18} color="#404040" />
+                <Text style={styles.infoText} numberOfLines={1} ellipsizeMode="middle">
+                  {meetingLink}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.infoRow}>
+                <LocationPinIcon size={18} color="#404040" />
+                <Text style={styles.infoText}>{location || "TBD"}</Text>
+              </View>
+            )}
 
             {/* Participant Card */}
             <TouchableOpacity
@@ -574,11 +590,11 @@ export default function InboundMeetingModal({
           }}
           onSend={(reason) => {
             setShowDeclineModal(false);
+            // Store the reason to pass it when user confirms
+            setDeclineReason(reason);
             // Show confirmation modal after decline reason is sent
             // Don't call onDecline yet - wait until user dismisses confirmation
             setShowDeclinedModal(true);
-            // TODO: Send decline reason to backend
-            console.log("Decline reason:", reason);
           }}
         />
 
@@ -588,7 +604,9 @@ export default function InboundMeetingModal({
           onClose={() => {
             setShowDeclinedModal(false);
             // Close the inbound meeting modal and call onDecline after user sees confirmation
-            onDecline?.();
+            onDecline?.(declineReason);
+            // Clear stored reason
+            setDeclineReason(undefined);
           }}
           modalTitle="Meeting Declined"
           meetingTitle={title}
@@ -602,7 +620,9 @@ export default function InboundMeetingModal({
             // TODO: Navigate to declined meetings view
             setShowDeclinedModal(false);
             // Close the inbound meeting modal and call onDecline
-            onDecline?.();
+            onDecline?.(declineReason);
+            // Clear stored reason
+            setDeclineReason(undefined);
           }}
         />
       </View>

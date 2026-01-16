@@ -63,6 +63,7 @@ export default function RequestMeetingModal({
   const [tableNumber, setTableNumber] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDateValue, setSelectedDateValue] = useState<string | null>(null); // Store YYYY-MM-DD format
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedTimeKey, setSelectedTimeKey] = useState<string | null>(null); // Store timeKey for filtering
   const [selectedSlot, setSelectedSlot] = useState<MeetingSlot | null>(null);
@@ -148,6 +149,7 @@ export default function RequestMeetingModal({
       setTableNumber("");
       setMeetingLink("");
       setSelectedDate(null);
+      setSelectedDateValue(null);
       setSelectedTime(null);
       setSelectedTimeKey(null);
       setSelectedSlot(null);
@@ -172,20 +174,6 @@ export default function RequestMeetingModal({
       const response = await meetingService.getMeetingSlots(eventId);
       const availableSlots = response.slots.filter(slot => slot.is_available);
       setMeetingSlots(availableSlots);
-      
-      if (__DEV__) {
-        console.log("📅 Fetched meeting slots:", {
-          total: response.slots.length,
-          available: availableSlots.length,
-          slots: availableSlots.map(s => ({
-            id: s.id,
-            start: s.start_time,
-            end: s.end_time,
-            table: s.table_number,
-            available: s.is_available
-          }))
-        });
-      }
     } catch (error: any) {
       setSlotsError(error?.message || "Failed to load meeting slots");
       if (__DEV__) {
@@ -273,12 +261,22 @@ export default function RequestMeetingModal({
 
   const handleSubmit = () => {
     if (validateForm()) {
+      // Ensure we always send the date value (YYYY-MM-DD) format
+      let dateToSend = selectedDateValue;
+      if (!dateToSend && selectedDate) {
+        // If value is missing but label exists, try to extract from availableDates
+        const matchedDate = availableDates.find(d => d.label === selectedDate);
+        if (matchedDate) {
+          dateToSend = matchedDate.value;
+        }
+      }
+      
       const formData: MeetingFormData = {
         title,
         meetingType,
         tableNumber: meetingType === "Physical" ? tableNumber : undefined,
         meetingLink: meetingType === "Virtual" ? meetingLink : undefined,
-        date: selectedDate || undefined,
+        date: dateToSend || undefined, // Always send YYYY-MM-DD format
         time: selectedTime || undefined,
         description,
         meeting_slot_id: selectedSlot?.id,
@@ -290,6 +288,7 @@ export default function RequestMeetingModal({
       setTableNumber("");
       setMeetingLink("");
       setSelectedDate(null);
+      setSelectedDateValue(null);
       setSelectedTime(null);
       setSelectedTimeKey(null);
       setSelectedSlot(null);
@@ -318,11 +317,11 @@ export default function RequestMeetingModal({
     return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
   };
 
-  // Available dates for the event (25th and 26th June, 2026)
+  // Available dates for the event (26th and 27th June, 2026)
   // Show dates regardless of slot loading status - slots will be filtered by date selection
   const availableDates = [
-    { id: "1", label: "25th June, 2026", value: "2026-06-25" },
-    { id: "2", label: "26th June, 2026", value: "2026-06-26" },
+    { id: "1", label: "26th June, 2026", value: "2026-06-26" },
+    { id: "2", label: "27th June, 2026", value: "2026-06-27" },
   ];
 
   // Get slots for selected date (or all slots if no date selected yet)
@@ -335,13 +334,6 @@ export default function RequestMeetingModal({
 
   // Get slots for the selected date
   const slotsForDate = getAvailableSlotsForDate();
-  
-  // Debug logging
-  if (__DEV__ && selectedDate) {
-    console.log("🔍 Date selected:", selectedDate);
-    console.log("🔍 Total slots:", meetingSlots.length);
-    console.log("🔍 Slots for date:", slotsForDate.length);
-  }
   
   // Generate time options from available slots (remove duplicates)
   const uniqueTimeSlots = new Map<string, { slot: MeetingSlot; label: string }>();
@@ -364,11 +356,6 @@ export default function RequestMeetingModal({
     tableNumber: data.slot.table_number,
   }));
 
-  // Debug logging for times
-  if (__DEV__ && selectedDate) {
-    console.log("🔍 Available times:", availableTimes.length, availableTimes.map(t => t.label));
-  }
-
   // Get all tables for selected time slot (multiple slots can have same time but different tables)
   // Use selectedTimeKey (e.g., "09:30:00-09:50:00") to match slots, not selectedTime (display label)
   const availableTables = selectedTimeKey
@@ -381,16 +368,6 @@ export default function RequestMeetingModal({
           slotId: slot.id,
         }))
     : [];
-
-  // Debug logging for tables
-  if (__DEV__ && selectedTimeKey) {
-    console.log("🔍 Selected time (label):", selectedTime);
-    console.log("🔍 Selected timeKey:", selectedTimeKey);
-    console.log("🔍 Available tables:", availableTables.length, availableTables.map(t => t.label));
-    if (availableTables.length === 0) {
-      console.log("🔍 Debug: Matching slots for timeKey:", slotsForDate.filter((s: MeetingSlot) => `${s.start_time}-${s.end_time}` === selectedTimeKey).length);
-    }
-  }
 
   return (
     <Modal
@@ -568,6 +545,7 @@ export default function RequestMeetingModal({
                           style={styles.pickerOption}
                           onPress={() => {
                             setSelectedDate(date.label);
+                            setSelectedDateValue(date.value); // Store YYYY-MM-DD format
                             setSelectedTime(null); // Reset time when date changes
                             setSelectedTimeKey(null); // Reset timeKey
                             setTableNumber(""); // Reset table

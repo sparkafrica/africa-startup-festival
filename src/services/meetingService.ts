@@ -92,6 +92,7 @@ export interface MeetingRequest {
  */
 export interface MeetingResponseRequest {
   action: "accept" | "reject";
+  rejection_reason?: string; // Optional reason for rejection (may be stored in metadata)
 }
 
 /**
@@ -109,6 +110,78 @@ export interface MeetingCancelRequest {
 export interface MeetingUpdateRequest {
   slot_id?: number;
   reason?: string;
+}
+
+// ============================================================================
+// VIRTUAL MEETING TYPES
+// ============================================================================
+
+/**
+ * Virtual Meeting Response
+ * Matches backend schema: VirtualMeeting
+ */
+export interface VirtualMeeting {
+  id: number;
+  requester: string; // User ID
+  requestee: string; // User ID
+  reason: string;
+  status: "pending" | "accepted" | "rejected" | "cancelled";
+  meeting_link: string;
+  scheduled_date: string; // Format: date (YYYY-MM-DD)
+  scheduled_time: string; // Format: time (HH:MM:SS)
+  duration_minutes?: number;
+  timezone?: string;
+  requester_name: string;
+  requestee_name: string;
+  requester_info: MeetingUser;
+  requestee_info: MeetingUser;
+  requestee_company: SimpleCompany | null;
+  requester_company: SimpleCompany | null;
+  metadata?: any;
+  created_at?: string;
+}
+
+/**
+ * Virtual Meeting Request
+ * Matches backend schema: VirtualMeetingRequestRequest
+ */
+export interface VirtualMeetingRequest {
+  requestee_id: string;
+  reason: string;
+  meeting_link: string;
+  scheduled_date: string; // Format: date (YYYY-MM-DD)
+  scheduled_time: string; // Format: time (HH:MM:SS)
+  duration_minutes?: number;
+  metadata?: any;
+}
+
+/**
+ * Virtual Meeting Response Request
+ * Matches backend schema: VirtualMeetingResponseRequest
+ */
+export interface VirtualMeetingResponseRequest {
+  action: "accept" | "reject";
+  rejection_reason?: string; // Optional reason for rejection (may be stored in metadata)
+}
+
+/**
+ * Virtual Meeting Cancel Request
+ * Matches backend schema: VirtualMeetingCancelRequest
+ */
+export interface VirtualMeetingCancelRequest {
+  cancellation_reason?: string;
+}
+
+/**
+ * Virtual Meeting Update Request
+ * Matches backend schema: PatchedVirtualMeetingUpdateRequest
+ */
+export interface VirtualMeetingUpdateRequest {
+  reason?: string;
+  meeting_link?: string;
+  scheduled_date?: string;
+  scheduled_time?: string;
+  duration_minutes?: number;
 }
 
 /**
@@ -201,18 +274,6 @@ export const meetingService = {
 
       const data = response as any;
 
-      if (__DEV__) {
-        console.log("🔍 Raw meeting slots response:", {
-          hasData: !!data,
-          dataType: typeof data,
-          keys: data ? Object.keys(data) : [],
-          hasResults: data?.results !== undefined,
-          hasDataResults: data?.data?.results !== undefined,
-          resultsLength: data?.results?.length || data?.data?.results?.length || 0,
-          fullResponse: JSON.stringify(data, null, 2).substring(0, 500),
-        });
-      }
-
       // Check if response has the PaginatedMeetingSlotList structure (direct)
       if (
         data &&
@@ -220,9 +281,6 @@ export const meetingService = {
         "results" in data &&
         Array.isArray(data.results)
       ) {
-        if (__DEV__) {
-          console.log("✅ Found direct PaginatedMeetingSlotList structure");
-        }
         return {
           slots: data.results as MeetingSlot[],
           pagination: {
@@ -239,9 +297,6 @@ export const meetingService = {
         
         // Check if data.data is directly an array (ApiResponse with array data)
         if (Array.isArray(responseData)) {
-          if (__DEV__) {
-            console.log("✅ Found array directly in data.data (ApiResponse format)");
-          }
           return {
             slots: responseData as MeetingSlot[],
             pagination: {
@@ -259,9 +314,6 @@ export const meetingService = {
           "results" in responseData &&
           Array.isArray(responseData.results)
         ) {
-          if (__DEV__) {
-            console.log("✅ Found ApiResponse wrapped PaginatedMeetingSlotList structure");
-          }
           return {
             slots: responseData.results as MeetingSlot[],
             pagination: {
@@ -275,9 +327,6 @@ export const meetingService = {
 
       // Check if data is directly an array
       if (Array.isArray(data)) {
-        if (__DEV__) {
-          console.log("✅ Found array directly in response");
-        }
         return {
           slots: data as MeetingSlot[],
           pagination: {
@@ -289,9 +338,6 @@ export const meetingService = {
       }
 
       // Fallback: return empty array
-      if (__DEV__) {
-        console.warn("⚠️ Could not parse meeting slots response, returning empty array");
-      }
       return {
         slots: [],
         pagination: {
@@ -383,12 +429,17 @@ export const meetingService = {
    */
   async respondToMeeting(
     meetingId: number,
-    action: "accept" | "reject"
+    action: "accept" | "reject",
+    rejectionReason?: string
   ): Promise<Meeting> {
     try {
+      const requestBody: MeetingResponseRequest = { action };
+      if (action === "reject" && rejectionReason) {
+        requestBody.rejection_reason = rejectionReason;
+      }
       const response = await api.post<any>(
         `/meetings/${meetingId}/response/`,
-        { action }
+        requestBody
       );
 
       // Handle successful response (200 OK)
@@ -529,6 +580,248 @@ export const meetingService = {
       throw new ApiClientError({
         status: "error",
         message: error?.message || "Failed to update meeting",
+        response_code: error?.response_code || error?.response?.status || 500,
+        data: error?.response?.data || error?.data || {},
+      });
+    }
+  },
+
+  // ============================================================================
+  // VIRTUAL MEETING METHODS
+  // ============================================================================
+
+  /**
+   * Get all virtual meetings for the current user
+   *
+   * @returns Promise that resolves with array of virtual meetings
+   *
+   * Backend Endpoint: GET /virtual-meetings/
+   */
+  async getVirtualMeetings(): Promise<VirtualMeeting[]> {
+    try {
+      const response = await api.get<any>("/virtual-meetings/");
+
+      const data = response as any;
+
+      if (Array.isArray(data)) {
+        return data as VirtualMeeting[];
+      }
+
+      if (data?.status === "success" && data?.data) {
+        if (Array.isArray(data.data)) {
+          return data.data as VirtualMeeting[];
+        }
+      }
+
+      return [];
+    } catch (error: any) {
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to fetch virtual meetings",
+        response_code: error?.response_code || 0,
+        data: {},
+      });
+    }
+  },
+
+  /**
+   * Create a virtual meeting request
+   *
+   * @param request - Virtual meeting request data
+   * @returns Promise that resolves with the created virtual meeting
+   *
+   * Backend Endpoint: POST /virtual-meetings/request/
+   */
+  async createVirtualMeetingRequest(
+    request: VirtualMeetingRequest
+  ): Promise<VirtualMeeting> {
+    try {
+      const response = await api.post<any>(
+        "/virtual-meetings/request/",
+        request
+      );
+
+      if (response.status === "success" && response.data) {
+        return response.data as VirtualMeeting;
+      }
+
+      if (response.response_code === 201 && response.data) {
+        return response.data as VirtualMeeting;
+      }
+
+      if (response.id && response.requester && response.requestee) {
+        return response as VirtualMeeting;
+      }
+
+      throw new ApiClientError({
+        status: "error",
+        message: response.message || "Failed to create virtual meeting request",
+        response_code: response.response_code || 500,
+        data: {},
+      });
+    } catch (error: any) {
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to create virtual meeting request",
+        response_code: error?.response_code || 500,
+        data: {},
+      });
+    }
+  },
+
+  /**
+   * Accept or reject a virtual meeting request
+   *
+   * @param virtualMeetingId - The ID of the virtual meeting
+   * @param action - "accept" or "reject"
+   * @returns Promise that resolves with the updated virtual meeting
+   *
+   * Backend Endpoint: POST /virtual-meetings/{virtual_meeting_id}/response/
+   */
+  async respondToVirtualMeeting(
+    virtualMeetingId: number,
+    action: "accept" | "reject",
+    rejectionReason?: string
+  ): Promise<VirtualMeeting> {
+    try {
+      const requestBody: VirtualMeetingResponseRequest = { action };
+      if (action === "reject" && rejectionReason) {
+        requestBody.rejection_reason = rejectionReason;
+      }
+      const response = await api.post<any>(
+        `/virtual-meetings/${virtualMeetingId}/response/`,
+        requestBody
+      );
+
+      if (response.status === "success" && response.data) {
+        return response.data as VirtualMeeting;
+      }
+
+      if (response.response_code === 200 && response.data) {
+        return response.data as VirtualMeeting;
+      }
+
+      if (response.id && response.requester && response.requestee) {
+        return response as VirtualMeeting;
+      }
+
+      throw new ApiClientError({
+        status: "error",
+        message: response.message || "Failed to respond to virtual meeting",
+        response_code: response.response_code || 500,
+        data: response.data || {},
+      });
+    } catch (error: any) {
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to respond to virtual meeting",
+        response_code: error?.response_code || error?.response?.status || 500,
+        data: error?.response?.data || error?.data || {},
+      });
+    }
+  },
+
+  /**
+   * Cancel a virtual meeting
+   *
+   * @param virtualMeetingId - The ID of the virtual meeting to cancel
+   * @param cancellationReason - Reason for cancellation
+   * @returns Promise that resolves when the virtual meeting is cancelled
+   *
+   * Backend Endpoint: POST /virtual-meetings/{virtual_meeting_id}/cancel/
+   */
+  async cancelVirtualMeeting(
+    virtualMeetingId: number,
+    cancellationReason?: string
+  ): Promise<void> {
+    try {
+      const response = await api.post<any>(
+        `/virtual-meetings/${virtualMeetingId}/cancel/`,
+        {
+          cancellation_reason: cancellationReason || "Cancelled by user",
+        }
+      );
+
+      if (
+        !response ||
+        response.status === "success" ||
+        response.response_code === 200
+      ) {
+        return;
+      }
+
+      throw new ApiClientError({
+        status: "error",
+        message: response?.message || "Failed to cancel virtual meeting",
+        response_code: response?.response_code || 500,
+        data: {},
+      });
+    } catch (error: any) {
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to cancel virtual meeting",
+        response_code: error?.response_code || error?.response?.status || 500,
+        data: error?.response?.data || error?.data || {},
+      });
+    }
+  },
+
+  /**
+   * Update a virtual meeting
+   *
+   * @param virtualMeetingId - The ID of the virtual meeting to update
+   * @param update - Update data
+   * @returns Promise that resolves with the updated virtual meeting
+   *
+   * Backend Endpoint: PATCH /virtual-meetings/{virtual_meeting_id}/update/
+   */
+  async updateVirtualMeeting(
+    virtualMeetingId: number,
+    update: VirtualMeetingUpdateRequest
+  ): Promise<VirtualMeeting> {
+    try {
+      const response = await api.patch<any>(
+        `/virtual-meetings/${virtualMeetingId}/update/`,
+        update
+      );
+
+      if (response.status === "success" && response.data) {
+        return response.data as VirtualMeeting;
+      }
+
+      if (response.response_code === 200 && response.data) {
+        return response.data as VirtualMeeting;
+      }
+
+      if (response.id && response.requester && response.requestee) {
+        return response as VirtualMeeting;
+      }
+
+      throw new ApiClientError({
+        status: "error",
+        message: response.message || "Failed to update virtual meeting",
+        response_code: response.response_code || 500,
+        data: response.data || {},
+      });
+    } catch (error: any) {
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to update virtual meeting",
         response_code: error?.response_code || error?.response?.status || 500,
         data: error?.response?.data || error?.data || {},
       });
