@@ -295,13 +295,20 @@ export default function ConnectionsScreen() {
     }
     // Note: Interests are displayed separately in the Interests section, not as tags
 
+    // Extract company name - check company.name first (like participant cards), then fall back to organisation
+    const companyName = 
+      (otherUser as any).company?.name || 
+      (otherUser as any).company?.company_name ||
+      otherUser.organisation || 
+      undefined;
+
     return {
       id: backendConnection.id.toString(),
       backendConnectionId: backendConnection.id,
       userId: otherUserId,
       name: `${otherUser.first_name || ""} ${otherUser.last_name || ""}`.trim() || otherUser.email,
       title: otherUser.job_title || undefined,
-      company: otherUser.organisation || undefined,
+      company: companyName,
       avatar: otherUser.profile_pic || undefined,
       tags: tags.length > 0 ? tags : undefined,
       about: bio || undefined,
