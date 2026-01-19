@@ -63,7 +63,9 @@ interface UIMeeting {
   tags: string[];
   interests: string[];
   socialLabel?: string;
+  linkedInUrl?: string; // Full LinkedIn URL for opening profiles
   bio?: string;
+  participantAvatar?: { uri: string }; // Avatar from profile_pic
   date: string; // YYYY-MM-DD
   startTime: string; // "10:00 AM"
   endTime: string; // "10:20 AM"
@@ -96,6 +98,7 @@ export default function MeetingsScreen({ route }: Props) {
     scheduled: 0,
     cancelled: 0,
   });
+  const [allMeetingsForCounts, setAllMeetingsForCounts] = useState<UIMeeting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -259,22 +262,50 @@ export default function MeetingsScreen({ route }: Props) {
 
   /**
    * Calculate time until meeting for scheduled meetings
+   * Returns countdown format like "In 5 days", "In 3 days", "In 2 days", "Tomorrow", "In 3hrs", "In 45mins", or "Now"
    */
   const calculateTimeUntil = (date: string, startTime: string): string => {
     try {
+      // Parse date - could be YYYY-MM-DD or label format like "26th June, 2026"
+      let parsedDate = date;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        // Try to parse date label format
+        const parsed = parseDateLabel(date);
+        if (parsed) {
+          parsedDate = parsed;
+        }
+      }
+
       const [hours, minutes] = startTime.split(":");
-      const meetingDateTime = new Date(`${date}T${hours}:${minutes}:00`);
+      const meetingDateTime = new Date(`${parsedDate}T${hours}:${minutes}:00`);
       const now = new Date();
       const diffMs = meetingDateTime.getTime() - now.getTime();
+      
+      // If meeting is in the past, return "Now"
+      if (diffMs <= 0) {
+        return "Now";
+      }
+
       const diffHours = diffMs / (1000 * 60 * 60);
       const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
-      if (diffDays >= 1) {
+      // Calculate days (round down)
+      const days = Math.floor(diffDays);
+      
+      // Calculate hours remaining after full days
+      const hoursRemaining = Math.floor(diffHours - (days * 24));
+      
+      // Calculate minutes remaining after full hours
+      const minutesRemaining = Math.floor((diffHours - Math.floor(diffHours)) * 60);
+
+      if (days > 1) {
+        return `In ${days} days`;
+      } else if (days === 1) {
         return "Tomorrow";
       } else if (diffHours >= 1) {
         return `In ${Math.floor(diffHours)}hrs`;
-      } else if (diffHours > 0) {
-        return `In ${Math.floor(diffHours * 60)}mins`;
+      } else if (minutesRemaining > 0) {
+        return `In ${minutesRemaining}mins`;
       } else {
         return "Now";
       }
@@ -335,6 +366,11 @@ export default function MeetingsScreen({ route }: Props) {
       ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
       : undefined;
 
+    // Extract avatar
+    const participantAvatar = otherUser.profile_pic
+      ? { uri: otherUser.profile_pic }
+      : undefined;
+
     // Format time from HH:MM:SS to "10:00 AM" format
     const startTime = formatTime(virtualMeeting.scheduled_time);
     // Calculate end time from duration (default 20 minutes if not provided)
@@ -382,7 +418,9 @@ export default function MeetingsScreen({ route }: Props) {
       tags,
       interests,
       socialLabel,
+      linkedInUrl,
       bio,
+      participantAvatar,
       date,
       startTime,
       endTime,
@@ -454,6 +492,11 @@ export default function MeetingsScreen({ route }: Props) {
       ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
       : undefined;
 
+    // Extract avatar
+    const participantAvatar = otherUser.profile_pic
+      ? { uri: otherUser.profile_pic }
+      : undefined;
+
     // Format time
     const startTime = formatTime(backendMeeting.slot.start_time);
     const endTime = formatTime(backendMeeting.slot.end_time);
@@ -519,7 +562,9 @@ export default function MeetingsScreen({ route }: Props) {
       tags,
       interests,
       socialLabel,
+      linkedInUrl,
       bio,
+      participantAvatar,
       date,
       startTime,
       endTime,
@@ -632,14 +677,17 @@ export default function MeetingsScreen({ route }: Props) {
         mapVirtualMeetingToUI(meeting, currentUserId)
       );
 
-      // Merge both types of meetings
-      const uiMeetings = [...physicalUIMeetings, ...virtualUIMeetings];
+      // Merge both types of meetings - store ALL meetings for counts
+      const allUIMeetings = [...physicalUIMeetings, ...virtualUIMeetings];
 
-      // Store counts for tab badges
+      // Store all meetings for secondary tab counts (not filtered by secondary tab)
+      setAllMeetingsForCounts(allUIMeetings);
+
+      // Store counts for primary tab badges (total across all meetings)
       setMeetingCounts({
-        requests: uiMeetings.filter((m) => m.status === "pending").length,
-        scheduled: uiMeetings.filter((m) => m.status === "accepted").length,
-        cancelled: uiMeetings.filter((m) => m.status === "cancelled").length,
+        requests: allUIMeetings.filter((m) => m.status === "pending").length,
+        scheduled: allUIMeetings.filter((m) => m.status === "accepted").length,
+        cancelled: allUIMeetings.filter((m) => m.status === "cancelled").length,
       });
 
       // Filter by status and direction based on current tabs
@@ -652,7 +700,7 @@ export default function MeetingsScreen({ route }: Props) {
           : "cancelled";
 
       // Filter by status
-      let filtered = uiMeetings.filter((m) => m.status === statusFilter);
+      let filtered = allUIMeetings.filter((m) => m.status === statusFilter);
 
       // Filter by direction (inbound vs outbound)
       // Inbound = current user is requestee (someone requested meeting with me)
@@ -707,15 +755,24 @@ export default function MeetingsScreen({ route }: Props) {
           );
         }
         
-        showToast(
-          action === "accept"
-            ? "Meeting accepted"
-            : "Meeting declined",
-          "success"
-        );
+        // Close modal first, then show toast, then refresh
         setIsModalVisible(false);
         setSelectedMeeting(null);
-        await fetchMeetings(false);
+        
+        // Show toast after modal closes
+        setTimeout(() => {
+          showToast(
+            action === "accept"
+              ? "Meeting accepted"
+              : "Meeting declined",
+            "success"
+          );
+        }, 300);
+        
+        // Refresh after toast appears
+        setTimeout(async () => {
+          await fetchMeetings(false);
+        }, 600);
       } catch (err: any) {
         const message =
           err instanceof ApiClientError
@@ -734,16 +791,47 @@ export default function MeetingsScreen({ route }: Props) {
       if (isActionLoading) return;
       try {
         setIsActionLoading(true);
-        await meetingService.cancelMeeting(meeting.backendMeetingId, reason);
+        
+        // Use appropriate endpoint based on meeting type
+        if (meeting.isVirtual) {
+          await meetingService.cancelVirtualMeeting(
+            meeting.backendMeetingId,
+            reason
+          );
+        } else {
+          await meetingService.cancelMeeting(meeting.backendMeetingId, reason);
+        }
+        
         showToast("Meeting cancelled", "success");
+        // Close modal immediately and refresh
         setIsModalVisible(false);
         setSelectedMeeting(null);
-        await fetchMeetings(false);
+        // Small delay to allow modal animation to complete
+        setTimeout(async () => {
+          await fetchMeetings(false);
+        }, 300);
       } catch (err: any) {
-        const message =
+        let message =
           err instanceof ApiClientError
             ? err.message
             : "Failed to cancel meeting";
+        
+        // Handle 404 - meeting might already be cancelled
+          if (err instanceof ApiClientError && err.response_code === 404) {
+            if (err.message?.includes("already cancelled") || err.message?.includes("not found")) {
+              message = "This meeting is already cancelled or doesn't exist.";
+              // Close modal and refresh even on 404 (meeting already cancelled)
+              setIsModalVisible(false);
+              setSelectedMeeting(null);
+              setTimeout(() => {
+                showToast(message, "error");
+              }, 300);
+              setTimeout(async () => {
+                await fetchMeetings(false);
+              }, 600);
+            }
+          }
+        
         showToast(message, "error");
       } finally {
         setIsActionLoading(false);
@@ -767,29 +855,147 @@ export default function MeetingsScreen({ route }: Props) {
         time: string;
         date: string;
         description: string;
-        slotId?: number; // Selected slot ID for rescheduling
+        slotId?: number; // Selected slot ID for rescheduling (for physical) or time selection (for virtual)
       }
     ) => {
       if (isActionLoading) return;
       try {
         setIsActionLoading(true);
         
-        // Prepare update request
-        const updateRequest: { reason?: string; slot_id?: number } = {};
-        
-        // Always update reason (description)
-        updateRequest.reason = updateData.description;
-        
-        // If slot_id is provided (user selected a new time/table), include it for rescheduling
-        if (updateData.slotId) {
-          updateRequest.slot_id = updateData.slotId;
+        // Handle virtual meeting updates
+        if (meeting.isVirtual || updateData.meetingType === "virtual") {
+          // Parse time from format "10:00 AM - 10:20 AM" to "10:00:00"
+          const parseTimeFromDisplay = (timeDisplay: string): string => {
+            try {
+              // Extract start time (first part before " - ")
+              const startTimeStr = timeDisplay.split(" - ")[0].trim();
+              // Parse "10:00 AM" format to "10:00:00"
+              const [timePart, period] = startTimeStr.split(" ");
+              const [hours, minutes] = timePart.split(":");
+              let hour24 = parseInt(hours, 10);
+              if (period?.toUpperCase() === "PM" && hour24 !== 12) {
+                hour24 += 12;
+              } else if (period?.toUpperCase() === "AM" && hour24 === 12) {
+                hour24 = 0;
+              }
+              return `${hour24.toString().padStart(2, "0")}:${minutes}:00`;
+            } catch {
+              // Fallback: assume it's already in HH:MM:SS format
+              return "10:00:00";
+            }
+          };
+
+          // Calculate duration from time range (default 20 minutes)
+          const calculateDuration = (timeDisplay: string): number => {
+            try {
+              const parts = timeDisplay.split(" - ");
+              if (parts.length === 2) {
+                const start = parts[0].trim();
+                const end = parts[1].trim();
+                // Simple calculation - extract hours and minutes
+                const parseTime = (timeStr: string) => {
+                  const [timePart, period] = timeStr.split(" ");
+                  const [hours, minutes] = timePart.split(":");
+                  let hour24 = parseInt(hours, 10);
+                  if (period?.toUpperCase() === "PM" && hour24 !== 12) {
+                    hour24 += 12;
+                  } else if (period?.toUpperCase() === "AM" && hour24 === 12) {
+                    hour24 = 0;
+                  }
+                  return hour24 * 60 + parseInt(minutes, 10);
+                };
+                const startMinutes = parseTime(start);
+                const endMinutes = parseTime(end);
+                return Math.max(15, endMinutes - startMinutes); // Minimum 15 minutes
+              }
+            } catch {
+              // Fallback
+            }
+            return 20; // Default 20 minutes
+          };
+
+          const virtualUpdateRequest: {
+            reason?: string;
+            meeting_link?: string;
+            scheduled_date?: string;
+            scheduled_time?: string;
+            duration_minutes?: number;
+            metadata?: any;
+          } = {
+            reason: updateData.description,
+          };
+
+          // Always include meeting_link if provided (for updates)
+          if (updateData.meetingLink !== undefined) {
+            virtualUpdateRequest.meeting_link = updateData.meetingLink.trim() || undefined;
+          }
+
+          // Parse date from label format to YYYY-MM-DD if needed
+          let parsedDate = updateData.date;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(updateData.date)) {
+            const parsed = parseDateLabel(updateData.date);
+            if (parsed) {
+              parsedDate = parsed;
+            }
+          }
+
+          // Always include scheduled_date and scheduled_time for virtual meetings (required fields)
+          // Parse date from label format to YYYY-MM-DD if needed
+          virtualUpdateRequest.scheduled_date = parsedDate; // Should be YYYY-MM-DD
+          virtualUpdateRequest.scheduled_time = parseTimeFromDisplay(updateData.time);
+          virtualUpdateRequest.duration_minutes = calculateDuration(updateData.time);
+
+          // Always include title in metadata if provided (for updates)
+          // Note: Backend may not officially support metadata in update, but we try it
+          if (updateData.title) {
+            virtualUpdateRequest.metadata = {
+              ...(meeting as any).metadata || {},
+              title: updateData.title,
+            };
+          }
+
+          await meetingService.updateVirtualMeeting(meeting.backendMeetingId, virtualUpdateRequest);
+        } else {
+          // Handle physical meeting updates
+          const updateRequest: { reason?: string; slot_id?: number; metadata?: any } = {
+            reason: updateData.description,
+          };
+          
+          // If slot_id is provided (user selected a new time/table), include it for rescheduling
+          if (updateData.slotId) {
+            updateRequest.slot_id = updateData.slotId;
+          }
+
+          // Always include title in metadata if provided (for updates)
+          // Note: Backend may not officially support metadata in update, but we try it
+          if (updateData.title) {
+            updateRequest.metadata = {
+              ...(meeting as any).metadata || {},
+              title: updateData.title,
+            };
+          }
+
+          // For physical meetings, if date changed, we need to find a slot on that date
+          // The slot_id should already be set from the time/table selection, but if date changed
+          // and no new slot_id is provided, we might need to handle it
+          // For now, slot_id is the primary way to reschedule physical meetings
+          
+          await meetingService.updateMeeting(meeting.backendMeetingId, updateRequest);
         }
         
-        await meetingService.updateMeeting(meeting.backendMeetingId, updateRequest);
-        showToast("Meeting updated successfully", "success");
+        // Close modal first, then show toast, then refresh
         setIsModalVisible(false);
         setSelectedMeeting(null);
-        await fetchMeetings(false);
+        
+        // Show toast after modal closes
+        setTimeout(() => {
+          showToast("Meeting updated successfully", "success");
+        }, 300);
+        
+        // Refresh after toast appears
+        setTimeout(async () => {
+          await fetchMeetings(false);
+        }, 600);
       } catch (err: any) {
         const message =
           err instanceof ApiClientError
@@ -806,6 +1012,31 @@ export default function MeetingsScreen({ route }: Props) {
   // Calculate counts for each tab
   const tabCounts = meetingCounts;
 
+  // Calculate inbound/outbound counts for current primary tab status
+  // This shows counts for the current primary tab (requests/scheduled/cancelled)
+  // Counts should always be visible regardless of which secondary tab is selected
+  // so users can see "3 inbound, 2 outbound" even when viewing only inbound
+  const getSecondaryTabCounts = useCallback(() => {
+    // Determine status filter based on current primary tab
+    const statusFilter =
+      primaryTab === "requests"
+        ? "pending"
+        : primaryTab === "scheduled"
+        ? "accepted"
+        : "cancelled";
+
+    // Use all meetings (not filtered by secondary tab) for counts
+    const meetingsForStatus = allMeetingsForCounts.filter((m) => m.status === statusFilter);
+
+    // Count inbound and outbound for this status
+    const inboundCount = meetingsForStatus.filter((m) => m.isInbound).length;
+    const outboundCount = meetingsForStatus.filter((m) => !m.isInbound).length;
+
+    return { inbound: inboundCount, outbound: outboundCount };
+  }, [primaryTab, allMeetingsForCounts]);
+
+  const secondaryTabCounts = getSecondaryTabCounts();
+
   return (
     <View className="flex-1 bg-white">
       <HeaderBar
@@ -821,18 +1052,37 @@ export default function MeetingsScreen({ route }: Props) {
             label="Requests"
             count={tabCounts.requests}
             isActive={primaryTab === "requests"}
-            onPress={() => setPrimaryTab("requests")}
+            onPress={() => {
+              // Clear selected meeting and close modal when switching tabs
+              setSelectedMeeting(null);
+              setIsModalVisible(false);
+              setIsParticipantModalVisible(false);
+              setPrimaryTab("requests");
+            }}
           />
           <TabButton
             label="Scheduled"
             count={tabCounts.scheduled}
             isActive={primaryTab === "scheduled"}
-            onPress={() => setPrimaryTab("scheduled")}
+            onPress={() => {
+              // Clear selected meeting and close modal when switching tabs
+              setSelectedMeeting(null);
+              setIsModalVisible(false);
+              setIsParticipantModalVisible(false);
+              setPrimaryTab("scheduled");
+            }}
           />
           <TabButton
             label="Cancelled"
+            count={tabCounts.cancelled}
             isActive={primaryTab === "cancelled"}
-            onPress={() => setPrimaryTab("cancelled")}
+            onPress={() => {
+              // Clear selected meeting and close modal when switching to cancelled tab
+              setSelectedMeeting(null);
+              setIsModalVisible(false);
+              setIsParticipantModalVisible(false);
+              setPrimaryTab("cancelled");
+            }}
           />
         </View>
       </View>
@@ -844,12 +1094,14 @@ export default function MeetingsScreen({ route }: Props) {
             label="Inbound"
             icon={<ArrowDownRedIcon size={16} color="#FF0000" />}
             isActive={secondaryTab === "inbound"}
+            count={secondaryTabCounts.inbound}
             onPress={() => setSecondaryTab("inbound")}
           />
           <SecondaryTabButton
             label="Outbound"
             icon={<ArrowUpGreenIcon size={16} color="#008000" />}
             isActive={secondaryTab === "outbound"}
+            count={secondaryTabCounts.outbound}
             onPress={() => setSecondaryTab("outbound")}
           />
         </View>
@@ -928,10 +1180,8 @@ export default function MeetingsScreen({ route }: Props) {
                 endTime={meeting.endTime}
                 meetingType={meeting.meetingType || "physical"}
                 onPress={() => {
-                  // Show cancelled meeting details (optional - could show modal)
-                  setIsParticipantModalVisible(false);
-                  setSelectedMeeting(meeting);
-                  setIsModalVisible(true);
+                  // Cancelled tab is for records only - no modals
+                  // Do nothing on press
                 }}
               />
             ))
@@ -1014,6 +1264,8 @@ export default function MeetingsScreen({ route }: Props) {
             participantBio={selectedMeeting.bio}
             participantInterests={selectedMeeting.interests}
             participantSocialLabel={selectedMeeting.socialLabel}
+            participantLinkedInUrl={selectedMeeting.linkedInUrl}
+            participantAvatar={selectedMeeting.participantAvatar}
             onCloseParticipantDetail={() => {
               setIsParticipantModalVisible(false);
             }}
@@ -1052,6 +1304,7 @@ export default function MeetingsScreen({ route }: Props) {
             participantBio={selectedMeeting.bio}
             participantInterests={selectedMeeting.interests}
             participantSocialLabel={selectedMeeting.socialLabel}
+            participantAvatar={selectedMeeting.participantAvatar}
             onCloseParticipantDetail={() => {
               setIsParticipantModalVisible(false);
             }}
@@ -1093,6 +1346,8 @@ export default function MeetingsScreen({ route }: Props) {
           participantBio={selectedMeeting.bio}
           participantInterests={selectedMeeting.interests || []}
           participantSocialLabel={selectedMeeting.socialLabel}
+          participantLinkedInUrl={selectedMeeting.linkedInUrl}
+          participantAvatar={selectedMeeting.participantAvatar}
           onCloseParticipantDetail={() => {
             setIsParticipantModalVisible(false);
           }}
@@ -1106,8 +1361,12 @@ export default function MeetingsScreen({ route }: Props) {
             setIsModalVisible(false);
             setSelectedMeeting(null);
           }}
-          onLeaveFeedback={() => {
-            // TODO: Handle leave feedback (future task)
+          onLeaveFeedback={async () => {
+            // Handle feedback submission
+            // Note: Currently, feedback is collected and shown in FeedbackSentModal
+            // When backend feedback endpoint is ready, add API call here:
+            // await meetingService.submitMeetingFeedback(selectedMeeting.backendMeetingId, feedbackText)
+            // For now, the UI flow is complete - user submits feedback and sees confirmation
           }}
         />
       )}

@@ -12,7 +12,7 @@ export interface EventCardProps {
     name: string;
     color: "blue" | "purple";
   };
-  onAddToSchedule?: () => void;
+  onAskQuestion?: () => void;
   onLeaveFeedback?: () => void;
 }
 
@@ -23,7 +23,7 @@ export default function EventCard({
   startTime,
   endTime,
   sponsoredBy,
-  onAddToSchedule,
+  onAskQuestion,
   onLeaveFeedback,
 }: EventCardProps) {
   const sponsorColors = {
@@ -64,12 +64,12 @@ export default function EventCard({
 
       <View className="flex-row items-center gap-3">
         <Pressable
-          onPress={onAddToSchedule}
+          onPress={onAskQuestion}
           className="flex-row items-center bg-black rounded-md px-4 py-2.5"
         >
           <CalendarIconWhite size={16} color="#FFFFFF" />
           <Text className="text-white font-medium text-sm ml-2">
-            Add to schedule
+            Ask a question
           </Text>
         </Pressable>
 

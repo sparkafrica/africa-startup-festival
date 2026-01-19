@@ -430,6 +430,8 @@ function TicketCard({
   canTransfer,
   totalTickets,
   availableToAssignCount,
+  isAdminBlocked,
+  eventId,
   onViewQR,
   onTransfer,
   onAssign,
@@ -444,6 +446,8 @@ function TicketCard({
   canTransfer?: boolean; // Whether personal ticket can be transferred
   totalTickets?: number; // Total number of tickets user has
   availableToAssignCount?: number; // Number of unassigned tickets
+  isAdminBlocked?: boolean; // Whether transfer is blocked because user is admin
+  eventId?: number; // Event ID to determine if ATE event
   onViewQR?: () => void;
   onTransfer?: () => void;
   onAssign?: () => void;
@@ -522,7 +526,21 @@ function TicketCard({
           {/* Warning message when transfer is not allowed */}
           {!canTransfer && (
             <View className="bg-orange-50 rounded-xl py-3.5 px-4 border border-orange-200">
-              {totalTickets === 1 ? (
+              {isAdminBlocked ? (
+                <View>
+                  <Text className="text-xs font-medium text-orange-800 mb-1">
+                    Transfer Not Available
+                  </Text>
+                  <Text className="text-xs text-orange-700 leading-4">
+                    You are a company admin. Personal tickets cannot be
+                    transferred.
+                  </Text>
+                </View>
+              ) : eventId === 10 && totalTickets === 1 ? (
+                // For ATE (event_id = 10), single ticket users CAN transfer (no warning)
+                null
+              ) : totalTickets === 1 ? (
+                // For other events, single ticket users CANNOT transfer
                 <View>
                   <Text className="text-xs font-medium text-orange-800 mb-1">
                     Transfer Not Available
@@ -586,6 +604,8 @@ function QRCodeModal({
   canTransfer,
   totalTickets,
   availableToAssignCount,
+  isAdminBlocked,
+  eventId,
   onTransfer,
 }: {
   visible: boolean;
@@ -596,6 +616,8 @@ function QRCodeModal({
   canTransfer?: boolean;
   totalTickets?: number;
   availableToAssignCount?: number;
+  isAdminBlocked?: boolean;
+  eventId?: number;
   onTransfer: (
     title: string,
     ticketNumber: string,
@@ -772,7 +794,21 @@ function QRCodeModal({
             {/* Warning message when transfer is not allowed */}
             {!canTransfer && (
               <View className="bg-orange-50 rounded-xl py-3.5 px-4 border border-orange-200 mb-4">
-                {totalTickets === 1 ? (
+                {isAdminBlocked ? (
+                  <View>
+                    <Text className="text-xs font-medium text-orange-800 mb-1">
+                      Transfer Not Available
+                    </Text>
+                    <Text className="text-xs text-orange-700 leading-4">
+                      You are a company admin. Personal tickets cannot be
+                      transferred.
+                    </Text>
+                  </View>
+                ) : eventId === 10 && totalTickets === 1 ? (
+                  // For ATE (event_id = 10), single ticket users CAN transfer (no warning)
+                  null
+                ) : totalTickets === 1 ? (
+                  // For other events, single ticket users CANNOT transfer
                   <View>
                     <Text className="text-xs font-medium text-orange-800 mb-1">
                       Transfer Not Available
@@ -3461,6 +3497,86 @@ interface Ticket {
   isUnassigned: boolean; // true if ticket hasn't been assigned yet
 }
 
+// Helper function to check if user is exhibitor/partner admin
+function isExhibitorPartnerAdmin(
+  user: { user_id: string; company?: { admin_user?: string | null } | null } | null
+): boolean {
+  if (!user || !user.company) {
+    return false;
+  }
+
+  // User is admin if company.admin_user matches user.user_id
+  return user.company.admin_user === user.user_id;
+}
+
+// Helper function to check if event is ATE (event_id = 10)
+function isATEEvent(eventId: number): boolean {
+  return eventId === 10;
+}
+
+// Helper function to determine if personal ticket can be transferred
+// Returns object with canTransfer flag and optional reason
+function canTransferPersonalTicket(
+  eventId: number,
+  user: { user_id: string; company?: { admin_user?: string | null } | null } | null,
+  tickets: Ticket[]
+): { canTransfer: boolean; reason?: string; isAdminBlocked?: boolean } {
+  // For ATE (event_id = 10)
+  if (isATEEvent(eventId)) {
+    // Rule 1: Block exhibitor/partner admins
+    if (isExhibitorPartnerAdmin(user)) {
+      return {
+        canTransfer: false,
+        reason: "Exhibitor/partner admins cannot transfer personal tickets",
+        isAdminBlocked: true,
+      };
+    }
+
+    // Rule 2 & 3: Others can transfer if:
+    // - Single ticket: Can transfer (they can lose access)
+    // - Multiple tickets: Must have assigned all others first
+    const totalTickets = tickets.length;
+    const availableToAssign = tickets.filter(
+      (t) => !t.isPersonal && t.isUnassigned
+    );
+
+    if (totalTickets === 1) {
+      return { canTransfer: true }; // Allow single ticket transfer
+    }
+
+    if (availableToAssign.length > 0) {
+      return {
+        canTransfer: false,
+        reason: `You must assign ${availableToAssign.length} available ticket(s) first`,
+      };
+    }
+
+    return { canTransfer: true };
+  }
+
+  // Default behavior for other events (current logic)
+  const totalTickets = tickets.length;
+  const availableToAssign = tickets.filter(
+    (t) => !t.isPersonal && t.isUnassigned
+  );
+
+  if (totalTickets <= 1) {
+    return {
+      canTransfer: false,
+      reason: "You only have one ticket. Transferring it would remove your access.",
+    };
+  }
+
+  if (availableToAssign.length > 0) {
+    return {
+      canTransfer: false,
+      reason: `You must assign ${availableToAssign.length} available ticket(s) first`,
+    };
+  }
+
+  return { canTransfer: true };
+}
+
 function MyTicketView({
   tickets,
   loading,
@@ -3468,6 +3584,8 @@ function MyTicketView({
   onViewQR,
   onTransfer,
   onEditAssignment,
+  user,
+  eventId,
 }: {
   tickets: Ticket[];
   loading?: boolean;
@@ -3492,6 +3610,8 @@ function MyTicketView({
     backgroundColor: string,
     assignedTo: string
   ) => void;
+  user: { user_id: string; company?: { admin_user?: string | null } | null } | null;
+  eventId: number;
 }) {
   // Calculate ticket counts
   const personalTickets = tickets.filter((t) => t.isPersonal);
@@ -3502,12 +3622,11 @@ function MyTicketView({
     (t) => !t.isPersonal && !t.isUnassigned
   );
 
-  // Logic: Personal ticket can only be transferred if:
-  // 1. User has more than 1 ticket total, AND
-  // 2. All available-to-assign tickets have been assigned
+  // Use helper function to determine if personal ticket can be transferred
   const totalTickets = tickets.length;
-  const canTransferPersonalTicket =
-    totalTickets > 1 && availableToAssignTickets.length === 0;
+  const transferResult = canTransferPersonalTicket(eventId, user, tickets);
+  const canTransfer = transferResult.canTransfer;
+  const isAdminBlocked = transferResult.isAdminBlocked || false;
 
   // Get tickets by category
   const myPersonalTickets = tickets.filter((t) => t.isPersonal);
@@ -3576,20 +3695,22 @@ function MyTicketView({
               backgroundColor={ticket.backgroundColor}
               assignedTo={ticket.assignedTo}
               isMyTicket={true}
-              canTransfer={canTransferPersonalTicket}
+              canTransfer={canTransfer}
               totalTickets={totalTickets}
               availableToAssignCount={availableToAssignTickets.length}
+              isAdminBlocked={isAdminBlocked}
+              eventId={eventId}
               onViewQR={() =>
                 onViewQR(
                   ticket.title,
                   ticket.ticketNumber,
-                  canTransferPersonalTicket,
+                  canTransfer,
                   totalTickets,
                   availableToAssignTickets.length
                 )
               }
               onTransfer={() =>
-                canTransferPersonalTicket
+                canTransfer
                   ? onTransfer(
                       ticket.title,
                       ticket.ticketNumber,
@@ -3728,6 +3849,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     canTransfer?: boolean;
     totalTickets?: number;
     availableToAssignCount?: number;
+    isAdminBlocked?: boolean;
+    eventId?: number;
   }>({
     title: "",
     ticketNumber: "",
@@ -3859,16 +3982,15 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
   // Calculate transfer logic based on current ticket state
   const calculateTransferLogic = () => {
+    const transferResult = canTransferPersonalTicket(EVENT_ID, user, tickets);
     const totalTickets = tickets.length;
     const availableToAssignTickets = tickets.filter(
       (t) => !t.isPersonal && t.isUnassigned
     );
-    const canTransferPersonalTicket =
-      totalTickets > 1 && availableToAssignTickets.length === 0;
     return {
       totalTickets,
       availableToAssignCount: availableToAssignTickets.length,
-      canTransferPersonalTicket,
+      canTransferPersonalTicket: transferResult.canTransfer,
     };
   };
 
@@ -3880,6 +4002,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     availableToAssignCount: number
   ) => {
     const ticket = tickets.find((t) => t.ticketNumber === ticketNumber);
+    // Compute transfer result to get isAdminBlocked
+    const transferResult = canTransferPersonalTicket(EVENT_ID, user, tickets);
     setQrModalData({
       title,
       ticketNumber,
@@ -3887,6 +4011,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       canTransfer,
       totalTickets,
       availableToAssignCount,
+      isAdminBlocked: transferResult.isAdminBlocked || false,
+      eventId: EVENT_ID,
     });
     setQrModalVisible(true);
   };
@@ -4333,6 +4459,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
             onViewQR={handleViewQR}
             onTransfer={handleTransfer}
             onEditAssignment={handleEditAssignment}
+            user={user}
+            eventId={EVENT_ID}
           />
         ) : (
           <>
@@ -4349,6 +4477,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           canTransfer={qrModalData.canTransfer}
           totalTickets={qrModalData.totalTickets}
           availableToAssignCount={qrModalData.availableToAssignCount}
+          isAdminBlocked={qrModalData.isAdminBlocked}
+          eventId={qrModalData.eventId}
           onTransfer={handleTransfer}
         />
         <TransferTicketModal

@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
 import { LocationPinIcon, PersonProfileIcon } from "./icons";
+import { VideoIcon } from "./MenuIcons";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -24,7 +25,9 @@ interface MeetingAcceptedModalProps {
   date: string;
   startTime: string;
   endTime: string;
-  location: string;
+  location?: string;
+  meetingType?: "physical" | "virtual";
+  meetingLink?: string;
   participantName: string;
   participantRole: string;
   participantCompany: string;
@@ -184,11 +187,20 @@ export default function MeetingAcceptedModal({
                 </Text>
               </View>
 
-              {/* Location */}
-              <View style={styles.detailRow}>
-                <LocationPinIcon size={18} color="#404040" />
-                <Text style={styles.detailText}>{location}</Text>
-              </View>
+              {/* Location or Meeting Link */}
+              {isVirtual && meetingLink ? (
+                <View style={styles.detailRow}>
+                  <VideoIcon size={18} color="#404040" />
+                  <Text style={styles.detailText} numberOfLines={1} ellipsizeMode="middle">
+                    {meetingLink}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.detailRow}>
+                  <LocationPinIcon size={18} color="#404040" />
+                  <Text style={styles.detailText}>{location || "TBD"}</Text>
+                </View>
+              )}
             </View>
 
             {/* Instruction Text */}

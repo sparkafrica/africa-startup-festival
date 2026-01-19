@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import MeetingActionToast from "./MeetingActionToast";
+import { LinkedInIcon } from "./SocialIcons";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -35,6 +36,9 @@ interface NotificationDetailModalProps {
       role: string;
       company: string;
       avatar?: { uri: string };
+      tags?: string[];
+      interests?: string[];
+      socialLabel?: string;
     };
     meetingDetails?: {
       title: string;
@@ -308,10 +312,54 @@ export default function NotificationDetailModal({
                         >
                           {notification.requester.name}
                         </Text>
-                        <Text className="text-sm text-neutral-600">
+                        <Text className="text-sm text-neutral-600 mb-2">
                           {notification.requester.role} •{" "}
                           {notification.requester.company}
                         </Text>
+                        
+                        {/* Tags (Country, Role, Sector) */}
+                        {notification.requester.tags && notification.requester.tags.length > 0 && (
+                          <View className="flex-row flex-wrap mb-2" style={{ gap: 6 }}>
+                            {notification.requester.tags.map((tag, index) => (
+                              <View
+                                key={index}
+                                className="px-3 py-1 bg-neutral-100 rounded-full border border-neutral-200"
+                              >
+                                <Text className="text-xs text-neutral-700 font-medium">
+                                  {tag}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Interests */}
+                        {notification.requester.interests && notification.requester.interests.length > 0 && (
+                          <View className="flex-row flex-wrap mb-2" style={{ gap: 6 }}>
+                            {notification.requester.interests.map((interest, index) => (
+                              <View
+                                key={index}
+                                className="px-3 py-1 bg-neutral-100 rounded-full"
+                              >
+                                <Text className="text-xs text-neutral-700">
+                                  {interest}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* LinkedIn Badge (Pill style) */}
+                        {notification.requester.socialLabel && (
+                          <View className="flex-row flex-wrap" style={{ gap: 6 }}>
+                            <View className="px-3 py-1 bg-neutral-100 rounded-full flex-row items-center">
+                              <LinkedInIcon size={14} color="#0A66C2" />
+                              <Text className="text-xs text-neutral-700 ml-1.5 font-medium">
+                                {notification.requester.socialLabel}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
                       </View>
                       <View className="w-6 h-6 items-center justify-center">
                         <Svg

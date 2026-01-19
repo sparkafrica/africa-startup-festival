@@ -482,23 +482,151 @@ export default function ConnectionsScreen() {
         let errorMessage = "Failed to send meeting request. Please try again.";
         
         if (error instanceof ApiClientError) {
-          // Check for slot constraint error (only for physical meetings now)
-          if (
-            data.meetingType === "Physical" &&
-            (error.message?.includes("UNIQUE constraint failed") ||
+          // Check for 404 errors (endpoint not found)
+          if (error.responseCode === 404) {
+            if (data.meetingType === "Virtual") {
+              errorMessage = "Virtual meeting endpoint not found. The backend may not have deployed this feature yet. Please contact support or try again later.";
+            } else {
+              errorMessage = "Meeting request endpoint not found. Please contact support.";
+            }
+          }
+          // Check for virtual meeting validation errors
+          else if (data.meetingType === "Virtual") {
+            // Check for non_field_errors FIRST (could be at different nesting levels)
+            const nonFieldErrors = 
+              error.data?.non_field_errors || 
+              error.data?.data?.non_field_errors || 
+              error.data?.data?.data?.non_field_errors;
+            
+            // Check if this is a duplicate/pending meeting error
+            const isDuplicateError = 
+              nonFieldErrors && (
+                (Array.isArray(nonFieldErrors) && nonFieldErrors.some(msg => 
+                  typeof msg === "string" && (
+                    msg.toLowerCase().includes("pending") ||
+                    msg.toLowerCase().includes("already") ||
+                    msg.toLowerCase().includes("duplicate") ||
+                    msg.toLowerCase().includes("conflict")
+                  )
+                )) ||
+                (typeof nonFieldErrors === "string" && (
+                  nonFieldErrors.toLowerCase().includes("pending") ||
+                  nonFieldErrors.toLowerCase().includes("already") ||
+                  nonFieldErrors.toLowerCase().includes("duplicate") ||
+                  nonFieldErrors.toLowerCase().includes("conflict")
+                ))
+              ) ||
+              error.message?.toLowerCase().includes("pending") ||
+              error.message?.toLowerCase().includes("already have") ||
+              error.message?.toLowerCase().includes("duplicate") ||
+              error.message?.toLowerCase().includes("conflict");
+            
+            if (isDuplicateError) {
+              // Provide a clear, user-friendly message about duplicate requests
+              errorMessage = "You already have a pending meeting request with this person. Please wait for them to accept or decline your request before creating a new one.";
+            } else if (nonFieldErrors) {
+              // Use the backend's non_field_errors message if it's not a duplicate error
+              if (Array.isArray(nonFieldErrors) && nonFieldErrors.length > 0) {
+                errorMessage = nonFieldErrors[0];
+              } else if (typeof nonFieldErrors === "string") {
+                errorMessage = nonFieldErrors;
+              }
+            }
+            // Check for meeting_link validation errors
+            else if (
+              error.message?.toLowerCase().includes("meeting_link") ||
+              error.data?.data?.meeting_link ||
+              error.data?.meeting_link
+            ) {
+              const linkError = error.data?.meeting_link || error.data?.data?.meeting_link;
+              if (Array.isArray(linkError) && linkError.length > 0) {
+                errorMessage = `Meeting link error: ${linkError[0]}`;
+              } else if (typeof linkError === "string") {
+                errorMessage = `Meeting link error: ${linkError}`;
+              } else {
+                errorMessage = "Please provide a valid meeting link (e.g., https://zoom.us/... or https://meet.google.com/...)";
+              }
+            } else {
+              // Use the parsed error message
+              errorMessage = error.message || errorMessage;
+            }
+          }
+          // Check for physical meeting errors
+          else if (data.meetingType === "Physical") {
+            // Check for non_field_errors first (could be at different nesting levels)
+            const nonFieldErrors = 
+              error.data?.non_field_errors || 
+              error.data?.data?.non_field_errors || 
+              error.data?.data?.data?.non_field_errors;
+            
+            // Check if this is a duplicate/pending meeting error
+            const isDuplicateError = 
+              nonFieldErrors && (
+                (Array.isArray(nonFieldErrors) && nonFieldErrors.some(msg => 
+                  typeof msg === "string" && (
+                    msg.toLowerCase().includes("pending") ||
+                    msg.toLowerCase().includes("already have") ||
+                    msg.toLowerCase().includes("already scheduled") ||
+                    msg.toLowerCase().includes("meeting scheduled") ||
+                    msg.toLowerCase().includes("duplicate") ||
+                    msg.toLowerCase().includes("conflict")
+                  )
+                )) ||
+                (typeof nonFieldErrors === "string" && (
+                  nonFieldErrors.toLowerCase().includes("pending") ||
+                  nonFieldErrors.toLowerCase().includes("already have") ||
+                  nonFieldErrors.toLowerCase().includes("already scheduled") ||
+                  nonFieldErrors.toLowerCase().includes("meeting scheduled") ||
+                  nonFieldErrors.toLowerCase().includes("duplicate") ||
+                  nonFieldErrors.toLowerCase().includes("conflict")
+                ))
+              ) ||
+              error.message?.toLowerCase().includes("already have") ||
+              error.message?.toLowerCase().includes("already scheduled") ||
+              error.message?.toLowerCase().includes("meeting scheduled") ||
+              error.message?.toLowerCase().includes("duplicate") ||
+              error.message?.toLowerCase().includes("conflict");
+            
+            if (isDuplicateError) {
+              // Provide a clear, user-friendly message about duplicate requests
+              errorMessage = "You already have a pending meeting request with this person. Please wait for them to accept or decline your request before creating a new one.";
+            } else if (nonFieldErrors) {
+              // Use the backend's non_field_errors message if it's not a duplicate error
+              if (Array.isArray(nonFieldErrors) && nonFieldErrors.length > 0) {
+                errorMessage = nonFieldErrors[0];
+              } else if (typeof nonFieldErrors === "string") {
+                errorMessage = nonFieldErrors;
+              }
+            }
+            // Check for slot constraint error (different from duplicate - this is about slot availability)
+            else if (
+              error.message?.includes("UNIQUE constraint failed") ||
               error.message?.includes("slot_id") ||
               error.data?.preview?.includes(
                 "UNIQUE constraint failed: portal_meeting.slot_id"
-              ))
-          ) {
-            errorMessage =
-              "This time slot is no longer available. Please select a different time slot.";
+              )
+            ) {
+              errorMessage =
+                "This time slot is no longer available. The slot may have been taken by someone else. Please close this modal and reopen it to refresh available slots, then select a different time slot.";
+            } else {
+              errorMessage = error.message || errorMessage;
+            }
           } else {
-            errorMessage = error.message;
+            errorMessage = error.message || errorMessage;
           }
         }
         
-        showToast(errorMessage, "error");
+        // For duplicate/pending meeting errors, ensure longer toast duration for better visibility
+        const isDuplicateMessage = 
+          errorMessage.toLowerCase().includes("already have a pending") ||
+          errorMessage.toLowerCase().includes("wait for them to accept or decline");
+        
+        if (isDuplicateMessage) {
+          // Show duplicate message for longer duration (8 seconds) to ensure user sees it clearly
+          showToast(errorMessage, "error", 8000);
+        } else {
+          showToast(errorMessage, "error");
+        }
       } finally {
         setIsSubmittingMeeting(false);
       }
@@ -816,6 +944,16 @@ export default function ConnectionsScreen() {
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
       />
+
+      {/* Loading spinner for meeting submission */}
+      {isSubmittingMeeting && (
+        <View className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex-row items-center justify-center">
+          <ActivityIndicator size="small" color="#1BB273" />
+          <Text className="text-sm text-blue-900 ml-2">
+            Sending meeting request...
+          </Text>
+        </View>
+      )}
 
       <View className="flex-1">
         {/* Search Bar - Commented out for now */}

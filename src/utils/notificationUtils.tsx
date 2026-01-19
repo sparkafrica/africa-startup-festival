@@ -46,6 +46,9 @@ export interface UINotification {
     role?: string;
     company?: string;
     avatar?: { uri: string };
+    tags?: string[];
+    interests?: string[];
+    socialLabel?: string;
   };
   meetingDetails?: {
     title: string;
@@ -394,12 +397,38 @@ export async function fetchNotificationDetails(
           ? meetingDetail.requestee_company
           : meetingDetail.requester_company;
 
-        // Extract requester info
+        // Extract requester info with tags, interests, LinkedIn
+        const tags: string[] = [];
+        if (otherUser.country) {
+          tags.push(otherUser.country);
+        }
+        const sector =
+          otherCompany?.company_type ||
+          otherUser.metadata?.sector ||
+          otherUser.metadata?.industry;
+        if (sector) {
+          tags.push(sector);
+        }
+        if (otherUser.job_title) {
+          tags.push(otherUser.job_title);
+        }
+
+        const interests = otherUser.metadata?.interests || [];
+        
+        const linkedInUrl =
+          otherUser.metadata?.linkedIn || otherUser.metadata?.linkedin_url;
+        const socialLabel = linkedInUrl
+          ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
+          : undefined;
+
         const requester = {
           name: `${otherUser.first_name || ""} ${otherUser.last_name || ""}`.trim() || otherUser.email,
           role: otherUser.job_title || undefined,
           company: otherUser.organisation || otherCompany?.name || undefined,
           avatar: otherUser.profile_pic ? { uri: otherUser.profile_pic } : undefined,
+          tags,
+          interests,
+          socialLabel,
         };
 
         // Format meeting time
@@ -448,11 +477,37 @@ export async function fetchNotificationDetails(
         // Determine which user to show (from_user vs to_user)
         // For now, show to_user (the person you connected with)
         const connectionUser = connection.to_user;
+        // Extract tags, interests, LinkedIn for connection notifications
+        const tags: string[] = [];
+        if (connectionUser.country) {
+          tags.push(connectionUser.country);
+        }
+        const sector =
+          connectionUser.metadata?.sector ||
+          connectionUser.metadata?.industry;
+        if (sector) {
+          tags.push(sector);
+        }
+        if (connectionUser.job_title) {
+          tags.push(connectionUser.job_title);
+        }
+
+        const interests = connectionUser.metadata?.interests || [];
+        
+        const linkedInUrl =
+          connectionUser.metadata?.linkedIn || connectionUser.metadata?.linkedin_url;
+        const socialLabel = linkedInUrl
+          ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
+          : undefined;
+
         const requester = {
           name: `${connectionUser.first_name || ""} ${connectionUser.last_name || ""}`.trim() || connectionUser.email,
           role: connectionUser.job_title || undefined,
           company: connectionUser.organisation || undefined,
           avatar: connectionUser.profile_pic ? { uri: connectionUser.profile_pic } : undefined,
+          tags,
+          interests,
+          socialLabel,
         };
 
         return {

@@ -43,7 +43,7 @@ export interface EventViewModalProps {
   };
   speakers?: Speaker[];
   description?: string;
-  onAddToSchedule?: () => void;
+  onAskQuestion?: () => void;
   onLeaveFeedback?: () => void;
 }
 
@@ -266,9 +266,9 @@ export default function EventViewModal({
 
           {/* Action Buttons */}
           <SafeAreaView edges={["bottom"]} style={styles.actionsContainer}>
-            <Pressable style={styles.addButton} onPress={onAddToSchedule}>
+            <Pressable style={styles.addButton} onPress={onAskQuestion}>
               <CalendarIconWhite size={20} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Add to schedule</Text>
+              <Text style={styles.addButtonText}>Ask a question</Text>
             </Pressable>
             <Pressable style={styles.feedbackButton} onPress={onLeaveFeedback}>
               <SpeechBubbleIcon size={20} color="#000000" />

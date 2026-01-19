@@ -395,10 +395,25 @@ class ApiClient {
     const data = error.response.data as any;
 
     // Backend returns errors in standard format
-    // If it's already in the correct format, use it
+    // If it's already in the correct format, extract non_field_errors first
     if (data?.status === "error") {
       // Check if this is a "Connection already exists" case that we handle as success
-      const errorMessage = data?.message || "";
+      let errorMessage = data?.message || "";
+      
+      // Extract non_field_errors FIRST before using generic message
+      const nonFieldErrors = 
+        (data as any)?.non_field_errors || 
+        (data as any)?.data?.non_field_errors || 
+        (data as any)?.data?.data?.non_field_errors;
+      
+      if (nonFieldErrors) {
+        if (Array.isArray(nonFieldErrors) && nonFieldErrors.length > 0) {
+          errorMessage = nonFieldErrors[0];
+        } else if (typeof nonFieldErrors === "string") {
+          errorMessage = nonFieldErrors;
+        }
+      }
+      
       const isConnectionAlreadyExists = 
         status === 400 && 
         (errorMessage.toLowerCase().includes("connection already exists") ||
@@ -416,7 +431,13 @@ class ApiClient {
         });
       }
       
-      return new ApiClientError(data as ApiError);
+      // Create error with extracted message
+      return new ApiClientError({
+        status: "error",
+        message: errorMessage,
+        response_code: status,
+        data: data.data || data,
+      });
     }
 
     // Extract error message from various possible formats
@@ -430,7 +451,7 @@ class ApiClient {
       (extractedMessage.toLowerCase().includes("connection already exists") ||
        extractedMessage.toLowerCase().includes("already exists"));
 
-    // Log raw error details in development for debugging (avoid logging huge HTML strings)
+    // Log raw error details in development for debugging
     // Skip logging for "Connection already exists" (400) as it's handled as success in the UI
     if (__DEV__ && !isConnectionAlreadyExists) {
       const logData = typeof data === "string" && data.length > 500 
@@ -443,40 +464,76 @@ class ApiClient {
       });
     }
 
-    if (data?.message) {
+    // Check for non_field_errors FIRST (they take priority over generic messages)
+    // Check at different nesting levels
+    const nonFieldErrors = 
+      (data as any)?.non_field_errors || 
+      (data as any)?.data?.non_field_errors || 
+      (data as any)?.data?.data?.non_field_errors;
+    
+    if (nonFieldErrors && Array.isArray(nonFieldErrors) && nonFieldErrors.length > 0) {
+      errorMessage = nonFieldErrors[0]; // Use first error message
+    } else if (nonFieldErrors && typeof nonFieldErrors === "string") {
+      errorMessage = nonFieldErrors;
+    } else if (data?.message) {
       errorMessage = data.message;
     } else if (data?.error) {
       errorMessage = typeof data.error === "string" ? data.error : JSON.stringify(data.error);
     } else if (data?.detail) {
       errorMessage = data.detail;
-    } else if (data?.non_field_errors && Array.isArray(data.non_field_errors)) {
-      errorMessage = data.non_field_errors.join(", ");
     } else if (typeof data === "string") {
       // Handle Django debug page HTML - extract just the error message
       const htmlString = data;
-      // Try to extract Exception Type and Exception Value from Django debug page
-      const exceptionTypeMatch = htmlString.match(/Exception Type:\s*([^\n<]+)/);
-      const exceptionValueMatch = htmlString.match(/Exception Value:\s*([^\n<]+)/);
-      if (exceptionTypeMatch && exceptionValueMatch) {
-        errorMessage = `${exceptionTypeMatch[1].trim()}: ${exceptionValueMatch[1].trim()}`;
+      // Check if it's a 404 "Page not found" error
+      const notFoundMatch = htmlString.match(/<title>([^<]*not found[^<]*)<\/title>/i);
+      if (notFoundMatch && status === 404) {
+        errorMessage = `Endpoint not found (404). The requested endpoint may not be deployed yet.`;
       } else {
-        // If it's HTML but we can't parse it, use a generic message
-        errorMessage = "Server error occurred";
+        // Try to extract Exception Type and Exception Value from Django debug page
+        const exceptionTypeMatch = htmlString.match(/Exception Type:\s*([^\n<]+)/);
+        const exceptionValueMatch = htmlString.match(/Exception Value:\s*([^\n<]+)/);
+        if (exceptionTypeMatch && exceptionValueMatch) {
+          errorMessage = `${exceptionTypeMatch[1].trim()}: ${exceptionValueMatch[1].trim()}`;
+        } else {
+          // If it's HTML but we can't parse it, use a generic message
+          errorMessage = "Server error occurred";
+        }
       }
     } else if (error.message) {
       errorMessage = error.message;
+    } else if (status >= 500) {
+      // Fallback for 5xx errors
+      errorMessage = `Server error (${status}). The server is temporarily unavailable. Please try again later.`;
     }
 
     // Include error data for debugging (but avoid huge HTML strings)
+    // Preserve the full structure to allow nested non_field_errors extraction
     if (data && typeof data === "object") {
       errorDetails = data;
-    } else if (typeof data === "string" && data.length > 1000) {
-      // For large HTML strings, just store a summary
-      errorDetails = { 
-        _truncated: true,
-        length: data.length,
-        preview: data.substring(0, 200) + "..."
-      };
+      // Also check if we have nested non_field_errors that weren't extracted yet
+      if (!errorMessage.includes("already have") && !errorMessage.includes("pending")) {
+        const nestedNonFieldErrors = 
+          (data as any)?.non_field_errors || 
+          (data as any)?.data?.non_field_errors || 
+          (data as any)?.data?.data?.non_field_errors;
+        if (nestedNonFieldErrors && Array.isArray(nestedNonFieldErrors) && nestedNonFieldErrors.length > 0) {
+          // Only override if we don't have a meaningful message yet
+          if (errorMessage === "An error occurred" || errorMessage === data?.message) {
+            errorMessage = nestedNonFieldErrors[0];
+          }
+        }
+      }
+    } else if (typeof data === "string") {
+      if (data.length > 1000) {
+        // For large strings, just store a summary
+        errorDetails = { 
+          _truncated: true,
+          length: data.length,
+          preview: data.substring(0, 200) + "..."
+        };
+      } else {
+        errorDetails = { message: data };
+      }
     }
 
     // Fallback: construct error from HTTP response

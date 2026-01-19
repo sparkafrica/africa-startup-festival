@@ -6,6 +6,7 @@
 
 import { api, ApiResponse, PaginationMeta } from "./api";
 import { ApiClientError } from "./api";
+import { EVENT_ID } from "../config/env";
 
 // ============================================================================
 // REQUEST/RESPONSE TYPES
@@ -397,14 +398,60 @@ export const meetingService = {
         return response as Meeting;
       }
 
+      // Log error response structure for debugging
+      if (__DEV__) {
+        console.log("🔍 Physical meeting request error response:", {
+          response_message: response.message,
+          response_code: response.response_code,
+          hasData: !!response.data,
+          dataKeys: response.data ? Object.keys(response.data) : [],
+          nonFieldErrors: response.data?.non_field_errors || response.data?.data?.non_field_errors,
+        });
+      }
+
+      // Parse validation errors from response
+      let errorMessage = response.message || "Failed to create meeting request";
+      
+      // Check for non_field_errors at different nesting levels FIRST
+      const nonFieldErrors = 
+        response.data?.non_field_errors || 
+        response.data?.data?.non_field_errors || 
+        response.data?.data?.data?.non_field_errors;
+      
+      if (nonFieldErrors) {
+        if (Array.isArray(nonFieldErrors) && nonFieldErrors.length > 0) {
+          errorMessage = nonFieldErrors[0];
+        } else if (typeof nonFieldErrors === "string") {
+          errorMessage = nonFieldErrors;
+        }
+      } else if (response.data?.data) {
+        // Extract field-specific validation errors
+        const fieldErrors: string[] = [];
+        
+        // Then check other field-specific errors
+        Object.keys(response.data.data).forEach((field) => {
+          if (field === "non_field_errors") return; // Already handled above
+          const fieldError = response.data.data[field];
+          if (Array.isArray(fieldError)) {
+            fieldErrors.push(`${field}: ${fieldError.join(", ")}`);
+          } else if (typeof fieldError === "string") {
+            fieldErrors.push(`${field}: ${fieldError}`);
+          }
+        });
+        
+        if (fieldErrors.length > 0) {
+          errorMessage = fieldErrors.join(". ");
+        }
+      }
+
       throw new ApiClientError({
         status: "error",
-        message: response.message || "Failed to create meeting request",
+        message: errorMessage,
         response_code: response.response_code || 500,
-        data: {},
+        data: response.data || {},
       });
     } catch (error: any) {
-      // Re-throw ApiClientError as-is
+      // Re-throw ApiClientError as-is (it already has parsed errors)
       if (error instanceof ApiClientError) {
         throw error;
       }
@@ -413,7 +460,7 @@ export const meetingService = {
         status: "error",
         message: error?.message || "Failed to create meeting request",
         response_code: error?.response_code || 500,
-        data: {},
+        data: error?.data || {},
       });
     }
   },
@@ -639,10 +686,31 @@ export const meetingService = {
     request: VirtualMeetingRequest
   ): Promise<VirtualMeeting> {
     try {
+      if (__DEV__) {
+        console.log("🔍 Creating virtual meeting request:", {
+          requestee_id: request.requestee_id,
+          reason: request.reason?.substring(0, 50) + "...",
+          meeting_link: request.meeting_link,
+          scheduled_date: request.scheduled_date,
+          scheduled_time: request.scheduled_time,
+          duration_minutes: request.duration_minutes,
+        });
+      }
+
       const response = await api.post<any>(
-        "/virtual-meetings/request/",
+        `/virtual-meetings/${EVENT_ID}/request/`,
         request
       );
+
+      if (__DEV__) {
+        console.log("✅ Virtual meeting request response:", {
+          status: response.status,
+          response_code: response.response_code,
+          message: response.message,
+          hasData: !!response.data,
+          dataKeys: response.data ? Object.keys(response.data) : [],
+        });
+      }
 
       if (response.status === "success" && response.data) {
         return response.data as VirtualMeeting;
@@ -656,21 +724,107 @@ export const meetingService = {
         return response as VirtualMeeting;
       }
 
+      // Parse validation errors from response
+      let errorMessage = response.message || "Failed to create virtual meeting request";
+      
+      // Check for non_field_errors at different nesting levels
+      const nonFieldErrors = 
+        response.data?.non_field_errors || 
+        response.data?.data?.non_field_errors || 
+        response.data?.data?.data?.non_field_errors;
+      
+      if (nonFieldErrors) {
+        const fieldErrors: string[] = [];
+        if (Array.isArray(nonFieldErrors)) {
+          fieldErrors.push(...nonFieldErrors);
+        } else if (typeof nonFieldErrors === "string") {
+          fieldErrors.push(nonFieldErrors);
+        }
+        if (fieldErrors.length > 0) {
+          errorMessage = fieldErrors[0];
+        }
+      } else if (response.data?.data) {
+        // Extract field-specific validation errors and non_field_errors
+        const fieldErrors: string[] = [];
+        
+        // Then check other field-specific errors
+        Object.keys(response.data.data).forEach((field) => {
+          if (field === "non_field_errors") return; // Already handled
+          const fieldError = response.data.data[field];
+          if (Array.isArray(fieldError)) {
+            fieldErrors.push(`${field}: ${fieldError.join(", ")}`);
+          } else if (typeof fieldError === "string") {
+            fieldErrors.push(`${field}: ${fieldError}`);
+          }
+        });
+        
+        if (fieldErrors.length > 0) {
+          errorMessage = fieldErrors.join(". ");
+        }
+      }
+
       throw new ApiClientError({
         status: "error",
-        message: response.message || "Failed to create virtual meeting request",
+        message: errorMessage,
         response_code: response.response_code || 500,
-        data: {},
+        data: response.data || {},
       });
     } catch (error: any) {
+      if (__DEV__) {
+        console.error("❌ Virtual meeting request error:", {
+          message: error?.message,
+          response_code: error?.response_code,
+          status: error?.status,
+          data: error?.data,
+          fullError: error,
+        });
+      }
+
       if (error instanceof ApiClientError) {
+        // Enhance error message if it has nested data
+        if (error.data?.data) {
+          if (__DEV__) {
+            console.log("🔍 Parsing nested error data:", error.data.data);
+          }
+          const fieldErrors: string[] = [];
+          
+          // Check for non_field_errors first (general validation errors)
+          if (error.data.data.non_field_errors) {
+            const nonFieldErrors = error.data.data.non_field_errors;
+            if (Array.isArray(nonFieldErrors)) {
+              fieldErrors.push(...nonFieldErrors);
+            } else if (typeof nonFieldErrors === "string") {
+              fieldErrors.push(nonFieldErrors);
+            }
+          }
+          
+          // Then check other field-specific errors
+          Object.keys(error.data.data).forEach((field) => {
+            if (field === "non_field_errors") return; // Already handled
+            const fieldError = error.data.data[field];
+            if (Array.isArray(fieldError)) {
+              fieldErrors.push(`${field}: ${fieldError.join(", ")}`);
+            } else if (typeof fieldError === "string") {
+              fieldErrors.push(`${field}: ${fieldError}`);
+            }
+          });
+          
+          if (fieldErrors.length > 0) {
+            throw new ApiClientError({
+              status: error.status,
+              message: fieldErrors.join(". "),
+              response_code: error.response_code,
+              data: error.data,
+            });
+          }
+        }
         throw error;
       }
       throw new ApiClientError({
         status: "error",
         message: error?.message || "Failed to create virtual meeting request",
         response_code: error?.response_code || 500,
-        data: {},
+        data: error?.response?.data || error?.data || {},
       });
     }
   },

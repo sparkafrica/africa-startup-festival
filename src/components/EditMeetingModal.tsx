@@ -566,8 +566,14 @@ export default function EditMeetingModal({
                       meetingType === "physical"
                         ? "bg-white shadow-sm"
                         : "bg-transparent"
-                    }`}
-                    onPress={() => setMeetingType("physical")}
+                    } ${initialData ? "opacity-50" : ""}`}
+                    onPress={() => {
+                      // Disable type change when editing an existing meeting
+                      if (!initialData) {
+                        setMeetingType("physical");
+                      }
+                    }}
+                    disabled={!!initialData}
                   >
                     <Text
                       className={`text-base font-medium ${
@@ -584,8 +590,14 @@ export default function EditMeetingModal({
                       meetingType === "virtual"
                         ? "bg-white shadow-sm"
                         : "bg-transparent"
-                    }`}
-                    onPress={() => setMeetingType("virtual")}
+                    } ${initialData ? "opacity-50" : ""}`}
+                    onPress={() => {
+                      // Disable type change when editing an existing meeting
+                      if (!initialData) {
+                        setMeetingType("virtual");
+                      }
+                    }}
+                    disabled={!!initialData}
                   >
                     <Text
                       className={`text-base font-medium ${
@@ -598,80 +610,15 @@ export default function EditMeetingModal({
                     </Text>
                   </Pressable>
                 </View>
+                {initialData && (
+                  <Text className="text-xs text-neutral-500 mt-1 ml-1">
+                    Meeting type cannot be changed when editing
+                  </Text>
+                )}
               </View>
 
-              {/* Table Number (Physical) or Meeting Link (Virtual) */}
-              {meetingType === "physical" ? (
-                <View className="mb-4">
-                  <Text className="text-sm font-medium text-black mb-2">
-                    Table Number
-                  </Text>
-                  <Pressable
-                    className={`flex-row items-center justify-between bg-white border rounded-xl px-4 py-3.5 ${
-                      errors.tableNumber
-                        ? "border-red-500"
-                        : "border-neutral-300"
-                    }`}
-                    onPress={() => {
-                      if (!selectedTimeKey) {
-                        setErrors((prev) => ({ ...prev, tableNumber: "Please select a time first" }));
-                        return;
-                      }
-                      setShowTablePicker(!showTablePicker);
-                      setShowDatePicker(false);
-                      setShowTimePicker(false);
-                      clearError("tableNumber");
-                    }}
-                  >
-                    <Text className="text-base text-black flex-1">
-                      {tableNumber}
-                    </Text>
-                    {showTablePicker ? (
-                      <ChevronUpIcon size={20} color="#6B7280" />
-                    ) : (
-                      <ChevronDownIcon size={20} color="#6B7280" />
-                    )}
-                  </Pressable>
-                  {showTablePicker && (
-                    <View className="mt-2 bg-white border border-neutral-300 rounded-xl max-h-48">
-                      <ScrollView nestedScrollEnabled={true}>
-                        {availableTables.length === 0 ? (
-                          <View className="px-4 py-3">
-                            <Text className="text-sm text-neutral-500 text-center">
-                              Please select a time first
-                            </Text>
-                          </View>
-                        ) : (
-                          availableTables.map((table: any) => (
-                            <Pressable
-                              key={table.id}
-                              className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
-                              onPress={() => {
-                                setTableNumber(table.label);
-                                setSelectedSlotId(table.slotId); // Store selected slot ID
-                                setShowTablePicker(false);
-                                clearError("tableNumber");
-                              }}
-                            >
-                              <Text className="text-base text-black">
-                                {table.label}
-                              </Text>
-                              {tableNumber === table.label && (
-                                <Text className="text-green-600 font-semibold">✓</Text>
-                              )}
-                            </Pressable>
-                          ))
-                        )}
-                      </ScrollView>
-                    </View>
-                  )}
-                  {errors.tableNumber && (
-                    <Text className="text-red-500 text-xs mt-1 ml-1">
-                      {errors.tableNumber}
-                    </Text>
-                  )}
-                </View>
-              ) : (
+              {/* Meeting Link (Virtual) - Only for virtual meetings, shown BEFORE Date & Time */}
+              {meetingType === "virtual" && (
                 <View className="mb-4">
                   <Text className="text-sm font-medium text-black mb-2">
                     Meeting Link
@@ -834,6 +781,79 @@ export default function EditMeetingModal({
                   </Text>
                 )}
               </View>
+
+              {/* Table Number (Physical) - Only for physical meetings, shown AFTER Date & Time */}
+              {meetingType === "physical" && (
+                <View className="mb-4">
+                  <Text className="text-sm font-medium text-black mb-2">
+                    Table Number
+                  </Text>
+                  <Pressable
+                    className={`flex-row items-center justify-between bg-white border rounded-xl px-4 py-3.5 ${
+                      errors.tableNumber
+                        ? "border-red-500"
+                        : "border-neutral-300"
+                    }`}
+                    onPress={() => {
+                      if (!selectedTimeKey) {
+                        setErrors((prev) => ({ ...prev, tableNumber: "Please select a time first" }));
+                        return;
+                      }
+                      setShowTablePicker(!showTablePicker);
+                      setShowDatePicker(false);
+                      setShowTimePicker(false);
+                      clearError("tableNumber");
+                    }}
+                  >
+                    <Text className="text-base text-black flex-1">
+                      {tableNumber}
+                    </Text>
+                    {showTablePicker ? (
+                      <ChevronUpIcon size={20} color="#6B7280" />
+                    ) : (
+                      <ChevronDownIcon size={20} color="#6B7280" />
+                    )}
+                  </Pressable>
+                  {showTablePicker && (
+                    <View className="mt-2 bg-white border border-neutral-300 rounded-xl max-h-48">
+                      <ScrollView nestedScrollEnabled={true}>
+                        {availableTables.length === 0 ? (
+                          <View className="px-4 py-3">
+                            <Text className="text-sm text-neutral-500 text-center">
+                              Please select a time first
+                            </Text>
+                          </View>
+                        ) : (
+                          availableTables.map((table: any) => (
+                            <Pressable
+                              key={table.id}
+                              className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
+                              onPress={() => {
+                                setTableNumber(table.label);
+                                setSelectedSlotId(table.slotId); // Store selected slot ID
+                                setShowTablePicker(false);
+                                clearError("tableNumber");
+                              }}
+                            >
+                              <Text className="text-base text-black">
+                                {table.label}
+                              </Text>
+                              {tableNumber === table.label && (
+                                <Text className="text-green-600 font-semibold">✓</Text>
+                              )}
+                            </Pressable>
+                          ))
+                        )}
+                      </ScrollView>
+                    </View>
+                  )}
+                  {errors.tableNumber && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {errors.tableNumber}
+                    </Text>
+                  )}
+                </View>
+              )}
 
               {/* Description */}
               <View className="mb-6">
@@ -983,8 +1003,14 @@ export default function EditMeetingModal({
                       meetingType === "physical"
                         ? "bg-white shadow-sm"
                         : "bg-transparent"
-                    }`}
-                    onPress={() => setMeetingType("physical")}
+                    } ${initialData ? "opacity-50" : ""}`}
+                    onPress={() => {
+                      // Disable type change when editing an existing meeting
+                      if (!initialData) {
+                        setMeetingType("physical");
+                      }
+                    }}
+                    disabled={!!initialData}
                   >
                     <Text
                       className={`text-base font-medium ${
@@ -1001,8 +1027,14 @@ export default function EditMeetingModal({
                       meetingType === "virtual"
                         ? "bg-white shadow-sm"
                         : "bg-transparent"
-                    }`}
-                    onPress={() => setMeetingType("virtual")}
+                    } ${initialData ? "opacity-50" : ""}`}
+                    onPress={() => {
+                      // Disable type change when editing an existing meeting
+                      if (!initialData) {
+                        setMeetingType("virtual");
+                      }
+                    }}
+                    disabled={!!initialData}
                   >
                     <Text
                       className={`text-base font-medium ${
@@ -1015,80 +1047,15 @@ export default function EditMeetingModal({
                     </Text>
                   </Pressable>
                 </View>
+                {initialData && (
+                  <Text className="text-xs text-neutral-500 mt-1 ml-1">
+                    Meeting type cannot be changed when editing
+                  </Text>
+                )}
               </View>
 
-              {/* Table Number (Physical) or Meeting Link (Virtual) */}
-              {meetingType === "physical" ? (
-                <View className="mb-4">
-                  <Text className="text-sm font-medium text-black mb-2">
-                    Table Number
-                  </Text>
-                  <Pressable
-                    className={`flex-row items-center justify-between bg-white border rounded-xl px-4 py-3.5 ${
-                      errors.tableNumber
-                        ? "border-red-500"
-                        : "border-neutral-300"
-                    }`}
-                    onPress={() => {
-                      if (!selectedTimeKey) {
-                        setErrors((prev) => ({ ...prev, tableNumber: "Please select a time first" }));
-                        return;
-                      }
-                      setShowTablePicker(!showTablePicker);
-                      setShowDatePicker(false);
-                      setShowTimePicker(false);
-                      clearError("tableNumber");
-                    }}
-                  >
-                    <Text className="text-base text-black flex-1">
-                      {tableNumber}
-                    </Text>
-                    {showTablePicker ? (
-                      <ChevronUpIcon size={20} color="#6B7280" />
-                    ) : (
-                      <ChevronDownIcon size={20} color="#6B7280" />
-                    )}
-                  </Pressable>
-                  {showTablePicker && (
-                    <View className="mt-2 bg-white border border-neutral-300 rounded-xl max-h-48">
-                      <ScrollView nestedScrollEnabled={true}>
-                        {availableTables.length === 0 ? (
-                          <View className="px-4 py-3">
-                            <Text className="text-sm text-neutral-500 text-center">
-                              Please select a time first
-                            </Text>
-                          </View>
-                        ) : (
-                          availableTables.map((table: any) => (
-                            <Pressable
-                              key={table.id}
-                              className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
-                              onPress={() => {
-                                setTableNumber(table.label);
-                                setSelectedSlotId(table.slotId); // Store selected slot ID
-                                setShowTablePicker(false);
-                                clearError("tableNumber");
-                              }}
-                            >
-                              <Text className="text-base text-black">
-                                {table.label}
-                              </Text>
-                              {tableNumber === table.label && (
-                                <Text className="text-green-600 font-semibold">✓</Text>
-                              )}
-                            </Pressable>
-                          ))
-                        )}
-                      </ScrollView>
-                    </View>
-                  )}
-                  {errors.tableNumber && (
-                    <Text className="text-red-500 text-xs mt-1 ml-1">
-                      {errors.tableNumber}
-                    </Text>
-                  )}
-                </View>
-              ) : (
+              {/* Meeting Link (Virtual) - Only for virtual meetings, shown BEFORE Date & Time */}
+              {meetingType === "virtual" && (
                 <View className="mb-4">
                   <Text className="text-sm font-medium text-black mb-2">
                     Meeting Link
@@ -1251,6 +1218,79 @@ export default function EditMeetingModal({
                   </Text>
                 )}
               </View>
+
+              {/* Table Number (Physical) - Only for physical meetings, shown AFTER Date & Time */}
+              {meetingType === "physical" && (
+                <View className="mb-4">
+                  <Text className="text-sm font-medium text-black mb-2">
+                    Table Number
+                  </Text>
+                  <Pressable
+                    className={`flex-row items-center justify-between bg-white border rounded-xl px-4 py-3.5 ${
+                      errors.tableNumber
+                        ? "border-red-500"
+                        : "border-neutral-300"
+                    }`}
+                    onPress={() => {
+                      if (!selectedTimeKey) {
+                        setErrors((prev) => ({ ...prev, tableNumber: "Please select a time first" }));
+                        return;
+                      }
+                      setShowTablePicker(!showTablePicker);
+                      setShowDatePicker(false);
+                      setShowTimePicker(false);
+                      clearError("tableNumber");
+                    }}
+                  >
+                    <Text className="text-base text-black flex-1">
+                      {tableNumber}
+                    </Text>
+                    {showTablePicker ? (
+                      <ChevronUpIcon size={20} color="#6B7280" />
+                    ) : (
+                      <ChevronDownIcon size={20} color="#6B7280" />
+                    )}
+                  </Pressable>
+                  {showTablePicker && (
+                    <View className="mt-2 bg-white border border-neutral-300 rounded-xl max-h-48">
+                      <ScrollView nestedScrollEnabled={true}>
+                        {availableTables.length === 0 ? (
+                          <View className="px-4 py-3">
+                            <Text className="text-sm text-neutral-500 text-center">
+                              Please select a time first
+                            </Text>
+                          </View>
+                        ) : (
+                          availableTables.map((table: any) => (
+                            <Pressable
+                              key={table.id}
+                              className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
+                              onPress={() => {
+                                setTableNumber(table.label);
+                                setSelectedSlotId(table.slotId); // Store selected slot ID
+                                setShowTablePicker(false);
+                                clearError("tableNumber");
+                              }}
+                            >
+                              <Text className="text-base text-black">
+                                {table.label}
+                              </Text>
+                              {tableNumber === table.label && (
+                                <Text className="text-green-600 font-semibold">✓</Text>
+                              )}
+                            </Pressable>
+                          ))
+                        )}
+                      </ScrollView>
+                    </View>
+                  )}
+                  {errors.tableNumber && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {errors.tableNumber}
+                    </Text>
+                  )}
+                </View>
+              )}
 
               {/* Description */}
               <View className="mb-6">

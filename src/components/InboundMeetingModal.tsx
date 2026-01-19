@@ -10,6 +10,9 @@ import {
   PanResponder,
   Animated,
   TouchableOpacity,
+  Image,
+  Linking,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
@@ -90,6 +93,8 @@ export interface InboundMeetingModalProps {
   participantBio?: string;
   participantInterests?: string[];
   participantSocialLabel?: string;
+  participantLinkedInUrl?: string; // Full LinkedIn URL for opening profiles
+  participantAvatar?: { uri: string };
   onCloseParticipantDetail?: () => void;
 }
 
@@ -116,6 +121,8 @@ export default function InboundMeetingModal({
   participantBio,
   participantInterests = [],
   participantSocialLabel,
+  participantLinkedInUrl,
+  participantAvatar,
   onCloseParticipantDetail,
 }: InboundMeetingModalProps) {
   const isVirtual = meetingType === "virtual";
@@ -403,7 +410,15 @@ export default function InboundMeetingModal({
               }}
             >
               <View style={styles.avatarContainer}>
-                <PersonProfileIcon size={24} color="#404040" />
+                {participantAvatar ? (
+                  <Image
+                    source={participantAvatar}
+                    style={{ width: 48, height: 48, borderRadius: 24 }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <PersonProfileIcon size={24} color="#404040" />
+                )}
               </View>
               <View style={styles.participantInfo}>
                 <Text style={styles.participantName}>{participantName}</Text>
@@ -489,11 +504,19 @@ export default function InboundMeetingModal({
                     contentContainerStyle={styles.participantContentContainer}
                     showsVerticalScrollIndicator={false}
                   >
-                    {/* Header: Avatar + Name/Role */}
-                    <View style={styles.participantHeaderRow}>
-                      <View style={styles.participantAvatarWrapper}>
+                  {/* Header: Avatar + Name/Role */}
+                  <View style={styles.participantHeaderRow}>
+                    <View style={styles.participantAvatarWrapper}>
+                      {participantAvatar ? (
+                        <Image
+                          source={participantAvatar}
+                          style={{ width: 56, height: 56, borderRadius: 28 }}
+                          resizeMode="cover"
+                        />
+                      ) : (
                         <PersonProfileIcon size={28} color="#111827" />
-                      </View>
+                      )}
+                    </View>
                       <View style={styles.participantHeaderTextContainer}>
                         <Text style={styles.participantNameText}>
                           {participantName}
@@ -544,18 +567,53 @@ export default function InboundMeetingModal({
                       </View>
                     )}
 
-                    {/* Social Links */}
-                    {participantSocialLabel && (
+                    {/* Social Links - LinkedIn as Pill */}
+                    {participantSocialLabel && participantLinkedInUrl && (
                       <View style={styles.participantSection}>
                         <Text style={styles.participantSectionTitle}>
                           Social Links
                         </Text>
-                        <Pressable style={styles.participantSocialButton}>
-                          <LinkedInIcon size={18} color="#0A66C2" />
-                          <Text style={styles.participantSocialButtonText}>
-                            {participantSocialLabel}
-                          </Text>
-                        </Pressable>
+                        <View style={styles.participantInterestsRow}>
+                          <Pressable
+                            style={[styles.participantInterestPill, { flexDirection: "row", alignItems: "center", gap: 6 }]}
+                            onPress={async () => {
+                              try {
+                                const url = participantLinkedInUrl;
+                                // Ensure URL has protocol
+                                const formattedUrl = url.startsWith("http://") || url.startsWith("https://")
+                                  ? url
+                                  : `https://${url}`;
+                                
+                                // Try to open URL directly
+                                const supported = await Linking.canOpenURL(formattedUrl);
+                                if (supported) {
+                                  await Linking.openURL(formattedUrl);
+                                } else {
+                                  // Still try to open - might work even if canOpenURL returns false
+                                  try {
+                                    await Linking.openURL(formattedUrl);
+                                  } catch (openError) {
+                                    Alert.alert(
+                                      "Cannot Open LinkedIn",
+                                      "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
+                                      [{ text: "OK" }]
+                                    );
+                                  }
+                                }
+                              } catch (error) {
+                                if (__DEV__) {
+                                  console.error("Error opening LinkedIn URL:", error);
+                                }
+                                Alert.alert("Error", "Failed to open LinkedIn profile");
+                              }
+                            }}
+                          >
+                            <LinkedInIcon size={14} color="#0A66C2" />
+                            <Text style={styles.participantInterestText}>
+                              {participantSocialLabel}
+                            </Text>
+                          </Pressable>
+                        </View>
                       </View>
                     )}
                   </ScrollView>
@@ -577,6 +635,8 @@ export default function InboundMeetingModal({
           startTime={startTime}
           endTime={endTime}
           location={location}
+          meetingType={meetingType}
+          meetingLink={meetingLink}
           participantName={participantName}
           participantRole={participantRole}
           participantCompany={participantCompany}

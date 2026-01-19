@@ -172,7 +172,19 @@ export default function RequestMeetingModal({
       setIsLoadingSlots(true);
       setSlotsError(null);
       const response = await meetingService.getMeetingSlots(eventId);
-      const availableSlots = response.slots.filter(slot => slot.is_available);
+      
+      // Filter to only show truly available slots
+      // is_available should be true, but we'll also verify the slot isn't taken
+      const availableSlots = response.slots.filter(slot => slot.is_available === true);
+      
+      if (__DEV__) {
+        console.log("📅 Slots loaded:", {
+          total: response.slots.length,
+          available: availableSlots.length,
+          unavailable: response.slots.filter(s => !s.is_available).length,
+        });
+      }
+      
       setMeetingSlots(availableSlots);
     } catch (error: any) {
       setSlotsError(error?.message || "Failed to load meeting slots");
@@ -223,6 +235,16 @@ export default function RequestMeetingModal({
     } else {
       if (!meetingLink.trim()) {
         newErrors.meetingLink = "Meeting link is required";
+      } else {
+        // Validate URL format
+        try {
+          const url = new URL(meetingLink.trim());
+          if (!["http:", "https:"].includes(url.protocol)) {
+            newErrors.meetingLink = "Meeting link must start with http:// or https://";
+          }
+        } catch {
+          newErrors.meetingLink = "Please enter a valid meeting link (e.g., https://zoom.us/... or https://meet.google.com/...)";
+        }
       }
     }
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, ScrollView, Pressable } from "react-native";
+import { View, ScrollView, Pressable, Linking, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   HeaderBar,
@@ -11,7 +11,6 @@ import {
   EventViewModal,
   LeaveFeedbackModal,
   FeedbackSentModal,
-  ScheduleSuccessToast,
   ParticipantDetailModal,
   type FilterCategory,
   type Speaker,
@@ -36,7 +35,6 @@ import { useChecklist } from "../context/ChecklistContext";
 export default function ScheduleScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
-  const { markAddSessionsComplete } = useChecklist();
   const [selectedStage, setSelectedStage] =
     React.useState<string>("main-stage");
   const [isFilterModalVisible, setIsFilterModalVisible] = React.useState(false);
@@ -62,13 +60,30 @@ export default function ScheduleScreen() {
     React.useState(false);
   const [isFeedbackSentModalVisible, setIsFeedbackSentModalVisible] =
     React.useState(false);
-  const [showScheduleSuccess, setShowScheduleSuccess] = React.useState(false);
-  const [addedEventTitle, setAddedEventTitle] = React.useState<string>("");
   const [selectedSpeaker, setSelectedSpeaker] = React.useState<Speaker | null>(
     null
   );
   const [isSpeakerDetailVisible, setIsSpeakerDetailVisible] =
     React.useState(false);
+
+  // TODO: BACKEND INTEGRATION - Update with actual question form URL
+  const QUESTION_FORM_URL = "https://example.com/ask-question";
+
+  const handleAskQuestion = async () => {
+    try {
+      const canOpen = await Linking.canOpenURL(QUESTION_FORM_URL);
+      if (canOpen) {
+        await Linking.openURL(QUESTION_FORM_URL);
+      } else {
+        Alert.alert("Error", "Cannot open the question form URL");
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.error("Error opening question form URL:", error);
+      }
+      Alert.alert("Error", "Failed to open question form");
+    }
+  };
 
   const stageOptions = [
     { label: "Main Stage", value: "main-stage" },
@@ -371,14 +386,7 @@ export default function ScheduleScreen() {
                 startTime={event?.startTime || ""}
                 endTime={event?.endTime || ""}
                 sponsoredBy={event?.sponsoredBy}
-                onAddToSchedule={() => {
-                  // TODO: Implement add to schedule functionality
-                  // Mark checklist item as completed when user adds a session
-                  markAddSessionsComplete();
-                  // Show success toast
-                  setAddedEventTitle(event?.title || "");
-                  setShowScheduleSuccess(true);
-                }}
+                onAskQuestion={handleAskQuestion}
                 onLeaveFeedback={() => {
                   setSelectedEvent(event);
                   setIsLeaveFeedbackModalVisible(true);
@@ -430,19 +438,7 @@ export default function ScheduleScreen() {
             };
           })}
           description={selectedEvent?.description}
-          onAddToSchedule={() => {
-            // TODO: Implement add to schedule functionality
-            // Mark checklist item as completed when user adds a session
-            markAddSessionsComplete();
-            // Show success toast
-            setAddedEventTitle(selectedEvent?.title || "");
-            setShowScheduleSuccess(true);
-            setIsEventViewModalVisible(false);
-            setSelectedEvent(null);
-            // Clear speaker state
-            setSelectedSpeaker(null);
-            setIsSpeakerDetailVisible(false);
-          }}
+          onAskQuestion={handleAskQuestion}
           onLeaveFeedback={() => {
             setIsEventViewModalVisible(false);
             setIsLeaveFeedbackModalVisible(true);
@@ -468,12 +464,6 @@ export default function ScheduleScreen() {
           setIsFeedbackSentModalVisible(false);
         }}
         meetingTitle={selectedEvent?.title}
-      />
-
-      <ScheduleSuccessToast
-        visible={showScheduleSuccess}
-        onHide={() => setShowScheduleSuccess(false)}
-        eventTitle={addedEventTitle}
       />
 
       <ParticipantDetailModal

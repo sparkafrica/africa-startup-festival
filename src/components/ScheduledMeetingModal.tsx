@@ -10,6 +10,9 @@ import {
   PanResponder,
   Animated,
   TouchableOpacity,
+  Image,
+  Linking,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
@@ -103,6 +106,8 @@ export interface ScheduledMeetingModalProps {
   participantBio?: string;
   participantInterests?: string[];
   participantSocialLabel?: string;
+  participantLinkedInUrl?: string; // Full LinkedIn URL for opening profiles
+  participantAvatar?: { uri: string };
   onCloseParticipantDetail?: () => void;
 }
 
@@ -130,6 +135,8 @@ export default function ScheduledMeetingModal({
   participantBio,
   participantInterests = [],
   participantSocialLabel,
+  participantLinkedInUrl,
+  participantAvatar,
   onCloseParticipantDetail,
 }: ScheduledMeetingModalProps) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -421,7 +428,15 @@ export default function ScheduledMeetingModal({
               }}
             >
               <View style={styles.avatarContainer}>
-                <PersonProfileIcon size={24} color="#000000" />
+                {participantAvatar ? (
+                  <Image
+                    source={participantAvatar}
+                    style={{ width: 48, height: 48, borderRadius: 24 }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <PersonProfileIcon size={24} color="#000000" />
+                )}
               </View>
               <View style={styles.participantInfo}>
                 <Text style={styles.participantName}>{participantName}</Text>
@@ -542,11 +557,19 @@ export default function ScheduledMeetingModal({
       <LeaveFeedbackModal
         visible={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
-        onSubmit={(feedback) => {
-          setShowFeedbackModal(false);
-          // Show confirmation modal after feedback is sent
-          setShowFeedbackSentModal(true);
-          onLeaveFeedback?.();
+        onSubmit={async (feedback) => {
+          try {
+            // Call the feedback handler from parent (MeetingsScreen)
+            // This will handle API submission when backend endpoint is ready
+            await onLeaveFeedback?.();
+            // Close feedback input modal and show success confirmation
+            setShowFeedbackModal(false);
+            setShowFeedbackSentModal(true);
+          } catch (error) {
+            // Error handling is done in parent component
+            // Just close the modal on error
+            setShowFeedbackModal(false);
+          }
         }}
         eventTitle={title}
       />
@@ -594,7 +617,15 @@ export default function ScheduledMeetingModal({
                   {/* Header: Avatar + Name/Role */}
                   <View style={styles.participantHeaderRow}>
                     <View style={styles.participantAvatarWrapper}>
-                      <PersonProfileIcon size={28} color="#000000" />
+                      {participantAvatar ? (
+                        <Image
+                          source={participantAvatar}
+                          style={{ width: 56, height: 56, borderRadius: 28 }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <PersonProfileIcon size={28} color="#000000" />
+                      )}
                     </View>
                     <View style={styles.participantHeaderTextContainer}>
                       <Text style={styles.participantNameText}>
@@ -653,18 +684,53 @@ export default function ScheduledMeetingModal({
                     </View>
                   )}
 
-                  {/* Social Links */}
-                  {participantSocialLabel && (
+                  {/* Social Links - LinkedIn as Pill */}
+                  {participantSocialLabel && participantLinkedInUrl && (
                     <View style={styles.participantSection}>
                       <Text style={styles.participantSectionTitle}>
                         Social Links
                       </Text>
-                      <Pressable style={styles.participantSocialButton}>
-                        <LinkedInIcon size={18} color="#0A66C2" />
-                        <Text style={styles.participantSocialButtonText}>
-                          {participantSocialLabel}
-                        </Text>
-                      </Pressable>
+                      <View style={styles.participantInterestsRow}>
+                        <Pressable
+                          style={[styles.participantInterestPill, { flexDirection: "row", alignItems: "center", gap: 6 }]}
+                          onPress={async () => {
+                            try {
+                              const url = participantLinkedInUrl;
+                              // Ensure URL has protocol
+                              const formattedUrl = url.startsWith("http://") || url.startsWith("https://")
+                                ? url
+                                : `https://${url}`;
+                              
+                              // Try to open URL directly
+                              const supported = await Linking.canOpenURL(formattedUrl);
+                              if (supported) {
+                                await Linking.openURL(formattedUrl);
+                              } else {
+                                // Still try to open - might work even if canOpenURL returns false
+                                try {
+                                  await Linking.openURL(formattedUrl);
+                                } catch (openError) {
+                                  Alert.alert(
+                                    "Cannot Open LinkedIn",
+                                    "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
+                                    [{ text: "OK" }]
+                                  );
+                                }
+                              }
+                            } catch (error) {
+                              if (__DEV__) {
+                                console.error("Error opening LinkedIn URL:", error);
+                              }
+                              Alert.alert("Error", "Failed to open LinkedIn profile");
+                            }
+                          }}
+                        >
+                          <LinkedInIcon size={14} color="#0A66C2" />
+                          <Text style={styles.participantInterestText}>
+                            {participantSocialLabel}
+                          </Text>
+                        </Pressable>
+                      </View>
                     </View>
                   )}
                 </ScrollView>
