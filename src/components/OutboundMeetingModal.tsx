@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
-import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
+import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon, SpeechBubbleIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
 import { LinkedInIcon } from "./SocialIcons";
 import EditMeetingModal, { EditMeetingModalProps } from "./EditMeetingModal";
@@ -488,6 +488,42 @@ export default function OutboundMeetingModal({
               <XCircleIcon size={20} color="#EF4444" />
               <Text style={styles.cancelButtonText}>Cancel Meeting</Text>
             </Pressable>
+            {/* Leave Feedback Button */}
+            <Pressable
+              style={styles.feedbackButton}
+              onPress={async () => {
+                try {
+                  const FEEDBACK_FORM_URL = "https://forms.gle/sfCP4Y9CzEtXTQ7u9";
+                  const supported = await Linking.canOpenURL(FEEDBACK_FORM_URL);
+                  if (supported) {
+                    await Linking.openURL(FEEDBACK_FORM_URL);
+                  } else {
+                    // Still try to open - might work even if canOpenURL returns false
+                    try {
+                      await Linking.openURL(FEEDBACK_FORM_URL);
+                    } catch (openError) {
+                      Alert.alert(
+                        "Cannot Open Feedback Form",
+                        "Please check your internet connection and try again.",
+                        [{ text: "OK" }]
+                      );
+                    }
+                  }
+                } catch (error) {
+                  if (__DEV__) {
+                    console.error("Error opening feedback form:", error);
+                  }
+                  Alert.alert(
+                    "Error",
+                    "Failed to open feedback form. Please try again.",
+                    [{ text: "OK" }]
+                  );
+                }
+              }}
+            >
+              <SpeechBubbleIcon size={20} color="#000000" />
+              <Text style={styles.feedbackButtonText}>Leave Feedback</Text>
+            </Pressable>
           </SafeAreaView>
         </Animated.View>
 
@@ -596,7 +632,7 @@ export default function OutboundMeetingModal({
                         </Text>
                         <View style={styles.participantInterestsRow}>
                           <Pressable
-                            style={[styles.participantInterestPill, { flexDirection: "row", alignItems: "center", gap: 6 }]}
+                            style={[styles.participantInterestPill, { flexDirection: "row", alignItems: "center", gap: 6, maxWidth: 200 }]}
                             onPress={async () => {
                               try {
                                 const url = participantLinkedInUrl;
@@ -630,8 +666,12 @@ export default function OutboundMeetingModal({
                             }}
                           >
                             <LinkedInIcon size={14} color="#0A66C2" />
-                            <Text style={styles.participantInterestText}>
-                              {participantSocialLabel}
+                            <Text 
+                              style={styles.participantInterestText}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {participantSocialLabel.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, "").split("/")[0]}
                             </Text>
                           </Pressable>
                         </View>
@@ -891,6 +931,24 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#EF4444",
   },
+  feedbackButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    gap: 8,
+  },
+  feedbackButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000000",
+    marginLeft: 8,
+  },
   // Participant Detail Overlay Styles
   participantOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -1014,6 +1072,7 @@ const styles = StyleSheet.create({
   participantInterestText: {
     fontSize: 12,
     color: "#111827",
+    flexShrink: 1,
   },
   participantSocialButton: {
     marginTop: 8,

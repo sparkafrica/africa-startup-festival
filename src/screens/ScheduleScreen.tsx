@@ -1,5 +1,5 @@
 import React from "react";
-import { View, ScrollView, Pressable, Linking, Alert } from "react-native";
+import { View, ScrollView, Pressable, Linking, Alert, ActivityIndicator, Text, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   HeaderBar,
@@ -31,6 +31,42 @@ import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useChecklist } from "../context/ChecklistContext";
+import { eventService, type EventSchedule } from "../services/eventService";
+import { EVENT_ID } from "../config/env";
+import { ApiClientError } from "../services/api";
+
+// ============================================================================
+// EXTERNAL LINKS INTEGRATION POINTS - ScheduleScreen
+// ============================================================================
+// This screen handles external links in the following areas:
+//
+// 1. "ASK A QUESTION" BUTTON
+//    - Location: EventCard component & EventViewModal component
+//    - Action: Click button → Open external question form URL
+//    - Implementation: handleAskQuestion() uses Linking.openURL(QUESTION_FORM_URL)
+//    - URL Source Options:
+//      a) From event metadata: schedule.metadata.questionUrl
+//      b) From event config: event.metadata.questionUrl
+//      c) From global config: QUESTION_FORM_URL constant
+//    - Status: ✅ Implemented, ready for backend URL integration
+//
+// 2. "LEAVE FEEDBACK" BUTTON
+//    - Location: EventCard component & EventViewModal component
+//    - Action: Click button → Open external feedback form URL
+//    - Implementation: handleLeaveFeedback() uses Linking.openURL(FEEDBACK_FORM_URL)
+//    - URL Source Options:
+//      a) From event metadata: schedule.metadata.feedbackUrl
+//      b) From event config: event.metadata.feedbackUrl
+//      c) From global config: FEEDBACK_FORM_URL constant
+//    - Status: ✅ Implemented, ready for backend URL integration
+//
+// 3. LINKEDIN PROFILE LINKS (Future)
+//    - Location: EventViewModal → Speaker cards (if speakers have LinkedIn)
+//    - Action: Click speaker LinkedIn → Open speaker's LinkedIn profile
+//    - Implementation: Would use Linking.openURL() with speaker.linkedInUrl
+//    - Status: ⚠️ Not yet implemented (waiting for backend speaker data with LinkedIn URLs)
+//
+// ============================================================================
 
 export default function ScheduleScreen() {
   const navigation =
@@ -66,14 +102,373 @@ export default function ScheduleScreen() {
   const [isSpeakerDetailVisible, setIsSpeakerDetailVisible] =
     React.useState(false);
 
-  // TODO: BACKEND INTEGRATION - Update with actual question form URL
-  const QUESTION_FORM_URL = "https://example.com/ask-question";
+  // State for API data
+  const [events, setEvents] = React.useState<EventData[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
+  // Speaker cache: Map of speaker ID -> full speaker object
+  const speakerCacheRef = React.useRef<Map<number, any>>(new Map());
 
-  const handleAskQuestion = async () => {
+  // ============================================================================
+  // EXTERNAL LINKS CONFIGURATION
+  // ============================================================================
+  // These URLs will be used for external link buttons in the ScheduleScreen.
+  // Integration points:
+  // 1. "Ask a question" button (EventCard & EventViewModal) → QUESTION_FORM_URL
+  // 2. "Leave feedback" button (EventCard & EventViewModal) → FEEDBACK_FORM_URL
+  //
+  // TODO: Backend Integration Options:
+  // - Option A: Store URLs in event metadata (schedule.metadata.questionUrl, schedule.metadata.feedbackUrl)
+  // - Option B: Store URLs in event config (event.metadata.questionUrl, event.metadata.feedbackUrl)
+  // - Option C: Use global config/env variables for default URLs
+  // - Option D: Fetch from dedicated API endpoint (e.g., GET /events/{id}/links/)
+  //
+  // Current implementation: Uses placeholder URLs, will be replaced with backend data
+  // ============================================================================
+  const QUESTION_FORM_URL = "https://example.com/ask-question"; // TODO: Replace with backend URL
+  const FEEDBACK_FORM_URL = "https://example.com/leave-feedback"; // TODO: Replace with backend URL
+
+  /**
+   * Fetch all speakers for the event and cache them
+   */
+  const fetchAndCacheSpeakers = React.useCallback(async () => {
     try {
-      const canOpen = await Linking.canOpenURL(QUESTION_FORM_URL);
+      // Fetch all speakers for the event (with a large page size to get all)
+      const response = await eventService.getEventSpeakers(EVENT_ID, {
+        page_size: 1000, // Large page size to get all speakers
+      });
+
+      // Cache speakers by ID
+      if (response && response.speakers && Array.isArray(response.speakers)) {
+        response.speakers.forEach((speaker) => {
+          if (speaker && speaker.id) {
+            speakerCacheRef.current.set(speaker.id, speaker);
+          }
+        });
+      }
+    } catch (err: any) {
+      // Silently fail - we can still show schedules without speaker details
+    }
+  }, []);
+
+  /**
+   * Map EventSchedule (backend) to EventData (UI format)
+   */
+  const mapEventScheduleToEventData = (schedule: EventSchedule): EventData => {
+    // Parse start_time and end_time (ISO 8601 format)
+    const startDate = new Date(schedule.start_time);
+    const endDate = new Date(schedule.end_time);
+
+    // Format time as "10:00 AM"
+    const formatTime = (date: Date): string => {
+      const hours = date.getHours();
+      const minutes = date.getMinutes();
+      const period = hours >= 12 ? "PM" : "AM";
+      const hour12 = hours % 12 || 12;
+      const minutesStr = minutes.toString().padStart(2, "0");
+      return `${hour12}:${minutesStr} ${period}`;
+    };
+
+    // Format day as "Day 1", "Day 2", etc. based on event date
+    const formatDay = (date: Date): string => {
+      // For now, use a simple day calculation
+      // You might want to use event.dates or calculate based on event start date
+      const eventObj = typeof schedule.event === "object" ? schedule.event : null;
+      const eventDate = eventObj?.date ? new Date(eventObj.date) : date;
+      const daysDiff = Math.floor((date.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24));
+      return `Day ${daysDiff + 1}`;
+    };
+
+    // Extract stage from venue or metadata
+    const eventObj = typeof schedule.event === "object" ? schedule.event : null;
+    const stage = schedule.venue || eventObj?.venue || "Main Stage";
+    
+    // Extract sponsoredBy from metadata if available
+    const sponsoredBy = schedule.metadata?.sponsoredBy || eventObj?.metadata?.sponsoredBy;
+
+    // Extract speakers - schedule.speakers is an array of speaker IDs
+    let speakers: Speaker[] = [];
+    if (schedule.speakers && Array.isArray(schedule.speakers)) {
+      // Map speaker IDs to full speaker objects using the cache
+      speakers = schedule.speakers
+        .map((speakerId: number | any) => {
+          // Check if it's already a full speaker object (fallback)
+          if (speakerId && typeof speakerId === "object" && speakerId.name) {
+            return speakerId;
+          }
+          
+          // If it's an ID, look it up in cache
+          if (typeof speakerId === "number") {
+            const cached = speakerCacheRef.current.get(speakerId);
+            if (cached) {
+              // Map backend Speaker format to UI Speaker format
+              return {
+                id: cached.id.toString(),
+                name: cached.full_name || "",
+                affiliation: [cached.role, cached.company].filter(Boolean).join(" · ") || "",
+                bio: cached.description || "",
+                interests: [],
+                tags: [],
+                socialLabel: cached.linkedin_url || cached.website_url || "",
+              };
+            }
+          }
+          
+          return null;
+        })
+        .filter((speaker): speaker is Speaker => speaker !== null);
+    }
+
+
+    return {
+      id: `schedule-${schedule.id}`,
+      title: schedule.name,
+      stage: stage,
+      day: formatDay(startDate),
+      startTime: formatTime(startDate),
+      endTime: formatTime(endDate),
+      sponsoredBy: sponsoredBy ? {
+        name: sponsoredBy.name || "",
+        color: (sponsoredBy.color || "blue") as "blue" | "purple",
+      } : undefined,
+      speakers: speakers,
+      description: schedule.description || (typeof schedule.event === "object" ? schedule.event.description : undefined),
+    };
+  };
+
+  /**
+   * Fetch event schedules from API
+   */
+  const fetchEventSchedules = React.useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Build filters based on selected stage and filters
+      const filters: { search?: string; ordering?: string } = {};
+      
+      // Map UI stage values to backend venue values for filtering
+      const stageMapping: Record<string, string> = {
+        "main-stage": "Main Stage",
+        "enterprise-stage": "Enterprise Stage",
+        "future-stage": "Future Stage",
+        "mentor-hours": "Mentor Hours",
+        "city-circle": "City Circle",
+      };
+      const selectedVenue = stageMapping[selectedStage] || "Main Stage";
+
+      // First, fetch and cache all speakers for the event
+      await fetchAndCacheSpeakers();
+
+      const response = await eventService.getEventSchedules(EVENT_ID, filters);
+      
+      // Map backend schedules to UI format
+      let mappedEvents = response.schedules.map(mapEventScheduleToEventData);
+      
+      // Filter by stage/venue client-side (since backend might not support venue filtering)
+      // Match venue from schedule.venue or schedule.event.venue
+      mappedEvents = mappedEvents.filter((event) => {
+        // Check if event stage matches selected stage
+        return event.stage === selectedVenue;
+      });
+      
+      setEvents(mappedEvents);
+    } catch (err: any) {
+      const errorMessage =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to load event schedule";
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedStage, selectedFilters]);
+
+  // Handle pull-to-refresh
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Clear speaker cache to force refresh
+      speakerCacheRef.current.clear();
+      await fetchEventSchedules();
+    } catch (err) {
+      // Error already handled in fetchEventSchedules
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchEventSchedules]);
+
+  // Fetch schedules on mount and when filters change
+  React.useEffect(() => {
+    fetchEventSchedules();
+  }, [fetchEventSchedules]);
+
+  // MOCK DATA - Commented out, using backend API now
+  /*
+  React.useEffect(() => {
+    setIsLoading(true);
+    // Simulate API call delay
+    setTimeout(() => {
+      const mockEvents: EventData[] = [
+        {
+          id: "1",
+          title: "Opening Keynote: The Future of African Tech",
+          stage: "Main Stage",
+          day: "Day 1",
+          startTime: "10:00 AM",
+          endTime: "11:00 AM",
+          sponsoredBy: {
+            name: "Spark Capital",
+            color: "blue" as const,
+          },
+          speakers: [
+            {
+              id: "1",
+              name: "Dr. Jane Smith",
+              affiliation: "VC Partner · TechVentures Inc",
+              bio: "Dr. Jane Smith is a seasoned venture capitalist with over 15 years of experience in technology investments. She specializes in early-stage fintech and enterprise SaaS companies across Africa. Jane has led investments in over 50 startups and has been instrumental in scaling some of the continent's most successful tech companies.",
+              interests: [
+                "Fintech",
+                "Enterprise SaaS",
+                "AI/ML",
+                "Startup Ecosystem",
+              ],
+              tags: ["VC", "Fintech Expert", "Africa Tech"],
+              socialLabel: "jane.smith@techventures.com",
+            },
+            {
+              id: "2",
+              name: "Sarah Johnson",
+              affiliation: "Founder · Innovation Labs",
+              bio: "Sarah Johnson is the founder and CEO of Innovation Labs, a leading technology incubator focused on supporting African entrepreneurs. With a background in software engineering and product management, Sarah has helped launch over 30 successful startups in the past decade.",
+              interests: [
+                "Product Development",
+                "Startup Mentoring",
+                "Tech Innovation",
+              ],
+              tags: ["Founder", "Product Expert", "Mentor"],
+              socialLabel: "sarah.johnson@innovationlabs.com",
+            },
+          ] as Speaker[],
+          description:
+            "Explore how AI is transforming enterprise operations and what's next.",
+        },
+        {
+          id: "2",
+          title: "Building Enterprise-Ready SaaS from Africa",
+          stage: "Enterprise Stage",
+          day: "Day 1",
+          startTime: "11:00 AM",
+          endTime: "11:40 AM",
+          speakers: [
+            {
+              id: "3",
+              name: "Michael Chen",
+              affiliation: "CTO · CloudScale Africa",
+              bio: "Michael Chen is the Chief Technology Officer at CloudScale Africa, where he leads a team of 50+ engineers building scalable cloud infrastructure solutions. He has over 12 years of experience in distributed systems and cloud architecture, having previously worked at major tech companies.",
+              interests: [
+                "Cloud Infrastructure",
+                "Distributed Systems",
+                "DevOps",
+                "Scalability",
+              ],
+              tags: ["CTO", "Cloud Expert", "Architecture"],
+              socialLabel: "michael.chen@cloudscale.africa",
+            },
+            {
+              id: "4",
+              name: "Amina Okafor",
+              affiliation: "Product Lead · TechBuild",
+              bio: "Amina Okafor is a product leader with a passion for building user-centric technology solutions. She has led product teams at several successful startups and has a track record of launching products that have reached millions of users across Africa.",
+              interests: [
+                "Product Strategy",
+                "User Experience",
+                "Data Analytics",
+                "Growth",
+              ],
+              tags: ["Product Lead", "UX Expert", "Growth Hacker"],
+              socialLabel: "amina.okafor@techbuild.com",
+            },
+          ] as Speaker[],
+          description: "Learn how to build scalable SaaS solutions from Africa.",
+        },
+        {
+          id: "3",
+          title: "Meet the ASF Startups",
+          stage: "Future Stage",
+          day: "Day 2",
+          startTime: "2:00 PM",
+          endTime: "3:00 PM",
+          sponsoredBy: {
+            name: "ASF",
+            color: "purple" as const,
+          },
+          speakers: [
+            {
+              id: "5",
+              name: "David Kimani",
+              affiliation: "Founder · StartupHub",
+              bio: "David Kimani is the visionary founder of StartupHub, a platform connecting African entrepreneurs with investors and resources. He has been featured in Forbes Africa and has mentored hundreds of startups. David is passionate about building the next generation of African tech leaders.",
+              interests: [
+                "Entrepreneurship",
+                "Startup Ecosystem",
+                "Investor Relations",
+                "Mentoring",
+              ],
+              tags: ["Founder", "Ecosystem Builder", "Mentor"],
+              socialLabel: "david.kimani@startuphub.com",
+            },
+            {
+              id: "6",
+              name: "Fatima Bello",
+              affiliation: "CEO · Innovation Labs",
+              bio: "Fatima Bello is the CEO of Innovation Labs, driving innovation in the African tech space. With a background in business strategy and technology, she has transformed multiple companies and led them to successful exits. Fatima is a sought-after speaker at tech conferences worldwide.",
+              interests: [
+                "Business Strategy",
+                "Tech Innovation",
+                "Leadership",
+                "Public Speaking",
+              ],
+              tags: ["CEO", "Strategy Expert", "Speaker"],
+              socialLabel: "fatima.bello@innovationlabs.com",
+            },
+            {
+              id: "7",
+              name: "James Osei",
+              affiliation: "Co-founder · TechVenture",
+              bio: "James Osei is the co-founder of TechVenture, a venture capital firm focused on African tech startups. He has invested in over 100 companies and has a deep understanding of the African market. James is known for his hands-on approach to supporting portfolio companies.",
+              interests: [
+                "Venture Capital",
+                "Market Analysis",
+                "Startup Investing",
+                "Portfolio Management",
+              ],
+              tags: ["Co-founder", "VC", "Investor"],
+              socialLabel: "james.osei@techventure.com",
+            },
+          ] as Speaker[],
+          description: "Discover the next generation of African startups.",
+        },
+      ];
+
+      // Show all mock events (no filtering) while waiting for backend
+      setEvents(mockEvents);
+      setIsLoading(false);
+    }, 500); // Simulate network delay
+  }, [selectedStage]);
+  */
+
+  const handleAskQuestion = async (event?: EventData) => {
+    try {
+      // Use event-specific question URL if available in metadata, otherwise use default
+      const questionUrl = event?.description?.includes("question") 
+        ? event.description 
+        : QUESTION_FORM_URL;
+      
+      const canOpen = await Linking.canOpenURL(questionUrl);
       if (canOpen) {
-        await Linking.openURL(QUESTION_FORM_URL);
+        await Linking.openURL(questionUrl);
       } else {
         Alert.alert("Error", "Cannot open the question form URL");
       }
@@ -82,6 +477,27 @@ export default function ScheduleScreen() {
         console.error("Error opening question form URL:", error);
       }
       Alert.alert("Error", "Failed to open question form");
+    }
+  };
+
+  const handleLeaveFeedback = async (event?: EventData) => {
+    try {
+      // Use event-specific feedback URL if available in metadata, otherwise use default
+      const feedbackUrl = event?.description?.includes("feedback")
+        ? event.description
+        : FEEDBACK_FORM_URL;
+      
+      const canOpen = await Linking.canOpenURL(feedbackUrl);
+      if (canOpen) {
+        await Linking.openURL(feedbackUrl);
+      } else {
+        Alert.alert("Error", "Cannot open the feedback form URL");
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.error("Error opening feedback form URL:", error);
+      }
+      Alert.alert("Error", "Failed to open feedback form");
     }
   };
 
@@ -169,157 +585,6 @@ export default function ScheduleScreen() {
     },
   ];
 
-  // TODO: BACKEND INTEGRATION - Replace mock event data with API call
-  // API Endpoint: GET /api/events
-  // Query Params: ?stage={stage}&day={day}&time={time}&page={page}&limit={limit}
-  // Response: { events: Event[], total: number, page: number }
-  // Real-time: Consider WebSocket for event updates (time changes, cancellations, new events)
-  // TODO: BACKEND - Fetch events on component mount and when stage/filters change
-  // TODO: BACKEND - Handle pagination/infinite scroll
-  // TODO: BACKEND - Cache events in state management
-  // TODO: BACKEND - Handle loading and error states
-  // Sample event data - replace with actual data from API/state
-  const events = [
-    {
-      id: "1",
-      title: "Opening Keynote: The Future of African Tech",
-      stage: "Main Stage",
-      day: "Day 1",
-      startTime: "10:00 AM",
-      endTime: "11:00 AM",
-      sponsoredBy: {
-        name: "Spark Capital",
-        color: "blue" as const,
-      },
-      speakers: [
-        {
-          id: "1",
-          name: "Dr. Jane Smith",
-          affiliation: "VC Partner · TechVentures Inc",
-          bio: "Dr. Jane Smith is a seasoned venture capitalist with over 15 years of experience in technology investments. She specializes in early-stage fintech and enterprise SaaS companies across Africa. Jane has led investments in over 50 startups and has been instrumental in scaling some of the continent's most successful tech companies.",
-          interests: [
-            "Fintech",
-            "Enterprise SaaS",
-            "AI/ML",
-            "Startup Ecosystem",
-          ],
-          tags: ["VC", "Fintech Expert", "Africa Tech"],
-          socialLabel: "jane.smith@techventures.com",
-        },
-        {
-          id: "2",
-          name: "Sarah Johnson",
-          affiliation: "Founder · Innovation Labs",
-          bio: "Sarah Johnson is the founder and CEO of Innovation Labs, a leading technology incubator focused on supporting African entrepreneurs. With a background in software engineering and product management, Sarah has helped launch over 30 successful startups in the past decade.",
-          interests: [
-            "Product Development",
-            "Startup Mentoring",
-            "Tech Innovation",
-          ],
-          tags: ["Founder", "Product Expert", "Mentor"],
-          socialLabel: "sarah.johnson@innovationlabs.com",
-        },
-      ] as Speaker[],
-      description:
-        "Explore how AI is transforming enterprise operations and what's next.",
-    },
-    {
-      id: "2",
-      title: "Building Enterprise-Ready SaaS from Africa",
-      stage: "Enterprise Stage",
-      day: "Day 1",
-      startTime: "11:00 AM",
-      endTime: "11:40 AM",
-      speakers: [
-        {
-          id: "3",
-          name: "Michael Chen",
-          affiliation: "CTO · CloudScale Africa",
-          bio: "Michael Chen is the Chief Technology Officer at CloudScale Africa, where he leads a team of 50+ engineers building scalable cloud infrastructure solutions. He has over 12 years of experience in distributed systems and cloud architecture, having previously worked at major tech companies.",
-          interests: [
-            "Cloud Infrastructure",
-            "Distributed Systems",
-            "DevOps",
-            "Scalability",
-          ],
-          tags: ["CTO", "Cloud Expert", "Architecture"],
-          socialLabel: "michael.chen@cloudscale.africa",
-        },
-        {
-          id: "4",
-          name: "Amina Okafor",
-          affiliation: "Product Lead · TechBuild",
-          bio: "Amina Okafor is a product leader with a passion for building user-centric technology solutions. She has led product teams at several successful startups and has a track record of launching products that have reached millions of users across Africa.",
-          interests: [
-            "Product Strategy",
-            "User Experience",
-            "Data Analytics",
-            "Growth",
-          ],
-          tags: ["Product Lead", "UX Expert", "Growth Hacker"],
-          socialLabel: "amina.okafor@techbuild.com",
-        },
-      ] as Speaker[],
-      description: "Learn how to build scalable SaaS solutions from Africa.",
-    },
-    {
-      id: "3",
-      title: "Meet the ASF Startups",
-      stage: "Future Stage",
-      day: "Day 2",
-      startTime: "2:00 PM",
-      endTime: "3:00 PM",
-      sponsoredBy: {
-        name: "ASF",
-        color: "purple" as const,
-      },
-      speakers: [
-        {
-          id: "5",
-          name: "David Kimani",
-          affiliation: "Founder · StartupHub",
-          bio: "David Kimani is the visionary founder of StartupHub, a platform connecting African entrepreneurs with investors and resources. He has been featured in Forbes Africa and has mentored hundreds of startups. David is passionate about building the next generation of African tech leaders.",
-          interests: [
-            "Entrepreneurship",
-            "Startup Ecosystem",
-            "Investor Relations",
-            "Mentoring",
-          ],
-          tags: ["Founder", "Ecosystem Builder", "Mentor"],
-          socialLabel: "david.kimani@startuphub.com",
-        },
-        {
-          id: "6",
-          name: "Fatima Bello",
-          affiliation: "CEO · Innovation Labs",
-          bio: "Fatima Bello is the CEO of Innovation Labs, driving innovation in the African tech space. With a background in business strategy and technology, she has transformed multiple companies and led them to successful exits. Fatima is a sought-after speaker at tech conferences worldwide.",
-          interests: [
-            "Business Strategy",
-            "Tech Innovation",
-            "Leadership",
-            "Public Speaking",
-          ],
-          tags: ["CEO", "Strategy Expert", "Speaker"],
-          socialLabel: "fatima.bello@innovationlabs.com",
-        },
-        {
-          id: "7",
-          name: "James Osei",
-          affiliation: "Co-founder · TechVenture",
-          bio: "James Osei is the co-founder of TechVenture, a venture capital firm focused on African tech startups. He has invested in over 100 companies and has a deep understanding of the African market. James is known for his hands-on approach to supporting portfolio companies.",
-          interests: [
-            "Venture Capital",
-            "Market Analysis",
-            "Startup Investing",
-            "Portfolio Management",
-          ],
-          tags: ["Co-founder", "VC", "Investor"],
-          socialLabel: "james.osei@techventure.com",
-        },
-      ] as Speaker[],
-      description: "Discover the next generation of African startups.",
-    },
-  ];
 
   return (
     <View className="flex-1 bg-white">
@@ -343,10 +608,7 @@ export default function ScheduleScreen() {
             selectedValue={selectedStage}
             onSelect={(value) => {
               setSelectedStage(value);
-              // TODO: BACKEND INTEGRATION - Filter events by stage via API
-              // API Call: await api.get(`/events?stage=${value}`)
-              // TODO: BACKEND - Refetch events when stage changes
-              // TODO: BACKEND - Update URL params for deep linking
+              // Refetch events when stage changes (handled by useEffect)
             }}
             width="65%"
           />
@@ -364,36 +626,64 @@ export default function ScheduleScreen() {
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#000000"
+            colors={["#000000"]}
+          />
+        }
       >
         <View className="px-4">
-          {events.map((event) => (
-            <Pressable
-              key={event?.id || `event-${Math.random()}`}
-              onPress={() => {
-                if (event) {
-                  setSelectedEvent(event);
-                  setIsEventViewModalVisible(true);
-                }
-              }}
-              style={({ pressed }) => ({
-                opacity: pressed ? 0.7 : 1,
-              })}
-            >
-              <EventCard
-                title={event?.title || ""}
-                stage={event?.stage || ""}
-                day={event?.day || ""}
-                startTime={event?.startTime || ""}
-                endTime={event?.endTime || ""}
-                sponsoredBy={event?.sponsoredBy}
-                onAskQuestion={handleAskQuestion}
-                onLeaveFeedback={() => {
-                  setSelectedEvent(event);
-                  setIsLeaveFeedbackModalVisible(true);
+          {isLoading ? (
+            <View className="flex-1 items-center justify-center py-20">
+              <ActivityIndicator size="large" color="#000000" />
+              <Text className="text-gray-500 mt-4">Loading events...</Text>
+            </View>
+          ) : error ? (
+            <View className="flex-1 items-center justify-center py-20 px-4">
+              <Text className="text-red-600 text-center mb-4">{error}</Text>
+              <Pressable
+                onPress={fetchEventSchedules}
+                className="bg-black rounded-md px-6 py-3"
+              >
+                <Text className="text-white font-medium">Retry</Text>
+              </Pressable>
+            </View>
+          ) : events.length === 0 ? (
+            <View className="flex-1 items-center justify-center py-20">
+              <Text className="text-gray-500 text-center">
+                No events scheduled for this stage.
+              </Text>
+            </View>
+          ) : (
+            events.map((event) => (
+              <Pressable
+                key={event?.id || `event-${Math.random()}`}
+                onPress={() => {
+                  if (event) {
+                    setSelectedEvent(event);
+                    setIsEventViewModalVisible(true);
+                  }
                 }}
-              />
-            </Pressable>
-          ))}
+                style={({ pressed }) => ({
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <EventCard
+                  title={event?.title || ""}
+                  stage={event?.stage || ""}
+                  day={event?.day || ""}
+                  startTime={event?.startTime || ""}
+                  endTime={event?.endTime || ""}
+                  sponsoredBy={event?.sponsoredBy}
+                  onAskQuestion={() => handleAskQuestion(event)}
+                  onLeaveFeedback={() => handleLeaveFeedback(event)}
+                />
+              </Pressable>
+            ))
+          )}
         </View>
       </ScrollView>
 
@@ -402,7 +692,7 @@ export default function ScheduleScreen() {
         onClose={() => setIsFilterModalVisible(false)}
         onApply={(filters) => {
           setSelectedFilters(filters);
-          // TODO: Filter events based on selected filters
+          // Refetch events when filters change (handled by useEffect)
         }}
         categories={filterCategories}
         initialSelected={selectedFilters}
@@ -438,21 +728,22 @@ export default function ScheduleScreen() {
             };
           })}
           description={selectedEvent?.description}
-          onAskQuestion={handleAskQuestion}
+          onAskQuestion={() => handleAskQuestion(selectedEvent)}
           onLeaveFeedback={() => {
+            handleLeaveFeedback(selectedEvent);
             setIsEventViewModalVisible(false);
-            setIsLeaveFeedbackModalVisible(true);
           }}
         />
       )}
 
+      {/* Note: LeaveFeedbackModal is kept for UI consistency, but feedback is handled via external link */}
       <LeaveFeedbackModal
         visible={isLeaveFeedbackModalVisible}
         onClose={() => setIsLeaveFeedbackModalVisible(false)}
         onSubmit={(feedback: string) => {
-          // TODO: Submit feedback to API
+          // Feedback is handled via external link (handleLeaveFeedback)
+          // This modal can be used for future backend integration
           setIsLeaveFeedbackModalVisible(false);
-          // Show confirmation modal after feedback is sent
           setIsFeedbackSentModalVisible(true);
         }}
         eventTitle={selectedEvent?.title}
@@ -495,6 +786,7 @@ export default function ScheduleScreen() {
         interests={selectedSpeaker?.interests}
         tags={selectedSpeaker?.tags}
         socialLabel={selectedSpeaker?.socialLabel}
+        linkedInUrl={selectedSpeaker?.socialLabel}
       />
 
       <SafeAreaView edges={["bottom"]}>

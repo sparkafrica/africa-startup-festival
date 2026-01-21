@@ -79,6 +79,33 @@ interface UIMeeting {
   description: string; // reason from backend
 }
 
+// ============================================================================
+// EXTERNAL LINKS INTEGRATION POINTS - MeetingsScreen
+// ============================================================================
+// This screen handles external links in the following areas:
+//
+// 1. VIRTUAL MEETING LINKS
+//    - Location: ScheduledMeetingModal, InboundMeetingModal, OutboundMeetingModal
+//    - Action: Click meeting link → Open virtual meeting (Zoom/Teams/Google Meet)
+//    - Implementation: Uses Linking.openURL() with meetingLink prop
+//    - Status: ✅ Implemented in ScheduledMeetingModal (just added)
+//    - TODO: Add to InboundMeetingModal and OutboundMeetingModal if not already present
+//
+// 2. LINKEDIN PROFILE LINKS
+//    - Location: All meeting modals (participant detail sections)
+//    - Action: Click LinkedIn pill → Open participant's LinkedIn profile
+//    - Implementation: Uses Linking.openURL() with participantLinkedInUrl prop
+//    - Status: ✅ Already implemented in all modals
+//
+// 3. LEAVE FEEDBACK (External Link Option)
+//    - Location: ScheduledMeetingModal → onLeaveFeedback handler
+//    - Action: Submit feedback → Could open external form URL or use API
+//    - Implementation: Currently uses LeaveFeedbackModal (UI), can switch to external URL
+//    - Status: ⚠️ Uses modal, external link option available
+//    - TODO: Add option to use external feedback form URL if needed
+//
+// ============================================================================
+
 export default function MeetingsScreen({ route }: Props) {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
@@ -389,7 +416,9 @@ export default function MeetingsScreen({ route }: Props) {
     const isInbound = !isRequester;
 
     // Extract title from metadata
-    const title = virtualMeeting.metadata?.title || virtualMeeting.reason;
+    // Priority: metadata.title > reason
+    // Note: Backend may also have top-level title field, but we prioritize metadata.title
+    const title = virtualMeeting.metadata?.title || (virtualMeeting as any).title || virtualMeeting.reason;
 
     // Calculate expiresIn for pending meetings
     const expiresIn =
@@ -548,7 +577,8 @@ export default function MeetingsScreen({ route }: Props) {
 
     // Extract title from metadata (stored when creating meeting request)
     // Fallback to reason if metadata.title doesn't exist (for backwards compatibility)
-    const title = backendMeeting.metadata?.title || backendMeeting.reason;
+    // Note: Backend may also have top-level title field, but we prioritize metadata.title
+    const title = backendMeeting.metadata?.title || (backendMeeting as any).title || backendMeeting.reason;
 
     return {
       id: `meeting-${backendMeeting.id}`,
@@ -945,16 +975,34 @@ export default function MeetingsScreen({ route }: Props) {
           virtualUpdateRequest.scheduled_time = parseTimeFromDisplay(updateData.time);
           virtualUpdateRequest.duration_minutes = calculateDuration(updateData.time);
 
-          // Always include title in metadata if provided (for updates)
-          // Note: Backend may not officially support metadata in update, but we try it
-          if (updateData.title) {
-            virtualUpdateRequest.metadata = {
-              ...(meeting as any).metadata || {},
+          // Build complete metadata object - backend requires all metadata fields to be sent together
+          // This matches the structure used when creating meetings (see ConnectionsScreen)
+          virtualUpdateRequest.metadata = {
+            title: updateData.title,
+            meetingType: "Virtual",
+            selectedDate: parsedDate, // Use parsed date in YYYY-MM-DD format
+            selectedTime: updateData.time, // Keep original time format "8:00 AM - 8:20 AM"
+          };
+
+          if (__DEV__) {
+            console.log("🔍 Updating virtual meeting with metadata:", {
+              meetingId: meeting.backendMeetingId,
               title: updateData.title,
-            };
+              metadata: virtualUpdateRequest.metadata,
+              fullRequest: virtualUpdateRequest,
+            });
           }
 
-          await meetingService.updateVirtualMeeting(meeting.backendMeetingId, virtualUpdateRequest);
+          const updatedMeeting = await meetingService.updateVirtualMeeting(meeting.backendMeetingId, virtualUpdateRequest);
+          
+          if (__DEV__) {
+            console.log("✅ Virtual meeting updated, response:", {
+              id: updatedMeeting.id,
+              metadata: updatedMeeting.metadata,
+              title: updatedMeeting.metadata?.title,
+              reason: updatedMeeting.reason,
+            });
+          }
         } else {
           // Handle physical meeting updates
           const updateRequest: { reason?: string; slot_id?: number; metadata?: any } = {
@@ -966,13 +1014,39 @@ export default function MeetingsScreen({ route }: Props) {
             updateRequest.slot_id = updateData.slotId;
           }
 
-          // Always include title in metadata if provided (for updates)
-          // Note: Backend may not officially support metadata in update, but we try it
-          if (updateData.title) {
-            updateRequest.metadata = {
-              ...(meeting as any).metadata || {},
+          // Build complete metadata object - backend requires all metadata fields to be sent together
+          // This matches the structure used when creating meetings (see ConnectionsScreen)
+          // Get table number from location if it exists
+          const tableNumber = updateData.tableNumber || 
+            (meeting.location?.startsWith("Table ") 
+              ? meeting.location.replace("Table ", "") 
+              : meeting.location);
+          
+          updateRequest.metadata = {
+            title: updateData.title,
+            meetingType: "Physical",
+            selectedDate: (() => {
+              // Parse date from display format back to YYYY-MM-DD if needed
+              let parsedDate = updateData.date;
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(updateData.date)) {
+                const parsed = parseDateLabel(updateData.date);
+                if (parsed) {
+                  parsedDate = parsed;
+                }
+              }
+              return parsedDate;
+            })(),
+            selectedTime: updateData.time, // Keep original time format "8:00 AM - 8:20 AM"
+            ...(tableNumber && { tableNumber: tableNumber }),
+          };
+
+          if (__DEV__) {
+            console.log("🔍 Updating physical meeting with metadata:", {
+              meetingId: meeting.backendMeetingId,
               title: updateData.title,
-            };
+              metadata: updateRequest.metadata,
+              fullRequest: updateRequest,
+            });
           }
 
           // For physical meetings, if date changed, we need to find a slot on that date
@@ -980,22 +1054,31 @@ export default function MeetingsScreen({ route }: Props) {
           // and no new slot_id is provided, we might need to handle it
           // For now, slot_id is the primary way to reschedule physical meetings
           
-          await meetingService.updateMeeting(meeting.backendMeetingId, updateRequest);
+          const updatedMeeting = await meetingService.updateMeeting(meeting.backendMeetingId, updateRequest);
+          
+          if (__DEV__) {
+            console.log("✅ Physical meeting updated, response:", {
+              id: updatedMeeting.id,
+              metadata: updatedMeeting.metadata,
+              title: updatedMeeting.metadata?.title,
+              reason: updatedMeeting.reason,
+            });
+          }
         }
         
-        // Close modal first, then show toast, then refresh
-        setIsModalVisible(false);
-        setSelectedMeeting(null);
+        // Show toast first (before closing modal to ensure it displays)
+        showToast("Meeting updated successfully", "success", 3000);
         
-        // Show toast after modal closes
+        // Close modal after a brief delay to allow toast to appear
         setTimeout(() => {
-          showToast("Meeting updated successfully", "success");
-        }, 300);
+          setIsModalVisible(false);
+          setSelectedMeeting(null);
+        }, 100);
         
-        // Refresh after toast appears
+        // Refresh after modal closes and toast is visible
         setTimeout(async () => {
           await fetchMeetings(false);
-        }, 600);
+        }, 800);
       } catch (err: any) {
         const message =
           err instanceof ApiClientError
@@ -1362,14 +1445,33 @@ export default function MeetingsScreen({ route }: Props) {
             setSelectedMeeting(null);
           }}
           onLeaveFeedback={async () => {
-            // Handle feedback submission
-            // Note: Currently, feedback is collected and shown in FeedbackSentModal
-            // When backend feedback endpoint is ready, add API call here:
-            // await meetingService.submitMeetingFeedback(selectedMeeting.backendMeetingId, feedbackText)
-            // For now, the UI flow is complete - user submits feedback and sees confirmation
+            // ============================================================================
+            // EXTERNAL LINK: Leave Feedback
+            // ============================================================================
+            // Integration point for meeting feedback submission.
+            // Options:
+            // - Option A: Use backend API endpoint (when available):
+            //   await meetingService.submitMeetingFeedback(selectedMeeting.backendMeetingId, feedbackText)
+            // - Option B: Open external feedback form URL:
+            //   await Linking.openURL(FEEDBACK_FORM_URL)
+            // - Option C: Use event-specific feedback URL from metadata:
+            //   const feedbackUrl = selectedMeeting.metadata?.feedbackUrl || FEEDBACK_FORM_URL
+            //   await Linking.openURL(feedbackUrl)
+            //
+            // Current: Uses LeaveFeedbackModal for UI, backend integration pending
+            // ============================================================================
           }}
         />
       )}
+
+      {/* Toast Component */}
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        duration={toast.duration}
+        onHide={hideToast}
+      />
     </View>
   );
 }

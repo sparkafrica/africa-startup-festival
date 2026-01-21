@@ -155,8 +155,9 @@ export default function ScheduledMeetingModal({
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showCancelledModal, setShowCancelledModal] = useState(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [showFeedbackSentModal, setShowFeedbackSentModal] = useState(false);
+  // Feedback now uses external URL, modals no longer needed
+  // const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  // const [showFeedbackSentModal, setShowFeedbackSentModal] = useState(false);
 
   const handleLayout = (event: any) => {
     const { height } = event.nativeEvent.layout;
@@ -405,10 +406,52 @@ export default function ScheduledMeetingModal({
             </View>
 
             {/* Meeting Link (for virtual meetings) - positioned directly below meeting type */}
+            {/* ============================================================================
+                EXTERNAL LINK: Virtual Meeting Link
+                ============================================================================
+                Integration point: Virtual meeting links should be clickable to open the meeting.
+                Current: Displays as text only
+                TODO: Make clickable to open meeting URL using Linking.openURL()
+                ============================================================================ */}
             {meetingType === "virtual" && meetingLink && (
-              <View style={styles.linkContainer}>
+              <Pressable
+                onPress={async () => {
+                  try {
+                    // Ensure URL has protocol
+                    const formattedUrl = meetingLink.startsWith("http://") || meetingLink.startsWith("https://")
+                      ? meetingLink
+                      : `https://${meetingLink}`;
+                    
+                    const supported = await Linking.canOpenURL(formattedUrl);
+                    if (supported) {
+                      await Linking.openURL(formattedUrl);
+                    } else {
+                      // Still try to open - might work even if canOpenURL returns false
+                      try {
+                        await Linking.openURL(formattedUrl);
+                      } catch (openError) {
+                        Alert.alert(
+                          "Cannot Open Meeting Link",
+                          "Please check the meeting link and try again.",
+                          [{ text: "OK" }]
+                        );
+                      }
+                    }
+                  } catch (error) {
+                    if (__DEV__) {
+                      console.error("Error opening meeting link:", error);
+                    }
+                    Alert.alert(
+                      "Error",
+                      "Failed to open meeting link. Please try again.",
+                      [{ text: "OK" }]
+                    );
+                  }
+                }}
+                style={styles.linkContainer}
+              >
                 <Text style={styles.linkText}>{meetingLink}</Text>
-              </View>
+              </Pressable>
             )}
 
             {/* Location (for physical meetings) */}
@@ -480,7 +523,35 @@ export default function ScheduledMeetingModal({
               {/* Leave Feedback Button */}
               <Pressable
                 style={styles.feedbackButton}
-                onPress={() => setShowFeedbackModal(true)}
+                onPress={async () => {
+                  try {
+                    const FEEDBACK_FORM_URL = "https://forms.gle/sfCP4Y9CzEtXTQ7u9";
+                    const supported = await Linking.canOpenURL(FEEDBACK_FORM_URL);
+                    if (supported) {
+                      await Linking.openURL(FEEDBACK_FORM_URL);
+                    } else {
+                      // Still try to open - might work even if canOpenURL returns false
+                      try {
+                        await Linking.openURL(FEEDBACK_FORM_URL);
+                      } catch (openError) {
+                        Alert.alert(
+                          "Cannot Open Feedback Form",
+                          "Please check your internet connection and try again.",
+                          [{ text: "OK" }]
+                        );
+                      }
+                    }
+                  } catch (error) {
+                    if (__DEV__) {
+                      console.error("Error opening feedback form:", error);
+                    }
+                    Alert.alert(
+                      "Error",
+                      "Failed to open feedback form. Please try again.",
+                      [{ text: "OK" }]
+                    );
+                  }
+                }}
               >
                 <SpeechBubbleIcon size={20} color="#000000" />
                 <Text style={styles.feedbackButtonText}>Leave Feedback</Text>
@@ -553,28 +624,24 @@ export default function ScheduledMeetingModal({
         }}
       />
 
-      {/* Leave Feedback Modal */}
+      {/* Leave Feedback - Now uses external URL (https://forms.gle/sfCP4Y9CzEtXTQ7u9) */}
+      {/* Feedback modals removed - feedback now opens external form directly */}
+      {/* 
       <LeaveFeedbackModal
         visible={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
         onSubmit={async (feedback) => {
           try {
-            // Call the feedback handler from parent (MeetingsScreen)
-            // This will handle API submission when backend endpoint is ready
             await onLeaveFeedback?.();
-            // Close feedback input modal and show success confirmation
             setShowFeedbackModal(false);
             setShowFeedbackSentModal(true);
           } catch (error) {
-            // Error handling is done in parent component
-            // Just close the modal on error
             setShowFeedbackModal(false);
           }
         }}
         eventTitle={title}
       />
 
-      {/* Feedback Sent Confirmation Modal */}
       <FeedbackSentModal
         visible={showFeedbackSentModal}
         onClose={() => {
@@ -582,6 +649,7 @@ export default function ScheduledMeetingModal({
         }}
         meetingTitle={title}
       />
+      */}
 
       {/* Participant Detail Overlay - Renders inside the same Modal */}
       {visible && showParticipantDetail && (
@@ -692,7 +760,7 @@ export default function ScheduledMeetingModal({
                       </Text>
                       <View style={styles.participantInterestsRow}>
                         <Pressable
-                          style={[styles.participantInterestPill, { flexDirection: "row", alignItems: "center", gap: 6 }]}
+                          style={[styles.participantInterestPill, { flexDirection: "row", alignItems: "center", gap: 6, maxWidth: 200 }]}
                           onPress={async () => {
                             try {
                               const url = participantLinkedInUrl;
@@ -726,8 +794,12 @@ export default function ScheduledMeetingModal({
                           }}
                         >
                           <LinkedInIcon size={14} color="#0A66C2" />
-                          <Text style={styles.participantInterestText}>
-                            {participantSocialLabel}
+                          <Text 
+                            style={styles.participantInterestText}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {participantSocialLabel.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, "").split("/")[0]}
                           </Text>
                         </Pressable>
                       </View>
@@ -1080,6 +1152,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#000000",
     fontWeight: "500",
+    flexShrink: 1,
   },
   participantSocialButton: {
     marginTop: 8,

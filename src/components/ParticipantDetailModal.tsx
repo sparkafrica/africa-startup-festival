@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Dimensions,
   ScrollView,
+  Linking,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PersonProfileIcon } from "./icons";
@@ -24,6 +26,7 @@ export interface ParticipantDetailModalProps {
   bio?: string;
   interests?: string[];
   socialLabel?: string; // e.g. "Flutterwave.ng"
+  linkedInUrl?: string; // Full LinkedIn URL for opening profiles
 }
 
 export default function ParticipantDetailModal({
@@ -36,6 +39,7 @@ export default function ParticipantDetailModal({
   bio,
   interests = [],
   socialLabel,
+  linkedInUrl,
 }: ParticipantDetailModalProps) {
   return (
     <Modal
@@ -105,12 +109,47 @@ export default function ParticipantDetailModal({
               )}
 
               {/* Social Links */}
-              {socialLabel && (
+              {socialLabel && linkedInUrl && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Social Links</Text>
-                  <Pressable style={styles.socialButton}>
+                  <Pressable
+                    style={styles.socialButton}
+                    onPress={async () => {
+                      try {
+                        // Ensure URL has protocol
+                        const formattedUrl = linkedInUrl.startsWith("http://") || linkedInUrl.startsWith("https://")
+                          ? linkedInUrl
+                          : `https://${linkedInUrl}`;
+                        
+                        // Try to open URL
+                        const supported = await Linking.canOpenURL(formattedUrl);
+                        if (supported) {
+                          await Linking.openURL(formattedUrl);
+                        } else {
+                          // Still try to open - might work even if canOpenURL returns false
+                          try {
+                            await Linking.openURL(formattedUrl);
+                          } catch (openError) {
+                            Alert.alert(
+                              "Cannot Open LinkedIn",
+                              "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
+                              [{ text: "OK" }]
+                            );
+                          }
+                        }
+                      } catch (error) {
+                        Alert.alert("Error", "Failed to open LinkedIn profile");
+                      }
+                    }}
+                  >
                     <LinkedInIcon size={18} color="#0A66C2" />
-                    <Text style={styles.socialButtonText}>{socialLabel}</Text>
+                    <Text 
+                      style={styles.socialButtonText}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {socialLabel.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, "").split("/")[0]}
+                    </Text>
                   </Pressable>
                 </View>
               )}
@@ -258,11 +297,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "#F3F4F6",
     alignSelf: "flex-start",
+    maxWidth: 200,
   },
   socialButtonText: {
     marginLeft: 8,
     fontSize: 13,
     fontWeight: "500",
     color: "#111827",
+    flexShrink: 1,
   },
 });

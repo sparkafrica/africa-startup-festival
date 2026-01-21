@@ -57,7 +57,7 @@ export default function EventViewModal({
   sponsoredBy,
   speakers = [],
   description,
-  onAddToSchedule,
+  onAskQuestion,
   onLeaveFeedback,
 }: EventViewModalProps) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;

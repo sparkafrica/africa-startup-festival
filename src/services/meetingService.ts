@@ -107,10 +107,12 @@ export interface MeetingCancelRequest {
 /**
  * Meeting Update Request
  * Matches backend schema: PatchedMeetingUpdateRequest
+ * Note: metadata is not in the official schema but backend supports it for title updates
  */
 export interface MeetingUpdateRequest {
   slot_id?: number;
   reason?: string;
+  metadata?: any; // Used to update title and other custom fields
 }
 
 // ============================================================================
@@ -176,6 +178,7 @@ export interface VirtualMeetingCancelRequest {
 /**
  * Virtual Meeting Update Request
  * Matches backend schema: PatchedVirtualMeetingUpdateRequest
+ * Note: metadata is not in the official schema but backend supports it for title updates
  */
 export interface VirtualMeetingUpdateRequest {
   reason?: string;
@@ -183,6 +186,7 @@ export interface VirtualMeetingUpdateRequest {
   scheduled_date?: string;
   scheduled_time?: string;
   duration_minutes?: number;
+  metadata?: any; // Used to update title and other custom fields
 }
 
 /**

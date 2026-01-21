@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { View, ScrollView, Pressable, Text } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, ScrollView, Pressable, Text, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useChecklist } from "../context/ChecklistContext";
 import { gradients } from "../theme/theme";
+import { eventService } from "../services/eventService";
+import { EVENT_ID } from "../config/env";
+import { ApiClientError } from "../services/api";
 import {
   HeaderBar,
   BannerCard,
@@ -46,15 +49,22 @@ export default function HomeScreen() {
   // Track if checklist has been auto-collapsed (to prevent re-collapsing on manual opens)
   const [hasAutoCollapsed, setHasAutoCollapsed] = useState(false);
 
-  // TODO: BACKEND INTEGRATION - Replace with backend data - check if there are unread notifications
-  // API Endpoint: GET /api/notifications/unread-count
-  // Request Headers: { Authorization: `Bearer ${token}` }
-  // Response: { count: number, hasUnread: boolean }
-  // Real-time: Consider WebSocket for real-time notification updates
-  // TODO: BACKEND - Fetch unread count on component mount
-  // TODO: BACKEND - Subscribe to notification updates (WebSocket/polling)
-  // TODO: BACKEND - Update count when notifications are read
+  // Note: Unread notifications count requires push notifications setup with Firebase
+  // Skipping for now - will be implemented when push notifications are configured
   const [hasUnreadNotifications] = useState(false);
+
+  // State for featured data
+  const [featuredSpeakers, setFeaturedSpeakers] = useState<any[]>([]);
+  const [speakersLoading, setSpeakersLoading] = useState(true);
+  const [speakersError, setSpeakersError] = useState<string | null>(null);
+
+  const [featuredExhibitors, setFeaturedExhibitors] = useState<any[]>([]);
+  const [exhibitorsLoading, setExhibitorsLoading] = useState(true);
+  const [exhibitorsError, setExhibitorsError] = useState<string | null>(null);
+
+  const [featuredPartners, setFeaturedPartners] = useState<any[]>([]);
+  const [partnersLoading, setPartnersLoading] = useState(true);
+  const [partnersError, setPartnersError] = useState<string | null>(null);
 
   // Auto-collapse checklist when all items are completed (only once)
   useEffect(() => {
@@ -77,6 +87,90 @@ export default function HomeScreen() {
     checklistExpanded,
     hasAutoCollapsed,
   ]);
+
+  // Fetch featured speakers
+  const fetchFeaturedSpeakers = async () => {
+    setSpeakersLoading(true);
+    setSpeakersError(null);
+    try {
+      const response = await eventService.getEventSpeakers(EVENT_ID, {
+        page_size: 4,
+        ordering: "-id", // Or whatever ordering makes sense for "featured"
+      });
+      
+      // Take first 4 speakers as featured
+      setFeaturedSpeakers(response.speakers.slice(0, 4));
+    } catch (err: any) {
+      const errorMessage =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to load featured speakers";
+      setSpeakersError(errorMessage);
+      // Don't block the screen if speakers fail to load
+    } finally {
+      setSpeakersLoading(false);
+    }
+  };
+
+  // Fetch featured exhibitors
+  const fetchFeaturedExhibitors = async () => {
+    setExhibitorsLoading(true);
+    setExhibitorsError(null);
+    try {
+      const response = await eventService.getEventExhibitors(EVENT_ID, {
+        page_size: 4,
+        ordering: "-id",
+      });
+      
+      setFeaturedExhibitors(response.exhibitors.slice(0, 4));
+    } catch (err: any) {
+      const errorMessage =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to load featured exhibitors";
+      setExhibitorsError(errorMessage);
+    } finally {
+      setExhibitorsLoading(false);
+    }
+  };
+
+  // Fetch featured partners
+  const fetchFeaturedPartners = async () => {
+    setPartnersLoading(true);
+    setPartnersError(null);
+    try {
+      const response = await eventService.getEventPartners(EVENT_ID, {
+        page_size: 4,
+        ordering: "-id",
+      });
+      
+      setFeaturedPartners(response.partners.slice(0, 4));
+    } catch (err: any) {
+      const errorMessage =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to load featured partners";
+      setPartnersError(errorMessage);
+    } finally {
+      setPartnersLoading(false);
+    }
+  };
+
+  // Fetch all featured data on mount
+  useEffect(() => {
+    fetchFeaturedSpeakers();
+    fetchFeaturedExhibitors();
+    fetchFeaturedPartners();
+  }, []);
+
+  // Refetch on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchFeaturedSpeakers();
+      fetchFeaturedExhibitors();
+      fetchFeaturedPartners();
+    }, [])
+  );
 
   // Handler functions for checklist item navigation
   // Items will be marked as completed when actions are performed on those screens
@@ -231,89 +325,67 @@ export default function HomeScreen() {
             expanded={true}
             className="mb-4"
           >
-            {/* TODO: BACKEND INTEGRATION - Replace hardcoded exhibitor cards with API data
-            // API Endpoint: GET /api/companies?type=exhibitor&featured=true&limit=4
-            // TODO: BACKEND - Fetch featured exhibitors on component mount
-            // TODO: BACKEND - Handle loading and error states */}
-            {/* Exhibitors */}
-            <View className="flex-row flex-wrap -mx-1.5">
-              <View className="px-1.5 mb-2" style={{ width: "50%" }}>
-                <ExhibitorCard
-                  name="Kora"
-                  logoColor="#2762C7"
-                  onPress={() =>
-                    navigation.navigate("CompanyDetail", {
-                      exhibitorId: "kora",
-                      name: "Kora",
-                    })
-                  }
-                />
-                <Text className="text-xs text-neutral-600 text-center mt-2">
-                  Kora
+            {exhibitorsLoading ? (
+              <View className="py-8 items-center">
+                <ActivityIndicator size="large" color="#000000" />
+                <Text className="text-gray-500 mt-2">Loading exhibitors...</Text>
+              </View>
+            ) : exhibitorsError ? (
+              <View className="py-4">
+                <Text className="text-red-600 text-center">{exhibitorsError}</Text>
+              </View>
+            ) : featuredExhibitors.length > 0 ? (
+              <>
+                <View className="flex-row flex-wrap -mx-1.5">
+                  {featuredExhibitors.map((exhibitor) => {
+                    // Generate consistent color from organisation name or ID
+                    const colors = ["#2762C7", "#000000", "#FFC107", "#E91E63", "#DC2626", "#9333EA", "#10B981", "#F97316"];
+                    const orgName = exhibitor.organisation || `exhibitor-${exhibitor.id}`;
+                    const logoColor = colors[orgName.length % colors.length];
+                    
+                    return (
+                      <View key={exhibitor.id} className="px-1.5 mb-2" style={{ width: "50%" }}>
+                        <ExhibitorCard
+                          name={exhibitor.organisation || "Exhibitor"}
+                          logoColor={logoColor}
+                          onPress={() =>
+                            navigation.navigate("CompanyDetail", {
+                              exhibitorId: exhibitor.id.toString(),
+                              name: exhibitor.organisation || "Exhibitor",
+                            })
+                          }
+                        />
+                        <Text className="text-xs text-neutral-600 text-center mt-2">
+                          {exhibitor.organisation || "Exhibitor"}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+                <Pressable
+                  onPress={() => navigation.navigate("Exhibitors")}
+                  className="bg-black rounded-xl py-4 px-6 flex-row items-center justify-center mt-4"
+                  style={{
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                >
+                  <Text className="text-white font-semibold text-base px-2">
+                    View all Exhibitors
+                  </Text>
+                  <ArrowUpRightIcon size={18} color="#FFFFFF" />
+                </Pressable>
+              </>
+            ) : (
+              <View className="py-4">
+                <Text className="text-gray-500 text-center">
+                  No featured exhibitors available.
                 </Text>
               </View>
-              <View className="px-1.5 mb-2" style={{ width: "50%" }}>
-                <ExhibitorCard
-                  name="Uber"
-                  logoColor="#000000"
-                  onPress={() =>
-                    navigation.navigate("CompanyDetail", {
-                      exhibitorId: "uber",
-                      name: "Uber",
-                    })
-                  }
-                />
-                <Text className="text-xs text-neutral-600 text-center mt-2">
-                  Uber
-                </Text>
-              </View>
-              <View className="px-1.5 mb-2" style={{ width: "50%" }}>
-                <ExhibitorCard
-                  name="MTN"
-                  logoColor="#FFC107"
-                  onPress={() =>
-                    navigation.navigate("CompanyDetail", {
-                      exhibitorId: "mtn",
-                      name: "MTN",
-                    })
-                  }
-                />
-                <Text className="text-xs text-neutral-600 text-center mt-2">
-                  MTN
-                </Text>
-              </View>
-              <View className="px-1.5 mb-2" style={{ width: "50%" }}>
-                <ExhibitorCard
-                  name="Zoko"
-                  logoColor="#E91E63"
-                  onPress={() =>
-                    navigation.navigate("CompanyDetail", {
-                      exhibitorId: "zoko",
-                      name: "Zoko",
-                    })
-                  }
-                />
-                <Text className="text-xs text-neutral-600 text-center mt-2">
-                  Zoko
-                </Text>
-              </View>
-            </View>
-            <Pressable
-              onPress={() => navigation.navigate("Exhibitors")}
-              className="bg-black rounded-xl py-4 px-6 flex-row items-center justify-center mt-4"
-              style={{
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 2,
-              }}
-            >
-              <Text className="text-white font-semibold text-base px-2">
-                View all Exhibitors
-              </Text>
-              <ArrowUpRightIcon size={18} color="#FFFFFF" />
-            </Pressable>
+            )}
           </Card>
 
           {/* Partners Section */}
@@ -324,84 +396,67 @@ export default function HomeScreen() {
             expanded={true}
             className="mb-4"
           >
-            <View className="flex-row flex-wrap -mx-1.5 ">
-              <View className="px-1.5 mb-2 " style={{ width: "50%" }}>
-                <PartnerCard
-                  name="Kora"
-                  logoColor="#2762C7"
-                  onPress={() =>
-                    navigation.navigate("CompanyDetail", {
-                      exhibitorId: "kora",
-                      name: "Kora",
-                    })
-                  }
-                />
-                <Text className="text-xs text-neutral-600 text-center mt-2">
-                  Kora
+            {partnersLoading ? (
+              <View className="py-8 items-center">
+                <ActivityIndicator size="large" color="#000000" />
+                <Text className="text-gray-500 mt-2">Loading partners...</Text>
+              </View>
+            ) : partnersError ? (
+              <View className="py-4">
+                <Text className="text-red-600 text-center">{partnersError}</Text>
+              </View>
+            ) : featuredPartners.length > 0 ? (
+              <>
+                <View className="flex-row flex-wrap -mx-1.5">
+                  {featuredPartners.map((partner) => {
+                    // Generate consistent color from organisation name or ID
+                    const colors = ["#2762C7", "#000000", "#FFC107", "#E91E63", "#DC2626", "#9333EA", "#10B981", "#F97316"];
+                    const orgName = partner.organisation || `partner-${partner.id}`;
+                    const logoColor = colors[orgName.length % colors.length];
+                    
+                    return (
+                      <View key={partner.id} className="px-1.5 mb-2" style={{ width: "50%" }}>
+                        <PartnerCard
+                          name={partner.organisation || "Partner"}
+                          logoColor={logoColor}
+                          onPress={() =>
+                            navigation.navigate("CompanyDetail", {
+                              exhibitorId: partner.id.toString(),
+                              name: partner.organisation || "Partner",
+                            })
+                          }
+                        />
+                        <Text className="text-xs text-neutral-600 text-center mt-2">
+                          {partner.organisation || "Partner"}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+                <Pressable
+                  onPress={() => navigation.navigate("Partners")}
+                  className="bg-black rounded-xl py-4 px-6 flex-row items-center justify-center mt-4"
+                  style={{
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                >
+                  <Text className="text-white font-semibold text-base px-2">
+                    View all Partners
+                  </Text>
+                  <ArrowUpRightIcon size={18} color="#FFFFFF" />
+                </Pressable>
+              </>
+            ) : (
+              <View className="py-4">
+                <Text className="text-gray-500 text-center">
+                  No featured partners available.
                 </Text>
               </View>
-              <View className="px-1.5 mb-2" style={{ width: "50%" }}>
-                <PartnerCard
-                  name="Uber"
-                  logoColor="#000000"
-                  onPress={() =>
-                    navigation.navigate("CompanyDetail", {
-                      exhibitorId: "uber",
-                      name: "Uber",
-                    })
-                  }
-                />
-                <Text className="text-xs text-neutral-600 text-center mt-2">
-                  Uber
-                </Text>
-              </View>
-              <View className="px-1.5 mb-2" style={{ width: "50%" }}>
-                <PartnerCard
-                  name="MTN"
-                  logoColor="#FFC107"
-                  onPress={() =>
-                    navigation.navigate("CompanyDetail", {
-                      exhibitorId: "mtn",
-                      name: "MTN",
-                    })
-                  }
-                />
-                <Text className="text-xs text-neutral-600 text-center mt-2">
-                  MTN
-                </Text>
-              </View>
-              <View className="px-1.5 mb-2" style={{ width: "50%" }}>
-                <PartnerCard
-                  name="ZOHO"
-                  logoColor="#E91E63"
-                  onPress={() =>
-                    navigation.navigate("CompanyDetail", {
-                      exhibitorId: "zoho",
-                      name: "ZOHO",
-                    })
-                  }
-                />
-                <Text className="text-xs text-neutral-600 text-center mt-2">
-                  ZOHO
-                </Text>
-              </View>
-            </View>
-            <Pressable
-              onPress={() => navigation.navigate("Partners")}
-              className="bg-black rounded-xl py-4 px-6 flex-row items-center justify-center mt-4"
-              style={{
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 2,
-              }}
-            >
-              <Text className="text-white font-semibold text-base px-2">
-                View all Partners
-              </Text>
-              <ArrowUpRightIcon size={18} color="#FFFFFF" />
-            </Pressable>
+            )}
           </Card>
 
           {/* Speakers Section */}
