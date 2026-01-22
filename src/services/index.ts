@@ -19,7 +19,15 @@ export * from "./api.helpers";
 
 // Service layers
 export * from "./authService";
-export * from "./ticketService";
-export * from "./companyService";
-export * from "./connectionService";
-export * from "./meetingService";
+export { attendeeService } from "./attendeeService";
+export type {
+  Attendee as AttendeeBackend,
+  AttendeeUser as AttendeeServiceUser,
+  AttendeeTicket,
+  AttendeeType,
+  AttendeeFilters,
+} from "./attendeeService";
+export { ticketService } from "./ticketService";
+export { companyService } from "./companyService";
+export { connectionService } from "./connectionService";
+export { meetingService } from "./meetingService";

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -24,8 +24,9 @@ import type {
 import { useAuth } from "../context/AuthContext";
 import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
-import { authService } from "../services/authService";
+import { authService, type UserProfile } from "../services/authService";
 import { companyService } from "../services/companyService";
+import { getProfileCache, setProfileCache } from "../utils/profileCache";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
 import Toast from "../components/Toast";
@@ -764,7 +765,11 @@ function OfferColorModal({
 }
 
 // Attendee Profile Form Component (single screen, no progress bar)
-function AttendeeProfileForm() {
+function AttendeeProfileForm({
+  initialProfile = null,
+}: {
+  initialProfile?: UserProfile | null;
+}) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
   const { user } = useAuth();
@@ -787,66 +792,44 @@ function AttendeeProfileForm() {
     Record<string, string>
   >({});
 
-  // Load user data into form fields on mount
+  const source = initialProfile ?? user;
+
   useEffect(() => {
-    if (user) {
-      // Set full name
-      if (user.first_name || user.last_name) {
-        setFullName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
-      }
-
-      // Set job title
-      if (user.job_title) {
-        setJobTitle(user.job_title);
-      }
-
-      // Set bio
-      if (user.bio) {
-        setBio(user.bio);
-      }
-
-      // Set country - find matching ID from label
-      if (user.country) {
-        const countryOption = COUNTRY_OPTIONS.find(
-          (opt) => opt.label.toLowerCase() === user.country?.toLowerCase()
-        );
-        if (countryOption) {
-          setSelectedCountry(countryOption.id);
-        }
-      }
-
-      // Parse metadata (might be string or object)
-      let metadata = user.metadata;
-      if (typeof metadata === "string") {
-        try {
-          metadata = JSON.parse(metadata);
-        } catch (e) {
-          console.error("Error parsing metadata:", e);
-          metadata = {};
-        }
-      }
-
-      // Set industry from metadata - find matching ID from label
-      if (metadata?.industry) {
-        const industryOption = INDUSTRY_OPTIONS.find(
-          (opt) => opt.label.toLowerCase() === metadata.industry.toLowerCase()
-        );
-        if (industryOption) {
-          setSelectedIndustry(industryOption.id);
-        }
-      }
-
-      // Set interests from metadata
-      if (metadata?.interests && Array.isArray(metadata.interests)) {
-        setSelectedInterests(metadata.interests);
-      }
-
-      // Set LinkedIn from metadata (optional for attendees)
-      if (metadata?.linkedIn) {
-        setLinkedIn(metadata.linkedIn);
+    if (!source) return;
+    if (source.first_name ?? source.last_name) {
+      setFullName(`${source.first_name ?? ""} ${source.last_name ?? ""}`.trim());
+    }
+    if (source.job_title) setJobTitle(source.job_title);
+    if (source.bio) setBio(source.bio);
+    if (source.country) {
+      const opt = COUNTRY_OPTIONS.find(
+        (o) => o.label.toLowerCase() === source.country!.toLowerCase()
+      );
+      if (opt) setSelectedCountry(opt.id);
+    }
+    let metadata = source.metadata;
+    if (typeof metadata === "string") {
+      try {
+        metadata = JSON.parse(metadata) as Record<string, unknown>;
+      } catch {
+        metadata = {};
       }
     }
-  }, [user]);
+    const meta = (metadata ?? {}) as Record<string, unknown>;
+    if (meta.industry && typeof meta.industry === "string") {
+      const opt = INDUSTRY_OPTIONS.find(
+        (o) => o.label.toLowerCase() === (meta.industry as string).toLowerCase()
+      );
+      if (opt) setSelectedIndustry(opt.id);
+    }
+    if (Array.isArray(meta.interests)) {
+      setSelectedInterests(meta.interests as string[]);
+    }
+    const li = meta.linkedIn ?? meta.linkedin_url;
+    if (typeof li === "string") setLinkedIn(li);
+    const companyName = (source as UserProfile).company?.name;
+    if (companyName) setCompany(companyName);
+  }, [source]);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -1456,8 +1439,10 @@ function AttendeeProfileForm() {
 
 // Personal Profile Form Component (Step 1 of 2 for Company/Partner accounts)
 function PersonalProfileForm({
+  initialProfile = null,
   onPersonalSaved,
 }: {
+  initialProfile?: UserProfile | null;
   onPersonalSaved?: () => void;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -1480,6 +1465,45 @@ function PersonalProfileForm({
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
+
+  useEffect(() => {
+    if (!initialProfile) return;
+    if (initialProfile.first_name ?? initialProfile.last_name) {
+      setFullName(
+        `${initialProfile.first_name ?? ""} ${initialProfile.last_name ?? ""}`.trim()
+      );
+    }
+    if (initialProfile.job_title) setJobTitle(initialProfile.job_title);
+    if (initialProfile.bio) setBio(initialProfile.bio);
+    if (initialProfile.company?.name) setCompany(initialProfile.company.name);
+    if (initialProfile.country) {
+      const opt = COUNTRY_OPTIONS.find(
+        (o) =>
+          o.label.toLowerCase() === initialProfile.country!.toLowerCase()
+      );
+      if (opt) setSelectedCountry(opt.id);
+    }
+    let metadata = initialProfile.metadata;
+    if (typeof metadata === "string") {
+      try {
+        metadata = JSON.parse(metadata) as Record<string, unknown>;
+      } catch {
+        metadata = {};
+      }
+    }
+    const meta = (metadata ?? {}) as Record<string, unknown>;
+    if (meta.industry && typeof meta.industry === "string") {
+      const opt = INDUSTRY_OPTIONS.find(
+        (o) => o.label.toLowerCase() === (meta.industry as string).toLowerCase()
+      );
+      if (opt) setSelectedIndustry(opt.id);
+    }
+    if (Array.isArray(meta.interests)) {
+      setSelectedInterests(meta.interests as string[]);
+    }
+    const li = meta.linkedIn ?? meta.linkedin_url;
+    if (typeof li === "string") setLinkedIn(li);
+  }, [initialProfile]);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -1633,13 +1657,14 @@ function PersonalProfileForm({
 
     try {
       setIsSubmitting(true);
+      let photoUpdateFailed = false;
 
-      // Handle profile picture upload
+      // Handle profile picture upload (best-effort; don't block profile save)
       if (selectedImageUri) {
         setIsUploadingImage(true);
         try {
           await authService.uploadProfilePicture(selectedImageUri);
-          setSelectedImageUri(null); // Clear selected image after successful upload
+          setSelectedImageUri(null);
           setShouldRemovePhoto(false);
         } catch (imageError: any) {
           console.error("Error uploading profile picture:", imageError);
@@ -1647,9 +1672,7 @@ function PersonalProfileForm({
             imageError.message || "Failed to upload profile picture.",
             "error"
           );
-          setIsUploadingImage(false);
-          setIsSubmitting(false);
-          return;
+          photoUpdateFailed = true;
         } finally {
           setIsUploadingImage(false);
         }
@@ -1694,23 +1717,23 @@ function PersonalProfileForm({
         profileData.metadata = metadata;
       }
 
-      // Save personal profile data to backend API
+      // Save personal profile data to backend API (always run, even if photo update failed)
       await authService.updateProfile(profileData);
 
-      // Show success toast
-      showToast("Personal profile saved!", "success");
+      if (photoUpdateFailed) {
+        showToast("Personal profile saved. Photo could not be updated.", "warning");
+      } else {
+        showToast("Personal profile saved!", "success");
+      }
 
-      // If onPersonalSaved callback is provided (segmented control mode), use it
-      // Otherwise, navigate to company profile (fallback for route-based navigation)
       if (onPersonalSaved) {
         setTimeout(() => {
           onPersonalSaved();
         }, 500);
       } else {
-        // Fallback: Navigate to company profile (step 2) - for backward compatibility
-      setTimeout(() => {
-        navigation.navigate("CompleteProfile", { step: "company" });
-      }, 500);
+        setTimeout(() => {
+          navigation.navigate("CompleteProfile", { step: "company" });
+        }, 500);
       }
     } catch (error: any) {
       console.error("Error saving personal profile:", error);
@@ -2110,7 +2133,11 @@ function PersonalProfileForm({
 }
 
 // Company Profile Form Component (Step 2 of 2 for Company/Partner accounts)
-function CompanyProfileForm() {
+function CompanyProfileForm({
+  initialProfile = null,
+}: {
+  initialProfile?: UserProfile | null;
+}) {
   const { completeProfile } = useAuth();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
@@ -2154,6 +2181,72 @@ function CompanyProfileForm() {
   const [positionErrors, setPositionErrors] = useState<Record<string, string>>(
     {}
   );
+
+  useEffect(() => {
+    const c = initialProfile?.company;
+    if (!c) return;
+    if (c.name) setCompanyName(c.name);
+    if (c.company_description) setCompanyDescription(c.company_description);
+    if (c.country) {
+      const opt = COUNTRY_OPTIONS.find(
+        (o) => o.label.toLowerCase() === c.country!.toLowerCase()
+      );
+      if (opt) setSelectedCountry(opt.id);
+    }
+    if (c.company_sector) {
+      const opt = INDUSTRY_OPTIONS.find(
+        (o) =>
+          o.label.toLowerCase() === c.company_sector!.toLowerCase()
+      );
+      if (opt) setSelectedIndustry(opt.id);
+    }
+    let metadata = c.metadata;
+    if (typeof metadata === "string") {
+      try {
+        metadata = JSON.parse(metadata) as Record<string, unknown>;
+      } catch {
+        metadata = {};
+      }
+    }
+    const meta = (metadata ?? {}) as Record<string, unknown>;
+    if (typeof meta.website === "string") setWebsite(meta.website);
+    const sl = meta.socialLinks as Record<string, string> | undefined;
+    if (sl && typeof sl === "object") {
+      setSocialLinks({
+        linkedin: sl.linkedin ?? "",
+        facebook: sl.facebook ?? "",
+        instagram: sl.instagram ?? "",
+        x: sl.x ?? "",
+      });
+    }
+    if (Array.isArray(meta.offers) && meta.offers.length > 0) {
+      setOffers(
+        (meta.offers as Array<{ id?: string; title: string; color: string }>).map(
+          (o, i) => ({
+            id: o.id ?? `offer-${i}`,
+            title: o.title ?? "",
+            color: o.color ?? "purple",
+          })
+        )
+      );
+    }
+    if (meta.isRecruiting === true) setIsRecruiting(true);
+    if (Array.isArray(meta.positions) && meta.positions.length > 0) {
+      setPositions(
+        (
+          meta.positions as Array<{
+            id?: string;
+            role: string;
+            link: string;
+          }>
+        ).map((p, i) => ({
+          id: p.id ?? `pos-${i}`,
+          role: p.role ?? "",
+          link: p.link ?? "",
+        }))
+      );
+    }
+  }, [initialProfile]);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -2418,12 +2511,13 @@ function CompanyProfileForm() {
 
       const companyId = userProfile.company.id;
 
-      // Handle logo upload if image selected (mimic Personal tab pattern)
+      let logoUpdateFailed = false;
+
       if (selectedImageUri) {
         setIsUploadingImage(true);
         try {
           await companyService.uploadCompanyLogo(companyId, selectedImageUri);
-          setSelectedImageUri(null); // Clear selected image after successful upload
+          setSelectedImageUri(null);
           setShouldRemovePhoto(false);
         } catch (imageError: any) {
           console.error("Error uploading company logo:", imageError);
@@ -2431,9 +2525,7 @@ function CompanyProfileForm() {
             imageError.message || "Failed to upload company logo.",
             "error"
           );
-          setIsUploadingImage(false);
-          setIsSubmitting(false);
-          return;
+          logoUpdateFailed = true;
         } finally {
           setIsUploadingImage(false);
         }
@@ -2484,13 +2576,14 @@ function CompanyProfileForm() {
         companyData.metadata = metadata;
       }
 
-      // Update company profile via PATCH
       await companyService.updateCompany(companyId, companyData);
 
-      // Show success toast
-      showToast("Company profile completed successfully!", "success");
+      if (logoUpdateFailed) {
+        showToast("Company profile saved. Logo could not be updated.", "warning");
+      } else {
+        showToast("Company profile completed successfully!", "success");
+      }
 
-      // Navigate to success screen (completeProfile will be called there)
       setTimeout(() => {
         navigation.navigate("ProfileCreated");
       }, 500);
@@ -3261,78 +3354,62 @@ export default function CompleteProfileScreen({ route }: Props) {
   const { user } = useAuth();
   const [hasCompanyTicket, setHasCompanyTicket] = useState<boolean | null>(null);
   const [isCheckingTickets, setIsCheckingTickets] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileFromCache, setProfileFromCache] = useState(false);
   const [activeTab, setActiveTab] = useState<"personal" | "company">("personal");
   const [isPersonalComplete, setIsPersonalComplete] = useState(false);
 
-  // Check if user has ticket types that require company profile (exhibitor, partner)
+  const fetchProfile = useCallback(async () => {
+    try {
+      const p = await authService.getCurrentUser();
+      setProfile(p);
+      setProfileError(null);
+      setProfileFromCache(false);
+      await setProfileCache(p);
+    } catch (e: any) {
+      const msg = e?.message ?? "Failed to load profile";
+      const cached = await getProfileCache();
+      if (cached) {
+        setProfile(cached);
+        setProfileFromCache(true);
+        setProfileError(msg);
+      } else {
+        setProfile(null);
+        setProfileFromCache(false);
+        setProfileError(msg);
+      }
+    }
+  }, []);
+
+  // Check ticket types and fetch profile in parallel on mount
   useEffect(() => {
+    const companyTicketTypes = ["exhibitor", "partner"];
+
     const checkTicketTypes = async () => {
       try {
-        setIsCheckingTickets(true);
-        
-        // Try quotas first
         let quotas = await ticketService.getUserQuotas(EVENT_ID);
-        
-        // DEBUG: Log the actual response
-        console.log("🔍 CompleteProfileScreen - Quotas response:", JSON.stringify(quotas, null, 2));
-        console.log("🔍 CompleteProfileScreen - Quotas array length:", quotas.length);
-        
-        // Ticket types that require company profile
-        const companyTicketTypes = ["exhibitor", "partner"];
-        
-        // If quotas is empty, try allocations as fallback
         if (quotas.length === 0) {
-          console.log("🔍 CompleteProfileScreen - No quotas found, trying allocations as fallback...");
           try {
             const allocations = await ticketService.getUserAllocations(EVENT_ID);
-            console.log("🔍 CompleteProfileScreen - Allocations response:", JSON.stringify(allocations, null, 2));
-            
-            // Check allocations for ticket types (allocations have ticket_class_name)
-            // Note: Allocations don't have ticket_class.type, only ticket_class_name
-            // We'll need to check the ticket_class_name for patterns like "exhibitor" or "partner"
-            const hasCompanyFromAllocations = allocations.some((allocation) => {
-              const className = allocation.ticket_class_name?.toLowerCase() || "";
-              const matches = companyTicketTypes.some(type => className.includes(type));
-              console.log(`🔍 CompleteProfileScreen - Checking allocation "${allocation.ticket_class_name}": ${matches}`);
-              return matches;
+            const hasCompanyFromAllocations = allocations.some((a) => {
+              const c = (a.ticket_class_name ?? "").toLowerCase();
+              return companyTicketTypes.some((t) => c.includes(t));
             });
-            
             if (hasCompanyFromAllocations) {
-              console.log("🔍 CompleteProfileScreen - Found company type from allocations");
               setHasCompanyTicket(true);
               return;
             }
-          } catch (allocError) {
-            console.error("Error checking allocations:", allocError);
+          } catch {
+            /* ignore */
           }
         }
-        
-        // Check if user has any ticket with company-requiring type from quotas
-        quotas.forEach((quota, index) => {
-          console.log(`🔍 CompleteProfileScreen - Quota ${index}:`, {
-            id: quota.id,
-            ticket_class_type: quota.ticket_class?.type,
-            ticket_class_user_type: quota.ticket_class?.user_type,
-            ticket_class_name: quota.ticket_class?.name,
-            quota: quota.quota,
-          });
+        const hasCompanyType = quotas.some((q) => {
+          const t = (q.ticket_class?.type ?? q.ticket_class?.user_type ?? "").toLowerCase();
+          return companyTicketTypes.includes(t);
         });
-        
-        const hasCompanyType = quotas.some(
-          (quota) => {
-            // Check both type and user_type fields (backend uses user_type)
-            const type = quota.ticket_class?.type || quota.ticket_class?.user_type;
-            const matches = type && companyTicketTypes.includes(type.toLowerCase());
-            console.log(`🔍 CompleteProfileScreen - Checking quota type "${type}": ${matches}`);
-            return matches;
-          }
-        );
-        
-        console.log("🔍 CompleteProfileScreen - hasCompanyType result:", hasCompanyType);
         setHasCompanyTicket(hasCompanyType);
-      } catch (error) {
-        console.error("Error checking ticket types:", error);
-        // On error, default to attendee (no company)
+      } catch {
         setHasCompanyTicket(false);
       } finally {
         setIsCheckingTickets(false);
@@ -3340,7 +3417,8 @@ export default function CompleteProfileScreen({ route }: Props) {
     };
 
     checkTicketTypes();
-  }, []);
+    fetchProfile();
+  }, [fetchProfile]);
 
   // Show loading state while checking ticket types
   if (isCheckingTickets) {
@@ -3367,8 +3445,32 @@ export default function CompleteProfileScreen({ route }: Props) {
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
+      {profileError ? (
+        <View
+          className="mx-4 mt-2 mb-1 p-3 rounded-xl flex-row items-center flex-wrap"
+          style={{
+            backgroundColor: profileFromCache ? "#DBEAFE" : "#FEE2E2",
+            borderWidth: 1,
+            borderColor: profileFromCache ? "#93C5FD" : "#FECACA",
+          }}
+        >
+          <Text
+            className="flex-1 text-sm text-neutral-800"
+            style={{ minWidth: "70%" }}
+          >
+            {profileFromCache
+              ? `Showing cached profile. ${profileError} Retry to get latest.`
+              : `Couldn't load profile. ${profileError}`}
+          </Text>
+          <Pressable
+            onPress={() => fetchProfile()}
+            className="bg-black rounded-lg px-4 py-2 mt-2"
+          >
+            <Text className="text-white text-sm font-semibold">Retry</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {showCompanyProfile ? (
-        // Company users: Show segmented control (Personal | Company tabs)
         <>
           <SegmentedControl
             activeTab={activeTab}
@@ -3376,14 +3478,16 @@ export default function CompleteProfileScreen({ route }: Props) {
             isCompanyDisabled={!isPersonalComplete}
           />
           {activeTab === "personal" ? (
-            <PersonalProfileForm onPersonalSaved={handlePersonalSaved} />
+            <PersonalProfileForm
+              initialProfile={profile}
+              onPersonalSaved={handlePersonalSaved}
+            />
           ) : (
-        <CompanyProfileForm />
+            <CompanyProfileForm initialProfile={profile} />
           )}
         </>
       ) : (
-        // Attendee users: Show attendee profile only (no tabs)
-        <AttendeeProfileForm />
+        <AttendeeProfileForm initialProfile={profile} />
       )}
     </SafeAreaView>
   );

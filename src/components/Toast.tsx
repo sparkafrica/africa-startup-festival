@@ -6,7 +6,7 @@ interface ToastProps {
   message: string;
   visible: boolean;
   onHide: () => void;
-  type?: "success" | "error" | "info";
+  type?: "success" | "error" | "info" | "warning";
   duration?: number;
 }
 
@@ -68,7 +68,13 @@ export default function Toast({
   if (!visible) return null;
 
   const backgroundColor =
-    type === "success" ? "#10B981" : type === "error" ? "#EF4444" : "#3B82F6";
+    type === "success"
+      ? "#10B981"
+      : type === "error"
+      ? "#EF4444"
+      : type === "warning"
+      ? "#F59E0B"
+      : "#3B82F6";
 
   return (
     <SafeAreaView

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   ScrollView,
@@ -8,6 +8,8 @@ import {
   ImageSourcePropType,
   StyleSheet,
   Dimensions,
+  PanResponder,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -29,16 +31,20 @@ import {
   type MeetingFormData,
 } from "../components";
 import { useChecklist } from "../context/ChecklistContext";
+import { meetingService } from "../services/meetingService";
+import { EVENT_ID } from "../config/env";
+import { ApiClientError } from "../services/api";
 
 // ============================================
 // MODAL HEIGHT CONFIGURATION
 // Change this value to adjust modal height (0.0 to 1.0)
 // Example: 0.7 = 70%, 0.8 = 80%, 0.9 = 90%
 // ============================================
-const MODAL_HEIGHT_PERCENTAGE = 0.5;
+const MODAL_HEIGHT_PERCENTAGE = 0.95;
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const MODAL_HEIGHT = SCREEN_HEIGHT * MODAL_HEIGHT_PERCENTAGE;
+const DRAG_THRESHOLD = 100;
 
 type Props = RootStackScreenProps<"CompanyDetail">;
 
@@ -59,6 +65,74 @@ export default function CompanyDetailScreen({ route }: Props) {
     meetingType: "Physical" | "Virtual";
     meetingTitle: string;
   } | null>(null);
+
+  // Animation for drag-to-close
+  const translateY = useRef(new Animated.Value(0)).current;
+  const isAnimating = useRef(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollOffset = useRef(0);
+
+  // PanResponder for drag-to-close functionality - only on handle area
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => {
+        // Only start if not animating and scroll is at top
+        return !isAnimating.current && scrollOffset.current <= 5;
+      },
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond if scrolling is at top and gesture is clearly downward
+        return (
+          !isAnimating.current &&
+          scrollOffset.current <= 5 &&
+          Math.abs(gestureState.dy) > 8 &&
+          gestureState.dy > 0
+        );
+      },
+      onPanResponderGrant: () => {
+        if (isAnimating.current) return;
+        translateY.stopAnimation();
+        const currentValue = (translateY as any)._value || 0;
+        translateY.setOffset(currentValue);
+        translateY.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (isAnimating.current) return;
+        // Only allow dragging down, with resistance at the top
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (isAnimating.current) return;
+        translateY.flattenOffset();
+        const currentValue = (translateY as any)._value || 0;
+
+        if (currentValue > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+          isAnimating.current = true;
+          Animated.timing(translateY, {
+            toValue: MODAL_HEIGHT,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            translateY.setValue(0);
+            isAnimating.current = false;
+            navigation.goBack();
+          });
+        } else {
+          isAnimating.current = true;
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start(() => {
+            isAnimating.current = false;
+          });
+        }
+      },
+    })
+  ).current;
+
 
   // TODO: BACKEND INTEGRATION - Replace mock company data with API call
   // API Endpoint: GET /api/companies/{companyId}
@@ -134,30 +208,45 @@ export default function CompanyDetailScreen({ route }: Props) {
   };
 
   return (
-    <View className="flex-1 bg-white" style={styles.modalContainer}>
-      {/* Draggable Handle */}
-      <View style={styles.handleContainer}>
-        <View style={styles.handle} />
-      </View>
-
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: 24 }}
-        showsVerticalScrollIndicator={false}
+    <View style={styles.container} pointerEvents="box-none">
+      <Animated.View
+        style={[
+          styles.modalContainer,
+          {
+            transform: [{ translateY }],
+          },
+        ]}
       >
-        {/* Back Button */}
-        <View className="flex-row items-center px-4 pt-2 pb-4">
-          <Pressable
-            onPress={() => navigation.goBack()}
-            className="mr-3 flex-row items-center"
-            hitSlop={10}
-          >
-            <ChevronLeftIcon size={24} color="#404040" />
-          </Pressable>
+        {/* Draggable Handle - at the very top */}
+        <View style={styles.handleContainer} {...panResponder.panHandlers}>
+          <View style={styles.handle} />
         </View>
 
-        {/* Company Header */}
-        <View className="px-4 mb-6">
+        <ScrollView
+          ref={scrollViewRef}
+          className="flex-1"
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}
+          bounces={true}
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            scrollOffset.current = event.nativeEvent.contentOffset.y;
+          }}
+        >
+          {/* Back Button */}
+          <View className="flex-row items-center px-4 pt-2 pb-4">
+            <Pressable
+              onPress={() => navigation.goBack()}
+              className="mr-3 flex-row items-center"
+              hitSlop={10}
+            >
+              <ChevronLeftIcon size={24} color="#404040" />
+            </Pressable>
+          </View>
+
+          {/* Company Header */}
+          <View className="px-4 mb-6" style={{ marginTop: 8 }}>
           <View className="flex-row items-center mb-4">
             {/* Logo */}
             <View
@@ -351,12 +440,12 @@ export default function CompanyDetailScreen({ route }: Props) {
         </View> */}
       </ScrollView>
 
-      {/* Action Button */}
+      {/* Action Button - Fixed at bottom */}
       <SafeAreaView
         edges={["bottom"]}
-        className="bg-white border-t border-neutral-200"
+        style={styles.buttonContainer}
       >
-        <View className="px-4 pt-4 pb-2">
+        <View className="px-4 pt-4 pb-4">
           <Pressable
             className="bg-neutral-900 rounded-xl py-4 items-center flex-row justify-center"
             onPress={() => {
@@ -370,29 +459,45 @@ export default function CompanyDetailScreen({ route }: Props) {
           </Pressable>
         </View>
       </SafeAreaView>
+      </Animated.View>
 
       {/* Request Meeting Modal */}
       <RequestMeetingModal
         visible={isRequestMeetingModalVisible}
         onClose={() => setIsRequestMeetingModalVisible(false)}
-        onSubmit={(data: MeetingFormData) => {
-          console.log("Meeting Request Submitted:", data);
-          // Mark checklist item as completed when user submits meeting request
-          markRequestMeetingComplete();
-          // Show meeting request message modal
-          setMeetingRequestData({
-            attendeeName: name,
-            meetingType: data.meetingType,
-            meetingTitle: data.title || "Meeting",
-          });
-          setIsRequestMeetingModalVisible(false);
-          setIsMeetingRequestMessageVisible(true);
-          // TODO: BACKEND INTEGRATION - Send meeting request to backend
-          // API Endpoint: POST /api/meetings/request
-          // Request Body: { companyId: string, title, meetingType, date, time, tableNumber?, meetingLink?, description }
-          // TODO: BACKEND - Handle validation errors, conflicts, unavailable slots
-          // TODO: BACKEND - Show success/error messages
-          // TODO: BACKEND - Refresh meetings list after successful request
+        onSubmit={async (data: MeetingFormData) => {
+          // Backend meeting API requires requestee_id (user). Exhibitors/companies may not expose user id.
+          // TODO: Wire when backend provides company contact user id or company-based request endpoint.
+          const companyUserId = null; // route.params or company fetch could provide user id if available
+          if (!companyUserId) {
+            Alert.alert(
+              "Not supported",
+              "Requesting meetings with exhibitors/partners is not yet supported. Use Attendees or Connections to request meetings."
+            );
+            throw new Error("No company user id");
+          }
+          try {
+            await meetingService.submitMeetingRequestFromForm(
+              EVENT_ID,
+              data,
+              String(companyUserId)
+            );
+            markRequestMeetingComplete();
+            setMeetingRequestData({
+              attendeeName: name,
+              meetingType: data.meetingType,
+              meetingTitle: data.title || "Meeting",
+            });
+            setIsRequestMeetingModalVisible(false);
+            setIsMeetingRequestMessageVisible(true);
+          } catch (e: any) {
+            const msg =
+              e instanceof ApiClientError
+                ? e.message
+                : e?.message || "Failed to send meeting request. Please try again.";
+            Alert.alert("Error", msg);
+            throw e;
+          }
         }}
         attendeeName={name}
       />
@@ -413,21 +518,37 @@ export default function CompanyDetailScreen({ route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "transparent",
+    justifyContent: "flex-end",
+  },
   modalContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     height: MODAL_HEIGHT,
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: "hidden",
   },
   handleContainer: {
     alignItems: "center",
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 8,
+    paddingBottom: 0,
+    backgroundColor: "#FFFFFF",
   },
   handle: {
     width: 40,
     height: 4,
     backgroundColor: "#D1D5DB",
     borderRadius: 2,
+  },
+  buttonContainer: {
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
   },
 });

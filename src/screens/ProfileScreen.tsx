@@ -1,4 +1,4 @@
-import React, { useState, useRef, useImperativeHandle } from "react";
+import React, { useState, useRef, useImperativeHandle, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,8 +19,9 @@ import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
-import { authService } from "../services/authService";
+import { authService, type UserProfile } from "../services/authService";
 import { companyService } from "../services/companyService";
+import { getProfileCache, setProfileCache } from "../utils/profileCache";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
 import Toast from "../components/Toast";
@@ -781,11 +783,17 @@ function SegmentedControl({
 }
 
 function PersonalProfileSection({
+  initialProfile = null,
   onSave,
   saveTrigger,
+  onRefresh,
+  refreshing,
 }: {
+  initialProfile?: UserProfile | null;
   onSave?: () => void;
   saveTrigger?: number;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
@@ -808,85 +816,49 @@ function PersonalProfileSection({
     Record<string, string>
   >({});
 
-  // Get current profile picture from user
-  const currentProfilePic = user?.profile_pic || null;
-  // Show selected image if available, otherwise show current or null
+  const source = initialProfile ?? user;
+  const currentProfilePic = source?.profile_pic || null;
   const displayImageUri = shouldRemovePhoto
     ? null
     : selectedImageUri || currentProfilePic;
 
-  const dataLoadedRef = React.useRef(false);
-
-  // Load user data into form fields (only on initial mount to prevent overwriting user edits)
   React.useEffect(() => {
-    if (user && !dataLoadedRef.current) {
-      // Set full name
-      if (user.first_name || user.last_name) {
-        setFullName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
-      }
-
-      // Set job title
-      if (user.job_title) {
-        setJobTitle(user.job_title);
-      }
-
-      // Set bio
-      if (user.bio) {
-        setBio(user.bio);
-      }
-
-      // Set country - find matching ID from label
-      if (user.country) {
-        const countryOption = COUNTRY_OPTIONS.find(
-          (opt) => opt.label.toLowerCase() === user.country?.toLowerCase()
-        );
-        if (countryOption) {
-          setSelectedCountry(countryOption.id);
-        }
-      }
-
-      // Parse metadata (might be string or object)
-      let metadata = user.metadata;
-      if (typeof metadata === "string") {
-        try {
-          metadata = JSON.parse(metadata);
-        } catch (e) {
-          console.error("Error parsing metadata:", e);
-          metadata = {};
-        }
-      }
-
-      // Set LinkedIn from metadata
-      if (metadata?.linkedIn) {
-        setLinkedIn(metadata.linkedIn);
-      }
-
-      // Set industry from metadata - find matching ID from label
-      if (metadata?.industry) {
-        const industryOption = INDUSTRY_OPTIONS.find(
-          (opt) => opt.label.toLowerCase() === metadata.industry.toLowerCase()
-        );
-        if (industryOption) {
-          setSelectedIndustry(industryOption.id);
-        }
-      }
-
-      // Set interests from metadata
-      if (metadata?.interests && Array.isArray(metadata.interests)) {
-        setSelectedInterests(metadata.interests);
-      }
-
-      // Set company name from user.company
-      if (user?.company?.name) {
-        setCompany(user.company.name);
-      }
-
-      // Clear validation errors when data loads
-      setValidationErrors({});
-
-      dataLoadedRef.current = true;
+    if (!source) return;
+    if (source.first_name ?? source.last_name) {
+      setFullName(`${source.first_name ?? ""} ${source.last_name ?? ""}`.trim());
     }
-  }, [user]);
+    if (source.job_title) setJobTitle(source.job_title);
+    if (source.bio) setBio(source.bio);
+    if (source.country) {
+      const opt = COUNTRY_OPTIONS.find(
+        (o) => o.label.toLowerCase() === source.country!.toLowerCase()
+      );
+      if (opt) setSelectedCountry(opt.id);
+    }
+    let metadata = source.metadata;
+    if (typeof metadata === "string") {
+      try {
+        metadata = JSON.parse(metadata) as Record<string, unknown>;
+      } catch {
+        metadata = {};
+      }
+    }
+    const meta = (metadata ?? {}) as Record<string, unknown>;
+    const li = meta.linkedIn ?? meta.linkedin_url;
+    if (typeof li === "string") setLinkedIn(li);
+    if (meta.industry && typeof meta.industry === "string") {
+      const opt = INDUSTRY_OPTIONS.find(
+        (o) => o.label.toLowerCase() === (meta.industry as string).toLowerCase()
+      );
+      if (opt) setSelectedIndustry(opt.id);
+    }
+    if (Array.isArray(meta.interests)) {
+      setSelectedInterests(meta.interests as string[]);
+    }
+    const companyName = (source as UserProfile).company?.name;
+    if (companyName) setCompany(companyName);
+    setValidationErrors({});
+  }, [source]);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -1046,9 +1018,10 @@ function PersonalProfileSection({
     }
 
     try {
-      // Handle profile picture upload or removal
+      let photoUpdateFailed = false;
+
+      // Handle profile picture upload or removal (best-effort; don't block profile save)
       if (shouldRemovePhoto) {
-        // Remove profile picture
         setIsUploadingImage(true);
         try {
           await authService.removeProfilePicture();
@@ -1059,26 +1032,23 @@ function PersonalProfileSection({
             imageError.message || "Failed to remove profile picture.",
             "error"
           );
-          setIsUploadingImage(false);
-          return false;
+          photoUpdateFailed = true;
         } finally {
           setIsUploadingImage(false);
         }
       } else if (selectedImageUri) {
-        // Upload new profile picture
         setIsUploadingImage(true);
         try {
           await authService.uploadProfilePicture(selectedImageUri);
-          setSelectedImageUri(null); // Clear selected image after successful upload
-          setShouldRemovePhoto(false); // Clear removal flag if it was set
+          setSelectedImageUri(null);
+          setShouldRemovePhoto(false);
         } catch (imageError: any) {
           console.error("Error uploading profile picture:", imageError);
           showToast(
             imageError.message || "Failed to upload profile picture.",
             "error"
           );
-          setIsUploadingImage(false);
-          return false;
+          photoUpdateFailed = true;
         } finally {
           setIsUploadingImage(false);
         }
@@ -1124,13 +1094,15 @@ function PersonalProfileSection({
         profileData.metadata = metadata;
       }
 
-      // Save profile data to backend API
+      // Save profile data to backend API (always run, even if photo update failed)
       await authService.updateProfile(profileData);
 
-      // Show success toast
-      showToast("Profile saved successfully!", "success");
+      if (photoUpdateFailed) {
+        showToast("Profile saved. Photo could not be updated.", "warning");
+      } else {
+        showToast("Profile saved successfully!", "success");
+      }
 
-      // Call onSave callback if provided (this refreshes user data)
       if (onSave) {
         await onSave();
       }
@@ -1138,7 +1110,6 @@ function PersonalProfileSection({
     } catch (error: any) {
       console.error("Error saving profile:", error);
 
-      // Handle backend validation errors
       if (error.responseCode === 400 && error.data) {
         const backendErrors: Record<string, string> = {};
         Object.keys(error.data).forEach((field) => {
@@ -1187,6 +1158,11 @@ function PersonalProfileSection({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        refreshControl={
+          onRefresh != null && refreshing !== undefined ? (
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          ) : undefined
+        }
       >
         <View className="px-4">
           {/* Profile Picture and Name Section */}
@@ -1234,12 +1210,12 @@ function PersonalProfileSection({
               </View>
               <View className="ml-4 flex-1">
                 <Text className="text-[18px] font-bold text-black">
-                  {user?.first_name && user?.last_name
-                    ? `${user.first_name} ${user.last_name}`.trim()
-                    : user?.first_name || user?.email?.split("@")[0] || "User"}
+                  {source?.first_name && source?.last_name
+                    ? `${source.first_name} ${source.last_name}`.trim()
+                    : source?.first_name || source?.email?.split("@")[0] || "User"}
                 </Text>
                 <Text className="text-sm text-neutral-600 mt-1">
-                  {user?.email || ""}
+                  {source?.email ?? ""}
                 </Text>
               </View>
             </View>
@@ -1522,15 +1498,21 @@ function PersonalProfileSection({
 }
 
 function AttendeeProfileSection({
+  initialProfile = null,
   onSave,
   saveTrigger,
   isSubmitting,
   setIsSubmitting,
+  onRefresh,
+  refreshing,
 }: {
+  initialProfile?: UserProfile | null;
   onSave?: () => void;
   saveTrigger?: number;
   isSubmitting?: boolean;
   setIsSubmitting?: (value: boolean) => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
@@ -1552,72 +1534,44 @@ function AttendeeProfileSection({
     Record<string, string>
   >({});
 
-  // Get current profile picture from user
-  const currentProfilePic = user?.profile_pic || null;
+  const source = initialProfile ?? user;
+  const currentProfilePic = source?.profile_pic || null;
   const displayImageUri = shouldRemovePhoto
     ? null
     : selectedImageUri || currentProfilePic;
 
-  // Load user data into form fields
   React.useEffect(() => {
-    if (user) {
-      // Set full name
-      if (user.first_name || user.last_name) {
-        setFullName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
-      }
-
-      // Set job title
-      if (user.job_title) {
-        setJobTitle(user.job_title);
-      }
-
-      // Set bio
-      if (user.bio) {
-        setBio(user.bio);
-      }
-
-      // Set country - find matching ID from label
-      if (user.country) {
-        const countryOption = COUNTRY_OPTIONS.find(
-          (opt) => opt.label.toLowerCase() === user.country?.toLowerCase()
-        );
-        if (countryOption) {
-          setSelectedCountry(countryOption.id);
-        }
-      }
-
-      // Parse metadata (might be string or object)
-      let metadata = user.metadata;
-      if (typeof metadata === "string") {
-        try {
-          metadata = JSON.parse(metadata);
-        } catch (e) {
-          console.error("Error parsing metadata:", e);
-          metadata = {};
-        }
-      }
-
-      // Set industry from metadata - find matching ID from label
-      if (metadata?.industry) {
-        const industryOption = INDUSTRY_OPTIONS.find(
-          (opt) => opt.label.toLowerCase() === metadata.industry.toLowerCase()
-        );
-        if (industryOption) {
-          setSelectedIndustry(industryOption.id);
-        }
-      }
-
-      // Set interests from metadata
-      if (metadata?.interests && Array.isArray(metadata.interests)) {
-        setSelectedInterests(metadata.interests);
-      }
-
-      // Set LinkedIn from metadata (optional for attendees)
-      if (metadata?.linkedIn) {
-        setLinkedIn(metadata.linkedIn);
+    if (!source) return;
+    if (source.first_name ?? source.last_name) {
+      setFullName(`${source.first_name ?? ""} ${source.last_name ?? ""}`.trim());
+    }
+    if (source.job_title) setJobTitle(source.job_title);
+    if (source.bio) setBio(source.bio);
+    if (source.country) {
+      const opt = COUNTRY_OPTIONS.find(
+        (o) => o.label.toLowerCase() === source.country!.toLowerCase()
+      );
+      if (opt) setSelectedCountry(opt.id);
+    }
+    let metadata = source.metadata;
+    if (typeof metadata === "string") {
+      try {
+        metadata = JSON.parse(metadata) as Record<string, unknown>;
+      } catch {
+        metadata = {};
       }
     }
-  }, [user]);
+    const meta = (metadata ?? {}) as Record<string, unknown>;
+    if (meta.industry && typeof meta.industry === "string") {
+      const opt = INDUSTRY_OPTIONS.find(
+        (o) => o.label.toLowerCase() === (meta.industry as string).toLowerCase()
+      );
+      if (opt) setSelectedIndustry(opt.id);
+    }
+    if (Array.isArray(meta.interests)) setSelectedInterests(meta.interests as string[]);
+    const li = meta.linkedIn ?? meta.linkedin_url;
+    if (typeof li === "string") setLinkedIn(li);
+  }, [source]);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -1775,9 +1729,10 @@ function AttendeeProfileSection({
 
     try {
       if (setIsSubmitting) setIsSubmitting(true);
-      // Handle profile picture upload or removal
+      let photoUpdateFailed = false;
+
+      // Handle profile picture upload or removal (best-effort; don't block profile save)
       if (shouldRemovePhoto) {
-        // Remove profile picture
         setIsUploadingImage(true);
         try {
           await authService.removeProfilePicture();
@@ -1788,14 +1743,11 @@ function AttendeeProfileSection({
             imageError.message || "Failed to remove profile picture.",
             "error"
           );
-          setIsUploadingImage(false);
-          if (setIsSubmitting) setIsSubmitting(false);
-          return false;
+          photoUpdateFailed = true;
         } finally {
           setIsUploadingImage(false);
         }
       } else if (selectedImageUri) {
-        // Upload new profile picture
         setIsUploadingImage(true);
         try {
           await authService.uploadProfilePicture(selectedImageUri);
@@ -1807,9 +1759,7 @@ function AttendeeProfileSection({
             imageError.message || "Failed to upload profile picture.",
             "error"
           );
-          setIsUploadingImage(false);
-          if (setIsSubmitting) setIsSubmitting(false);
-          return false;
+          photoUpdateFailed = true;
         } finally {
           setIsUploadingImage(false);
         }
@@ -1856,13 +1806,15 @@ function AttendeeProfileSection({
         profileData.metadata = metadata;
       }
 
-      // Save profile data to backend API
+      // Save profile data to backend API (always run, even if photo update failed)
       await authService.updateProfile(profileData);
 
-      // Show success toast
-      showToast("Profile saved successfully!", "success");
+      if (photoUpdateFailed) {
+        showToast("Profile saved. Photo could not be updated.", "warning");
+      } else {
+        showToast("Profile saved successfully!", "success");
+      }
 
-      // Call onSave callback if provided
       if (onSave) {
         await onSave();
       }
@@ -1922,6 +1874,11 @@ function AttendeeProfileSection({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        refreshControl={
+          onRefresh != null && refreshing !== undefined ? (
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          ) : undefined
+        }
       >
         <View className="px-4">
           {/* Profile Picture and Name Section */}
@@ -1969,12 +1926,12 @@ function AttendeeProfileSection({
               </View>
               <View className="ml-4 flex-1">
                 <Text className="text-[18px] font-bold text-black">
-                  {user?.first_name && user?.last_name
-                    ? `${user.first_name} ${user.last_name}`.trim()
-                    : user?.first_name || user?.email?.split("@")[0] || "User"}
+                  {source?.first_name && source?.last_name
+                    ? `${source.first_name} ${source.last_name}`.trim()
+                    : source?.first_name || source?.email?.split("@")[0] || "User"}
                 </Text>
                 <Text className="text-sm text-neutral-600 mt-1">
-                  {user?.email || ""}
+                  {source?.email ?? ""}
                 </Text>
               </View>
             </View>
@@ -2241,15 +2198,21 @@ function AttendeeProfileSection({
 }
 
 function CompanyProfileSection({
+  initialProfile = null,
   onSave,
   saveTrigger,
   isSubmitting,
   setIsSubmitting,
+  onRefresh,
+  refreshing,
 }: {
+  initialProfile?: UserProfile | null;
   onSave?: () => void;
   saveTrigger?: number;
   isSubmitting?: boolean;
   setIsSubmitting?: (value: boolean) => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
@@ -2287,120 +2250,75 @@ function CompanyProfileSection({
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-  // Get current company logo from user
-  const currentCompanyLogo = user?.company?.logo || null;
-  // Show selected image if available, otherwise show current or null
+  const companySource = initialProfile?.company ?? user?.company;
+  const currentCompanyLogo = companySource?.logo || null;
   const displayImageUri = shouldRemovePhoto
     ? null
     : selectedImageUri || currentCompanyLogo;
 
-  const dataLoadedRef = React.useRef(false);
-
-  // Load company data into form fields (only on initial mount to prevent overwriting user edits)
   React.useEffect(() => {
-    if (user?.company && !dataLoadedRef.current) {
-      const company = user.company;
-
-      // Set company name
-      if (company.name) {
-        setCompanyName(company.name);
-      }
-
-      // Parse metadata first (might be string or object)
-      let metadata = company.metadata;
-      if (typeof metadata === "string") {
-        try {
-          metadata = JSON.parse(metadata);
-        } catch (e) {
-          console.error("Error parsing company metadata:", e);
-          metadata = {};
-        }
-      }
-
-      // Set booth number from metadata (check after parsing)
-      if (metadata?.boothNumber) {
-        setBoothNumber(metadata.boothNumber);
-      }
-
-      // Set website from metadata
-      if (metadata?.website) {
-        setWebsite(metadata.website);
-      }
-
-      // Set company description
-      if (company.company_description) {
-        setCompanyDescription(company.company_description);
-      }
-
-      // Set industry - find matching ID from label
-      if (company.company_sector) {
-        const industryOption = INDUSTRY_OPTIONS.find(
-          (opt) =>
-            opt.label.toLowerCase() === company.company_sector?.toLowerCase()
-        );
-        if (industryOption) {
-          setSelectedIndustry(industryOption.id);
-        }
-      }
-
-      // Set country - find matching ID from label
-      if (company.country) {
-        const countryOption = COUNTRY_OPTIONS.find(
-          (opt) => opt.label.toLowerCase() === company.country?.toLowerCase()
-        );
-        if (countryOption) {
-          setSelectedCountry(countryOption.id);
-        }
-      }
-
-      // Set social links from metadata (check both direct and nested socialLinks object)
-      // Note: metadata is already parsed above
-      const socialLinks = metadata?.socialLinks || {};
-      if (metadata?.linkedIn || socialLinks?.linkedin) {
-        setLinkedIn(metadata?.linkedIn || socialLinks?.linkedin || "");
-      }
-      if (metadata?.facebook || socialLinks?.facebook) {
-        setFacebook(metadata?.facebook || socialLinks?.facebook || "");
-      }
-      if (metadata?.instagram || socialLinks?.instagram) {
-        setInstagram(metadata?.instagram || socialLinks?.instagram || "");
-      }
-      if (
-        metadata?.xHandle ||
-        metadata?.twitter ||
-        socialLinks?.x ||
-        socialLinks?.xHandle
-      ) {
-        setXHandle(
-          metadata?.xHandle ||
-            metadata?.twitter ||
-            socialLinks?.x ||
-            socialLinks?.xHandle ||
-            ""
-        );
-      }
-
-      // Set offers from metadata
-      if (metadata?.offers && Array.isArray(metadata.offers)) {
-        setOffers(metadata.offers);
-      }
-
-      // Set positions from metadata
-      if (metadata?.positions && Array.isArray(metadata.positions)) {
-        setPositions(metadata.positions);
-      }
-
-      // Set recruiting status
-      if (typeof metadata?.isRecruiting === "boolean") {
-        setIsRecruiting(metadata.isRecruiting);
-      }
-
-      // Clear validation errors when data loads
-      setValidationErrors({});
-
-      dataLoadedRef.current = true;
+    const c = companySource;
+    if (!c) return;
+    if (c.name) setCompanyName(c.name);
+    if (c.company_description) setCompanyDescription(c.company_description);
+    if (c.company_sector) {
+      const opt = INDUSTRY_OPTIONS.find(
+        (o) => o.label.toLowerCase() === c.company_sector!.toLowerCase()
+      );
+      if (opt) setSelectedIndustry(opt.id);
     }
-  }, [user?.company]);
+    if (c.country) {
+      const opt = COUNTRY_OPTIONS.find(
+        (o) => o.label.toLowerCase() === c.country!.toLowerCase()
+      );
+      if (opt) setSelectedCountry(opt.id);
+    }
+    let metadata = c.metadata;
+    if (typeof metadata === "string") {
+      try {
+        metadata = JSON.parse(metadata) as Record<string, unknown>;
+      } catch {
+        metadata = {};
+      }
+    }
+    const meta = (metadata ?? {}) as Record<string, unknown>;
+    if (typeof meta.website === "string") setWebsite(meta.website);
+    if (typeof meta.boothNumber === "string") setBoothNumber(meta.boothNumber);
+    const sl = meta.socialLinks as Record<string, string> | undefined;
+    if (sl && typeof sl === "object") {
+      if (sl.linkedin) setLinkedIn(sl.linkedin);
+      if (sl.facebook) setFacebook(sl.facebook);
+      if (sl.instagram) setInstagram(sl.instagram);
+      if (sl.x ?? sl.xHandle) setXHandle(sl.x ?? sl.xHandle ?? "");
+    }
+    if (typeof meta.linkedIn === "string") setLinkedIn(meta.linkedIn);
+    if (typeof meta.facebook === "string") setFacebook(meta.facebook);
+    if (typeof meta.instagram === "string") setInstagram(meta.instagram);
+    if (typeof (meta.xHandle ?? meta.twitter) === "string") {
+      setXHandle((meta.xHandle ?? meta.twitter) as string);
+    }
+    if (Array.isArray(meta.offers) && meta.offers.length > 0) {
+      setOffers(
+        (meta.offers as Array<{ title: string; color?: string }>).map((o) => ({
+          title: o.title ?? "",
+          color: o.color ?? "#4CAF50",
+        }))
+      );
+    }
+    if (typeof meta.isRecruiting === "boolean") setIsRecruiting(meta.isRecruiting);
+    if (Array.isArray(meta.positions) && meta.positions.length > 0) {
+      setPositions(
+        (meta.positions as Array<{ id?: string; role: string; link: string }>).map(
+          (p, i) => ({
+            id: p.id ?? `pos-${i}`,
+            role: p.role ?? "",
+            link: p.link ?? "",
+          })
+        )
+      );
+    }
+    setValidationErrors({});
+  }, [companySource]);
 
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -2607,61 +2525,45 @@ function CompanyProfileSection({
       return false;
     }
 
-    if (setIsSubmitting) {
-      console.log("🔄 Setting isSubmitting to true");
-      setIsSubmitting(true);
-    }
+    if (setIsSubmitting) setIsSubmitting(true);
     try {
-      if (!user?.company?.id) {
+      if (!companySource?.id) {
         showToast("Company not found. Please contact support.", "error");
         if (setIsSubmitting) setIsSubmitting(false);
         return false;
       }
 
-      // Handle company logo upload or removal
+      let logoUpdateFailed = false;
+
       if (shouldRemovePhoto) {
-        // Remove company logo
         setIsUploadingImage(true);
         try {
-          // Logo removal: Currently handled via authService.updateProfile() with null logo
-          // Future enhancement: Dedicated endpoint for logo removal if needed
-          // await companyService.removeCompanyLogo(user.company.id);
           setShouldRemovePhoto(false);
+          // TODO: backend support for removing company logo
         } catch (imageError: any) {
-          console.error("Error removing company logo:", imageError);
           showToast(
             imageError.message || "Failed to remove company logo.",
             "error"
           );
-          setIsUploadingImage(false);
-          return false;
+          logoUpdateFailed = true;
         } finally {
           setIsUploadingImage(false);
         }
       } else if (selectedImageUri) {
-        // Upload new company logo (mimic Personal tab pattern)
-        console.log("📸 Starting company logo upload...", selectedImageUri);
         setIsUploadingImage(true);
         try {
-          console.log(
-            "📸 Calling uploadCompanyLogo with companyId:",
-            user.company.id
-          );
           await companyService.uploadCompanyLogo(
-            user.company.id,
+            companySource.id,
             selectedImageUri
           );
-          console.log("✅ Company logo uploaded successfully!");
-          setSelectedImageUri(null); // Clear selected image after successful upload
-          setShouldRemovePhoto(false); // Clear removal flag if it was set
+          setSelectedImageUri(null);
+          setShouldRemovePhoto(false);
         } catch (imageError: any) {
-          console.error("❌ Error uploading company logo:", imageError);
           showToast(
             imageError.message || "Failed to upload company logo.",
             "error"
           );
-          setIsUploadingImage(false);
-          return false;
+          logoUpdateFailed = true;
         } finally {
           setIsUploadingImage(false);
         }
@@ -2720,21 +2622,19 @@ function CompanyProfileSection({
         }
       });
 
-      // Save company data to backend API
-      await companyService.updateCompany(user.company.id, companyData);
+      await companyService.updateCompany(companySource.id, companyData);
 
-      // Show success toast
-      showToast("Company profile saved successfully!", "success");
+      if (logoUpdateFailed) {
+        showToast("Company profile saved. Logo could not be updated.", "warning");
+      } else {
+        showToast("Company profile saved successfully!", "success");
+      }
 
-      // Call onSave callback if provided (this refreshes user data)
-      // Await to ensure user data is refreshed before component re-renders
       if (onSave) {
         await onSave();
       }
 
-      // Clear selectedImageUri after user data is refreshed (so displayImageUri uses currentCompanyLogo from backend)
       setSelectedImageUri(null);
-
       if (setIsSubmitting) setIsSubmitting(false);
       return true;
     } catch (error: any) {
@@ -2790,6 +2690,11 @@ function CompanyProfileSection({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        refreshControl={
+          onRefresh != null && refreshing !== undefined ? (
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          ) : undefined
+        }
       >
         <View className="px-4">
           {/* Company Picture and Name Section */}
@@ -3357,10 +3262,48 @@ function CompanyProfileSection({
 
 export default function ProfileScreen() {
   const { user, completeProfile } = useAuth();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileFromCache, setProfileFromCache] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Determine user role based on company association
-  // If user has a company, show company profile tabs, otherwise show attendee profile
-  const userRole: "attendee" | "company" = user?.company
+  const fetchProfile = useCallback(async () => {
+    try {
+      const p = await authService.getCurrentUser();
+      setProfile(p);
+      setProfileError(null);
+      setProfileFromCache(false);
+      await setProfileCache(p);
+    } catch (e: any) {
+      const msg = e?.message ?? "Failed to load profile";
+      const cached = await getProfileCache();
+      if (cached) {
+        setProfile(cached);
+        setProfileFromCache(true);
+        setProfileError(msg);
+      } else {
+        setProfile(null);
+        setProfileFromCache(false);
+        setProfileError(msg);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchProfile();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchProfile]);
+
+  // Determine user role based on company association (prioritize fetched profile)
+  const userRole: "attendee" | "company" = (profile?.company ?? user?.company)
     ? "company"
     : "attendee";
   const [activeTab, setActiveTab] = useState<"Personal" | "Company">(
@@ -3389,13 +3332,41 @@ export default function ProfileScreen() {
     <View className="flex-1 bg-white">
       <SafeAreaView edges={["top"]} className="flex-1">
         <Header />
+        {profileError ? (
+          <View
+            className="mx-4 mt-2 mb-1 p-3 rounded-xl flex-row items-center flex-wrap"
+            style={{
+              backgroundColor: profileFromCache ? "#DBEAFE" : "#FEE2E2",
+              borderWidth: 1,
+              borderColor: profileFromCache ? "#93C5FD" : "#FECACA",
+            }}
+          >
+            <Text
+              className="flex-1 text-sm text-neutral-800"
+              style={{ minWidth: "70%" }}
+            >
+              {profileFromCache
+                ? `Showing cached profile. ${profileError} Retry to get latest.`
+                : `Couldn't load profile. ${profileError}`}
+            </Text>
+            <Pressable
+              onPress={() => fetchProfile()}
+              className="bg-black rounded-lg px-4 py-2 mt-2"
+            >
+              <Text className="text-white text-sm font-semibold">Retry</Text>
+            </Pressable>
+          </View>
+        ) : null}
         {userRole === "attendee" ? (
           <>
             <AttendeeProfileSection
+              initialProfile={profile}
               saveTrigger={attendeeSaveTrigger}
               onSave={completeProfile}
               isSubmitting={attendeeIsSubmitting}
               setIsSubmitting={setAttendeeIsSubmitting}
+              onRefresh={onRefresh}
+              refreshing={refreshing}
             />
             {/* Save Changes Button */}
             <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
@@ -3425,15 +3396,21 @@ export default function ProfileScreen() {
             />
             {activeTab === "Personal" ? (
               <PersonalProfileSection
+                initialProfile={profile}
                 saveTrigger={personalSaveTrigger}
                 onSave={completeProfile}
+                onRefresh={onRefresh}
+                refreshing={refreshing}
               />
             ) : (
               <CompanyProfileSection
+                initialProfile={profile}
                 saveTrigger={companySaveTrigger}
                 onSave={completeProfile}
                 isSubmitting={companyIsSubmitting}
                 setIsSubmitting={setCompanyIsSubmitting}
+                onRefresh={onRefresh}
+                refreshing={refreshing}
               />
             )}
             {/* Save Changes Button */}

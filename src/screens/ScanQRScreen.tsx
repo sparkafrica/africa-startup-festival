@@ -31,7 +31,9 @@ import { ticketService, type Attendee } from "../services/ticketService";
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { useAuth } from "../context/AuthContext";
+import { useChecklist } from "../context/ChecklistContext";
 import { EVENT_ID } from "../config/env";
+import { ApiClientError } from "../services/api";
 import QRCode from "react-native-qrcode-svg";
 import RequestMeetingModal, {
   type MeetingFormData,
@@ -4325,53 +4327,34 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     }
   };
 
+  const { markRequestMeetingComplete } = useChecklist();
+
   const handleRequestMeeting = () => {
-    // Open the meeting request modal (similar to speaker meeting requests)
     setRequestMeetingModalVisible(true);
   };
 
   const handleMeetingRequestSubmit = async (formData: MeetingFormData) => {
-    // TODO: BACKEND INTEGRATION - Map form data to backend API format and enable
-    if (__DEV__) {
-      console.log(
-        "Meeting request submitted - disabled until backend integration:",
-        formData
-      );
+    if (!scannedAttendee) {
+      showToast("No attendee data available", "error");
+      throw new Error("No attendee");
     }
-    setRequestMeetingModalVisible(false);
-    return;
-
-    // Disabled code:
-    // if (!scannedAttendee) {
-    //   showToast("No attendee data available", "error");
-    //   return;
-    // }
-    // try {
-    //   // The backend requires: requestee_id, meeting_slot_id, reason
-    //   // The modal form provides: title, meetingType, tableNumber/meetingLink, date, time, description
-    //   // We need to:
-    //   // 1. Find or create a meeting slot based on date/time/table
-    //   // 2. Use the description as the reason
-    //   // 3. Call meetingService.requestMeeting({
-    //   //      requestee_id: scannedAttendee.user.id,
-    //   //      meeting_slot_id: meetingSlotId,
-    //   //      reason: formData.description,
-    //   //    });
-    //   showToast("Meeting request sent successfully!", "success");
-    //   setRequestMeetingModalVisible(false);
-    // } catch (error: any) {
-    //   const responseCode =
-    //     error?.responseCode || error?.response_code || error?.statusCode;
-    //   let errorMessage = "Failed to send meeting request. Please try again.";
-    //   if (responseCode === 400) {
-    //     errorMessage = "Invalid meeting request. Please check your details.";
-    //   } else if (responseCode === 404) {
-    //     errorMessage = "Meeting slot not found.";
-    //   } else if (responseCode === 409) {
-    //     errorMessage = "You already have a pending meeting request with this user.";
-    //   }
-    //   showToast(errorMessage, "error");
-    // }
+    try {
+      await meetingService.submitMeetingRequestFromForm(
+        EVENT_ID,
+        formData,
+        String(scannedAttendee.user.id)
+      );
+      markRequestMeetingComplete();
+      showToast("Meeting request sent successfully!", "success");
+      setRequestMeetingModalVisible(false);
+    } catch (e: any) {
+      const msg =
+        e instanceof ApiClientError
+          ? e.message
+          : e?.message || "Failed to send meeting request. Please try again.";
+      showToast(msg, "error");
+      throw e;
+    }
   };
 
   const handleConnect = async () => {

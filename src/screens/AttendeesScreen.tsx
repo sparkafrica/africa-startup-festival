@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,10 @@ import {
   Platform,
   Animated as RNAnimated,
   PanResponder,
+  ActivityIndicator,
+  RefreshControl,
+  Image,
+  ImageSourcePropType,
 } from "react-native";
 import { GestureDetector, Gesture, Pressable as GesturePressable } from "react-native-gesture-handler";
 import Animated, {
@@ -21,10 +25,18 @@ import Animated, {
   interpolate,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useChecklist } from "../context/ChecklistContext";
+import { useAuth } from "../context/AuthContext";
+import { attendeeService, type Attendee as BackendAttendee } from "../services/attendeeService";
+import { connectionService } from "../services/connectionService";
+import { meetingService } from "../services/meetingService";
+import { EVENT_ID } from "../config/env";
+import { ApiClientError } from "../services/api";
+import { useToast } from "../hooks/useToast";
+import Toast from "../components/Toast";
 import {
   HeaderBar,
   BottomNavigation,
@@ -51,6 +63,9 @@ import {
 import { ChevronDownIcon, ListIcon, SearchIcon } from "../components/icons";
 import { LinkedInIcon } from "../components/SocialIcons";
 import Svg, { Path, Circle } from "react-native-svg";
+
+const ATTENDEE_PAGE_SIZE = 20;
+const LOAD_MORE_THRESHOLD = 3;
 
 // Grid Icon Component (for Card View)
 function GridIcon({
@@ -192,11 +207,14 @@ interface Attendee {
   name: string;
   role?: string;
   company?: string;
-  avatar?: string | number;
+  avatar?: ImageSourcePropType;
   tags?: string[];
   bio?: string;
   interests?: string[];
   linkedInUrl?: string;
+  industry?: string;
+  connectionStatus?: "pending" | "accepted" | null;
+  backendData?: BackendAttendee;
 }
 
 // Attendee Card Component (Tinder-style card)
@@ -463,28 +481,67 @@ function AttendeeCard({
             hasFilters ? "mb-1.5 pt-2" : "mb-3"
           }`}
         >
-          {/* Profile Picture Placeholder */}
+          {/* Profile Picture */}
           <View
             className={`${
               hasFilters ? "w-12 h-12" : "w-16 h-16"
-            } rounded-full bg-neutral-100 items-center justify-center ${
+            } rounded-full bg-neutral-100 items-center justify-center overflow-hidden ${
               hasFilters ? "mr-3" : "mr-4"
             }`}
           >
-            <PersonIcon size={hasFilters ? 24 : 32} color="#A3A3A3" />
+            {attendee.avatar && typeof attendee.avatar === "object" && "uri" in attendee.avatar && attendee.avatar.uri ? (
+              <Image
+                source={attendee.avatar as ImageSourcePropType}
+                style={{
+                  width: hasFilters ? 48 : 64,
+                  height: hasFilters ? 48 : 64,
+                  borderRadius: hasFilters ? 24 : 32,
+                }}
+                resizeMode="cover"
+              />
+            ) : (
+              <PersonIcon size={hasFilters ? 24 : 32} color="#A3A3A3" />
+            )}
           </View>
 
           {/* Name and Title */}
           <View className="flex-1">
-            <Text
-              className={`${
-                hasFilters ? "text-lg" : "text-2xl"
-              } font-bold text-neutral-900 ${
-                hasFilters ? "mb-0.5 pt-2" : "mb-1"
-              }`}
-            >
-              {attendee.name}
-            </Text>
+            <View className="flex-row items-center flex-wrap gap-2">
+              <Text
+                className={`${
+                  hasFilters ? "text-lg" : "text-2xl"
+                } font-bold text-neutral-900 ${
+                  hasFilters ? "mb-0.5 pt-2" : "mb-1"
+                }`}
+              >
+                {attendee.name}
+              </Text>
+              {attendee.connectionStatus && (
+                <View
+                  className="px-2 py-0.5 rounded-full"
+                  style={{
+                    backgroundColor:
+                      attendee.connectionStatus === "accepted"
+                        ? "#D1FAE5"
+                        : "#FEF3C7",
+                  }}
+                >
+                  <Text
+                    className="text-xs font-medium"
+                    style={{
+                      color:
+                        attendee.connectionStatus === "accepted"
+                          ? "#10B981"
+                          : "#F59E0B",
+                    }}
+                  >
+                    {attendee.connectionStatus === "accepted"
+                      ? "Connected"
+                      : "Pending"}
+                  </Text>
+                </View>
+              )}
+            </View>
             <Text
               className={`${
                 hasFilters ? "text-xs" : "text-base"
@@ -598,26 +655,47 @@ function AttendeeCard({
             </Text>
           </GesturePressable>
 
-          <GesturePressable
-            onPress={() => {
-              if (onConnect) {
-                onConnect(attendee);
-              }
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            className={`w-full flex-row items-center justify-center bg-neutral-100 rounded-xl ${
-              hasFilters ? "py-4 px-3" : "py-3 px-4"
-            }`}
-          >
-            <PeopleIcon size={hasFilters ? 16 : 20} color="#404040" />
-            <Text
-              className={`${
-                hasFilters ? "text-normal font-medium" : "text-base"
-              } font-medium text-neutral-900 ${hasFilters ? "ml-1.5" : "ml-2"}`}
+          {attendee.connectionStatus === "accepted" ||
+          attendee.connectionStatus === "pending" ? (
+            <View
+              className={`w-full flex-row items-center justify-center rounded-xl ${
+                hasFilters ? "py-4 px-3" : "py-3 px-4"
+              }`}
+              style={{ backgroundColor: "#E5E7EB" }}
             >
-              Connect
-            </Text>
-          </GesturePressable>
+              <PeopleIcon size={hasFilters ? 16 : 20} color="#9CA3AF" />
+              <Text
+                className={`${
+                  hasFilters ? "text-normal font-medium" : "text-base"
+                } font-medium text-neutral-500 ${hasFilters ? "ml-1.5" : "ml-2"}`}
+              >
+                {attendee.connectionStatus === "accepted"
+                  ? "Connected"
+                  : "Pending"}
+              </Text>
+            </View>
+          ) : (
+            <GesturePressable
+              onPress={() => {
+                if (onConnect) {
+                  onConnect(attendee);
+                }
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              className={`w-full flex-row items-center justify-center bg-neutral-100 rounded-xl ${
+                hasFilters ? "py-4 px-3" : "py-3 px-4"
+              }`}
+            >
+              <PeopleIcon size={hasFilters ? 16 : 20} color="#404040" />
+              <Text
+                className={`${
+                  hasFilters ? "text-normal font-medium" : "text-base"
+                } font-medium text-neutral-900 ${hasFilters ? "ml-1.5" : "ml-2"}`}
+              >
+                Connect
+              </Text>
+            </GesturePressable>
+          )}
         </View>
       </View>
       </Animated.View>
@@ -630,6 +708,7 @@ export default function AttendeesScreen() {
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const { markConnectAttendeesComplete, markRequestMeetingComplete } =
     useChecklist();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"Recommended" | "All">(
     "Recommended"
   );
@@ -665,6 +744,22 @@ export default function AttendeesScreen() {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Backend data state
+  const [allAttendeesBackend, setAllAttendeesBackend] = useState<Attendee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [skippedAttendeeIds, setSkippedAttendeeIds] = useState<Set<string>>(new Set());
+  const [attendeePage, setAttendeePage] = useState(1);
+  const [hasMoreAttendees, setHasMoreAttendees] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const { toast, showToast, hideToast } = useToast();
+
+  // Persist connection map for load-more (avoids re-fetching connections)
+  const connectionStatusMapRef = useRef<Map<string, "pending" | "accepted">>(new Map());
 
   // Bottom sheet animation values
   const bottomSheetTranslateY = useRef(new RNAnimated.Value(0)).current;
@@ -717,17 +812,8 @@ export default function AttendeesScreen() {
     },
   ];
 
-  // Filter handlers
-  // TODO: BACKEND INTEGRATION - Apply filters via API call
-  // API Endpoint: GET /api/attendees?filters={encodedFilters}
-  // TODO: BACKEND - Encode filter IDs into query params
-  // TODO: BACKEND - Refetch attendees when filters change
-  // TODO: BACKEND - Handle filter combinations (AND/OR logic)
   const handleApplyFilters = (filterIds: string[]) => {
     setSelectedFilterIds(filterIds);
-    console.log("Applied filters:", filterIds);
-    // TODO: BACKEND - Apply filters to displayedAttendees when backend is integrated
-    // TODO: BACKEND - Call API with filters: await api.get(`/attendees?filters=${encodeFilters(filterIds)}`)
   };
 
   // Helper function to get filter label from ID
@@ -743,17 +829,245 @@ export default function AttendeesScreen() {
     setSelectedFilterIds(selectedFilterIds.filter((id) => id !== filterId));
   };
 
-  // TODO: BACKEND INTEGRATION - Replace mock attendee data with API call
-  // API Endpoint: GET /api/attendees
-  // Query Params: ?tab=recommended|all&search={query}&filters={encodedFilters}&page={page}&limit={limit}
-  // Response: { attendees: Attendee[], total: number, page: number }
-  // Real-time: Consider WebSocket for attendee updates (new attendees, profile changes)
-  // TODO: BACKEND - Fetch attendees on component mount and when filters/search change
-  // TODO: BACKEND - Handle pagination/infinite scroll
-  // TODO: BACKEND - Cache attendees in state management (Redux/Context)
-  // TODO: BACKEND - Handle loading and error states
-  // Mock data - replace with actual data source
-  const allAttendees: Attendee[] = [
+  /**
+   * Client-side filter: match attendee against selected filter options.
+   * AND across categories (industry, interests, job-title); each category matches if
+   * attendee matches any selected option in that category.
+   */
+  const attendeeMatchesFilters = useCallback(
+    (attendee: Attendee, filterIds: string[]): boolean => {
+      if (filterIds.length === 0) return true;
+      const byCategory: Record<string, string[]> = {};
+      for (const id of filterIds) {
+        const cat = filterCategories.find((c) =>
+          c.options.some((o) => o.id === id)
+        );
+        if (!cat) continue;
+        if (!byCategory[cat.id]) byCategory[cat.id] = [];
+        const opt = cat.options.find((o) => o.id === id);
+        if (opt) byCategory[cat.id].push(opt.label);
+      }
+      const normalize = (s: string) => s.toLowerCase().trim();
+      for (const catId of Object.keys(byCategory)) {
+        const labels = byCategory[catId];
+        const match = (): boolean => {
+          if (catId === "industry") {
+            const ind = normalize(attendee.industry || "");
+            const tagStr = (attendee.tags || []).map(normalize).join(" ");
+            return labels.some(
+              (l) => ind.includes(normalize(l)) || tagStr.includes(normalize(l))
+            );
+          }
+          if (catId === "interests") {
+            const list = (attendee.interests || []).map(normalize);
+            return labels.some((l) =>
+              list.some((i) => i.includes(normalize(l)) || normalize(l).includes(i))
+            );
+          }
+          if (catId === "job-title") {
+            const role = normalize(attendee.role || "");
+            return labels.some(
+              (l) => role.includes(normalize(l)) || normalize(l).includes(role)
+            );
+          }
+          return true;
+        };
+        if (!match()) return false;
+      }
+      return true;
+    },
+    [filterCategories]
+  );
+
+  /**
+   * Map backend Attendee to UI Attendee format
+   */
+  const mapBackendAttendeeToUI = (backendAttendee: BackendAttendee): Attendee => {
+    const user = backendAttendee.user;
+    
+    // Parse metadata (might be string or object)
+    let metadata = user.metadata;
+    if (typeof metadata === "string") {
+      try {
+        metadata = JSON.parse(metadata);
+      } catch (e) {
+        metadata = {};
+      }
+    }
+
+    // Extract name
+    const firstName = user.first_name || "";
+    const lastName = user.last_name || "";
+    const fullName = `${firstName} ${lastName}`.trim() || user.email;
+
+    // Extract role (job_title or organisation_role)
+    const role = user.job_title || user.organisation_role || undefined;
+
+    // Extract company (organisation or company.name)
+    const company = user.organisation || (user as any).company?.name || undefined;
+
+    // Extract avatar
+    const avatar = user.profile_pic ? { uri: user.profile_pic } : undefined;
+
+    // Extract tags (country and industry/sector)
+    const tags: string[] = [];
+    if (user.country) {
+      tags.push(user.country);
+    }
+    const industry = metadata?.industry || metadata?.sector || (user as any).company?.company_sector;
+    if (industry) {
+      tags.push(industry);
+    }
+
+    // Extract interests from metadata
+    const interests = metadata?.interests && Array.isArray(metadata.interests)
+      ? metadata.interests
+      : [];
+
+    // Extract bio from metadata
+    const bio = metadata?.bio || "";
+
+    // Extract LinkedIn URL
+    const linkedInUrl = metadata?.linkedIn || metadata?.linkedin_url || undefined;
+
+    return {
+      id: String(user.id),
+      name: fullName,
+      role: role,
+      company: company,
+      avatar: avatar,
+      tags: tags.length > 0 ? tags : undefined,
+      bio: bio || undefined,
+      interests: interests.length > 0 ? interests : undefined,
+      linkedInUrl: linkedInUrl,
+      industry: industry || undefined,
+      backendData: backendAttendee,
+    };
+  };
+
+  /**
+   * Fetch attendees from backend and connections for status
+   */
+  const fetchAttendees = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const currentUserId = user?.user_id;
+
+      const [attendeesRes, connectionsRes] = await Promise.all([
+        attendeeService.getEventAttendees(EVENT_ID, "all", {
+          page: 1,
+          page_size: ATTENDEE_PAGE_SIZE,
+          ordering: "-id",
+        }),
+        currentUserId
+          ? connectionService.getConnections(1, 100).catch(() => ({
+              connections: [] as any[],
+              pagination: { count: 0, next: null, previous: null },
+            }))
+          : Promise.resolve({
+              connections: [] as any[],
+              pagination: { count: 0, next: null, previous: null },
+            }),
+      ]);
+
+      const connectionStatusMap = new Map<string, "pending" | "accepted">();
+      if (currentUserId && connectionsRes.connections.length > 0) {
+        const currentId = String(currentUserId);
+        for (const c of connectionsRes.connections) {
+          const fromId = String(c.from_user.id);
+          const toId = String(c.to_user.id);
+          const otherId = fromId === currentId ? toId : fromId;
+          if (c.status === "pending" || c.status === "accepted") {
+            connectionStatusMap.set(otherId, c.status);
+          }
+        }
+      }
+      connectionStatusMapRef.current = connectionStatusMap;
+
+      const mappedAttendees = attendeesRes.attendees.map((a) => {
+        const ui = mapBackendAttendeeToUI(a);
+        const status = connectionStatusMap.get(String(ui.id)) ?? null;
+        return { ...ui, connectionStatus: status };
+      });
+
+      setAllAttendeesBackend(mappedAttendees);
+      setAttendeePage(1);
+      setHasMoreAttendees(!!attendeesRes.pagination?.next);
+    } catch (err: any) {
+      const errorMessage =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to load attendees";
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.user_id]);
+
+  /**
+   * Handle pull-to-refresh
+   */
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchAttendees();
+      setSkippedAttendeeIds(new Set());
+    } catch (err) {
+      // Error already handled in fetchAttendees
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchAttendees]);
+
+  /**
+   * Load more attendees (infinite scroll / swipe).
+   * Appends next page and merges connection status from stored map.
+   */
+  const loadMoreAttendees = useCallback(async () => {
+    if (!hasMoreAttendees || loadingMore || isLoading) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = attendeePage + 1;
+      const res = await attendeeService.getEventAttendees(EVENT_ID, "all", {
+        page: nextPage,
+        page_size: ATTENDEE_PAGE_SIZE,
+        ordering: "-id",
+      });
+      const mapRef = connectionStatusMapRef.current;
+      const mapped = res.attendees.map((a) => {
+        const ui = mapBackendAttendeeToUI(a);
+        const status = mapRef.get(String(ui.id)) ?? null;
+        return { ...ui, connectionStatus: status };
+      });
+      setAllAttendeesBackend((prev) => [...prev, ...mapped]);
+      setAttendeePage(nextPage);
+      setHasMoreAttendees(!!res.pagination?.next);
+    } catch (err) {
+      // Optionally set error for load-more; avoid clearing list
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [hasMoreAttendees, loadingMore, isLoading, attendeePage]);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchAttendees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refetch on screen focus only if data is empty
+  useFocusEffect(
+    useCallback(() => {
+      if (allAttendeesBackend.length === 0 && !isLoading) {
+        fetchAttendees();
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
+
+  // Mock data - remove after full integration
+  const allAttendeesMock: Attendee[] = [
     {
       id: "1",
       name: "Ada Okafor",
@@ -830,12 +1144,32 @@ export default function AttendeesScreen() {
     },
   ];
 
-  // Recommended attendees (could be filtered by algorithm)
-  const recommendedAttendees = allAttendees.slice(0, 5);
+  // Use backend data if available, otherwise fall back to mock (for development)
+  const allAttendees = allAttendeesBackend.length > 0 ? allAttendeesBackend : allAttendeesMock;
+
+  const currentUserId = user?.user_id ? String(user.user_id) : null;
+
+  // Filter out current user only (do not show own card). Skipped attendees stay visible in list with "Skipped" badge.
+  const filteredAttendees = allAttendees.filter((attendee) => {
+    if (currentUserId && attendee.id === currentUserId) return false;
+    return true;
+  });
+
+  // Recommended attendees: those with match_info (non-empty)
+  const recommendedAttendees = filteredAttendees.filter(
+    (attendee) => attendee.backendData?.match_info && attendee.backendData.match_info.trim().length > 0
+  );
 
   // Get displayed attendees based on active tab
   let displayedAttendees =
-    activeTab === "Recommended" ? recommendedAttendees : allAttendees;
+    activeTab === "Recommended" ? recommendedAttendees : filteredAttendees;
+
+  // Apply client-side filters (industry, interests, job title)
+  if (selectedFilterIds.length > 0) {
+    displayedAttendees = displayedAttendees.filter((a) =>
+      attendeeMatchesFilters(a, selectedFilterIds)
+    );
+  }
 
   // Apply search filter if search query exists and in list view
   if (viewMode === "list" && searchQuery.trim().length > 0) {
@@ -862,13 +1196,18 @@ export default function AttendeesScreen() {
     });
   }
 
+  // List view: show all (including skipped with "Skipped" badge). Card view: exclude skipped so we don't re-show them.
+  const displayedAttendeesForCards = displayedAttendees.filter(
+    (a) => !skippedAttendeeIds.has(a.id)
+  );
+
   // State for current card index
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
 
-  // Reset card index when tab changes
+  // Reset card index when tab or filters change
   React.useEffect(() => {
     setCurrentCardIndex(0);
-  }, [activeTab]);
+  }, [activeTab, selectedFilterIds]);
 
   // Handle bottom sheet animation when it opens
   React.useEffect(() => {
@@ -899,56 +1238,85 @@ export default function AttendeesScreen() {
     }
   }, [showBottomSheet, selectedAttendee]);
 
-  // Handle swipe left (reject/skip)
+  // Handle swipe left (reject/skip). Card stack excludes skipped, so we don't advance index.
   const handleReject = () => {
-    const attendee = displayedAttendees[currentCardIndex];
-    console.log("Rejected/Skipped:", attendee.name);
-    // Move to next card
-    if (currentCardIndex < displayedAttendees.length - 1) {
-      setCurrentCardIndex(currentCardIndex + 1);
+    const attendee = displayedAttendeesForCards[currentCardIndex];
+    if (!attendee) return;
+    setSkippedAttendeeIds((prev) => new Set(prev).add(attendee.id));
+    if (currentCardIndex >= displayedAttendeesForCards.length - LOAD_MORE_THRESHOLD) {
+      loadMoreAttendees();
     }
   };
 
-  // Handle swipe right (accept/connect)
+  // Handle swipe right (accept/connect) — create connection via API so it appears in ConnectionsScreen
   const handleAccept = () => {
-    const attendee = displayedAttendees[currentCardIndex];
-    console.log("Accepted/Connected:", attendee.name);
-    // Mark checklist item as completed when user connects
-    markConnectAttendeesComplete();
-    // Show connect message modal
-    setConnectedAttendeeName(attendee.name);
-    setIsConnectMessageVisible(true);
-    // Move to next card
-    if (currentCardIndex < displayedAttendees.length - 1) {
-      setCurrentCardIndex(currentCardIndex + 1);
-    }
+    const attendee = displayedAttendeesForCards[currentCardIndex];
+    if (!attendee) return;
+    handleConnect(attendee, true);
   };
 
   // Handle connect button press
   // isFromCardView: true if called from card view buttons, false if from list view bottom sheet
-  const handleConnect = (
-    attendee: Attendee,
-    isFromCardView: boolean = false
-  ) => {
-    console.log("Connect:", attendee.name, "fromCardView:", isFromCardView);
-    // Mark checklist item as completed when user connects
-    markConnectAttendeesComplete();
-    // Show connect message modal
-    setConnectedAttendeeName(attendee.name);
-    setIsConnectMessageVisible(true);
-
-    // If connected from card view, move to next card (same as swipe right)
-    if (isFromCardView) {
-      if (currentCardIndex < displayedAttendees.length - 1) {
-        setCurrentCardIndex(currentCardIndex + 1);
+  const handleConnect = useCallback(
+    async (attendee: Attendee, isFromCardView: boolean = false) => {
+      if (isConnecting) return;
+      const currentUserId = user?.user_id;
+      if (!currentUserId) {
+        showToast("Sign in required to connect", "error");
+        return;
       }
-    }
-  };
+      setIsConnecting(true);
+      try {
+        await connectionService.createConnection(
+          String(currentUserId),
+          attendee.id
+        );
+      } catch (e: any) {
+        const code = e?.response_code ?? e?.responseCode ?? e?.statusCode;
+        const msg = (e?.message || "").toLowerCase();
+        const alreadyExists =
+          msg.includes("connection already exists") || msg.includes("already exists");
+        if ((code === 409 || (code === 400 && alreadyExists))) {
+          // Treat as success
+        } else {
+          showToast(e?.message || "Failed to send connection request", "error");
+          setIsConnecting(false);
+          return;
+        }
+      } finally {
+        setIsConnecting(false);
+      }
+      connectionStatusMapRef.current.set(attendee.id, "pending");
+      setAllAttendeesBackend((prev) =>
+        prev.map((a) =>
+          a.id === attendee.id ? { ...a, connectionStatus: "pending" as const } : a
+        )
+      );
+      markConnectAttendeesComplete();
+      setConnectedAttendeeName(attendee.name);
+      setIsConnectMessageVisible(true);
+      if (isFromCardView) {
+        const nextIndex = currentCardIndex + 1;
+        if (nextIndex < displayedAttendeesForCards.length) {
+          setCurrentCardIndex(nextIndex);
+          if (nextIndex >= displayedAttendeesForCards.length - LOAD_MORE_THRESHOLD) {
+            loadMoreAttendees();
+          }
+        }
+      }
+    },
+    [
+      isConnecting,
+      user?.user_id,
+      showToast,
+      currentCardIndex,
+      displayedAttendeesForCards.length,
+      markConnectAttendeesComplete,
+      loadMoreAttendees,
+    ]
+  );
 
-  // Open bottom sheet with animation
   const openBottomSheet = (attendee: Attendee) => {
-    console.log("Opening bottom sheet for:", attendee.name);
-    // Just set the state - animation will be handled by useEffect
     setSelectedAttendee(attendee);
     setShowBottomSheet(true);
   };
@@ -1031,20 +1399,55 @@ export default function AttendeesScreen() {
       <View className="p-4">
         {/* Top Section: Avatar + Name/Role/Company (left aligned) */}
         <View className="flex-row items-start mb-3">
-          {/* Profile Picture - Circular with border */}
-          <View className="w-14 h-14 rounded-full bg-white border border-neutral-200 items-center justify-center mr-3 flex-shrink-0">
-            <PersonIcon size={28} color="#000000" />
+          {/* Profile Picture */}
+          <View className="w-14 h-14 rounded-full bg-neutral-100 border border-neutral-200 items-center justify-center mr-3 flex-shrink-0 overflow-hidden">
+            {item.avatar && typeof item.avatar === "object" && "uri" in item.avatar && item.avatar.uri ? (
+              <Image
+                source={item.avatar as ImageSourcePropType}
+                style={{ width: 56, height: 56, borderRadius: 28 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <PersonIcon size={28} color="#A3A3A3" />
+            )}
           </View>
 
           {/* Name and Role/Company - Stacked vertically */}
           <View className="flex-1 pt-2">
-            {/* Name - Bold and prominent */}
-            <Text
-              className="text-base font-bold text-neutral-900 mb-0.5"
-              numberOfLines={1}
-            >
-              {item.name}
-            </Text>
+            {/* Name - Bold and prominent, with optional status badge */}
+            <View className="flex-row items-center flex-wrap gap-2 mb-0.5">
+              <Text
+                className="text-base font-bold text-neutral-900"
+                numberOfLines={1}
+              >
+                {item.name}
+              </Text>
+              {item.connectionStatus && (
+                <View
+                  className="px-2 py-0.5 rounded-full"
+                  style={{
+                    backgroundColor:
+                      item.connectionStatus === "accepted"
+                        ? "#D1FAE5"
+                        : "#FEF3C7",
+                  }}
+                >
+                  <Text
+                    className="text-xs font-medium"
+                    style={{
+                      color:
+                        item.connectionStatus === "accepted"
+                          ? "#10B981"
+                          : "#F59E0B",
+                    }}
+                  >
+                    {item.connectionStatus === "accepted"
+                      ? "Connected"
+                      : "Pending"}
+                  </Text>
+                </View>
+              )}
+            </View>
 
             {/* Role and Company - Lighter text */}
             <Text className="text-sm text-neutral-600" numberOfLines={1}>
@@ -1075,19 +1478,41 @@ export default function AttendeesScreen() {
             <View className="flex-1" />
           )}
 
-          {/* Connect Button on the Right - Rounded rectangular */}
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-              handleConnect(item);
-            }}
-            className="flex-row items-center justify-center bg-neutral-100 rounded-xl px-3 py-2 flex-shrink-0"
-          >
-            <PeopleIcon size={16} color="#404040" />
-            <Text className="text-sm font-medium text-neutral-900 ml-1.5">
-              Connect
-            </Text>
-          </Pressable>
+          {/* Connect / Skipped / status */}
+          {item.connectionStatus === "accepted" ||
+          item.connectionStatus === "pending" ? (
+            <View
+              className="flex-row items-center justify-center rounded-xl px-3 py-2 flex-shrink-0"
+              style={{ backgroundColor: "#E5E7EB" }}
+            >
+              <PeopleIcon size={16} color="#9CA3AF" />
+              <Text className="text-sm font-medium text-neutral-500 ml-1.5">
+                {item.connectionStatus === "accepted"
+                  ? "Connected"
+                  : "Pending"}
+              </Text>
+            </View>
+          ) : skippedAttendeeIds.has(item.id) ? (
+            <View
+              className="flex-row items-center justify-center rounded-xl px-3 py-2 flex-shrink-0"
+              style={{ backgroundColor: "#F3F4F6" }}
+            >
+              <Text className="text-sm font-medium text-neutral-500">Skipped</Text>
+            </View>
+          ) : (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                handleConnect(item);
+              }}
+              className="flex-row items-center justify-center bg-neutral-100 rounded-xl px-3 py-2 flex-shrink-0"
+            >
+              <PeopleIcon size={16} color="#404040" />
+              <Text className="text-sm font-medium text-neutral-900 ml-1.5">
+                Connect
+              </Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </Pressable>
@@ -1333,17 +1758,35 @@ export default function AttendeesScreen() {
           </View>
         )}
 
-        {/* Card View or List View */}
-        {viewMode === "card" ? (
-          <View
-            className="flex-1 items-center px-4"
-            style={{
-              minHeight: 0,
-              flexShrink: 1,
-            }}
-          >
-            {displayedAttendees.length > 0 &&
-            currentCardIndex < displayedAttendees.length ? (
+        {/* Loading State */}
+        {isLoading && allAttendeesBackend.length === 0 ? (
+          <View className="flex-1 items-center justify-center py-20">
+            <ActivityIndicator size="large" color="#000000" />
+            <Text className="text-gray-500 mt-4">Loading attendees...</Text>
+          </View>
+        ) : error && allAttendeesBackend.length === 0 ? (
+          <View className="flex-1 items-center justify-center py-20 px-4">
+            <Text className="text-red-600 text-center mb-4">{error}</Text>
+            <Pressable
+              onPress={fetchAttendees}
+              className="bg-black rounded-md px-6 py-3"
+            >
+              <Text className="text-white font-medium">Retry</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            {/* Card View or List View */}
+            {viewMode === "card" ? (
+              <View
+                className="flex-1 items-center px-4"
+                style={{
+                  minHeight: 0,
+                  flexShrink: 1,
+                }}
+              >
+                {displayedAttendeesForCards.length > 0 &&
+                currentCardIndex < displayedAttendeesForCards.length ? (
               <>
                 <View
                   className="w-full items-center justify-center"
@@ -1357,7 +1800,7 @@ export default function AttendeesScreen() {
                   }}
                 >
                   {/* Render stacked cards (top 5) */}
-                  {displayedAttendees
+                  {displayedAttendeesForCards
                     .slice(currentCardIndex, currentCardIndex + 5)
                     .map((attendee, index) => (
               <AttendeeCard
@@ -1373,7 +1816,7 @@ export default function AttendeesScreen() {
                         index={index}
                         totalCards={Math.min(
                           5,
-                          displayedAttendees.length - currentCardIndex
+                          displayedAttendeesForCards.length - currentCardIndex
                         )}
                         hasFilters={selectedFilterIds.length > 0}
                       />
@@ -1391,7 +1834,7 @@ export default function AttendeesScreen() {
           ) : (
             <View className="items-center justify-center py-12">
               <Text className="text-base text-neutral-500 mb-2">
-                  {displayedAttendees.length === 0
+                  {displayedAttendeesForCards.length === 0
                     ? "No attendees found"
                     : "No more attendees"}
                 </Text>
@@ -1407,6 +1850,23 @@ export default function AttendeesScreen() {
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={{ paddingTop: 8, paddingBottom: 16 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor="#000000"
+                    colors={["#000000"]}
+                  />
+                }
+                onEndReached={loadMoreAttendees}
+                onEndReachedThreshold={0.4}
+                ListFooterComponent={
+                  loadingMore ? (
+                    <View className="py-4 items-center">
+                      <ActivityIndicator size="small" color="#000000" />
+                    </View>
+                  ) : null
+                }
                 ListEmptyComponent={
                   <View className="items-center justify-center py-12">
                     <Text className="text-base text-neutral-500">
@@ -1422,7 +1882,9 @@ export default function AttendeesScreen() {
               </Text>
             </View>
           )}
-          </View>
+        </View>
+      )}
+          </>
         )}
       </View>
 
@@ -1519,13 +1981,48 @@ export default function AttendeesScreen() {
               >
                 {/* Profile Header */}
                 <View className="flex-row items-start mb-4">
-                  <View className="w-16 h-16 rounded-full bg-neutral-100 items-center justify-center mr-4">
-                    <PersonIcon size={32} color="#A3A3A3" />
+                  <View className="w-16 h-16 rounded-full bg-neutral-100 items-center justify-center mr-4 overflow-hidden">
+                    {selectedAttendee.avatar && typeof selectedAttendee.avatar === "object" && "uri" in selectedAttendee.avatar && selectedAttendee.avatar.uri ? (
+                      <Image
+                        source={selectedAttendee.avatar as ImageSourcePropType}
+                        style={{ width: 64, height: 64, borderRadius: 32 }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <PersonIcon size={32} color="#A3A3A3" />
+                    )}
                   </View>
                   <View className="flex-1">
-                    <Text className="text-2xl font-bold text-neutral-900 mb-1">
-                      {selectedAttendee.name}
-                    </Text>
+                    <View className="flex-row items-center flex-wrap gap-2 mb-1">
+                      <Text className="text-2xl font-bold text-neutral-900">
+                        {selectedAttendee.name}
+                      </Text>
+                      {selectedAttendee.connectionStatus && (
+                        <View
+                          className="px-2 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor:
+                              selectedAttendee.connectionStatus === "accepted"
+                                ? "#D1FAE5"
+                                : "#FEF3C7",
+                          }}
+                        >
+                          <Text
+                            className="text-xs font-medium"
+                            style={{
+                              color:
+                                selectedAttendee.connectionStatus === "accepted"
+                                  ? "#10B981"
+                                  : "#F59E0B",
+                            }}
+                          >
+                            {selectedAttendee.connectionStatus === "accepted"
+                              ? "Connected"
+                              : "Pending"}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     <Text className="text-base text-neutral-600">
                       {selectedAttendee.role && selectedAttendee.company
                         ? `${selectedAttendee.role} · ${selectedAttendee.company}`
@@ -1624,18 +2121,33 @@ export default function AttendeesScreen() {
                     </Text>
                   </Pressable>
 
-                  <Pressable
-                    onPress={() => {
-                      handleConnect(selectedAttendee);
-                      closeBottomSheet();
-                    }}
-                    className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-3 px-4"
-                  >
-                    <PeopleIcon size={20} color="#404040" />
-                    <Text className="text-base font-medium text-neutral-900 ml-2">
-                      Connect
-                    </Text>
-                  </Pressable>
+                  {selectedAttendee.connectionStatus === "accepted" ||
+                  selectedAttendee.connectionStatus === "pending" ? (
+                    <View
+                      className="w-full flex-row items-center justify-center rounded-xl py-3 px-4"
+                      style={{ backgroundColor: "#E5E7EB" }}
+                    >
+                      <PeopleIcon size={20} color="#9CA3AF" />
+                      <Text className="text-base font-medium text-neutral-500 ml-2">
+                        {selectedAttendee.connectionStatus === "accepted"
+                          ? "Connected"
+                          : "Pending"}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={() => {
+                        handleConnect(selectedAttendee);
+                        closeBottomSheet();
+                      }}
+                      className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-3 px-4"
+                    >
+                      <PeopleIcon size={20} color="#404040" />
+                      <Text className="text-base font-medium text-neutral-900 ml-2">
+                        Connect
+                      </Text>
+                    </Pressable>
+                  )}
         </View>
       </ScrollView>
             </Pressable>
@@ -1673,20 +2185,34 @@ export default function AttendeesScreen() {
           setIsRequestMeetingModalVisible(false);
           setMeetingAttendee(null);
         }}
-        onSubmit={(data: MeetingFormData) => {
-          console.log("Meeting Request Submitted:", data);
-          // Mark checklist item as completed when user requests a meeting
-          markRequestMeetingComplete();
-          // Show meeting request message modal
-          setMeetingRequestData({
-            attendeeName: meetingAttendee?.name || "Attendee",
-            meetingType: data.meetingType,
-            meetingTitle: data.title || "Meeting",
-          });
-          setIsRequestMeetingModalVisible(false);
-          setIsMeetingRequestMessageVisible(true);
-          setMeetingAttendee(null);
-          // TODO: Send meeting request to backend
+        onSubmit={async (data: MeetingFormData) => {
+          if (!meetingAttendee) {
+            showToast("No attendee selected", "error");
+            throw new Error("No attendee");
+          }
+          try {
+            await meetingService.submitMeetingRequestFromForm(
+              EVENT_ID,
+              data,
+              meetingAttendee.id
+            );
+            markRequestMeetingComplete();
+            setMeetingRequestData({
+              attendeeName: meetingAttendee.name || "Attendee",
+              meetingType: data.meetingType,
+              meetingTitle: data.title || "Meeting",
+            });
+            setIsRequestMeetingModalVisible(false);
+            setIsMeetingRequestMessageVisible(true);
+            setMeetingAttendee(null);
+          } catch (e: any) {
+            const msg =
+              e instanceof ApiClientError
+                ? e.message
+                : e?.message || "Failed to send meeting request. Please try again.";
+            showToast(msg, "error");
+            throw e;
+          }
         }}
         attendeeName={meetingAttendee?.name}
       />
@@ -1711,6 +2237,14 @@ export default function AttendeesScreen() {
         attendeeName={meetingRequestData?.attendeeName}
         meetingType={meetingRequestData?.meetingType}
         meetingTitle={meetingRequestData?.meetingTitle}
+      />
+
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        duration={toast.duration}
+        onHide={hideToast}
       />
     </View>
   );

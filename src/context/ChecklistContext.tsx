@@ -4,9 +4,18 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useRef,
 } from "react";
-// TODO: BACKEND INTEGRATION - Import AsyncStorage to persist checklist state
-// TODO: BACKEND INTEGRATION - Consider fetching checklist status from backend on app start
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "./AuthContext";
+
+const CHECKLIST_STORAGE_KEY_PREFIX = "@spark:checklist_user:";
+
+interface ChecklistState {
+  connectAttendees: boolean;
+  requestMeeting: boolean;
+  addSessions: boolean;
+}
 
 interface ChecklistContextType {
   markConnectAttendeesComplete: () => void;
@@ -22,46 +31,80 @@ const ChecklistContext = createContext<ChecklistContextType | undefined>(
   undefined
 );
 
-// TODO: BACKEND INTEGRATION - Add AsyncStorage keys for checklist persistence
-// const CHECKLIST_STORAGE_KEYS = {
-//   CONNECT_ATTENDEES: "@spark:checklist_connect_attendees",
-//   REQUEST_MEETING: "@spark:checklist_request_meeting",
-//   ADD_SESSIONS: "@spark:checklist_add_sessions",
-// };
+const defaultState: ChecklistState = {
+  connectAttendees: false,
+  requestMeeting: false,
+  addSessions: false,
+};
 
 export function ChecklistProvider({ children }: { children: React.ReactNode }) {
-  // TODO: BACKEND INTEGRATION - Initialize from AsyncStorage or backend API
-  // TODO: BACKEND INTEGRATION - Fetch checklist status from backend on mount
-  // TODO: BACKEND INTEGRATION - Sync checklist state with backend (real-time updates)
-  const [checklistCompleted, setChecklistCompleted] = useState({
-    connectAttendees: false,
-    requestMeeting: false,
-    addSessions: false,
-  });
+  const { user } = useAuth();
+  const userId = user?.user_id != null ? String(user.user_id) : null;
+  const [checklistCompleted, setChecklistCompleted] =
+    useState<ChecklistState>(defaultState);
+  const isMountedRef = useRef(false);
 
-  // TODO: BACKEND INTEGRATION - Load checklist state from AsyncStorage on mount
-  // useEffect(() => {
-  //   loadChecklistState();
-  // }, []);
+  const storageKey = userId ? `${CHECKLIST_STORAGE_KEY_PREFIX}${userId}` : null;
 
-  // TODO: BACKEND INTEGRATION - Load from AsyncStorage
-  // const loadChecklistState = async () => { ... };
+  const persistChecklist = useCallback(
+    async (state: ChecklistState) => {
+      if (!storageKey) return;
+      try {
+        await AsyncStorage.setItem(storageKey, JSON.stringify(state));
+      } catch (e) {
+        if (__DEV__) {
+          console.warn("Failed to persist checklist:", e);
+        }
+      }
+    },
+    [storageKey]
+  );
 
-  // TODO: BACKEND INTEGRATION - Save to AsyncStorage on state change
-  // useEffect(() => {
-  //   saveChecklistState();
-  // }, [checklistCompleted]);
+  useEffect(() => {
+    if (!userId) {
+      setChecklistCompleted(defaultState);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(
+          `${CHECKLIST_STORAGE_KEY_PREFIX}${userId}`
+        );
+        if (cancelled) return;
+        if (raw) {
+          const parsed = JSON.parse(raw) as ChecklistState;
+          setChecklistCompleted({
+            connectAttendees: !!parsed.connectAttendees,
+            requestMeeting: !!parsed.requestMeeting,
+            addSessions: !!parsed.addSessions,
+          });
+        } else {
+          setChecklistCompleted(defaultState);
+        }
+      } catch {
+        if (!cancelled) setChecklistCompleted(defaultState);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
-  // TODO: BACKEND INTEGRATION - These should be called after successful API operations
-  // TODO: BACKEND INTEGRATION - Consider moving these calls to the actual action screens (AttendeesScreen, MeetingsScreen, ScheduleScreen)
-  // TODO: BACKEND INTEGRATION - Sync completion status with backend API
+  useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
+    persistChecklist(checklistCompleted);
+  }, [checklistCompleted, persistChecklist]);
+
   const markConnectAttendeesComplete = useCallback(() => {
     setChecklistCompleted((prev) => ({
       ...prev,
       connectAttendees: true,
     }));
-    // TODO: BACKEND - Persist to AsyncStorage: await AsyncStorage.setItem(CHECKLIST_STORAGE_KEYS.CONNECT_ATTENDEES, "true");
-    // TODO: BACKEND - Optionally sync with backend: await api.patch('/user/checklist', { connectAttendees: true });
   }, []);
 
   const markRequestMeetingComplete = useCallback(() => {
@@ -69,8 +112,6 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       requestMeeting: true,
     }));
-    // TODO: BACKEND - Persist to AsyncStorage: await AsyncStorage.setItem(CHECKLIST_STORAGE_KEYS.REQUEST_MEETING, "true");
-    // TODO: BACKEND - Optionally sync with backend: await api.patch('/user/checklist', { requestMeeting: true });
   }, []);
 
   const markAddSessionsComplete = useCallback(() => {
@@ -78,16 +119,10 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       addSessions: true,
     }));
-    // TODO: BACKEND - Persist to AsyncStorage: await AsyncStorage.setItem(CHECKLIST_STORAGE_KEYS.ADD_SESSIONS, "true");
-    // TODO: BACKEND - Optionally sync with backend: await api.patch('/user/checklist', { addSessions: true });
   }, []);
 
   const resetChecklist = useCallback(() => {
-    setChecklistCompleted({
-      connectAttendees: false,
-      requestMeeting: false,
-      addSessions: false,
-    });
+    setChecklistCompleted(defaultState);
   }, []);
 
   return (

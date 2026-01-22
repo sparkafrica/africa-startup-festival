@@ -23,9 +23,12 @@ const environment = getEnvironment();
 // API Configuration
 export const API_CONFIG = {
   development: {
-    BASE_URL: "https://api.sparkafrica.co", // Development server
+    // BASE_URL: "https://api.sparkafrica.co",
+    //  Development server
+    // TIMEOUT: 30000,
+    BASE_URL: "https://dev-api.africatechnologyexpo.com", // Development server
     TIMEOUT: 30000, // 30 seconds
-    WS_URL: "wss://api.sparkafrica.co",
+    WS_URL: "wss://dev-api.africatechnologyexpo.com",
   },
   staging: {
     BASE_URL: "https://dev-api.africatechnologyexpo.com", // Staging server (update when staging URL is available)

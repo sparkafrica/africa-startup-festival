@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, ScrollView, Pressable, Text, ActivityIndicator } from "react-native";
+import { View, ScrollView, Pressable, Text, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -65,6 +65,9 @@ export default function HomeScreen() {
   const [featuredPartners, setFeaturedPartners] = useState<any[]>([]);
   const [partnersLoading, setPartnersLoading] = useState(true);
   const [partnersError, setPartnersError] = useState<string | null>(null);
+
+  // Refresh state
+  const [refreshing, setRefreshing] = useState(false);
 
   // Auto-collapse checklist when all items are completed (only once)
   useEffect(() => {
@@ -163,12 +166,38 @@ export default function HomeScreen() {
     fetchFeaturedPartners();
   }, []);
 
-  // Refetch on screen focus
+  // Handle pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchFeaturedSpeakers(),
+        fetchFeaturedExhibitors(),
+        fetchFeaturedPartners(),
+      ]);
+    } catch (err) {
+      // Errors already handled in individual fetch functions
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Refetch on screen focus only if data is not loaded (cached behavior)
+  // Use refs to avoid dependency issues
   useFocusEffect(
     useCallback(() => {
-      fetchFeaturedSpeakers();
-      fetchFeaturedExhibitors();
-      fetchFeaturedPartners();
+      // Only refetch if data hasn't been loaded yet or if there was an error
+      // This prevents constant refetching while allowing refresh on errors
+      if (featuredSpeakers.length === 0 && !speakersLoading) {
+        fetchFeaturedSpeakers();
+      }
+      if (featuredExhibitors.length === 0 && !exhibitorsLoading) {
+        fetchFeaturedExhibitors();
+      }
+      if (featuredPartners.length === 0 && !partnersLoading) {
+        fetchFeaturedPartners();
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
@@ -253,6 +282,14 @@ export default function HomeScreen() {
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#000000"
+            colors={["#000000"]}
+          />
+        }
       >
         {/* Event Banners - Horizontal Scrollable */}
         <ScrollView
@@ -309,12 +346,13 @@ export default function HomeScreen() {
               completed={isRequestMeetingComplete}
               onPress={handleRequestMeeting}
             />
-            <ChecklistItem
+            {/* TODO: Re-enable in next update — Add sessions to your schedule */}
+            {/* <ChecklistItem
               title="Add sessions to your schedule"
               description="Add sessions so you never miss a talk."
               completed={isAddSessionsComplete}
               onPress={handleAddSessions}
-            />
+            /> */}
           </EventChecklist>
 
           {/* Exhibitors Section */}
@@ -467,88 +505,68 @@ export default function HomeScreen() {
             expanded={true}
             className="mb-4"
           >
-            {/* TODO: BACKEND INTEGRATION - Replace hardcoded speaker cards with API data
-            // API Endpoint: GET /api/speakers?featured=true&limit=4
-            // TODO: BACKEND - Fetch featured speakers on component mount
-            // TODO: BACKEND - Handle loading and error states */}
-            <View className="flex-row flex-wrap -mx-1.5">
-              <View className="px-1.5 mb-3" style={{ width: "100%" }}>
-                <SpeakerCard
-                  name="Sarah Johnson"
-                  role="Tech Lead at Google"
-                  avatar={{ uri: "https://i.pravatar.cc/150?img=1" }}
-                  avatarColor="#2762C7"
-                  variant="horizontal"
-                  onPress={() =>
-                    navigation.navigate("SpeakerDetail", {
-                      speakerId: "sarah-johnson",
-                      name: "Sarah Johnson",
-                    })
-                  }
-                />
+            {speakersLoading ? (
+              <View className="py-8 items-center">
+                <ActivityIndicator size="large" color="#000000" />
+                <Text className="text-gray-500 mt-2">Loading speakers...</Text>
               </View>
-              <View className="px-1.5 mb-3" style={{ width: "100%" }}>
-                <SpeakerCard
-                  name="Michael Chen"
-                  role="CEO at StartupX"
-                  avatar={{ uri: "https://i.pravatar.cc/150?img=12" }}
-                  avatarColor="#1BB273"
-                  variant="horizontal"
-                  onPress={() =>
-                    navigation.navigate("SpeakerDetail", {
-                      speakerId: "michael-chen",
-                      name: "Michael Chen",
-                    })
-                  }
-                />
+            ) : speakersError ? (
+              <View className="py-4">
+                <Text className="text-red-600 text-center">{speakersError}</Text>
               </View>
-              <View className="px-1.5 mb-3" style={{ width: "100%" }}>
-                <SpeakerCard
-                  name="Emily Davis"
-                  role="Product Designer"
-                  avatar={{ uri: "https://i.pravatar.cc/150?img=47" }}
-                  avatarColor="#9333EA"
-                  variant="horizontal"
-                  onPress={() =>
-                    navigation.navigate("SpeakerDetail", {
-                      speakerId: "emily-davis",
-                      name: "Emily Davis",
-                    })
-                  }
-                />
+            ) : featuredSpeakers.length > 0 ? (
+              <>
+                <View className="flex-row flex-wrap -mx-1.5">
+                  {featuredSpeakers.map((speaker) => {
+                    // Generate avatar color from speaker ID for consistent colors
+                    const colors = ["#2762C7", "#1BB273", "#9333EA", "#F97316", "#DC2626", "#10B981"];
+                    const avatarColor = colors[parseInt(speaker.id) % colors.length];
+                    
+                    return (
+                      <View key={speaker.id} className="px-1.5 mb-3" style={{ width: "100%" }}>
+                        <SpeakerCard
+                          name={speaker.full_name || "Speaker"}
+                          role={speaker.role && speaker.company 
+                            ? `${speaker.role} at ${speaker.company}`
+                            : speaker.role || speaker.company || "Speaker"}
+                          avatar={speaker.profile_pic ? { uri: speaker.profile_pic } : undefined}
+                          avatarColor={avatarColor}
+                          variant="horizontal"
+                          onPress={() =>
+                            navigation.navigate("SpeakerDetail", {
+                              speakerId: speaker.id.toString(),
+                              name: speaker.full_name || "Speaker",
+                            })
+                          }
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
+                <Pressable
+                  onPress={() => navigation.navigate("Speakers")}
+                  className="bg-black rounded-xl py-4 px-6 flex-row items-center justify-center mt-4"
+                  style={{
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                >
+                  <Text className="text-white font-semibold text-base px-2">
+                    View all Speakers
+                  </Text>
+                  <ArrowUpRightIcon size={18} color="#FFFFFF" />
+                </Pressable>
+              </>
+            ) : (
+              <View className="py-4">
+                <Text className="text-gray-500 text-center">
+                  No featured speakers available.
+                </Text>
               </View>
-              <View className="px-1.5 mb-3" style={{ width: "100%" }}>
-                <SpeakerCard
-                  name="David Wilson"
-                  role="Engineering Manager"
-                  avatar={{ uri: "https://i.pravatar.cc/150?img=33" }}
-                  avatarColor="#F97316"
-                  variant="horizontal"
-                  onPress={() =>
-                    navigation.navigate("SpeakerDetail", {
-                      speakerId: "david-wilson",
-                      name: "David Wilson",
-                    })
-                  }
-                />
-              </View>
-            </View>
-            <Pressable
-              onPress={() => navigation.navigate("Speakers")}
-              className="bg-black rounded-xl py-4 px-6 flex-row items-center justify-center mt-4"
-              style={{
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 2,
-              }}
-            >
-              <Text className="text-white font-semibold text-base px-2">
-                View all Speakers
-              </Text>
-              <ArrowUpRightIcon size={18} color="#FFFFFF" />
-            </Pressable>
+            )}
           </Card>
         </View>
       </ScrollView>

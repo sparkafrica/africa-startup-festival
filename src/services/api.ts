@@ -380,13 +380,37 @@ class ApiClient {
    * { status: "error", message: "...", response_code: 404, data: {} }
    */
   private handleError(error: AxiosError): ApiClientError {
-    // Network error (no response from server)
+    // No response from server (timeout, network failure, connection refused, etc.)
     if (!error.response) {
+      const code = error.code;
+      const axiosMessage = error.message;
+      let message: string;
+
+      if (code === "ECONNABORTED" || code === "ETIMEDOUT") {
+        message =
+          "Request timed out. Try a smaller image or check your connection.";
+      } else if (code === "ERR_NETWORK") {
+        message =
+          "Network error. Please check your internet connection.";
+      } else {
+        message =
+          "Request failed. Please check your connection and try again.";
+      }
+
+      if (__DEV__) {
+        console.warn("API no-response error:", {
+          code,
+          axiosMessage,
+          url: error.config?.url,
+          method: error.config?.method,
+        });
+      }
+
       return new ApiClientError({
         status: "error",
-        message: "Network error. Please check your internet connection.",
+        message,
         response_code: 0,
-        data: {},
+        data: { _code: code, _axiosMessage: axiosMessage },
       });
     }
 
@@ -571,6 +595,12 @@ class ApiClient {
           if (error.responseCode >= 400 && error.responseCode < 500) {
             throw error;
           }
+        }
+
+        // Don't retry on no-response (ERR_NETWORK, timeouts, etc.)
+        // Immediate retries rarely help; often backend/proxy or client config issue.
+        if (error instanceof ApiClientError && error.responseCode === 0) {
+          throw error;
         }
 
         // Don't retry on last attempt

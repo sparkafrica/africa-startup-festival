@@ -31,7 +31,8 @@ const DRAG_THRESHOLD = 100;
 interface RequestMeetingModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (data: MeetingFormData) => void;
+  /** Can be sync or async. Modal awaits and only closes on success. On throw, stays open. */
+  onSubmit: (data: MeetingFormData) => void | Promise<void>;
   attendeeName?: string;
   eventId?: number; // Allow override, defaults to EVENT_ID
 }
@@ -87,6 +88,7 @@ export default function RequestMeetingModal({
     time?: string;
     description?: string;
   }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scrollViewRef = useRef<ScrollView>(null);
@@ -281,31 +283,27 @@ export default function RequestMeetingModal({
     return hasTitle && hasTableOrLink && hasDate && hasTime && hasDescription;
   };
 
-  const handleSubmit = () => {
-    if (validateForm()) {
-      // Ensure we always send the date value (YYYY-MM-DD) format
-      let dateToSend = selectedDateValue;
-      if (!dateToSend && selectedDate) {
-        // If value is missing but label exists, try to extract from availableDates
-        const matchedDate = availableDates.find(d => d.label === selectedDate);
-        if (matchedDate) {
-          dateToSend = matchedDate.value;
-        }
-      }
-      
-      const formData: MeetingFormData = {
-        title,
-        meetingType,
-        tableNumber: meetingType === "Physical" ? tableNumber : undefined,
-        meetingLink: meetingType === "Virtual" ? meetingLink : undefined,
-        date: dateToSend || undefined, // Always send YYYY-MM-DD format
-        time: selectedTime || undefined,
-        description,
-        meeting_slot_id: selectedSlot?.id,
-        slot: selectedSlot || undefined,
-      };
-      onSubmit(formData);
-      // Reset form
+  const handleSubmit = async () => {
+    if (!validateForm() || isSubmitting) return;
+    let dateToSend = selectedDateValue;
+    if (!dateToSend && selectedDate) {
+      const matchedDate = availableDates.find((d) => d.label === selectedDate);
+      if (matchedDate) dateToSend = matchedDate.value;
+    }
+    const formData: MeetingFormData = {
+      title,
+      meetingType,
+      tableNumber: meetingType === "Physical" ? tableNumber : undefined,
+      meetingLink: meetingType === "Virtual" ? meetingLink : undefined,
+      date: dateToSend || undefined,
+      time: selectedTime || undefined,
+      description,
+      meeting_slot_id: selectedSlot?.id,
+      slot: selectedSlot || undefined,
+    };
+    try {
+      setIsSubmitting(true);
+      await onSubmit(formData);
       setTitle("");
       setTableNumber("");
       setMeetingLink("");
@@ -317,6 +315,10 @@ export default function RequestMeetingModal({
       setDescription("");
       setErrors({});
       onClose();
+    } catch {
+      // Caller shows toast; keep modal open
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -836,19 +838,23 @@ export default function RequestMeetingModal({
             <Pressable
               style={[
                 styles.submitButton,
-                !isFormValid() && styles.submitButtonDisabled,
+                (!isFormValid() || isSubmitting) && styles.submitButtonDisabled,
               ]}
               onPress={handleSubmit}
-              disabled={!isFormValid()}
+              disabled={!isFormValid() || isSubmitting}
             >
-              <Text
-                style={[
-                  styles.submitButtonText,
-                  !isFormValid() && styles.submitButtonTextDisabled,
-                ]}
-              >
-                Send Meeting Request
-              </Text>
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text
+                  style={[
+                    styles.submitButtonText,
+                    (!isFormValid() || isSubmitting) && styles.submitButtonTextDisabled,
+                  ]}
+                >
+                  Send Meeting Request
+                </Text>
+              )}
             </Pressable>
           </SafeAreaView>
         </Animated.View>

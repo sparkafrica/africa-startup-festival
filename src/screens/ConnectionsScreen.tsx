@@ -34,12 +34,13 @@ import {
 } from "../components/BottomNavIcons";
 import { SearchIcon, ChevronRightIcon } from "../components/icons";
 import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import type { MeetingFormData } from "../components";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
+import { useChecklist } from "../context/ChecklistContext";
 import { connectionService, type Connection as BackendConnection } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
@@ -225,6 +226,7 @@ export default function ConnectionsScreen() {
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const { user } = useAuth();
   const { toast, showToast, hideToast } = useToast();
+  const { markRequestMeetingComplete } = useChecklist();
   
   // Search state (commented out for now)
   // const [searchQuery, setSearchQuery] = useState("");
@@ -257,13 +259,13 @@ export default function ConnectionsScreen() {
     backendConnection: BackendConnection
   ): Connection => {
     // Determine which user to display (the other user, not the current user)
-    const currentUserId = user?.user_id;
+    const currentUserId = user?.user_id != null ? String(user.user_id) : null;
+    const fromId = String(backendConnection.from_user.id);
     const otherUser =
-      backendConnection.from_user.id === currentUserId
+      currentUserId && fromId === currentUserId
         ? backendConnection.to_user
         : backendConnection.from_user;
-    const isFromCurrentUser =
-      backendConnection.from_user.id === currentUserId;
+    const isFromCurrentUser = currentUserId ? fromId === currentUserId : false;
     const otherUserId =
       otherUser && otherUser.id !== undefined && otherUser.id !== null
         ? otherUser.id.toString()
@@ -323,11 +325,11 @@ export default function ConnectionsScreen() {
   /**
    * Fetch connections from backend
    */
-  const fetchConnections = async () => {
+  const fetchConnections = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await connectionService.getConnections(1, 50); // Fetch first 50 connections
+      const response = await connectionService.getConnections(1, 50);
       const mappedConnections = response.connections.map(mapBackendConnectionToUI);
       setConnections(mappedConnections);
     } catch (err: any) {
@@ -343,12 +345,14 @@ export default function ConnectionsScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.user_id, showToast]);
 
-  // Fetch connections on mount
-  useEffect(() => {
-    fetchConnections();
-  }, []);
+  // Fetch on mount and when screen gains focus (e.g. after connecting from Attendees)
+  useFocusEffect(
+    useCallback(() => {
+      fetchConnections();
+    }, [fetchConnections])
+  );
 
   // Filter connections based on search query (commented out for now)
   // const filteredConnections = connections.filter((connection) => {
@@ -398,86 +402,14 @@ export default function ConnectionsScreen() {
       try {
         setIsSubmittingMeeting(true);
 
-        if (data.meetingType === "Virtual") {
-          // Use virtual meeting endpoint for virtual meetings
-          // Parse time from format "10:00 AM - 10:20 AM" to "10:00:00"
-          const parseTimeFromDisplay = (timeDisplay: string): string => {
-            try {
-              // Extract start time (first part before " - ")
-              const startTimeStr = timeDisplay.split(" - ")[0].trim();
-              // Parse "10:00 AM" format to "10:00:00"
-              const [timePart, period] = startTimeStr.split(" ");
-              const [hours, minutes] = timePart.split(":");
-              let hour24 = parseInt(hours, 10);
-              if (period?.toUpperCase() === "PM" && hour24 !== 12) {
-                hour24 += 12;
-              } else if (period?.toUpperCase() === "AM" && hour24 === 12) {
-                hour24 = 0;
-              }
-              return `${hour24.toString().padStart(2, "0")}:${minutes}:00`;
-            } catch {
-              // Fallback: assume it's already in HH:MM:SS format or use default
-              return "10:00:00";
-            }
-          };
+        await meetingService.submitMeetingRequestFromForm(
+          EVENT_ID,
+          data,
+          meetingConnection.userId
+        );
 
-          // Calculate duration from time range (default 20 minutes)
-          const calculateDuration = (timeDisplay: string): number => {
-            try {
-              const parts = timeDisplay.split(" - ");
-              if (parts.length === 2) {
-                const start = parts[0].trim();
-                const end = parts[1].trim();
-                // Simple calculation - could be improved
-                // For now, default to 20 minutes
-                return 20;
-              }
-            } catch {
-              // Fallback
-            }
-            return 20; // Default 20 minutes
-          };
-
-          const virtualMeetingRequest = {
-            requestee_id: meetingConnection.userId,
-            reason: data.description,
-            meeting_link: data.meetingLink!,
-            scheduled_date: data.date!, // Should be YYYY-MM-DD format
-            scheduled_time: parseTimeFromDisplay(data.time!),
-            duration_minutes: calculateDuration(data.time!),
-            metadata: {
-              title: data.title,
-              meetingType: data.meetingType,
-              selectedDate: data.date,
-              selectedTime: data.time,
-            },
-          };
-
-          await meetingService.createVirtualMeetingRequest(
-            virtualMeetingRequest
-          );
-        } else {
-          // Use physical meeting endpoint for physical meetings
-          const meetingRequest = {
-            meeting_slot_id: data.meeting_slot_id!,
-            requestee_id: meetingConnection.userId,
-            reason: data.description,
-            metadata: {
-              title: data.title,
-              meetingType: data.meetingType,
-              selectedDate: data.date,
-              selectedTime: data.time,
-              tableNumber: data.tableNumber,
-            },
-          };
-
-          await meetingService.createMeetingRequest(EVENT_ID, meetingRequest);
-        }
-
-        // Show success message
+        markRequestMeetingComplete();
         showToast("Meeting request sent successfully!", "success");
-
-        // Close modal and reset
         setIsRequestMeetingModalVisible(false);
         setMeetingConnection(null);
       } catch (error: any) {
@@ -638,7 +570,7 @@ export default function ConnectionsScreen() {
         setIsSubmittingMeeting(false);
       }
     },
-    [meetingConnection, user?.user_id, showToast]
+    [meetingConnection, user?.user_id, showToast, markRequestMeetingComplete]
   );
 
   /**

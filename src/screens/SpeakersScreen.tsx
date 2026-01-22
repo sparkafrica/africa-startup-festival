@@ -1,9 +1,12 @@
-import React, { useState } from "react";
-import { View, ScrollView, Pressable, Text } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, ScrollView, Pressable, Text, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { eventService } from "../services/eventService";
+import { EVENT_ID } from "../config/env";
+import { ApiClientError } from "../services/api";
 import {
   HeaderBar,
   SpeakerCard,
@@ -32,6 +35,12 @@ export default function SpeakersScreen() {
     useNavigation<NavigationProp<RootStackParamList, "Speakers">>();
   const [selectedFilterIds, setSelectedFilterIds] = useState<string[]>([]);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+
+  // State for speakers data
+  const [speakers, setSpeakers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const filterCategories: FilterCategory[] = [
     {
@@ -95,65 +104,78 @@ export default function SpeakersScreen() {
     return id;
   };
 
-  // TODO: BACKEND INTEGRATION - Replace mock speaker data with API call
-  // API Endpoint: GET /api/speakers
-  // Query Params: ?filters={encodedFilters}&page={page}&limit={limit}
-  // Response: { speakers: Speaker[], total: number, page: number }
-  // TODO: BACKEND - Fetch speakers on component mount and when filters change
-  // TODO: BACKEND - Handle pagination/infinite scroll
-  // TODO: BACKEND - Cache speakers in state management
-  // TODO: BACKEND - Handle loading and error states
-  // TODO: Replace with backend data
-  const speakers = [
-    {
-      name: "Ada Okafor",
-      role: "VC Partner",
-      avatarColor: "#2762C7",
-      avatar: { uri: "https://i.pravatar.cc/150?img=5" },
-    },
-    {
-      name: "Michael Chen",
-      role: "Founder & CEO",
-      avatarColor: "#1BB273",
-      avatar: { uri: "https://i.pravatar.cc/150?img=12" },
-    },
-    {
-      name: "Emma Rodriguez",
-      role: "Head of Growth",
-      avatarColor: "#9333EA",
-      avatar: { uri: "https://i.pravatar.cc/150?img=47" },
-    },
-    {
-      name: "Clint 491",
-      role: "Head, Flash Drive",
-      avatarColor: "#F97316",
-      avatar: { uri: "https://i.pravatar.cc/150?img=33" },
-    },
-    {
-      name: "Clint 491",
-      role: "Head, Flash Drive",
-      avatarColor: "#F97316",
-      avatar: { uri: "https://i.pravatar.cc/150?img=33" },
-    },
-    {
-      name: "Emma Rodriguez",
-      role: "Head of Growth",
-      avatarColor: "#9333EA",
-      avatar: { uri: "https://i.pravatar.cc/150?img=47" },
-    },
-    {
-      name: "Michael Chen",
-      role: "Founder & CEO",
-      avatarColor: "#1BB273",
-      avatar: { uri: "https://i.pravatar.cc/150?img=12" },
-    },
-    {
-      name: "Ada Okafor",
-      role: "VC Partner",
-      avatarColor: "#2762C7",
-      avatar: { uri: "https://i.pravatar.cc/150?img=5" },
-    },
-  ];
+  // Fetch all speakers
+  const fetchSpeakers = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Fetch all speakers for the event with pagination
+      // Use a reasonable page size (50-100) instead of 1000
+      const response = await eventService.getEventSpeakers(EVENT_ID, {
+        page_size: 100, // Fetch 100 at a time
+        ordering: "-id",
+      });
+
+      // Generate consistent colors for avatars
+      const colors = ["#2762C7", "#1BB273", "#9333EA", "#F97316", "#DC2626", "#10B981", "#F59E0B", "#8B5CF6"];
+      
+      // Map backend Speaker format to UI format
+      const mappedSpeakers = response.speakers.map((speaker) => {
+        const avatarColor = colors[speaker.id % colors.length];
+        const roleText = speaker.role && speaker.company
+          ? `${speaker.role} at ${speaker.company}`
+          : speaker.role || speaker.company || "Speaker";
+
+        return {
+          id: speaker.id.toString(),
+          name: speaker.full_name || "Speaker",
+          role: roleText,
+          avatar: speaker.profile_pic ? { uri: speaker.profile_pic } : undefined,
+          avatarColor: avatarColor,
+          speakerData: speaker, // Store full data for detail screen
+        };
+      });
+
+      setSpeakers(mappedSpeakers);
+    } catch (err: any) {
+      const errorMessage =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to load speakers";
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Handle pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchSpeakers();
+    } catch (err) {
+      // Error already handled in fetchSpeakers
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchSpeakers]);
+
+  // Fetch on mount only (not on every focus to avoid constant reloading)
+  useEffect(() => {
+    fetchSpeakers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refetch on screen focus only if data is empty or there was an error
+  useFocusEffect(
+    useCallback(() => {
+      // Only refetch if we don't have data and we're not currently loading
+      if (speakers.length === 0 && !isLoading) {
+        fetchSpeakers();
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   const removeFilter = (filterId: string) => {
     setSelectedFilterIds(selectedFilterIds.filter((id) => id !== filterId));
@@ -225,6 +247,14 @@ export default function SpeakersScreen() {
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#000000"
+            colors={["#000000"]}
+          />
+        }
       >
         {/* Screen Title Section */}
         <View className="flex-row items-center px-4 pt-2 pb-4">
@@ -280,31 +310,52 @@ export default function SpeakersScreen() {
 
         {/* Speakers Grid */}
         <View className="px-4">
-          <View className="flex-row flex-wrap -mx-1.5">
-            {speakers.map((speaker, index) => (
-              <View
-                key={index}
-                className="px-1.5 mb-3"
-                style={{ width: "50%" }}
+          {isLoading ? (
+            <View className="py-20 items-center">
+              <ActivityIndicator size="large" color="#000000" />
+              <Text className="text-gray-500 mt-4">Loading speakers...</Text>
+            </View>
+          ) : error ? (
+            <View className="py-20 items-center px-4">
+              <Text className="text-red-600 text-center mb-4">{error}</Text>
+              <Pressable
+                onPress={fetchSpeakers}
+                className="bg-black rounded-md px-6 py-3"
               >
-                <SpeakerCard
-                  name={speaker.name}
-                  role={speaker.role}
-                  avatar={speaker.avatar}
-                  avatarColor={speaker.avatarColor}
-                  variant="vertical"
-                  onPress={() =>
-                    navigation.navigate("SpeakerDetail", {
-                      speakerId: speaker.name
-                        .toLowerCase()
-                        .replace(/\s+/g, "-"),
-                      name: speaker.name,
-                    })
-                  }
-                />
-              </View>
-            ))}
-          </View>
+                <Text className="text-white font-medium">Retry</Text>
+              </Pressable>
+            </View>
+          ) : speakers.length > 0 ? (
+            <View className="flex-row flex-wrap -mx-1.5">
+              {speakers.map((speaker) => (
+                <View
+                  key={speaker.id}
+                  className="px-1.5 mb-3"
+                  style={{ width: "50%" }}
+                >
+                  <SpeakerCard
+                    name={speaker.name}
+                    role={speaker.role}
+                    avatar={speaker.avatar}
+                    avatarColor={speaker.avatarColor}
+                    variant="vertical"
+                    onPress={() =>
+                      navigation.navigate("SpeakerDetail", {
+                        speakerId: speaker.id,
+                        name: speaker.name,
+                      })
+                    }
+                  />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View className="py-20 items-center">
+              <Text className="text-gray-500 text-center">
+                No speakers available.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 

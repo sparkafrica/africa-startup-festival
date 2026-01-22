@@ -470,6 +470,78 @@ export const meetingService = {
   },
 
   /**
+   * Submit a meeting request from RequestMeetingModal form data.
+   * Handles both physical and virtual meetings. Throws ApiClientError on failure.
+   */
+  async submitMeetingRequestFromForm(
+    eventId: number,
+    formData: {
+      title: string;
+      meetingType: "Physical" | "Virtual";
+      tableNumber?: string;
+      meetingLink?: string;
+      date?: string;
+      time?: string;
+      description: string;
+      meeting_slot_id?: number;
+    },
+    requesteeId: string
+  ): Promise<void> {
+    if (formData.meetingType === "Virtual") {
+      const parseTime = (timeDisplay: string): string => {
+        try {
+          const startStr = timeDisplay.split(" - ")[0].trim();
+          const [timePart, period] = startStr.split(" ");
+          const [hours, minutes] = timePart.split(":");
+          let h = parseInt(hours, 10);
+          if (period?.toUpperCase() === "PM" && h !== 12) h += 12;
+          else if (period?.toUpperCase() === "AM" && h === 12) h = 0;
+          return `${h.toString().padStart(2, "0")}:${minutes}:00`;
+        } catch {
+          return "10:00:00";
+        }
+      };
+      const virtualRequest: VirtualMeetingRequest = {
+        requestee_id: requesteeId,
+        reason: formData.description,
+        meeting_link: formData.meetingLink!,
+        scheduled_date: formData.date!,
+        scheduled_time: parseTime(formData.time!),
+        duration_minutes: 20,
+        metadata: {
+          title: formData.title,
+          meetingType: formData.meetingType,
+          selectedDate: formData.date,
+          selectedTime: formData.time,
+        },
+      };
+      await this.createVirtualMeetingRequest(virtualRequest);
+    } else {
+      if (!formData.meeting_slot_id) {
+        throw new ApiClientError({
+          status: "error",
+          message: "Please select a valid date, time, and table for the meeting",
+          response_code: 400,
+          data: {},
+        });
+      }
+      const meetingRequest: MeetingRequest = {
+        meeting_slot_id: formData.meeting_slot_id,
+        requestee_id: requesteeId,
+        reason: formData.description,
+        metadata: {
+          title: formData.title,
+          meetingType: formData.meetingType,
+          selectedDate: formData.date,
+          selectedTime: formData.time,
+          tableNumber: formData.tableNumber,
+        },
+      };
+      await this.createMeetingRequest(eventId, meetingRequest);
+    }
+  },
+
+  /**
    * Accept or reject a meeting request
    *
    * @param meetingId - The ID of the meeting

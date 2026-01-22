@@ -93,6 +93,22 @@ export interface UserProfile {
   // Add other fields as needed based on CustomUserDetails schema
 }
 
+/** Normalize API response to UserProfile. Handles both wrapped ({ status, data }) and unwrapped (user object) formats. */
+function toUserProfile(response: any): UserProfile {
+  if (response?.user_id != null || response?.email != null) {
+    return response as UserProfile;
+  }
+  if (response?.status === "success" && response?.data != null) {
+    return response.data as UserProfile;
+  }
+  throw new ApiClientError({
+    status: "error",
+    message: response?.message || "Invalid profile response",
+    response_code: response?.response_code ?? 500,
+    data: {},
+  });
+}
+
 // ============================================================================
 // AUTHENTICATION SERVICE
 // ============================================================================
@@ -239,19 +255,18 @@ export const authService = {
    * Backend Endpoint: GET /auth/user/
    */
   async getCurrentUser(): Promise<UserProfile> {
-    const response = await api.get<UserProfile>("/auth/user/");
-
-    if (response.status === "success" && response.data) {
-      // response.data should be UserProfile object
-      return response.data as UserProfile;
+    try {
+      const response = await api.get<any>("/auth/user/");
+      return toUserProfile(response);
+    } catch (e: any) {
+      if (e instanceof ApiClientError) throw e;
+      throw new ApiClientError({
+        status: "error",
+        message: e?.message || "Failed to get user profile",
+        response_code: e?.response_code ?? e?.responseCode ?? 500,
+        data: e?.data ?? {},
+      });
     }
-
-    throw new ApiClientError({
-      status: "error",
-      message: response.message || "Failed to get user profile",
-      response_code: response.response_code,
-      data: {},
-    });
   },
 
   /**
@@ -263,21 +278,18 @@ export const authService = {
    * Backend Endpoint: PUT /auth/user/
    */
   async updateProfile(profileData: Partial<UserProfile>): Promise<UserProfile> {
-    const response = await api.put<Partial<UserProfile>>(
-      "/auth/user/",
-      profileData
-    );
-
-    if (response.status === "success" && response.data) {
-      return response.data as UserProfile;
+    try {
+      const response = await api.put<any>("/auth/user/", profileData);
+      return toUserProfile(response);
+    } catch (e: any) {
+      if (e instanceof ApiClientError) throw e;
+      throw new ApiClientError({
+        status: "error",
+        message: e?.message || "Failed to update profile",
+        response_code: e?.response_code ?? e?.responseCode ?? 500,
+        data: e?.data ?? {},
+      });
     }
-
-    throw new ApiClientError({
-      status: "error",
-      message: response.message || "Failed to update profile",
-      response_code: response.response_code,
-      data: {},
-    });
   },
 
   /**
@@ -308,21 +320,21 @@ export const authService = {
 
     // Use PATCH endpoint with FormData
     // Axios automatically detects FormData and sets Content-Type to multipart/form-data with boundary
-    const response = await api.patch<FormData>(
-      "/auth/user/",
-      formData
-    );
-
-    if (response.status === "success" && response.data) {
-      return response.data as UserProfile;
+    // Use longer timeout for uploads (60s) to avoid ECONNABORTED on slow connections or larger images
+    try {
+      const response = await api.patch<any>("/auth/user/", formData, {
+        timeout: 60_000,
+      });
+      return toUserProfile(response);
+    } catch (e: any) {
+      if (e instanceof ApiClientError) throw e;
+      throw new ApiClientError({
+        status: "error",
+        message: e?.message || "Failed to upload profile picture",
+        response_code: e?.response_code ?? e?.responseCode ?? 500,
+        data: e?.data ?? {},
+      });
     }
-
-    throw new ApiClientError({
-      status: "error",
-      message: response.message || "Failed to upload profile picture",
-      response_code: response.response_code,
-      data: {},
-    });
   },
 
   /**
@@ -333,21 +345,19 @@ export const authService = {
    * Backend Endpoint: PATCH /auth/user/
    */
   async removeProfilePicture(): Promise<UserProfile> {
-    // Send null to remove the profile picture
-    const response = await api.patch<{ profile_pic: null }>(
-      "/auth/user/",
-      { profile_pic: null }
-    );
-
-    if (response.status === "success" && response.data) {
-      return response.data as UserProfile;
+    try {
+      const response = await api.patch<any>("/auth/user/", {
+        profile_pic: null,
+      });
+      return toUserProfile(response);
+    } catch (e: any) {
+      if (e instanceof ApiClientError) throw e;
+      throw new ApiClientError({
+        status: "error",
+        message: e?.message || "Failed to remove profile picture",
+        response_code: e?.response_code ?? e?.responseCode ?? 500,
+        data: e?.data ?? {},
+      });
     }
-
-    throw new ApiClientError({
-      status: "error",
-      message: response.message || "Failed to remove profile picture",
-      response_code: response.response_code,
-      data: {},
-    });
   },
 };
