@@ -18,7 +18,14 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload profile pictures.",
         "NSCameraUsageDescription": "This app needs access to your camera to take profile pictures.",
-        "LSApplicationQueriesSchemes": ["linkedin", "https", "http"]
+        "LSApplicationQueriesSchemes": [
+          "linkedin",
+          "https",
+          "http",
+          "linkedin",
+          "https",
+          "http"
+        ]
       }
     },
     "android": {
@@ -28,6 +35,9 @@
         "backgroundColor": "#000000"
       },
       "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
@@ -47,7 +57,8 @@
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/87d58ced-aedb-42bd-aab1-962dc873eacc"
     },
     "runtimeVersion": {
       "policy": "sdkVersion"

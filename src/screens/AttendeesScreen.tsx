@@ -14,6 +14,8 @@ import {
   RefreshControl,
   Image,
   ImageSourcePropType,
+  Linking,
+  Alert,
 } from "react-native";
 import { GestureDetector, Gesture, Pressable as GesturePressable } from "react-native-gesture-handler";
 import Animated, {
@@ -903,8 +905,12 @@ export default function AttendeesScreen() {
     // Extract role (job_title or organisation_role)
     const role = user.job_title || user.organisation_role || undefined;
 
-    // Extract company (organisation or company.name)
-    const company = user.organisation || (user as any).company?.name || undefined;
+    // Extract company name - check company.name first (like participant cards), then fall back to organisation
+    const company = 
+      (user as any).company?.name || 
+      (user as any).company?.company_name ||
+      user.organisation || 
+      undefined;
 
     // Extract avatar
     const avatar = user.profile_pic ? { uri: user.profile_pic } : undefined;
@@ -2085,12 +2091,44 @@ export default function AttendeesScreen() {
                       Social Links
                     </Text>
                     <Pressable
-                      onPress={() => {
-                        // TODO: Open LinkedIn URL
-                        console.log(
-                          "Open LinkedIn:",
-                          selectedAttendee.linkedInUrl
-                        );
+                      onPress={async () => {
+                        if (selectedAttendee.linkedInUrl) {
+                          try {
+                            const url = selectedAttendee.linkedInUrl;
+                            // Ensure URL has protocol
+                            const formattedUrl = url.startsWith("http://") || url.startsWith("https://")
+                              ? url
+                              : `https://${url}`;
+                            
+                            // Try to open URL directly
+                            // On iOS, canOpenURL may return false even for valid URLs if not whitelisted,
+                            // so we'll try to open directly and catch errors
+                            const supported = await Linking.canOpenURL(formattedUrl);
+                            if (supported) {
+                              await Linking.openURL(formattedUrl);
+                            } else {
+                              // Still try to open - might work even if canOpenURL returns false
+                              try {
+                                await Linking.openURL(formattedUrl);
+                              } catch (openError) {
+                                Alert.alert(
+                                  "Cannot Open LinkedIn",
+                                  "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
+                                  [{ text: "OK" }]
+                                );
+                              }
+                            }
+                          } catch (error) {
+                            if (__DEV__) {
+                              console.error("Error opening LinkedIn URL:", error);
+                            }
+                            Alert.alert(
+                              "Error",
+                              "Failed to open LinkedIn profile. Please try again.",
+                              [{ text: "OK" }]
+                            );
+                          }
+                        }
                       }}
                       className="flex-row items-center bg-neutral-100 rounded-full px-4 py-2.5 self-start"
                     >
