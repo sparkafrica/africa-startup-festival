@@ -18,11 +18,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload profile pictures.",
         "NSCameraUsageDescription": "This app needs access to your camera to take profile pictures.",
-        "LSApplicationQueriesSchemes": [
-          "linkedin",
-          "https",
-          "http"
-        ]
+        "LSApplicationQueriesSchemes": ["linkedin", "https", "http"]
       }
     },
     "android": {
@@ -47,6 +43,14 @@
       "eas": {
         "projectId": "87d58ced-aedb-42bd-aab1-962dc873eacc"
       }
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
     },
     "owner": "unkn0wnt"
   }
