@@ -467,7 +467,7 @@ export default function MeetingsScreen({ route }: Props) {
       timeUntil,
       description: virtualMeeting.reason,
     };
-  };
+      };
 
   /**
    * Map backend Meeting to UI-friendly format
@@ -548,7 +548,7 @@ export default function MeetingsScreen({ route }: Props) {
       metadataMeetingType === "virtual" ||
       (!!metadataMeetingLink && metadataMeetingType !== "physical") ||
       locationLooksLikeLink;
-    const meetingType = isVirtual ? "virtual" : "physical";
+    const meetingType: "physical" | "virtual" = isVirtual ? "virtual" : "physical";
     const location = isVirtual
       ? undefined
       : backendMeeting.location || backendMeeting.metadata?.tableNumber;
@@ -580,10 +580,10 @@ export default function MeetingsScreen({ route }: Props) {
     // Note: Backend may also have top-level title field, but we prioritize metadata.title
     const title = backendMeeting.metadata?.title || (backendMeeting as any).title || backendMeeting.reason;
 
-    return {
+    const mappedMeeting: UIMeeting = {
       id: `meeting-${backendMeeting.id}`,
       backendMeetingId: backendMeeting.id,
-      isVirtual: false, // Physical meetings
+      isVirtual, // Use calculated isVirtual value
       isInbound,
       title, // Use metadata.title if available, otherwise fallback to reason
       participantName,
@@ -599,7 +599,7 @@ export default function MeetingsScreen({ route }: Props) {
       startTime,
       endTime,
       location,
-      meetingType,
+      meetingType: meetingType as "physical" | "virtual",
       meetingLink,
       status: backendMeeting.status,
       approvalMessage:
@@ -612,6 +612,8 @@ export default function MeetingsScreen({ route }: Props) {
       timeUntil,
       description: backendMeeting.reason, // Keep reason as description
     };
+    
+    return mappedMeeting;
   };
 
   const bottomNavItems = [
@@ -767,6 +769,7 @@ export default function MeetingsScreen({ route }: Props) {
   const handleRespondToMeeting = useCallback(
     async (meeting: UIMeeting, action: "accept" | "reject", rejectionReason?: string) => {
       if (isActionLoading) return;
+      
       try {
         setIsActionLoading(true);
         
@@ -847,20 +850,21 @@ export default function MeetingsScreen({ route }: Props) {
             : "Failed to cancel meeting";
         
         // Handle 404 - meeting might already be cancelled
-          if (err instanceof ApiClientError && err.response_code === 404) {
-            if (err.message?.includes("already cancelled") || err.message?.includes("not found")) {
-              message = "This meeting is already cancelled or doesn't exist.";
-              // Close modal and refresh even on 404 (meeting already cancelled)
-              setIsModalVisible(false);
-              setSelectedMeeting(null);
-              setTimeout(() => {
-                showToast(message, "error");
-              }, 300);
-              setTimeout(async () => {
-                await fetchMeetings(false);
-              }, 600);
-            }
+        if (err instanceof ApiClientError && err.responseCode === 404) {
+          if (err.message?.includes("already cancelled") || err.message?.includes("not found")) {
+            message = "This meeting is already cancelled or doesn't exist.";
+            // Close modal and refresh even on 404 (meeting already cancelled)
+            setIsModalVisible(false);
+            setSelectedMeeting(null);
+            setTimeout(() => {
+              showToast(message, "error");
+            }, 300);
+            setTimeout(async () => {
+              await fetchMeetings(false);
+            }, 600);
+            return; // Exit early - already handled the error
           }
+        }
         
         showToast(message, "error");
       } finally {
@@ -984,25 +988,7 @@ export default function MeetingsScreen({ route }: Props) {
             selectedTime: updateData.time, // Keep original time format "8:00 AM - 8:20 AM"
           };
 
-          if (__DEV__) {
-            console.log("🔍 Updating virtual meeting with metadata:", {
-              meetingId: meeting.backendMeetingId,
-              title: updateData.title,
-              metadata: virtualUpdateRequest.metadata,
-              fullRequest: virtualUpdateRequest,
-            });
-          }
-
           const updatedMeeting = await meetingService.updateVirtualMeeting(meeting.backendMeetingId, virtualUpdateRequest);
-          
-          if (__DEV__) {
-            console.log("✅ Virtual meeting updated, response:", {
-              id: updatedMeeting.id,
-              metadata: updatedMeeting.metadata,
-              title: updatedMeeting.metadata?.title,
-              reason: updatedMeeting.reason,
-            });
-          }
         } else {
           // Handle physical meeting updates
           const updateRequest: { reason?: string; slot_id?: number; metadata?: any } = {
@@ -1040,30 +1026,12 @@ export default function MeetingsScreen({ route }: Props) {
             ...(tableNumber && { tableNumber: tableNumber }),
           };
 
-          if (__DEV__) {
-            console.log("🔍 Updating physical meeting with metadata:", {
-              meetingId: meeting.backendMeetingId,
-              title: updateData.title,
-              metadata: updateRequest.metadata,
-              fullRequest: updateRequest,
-            });
-          }
-
           // For physical meetings, if date changed, we need to find a slot on that date
           // The slot_id should already be set from the time/table selection, but if date changed
           // and no new slot_id is provided, we might need to handle it
           // For now, slot_id is the primary way to reschedule physical meetings
           
           const updatedMeeting = await meetingService.updateMeeting(meeting.backendMeetingId, updateRequest);
-          
-          if (__DEV__) {
-            console.log("✅ Physical meeting updated, response:", {
-              id: updatedMeeting.id,
-              metadata: updatedMeeting.metadata,
-              title: updatedMeeting.metadata?.title,
-              reason: updatedMeeting.reason,
-            });
-          }
         }
         
         // Show toast first (before closing modal to ensure it displays)
@@ -1322,6 +1290,7 @@ export default function MeetingsScreen({ route }: Props) {
         secondaryTab === "inbound" &&
         primaryTab === "requests" && (
           <InboundMeetingModal
+            key={`inbound-${selectedMeeting.id}`}
             visible={isModalVisible}
             onClose={() => {
               setIsModalVisible(false);

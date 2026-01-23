@@ -66,10 +66,14 @@ export default function MeetingAcceptedModal({
   startTime,
   endTime,
   location,
+  meetingType = "physical",
+  meetingLink,
   participantName,
   participantRole,
   participantCompany,
 }: MeetingAcceptedModalProps) {
+  const isVirtual = meetingType === "virtual";
+  
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const modalHeight = useRef(SCREEN_HEIGHT);
 

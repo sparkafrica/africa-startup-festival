@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
-import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon, SpeechBubbleIcon } from "./icons";
+import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
 import { LinkedInIcon } from "./SocialIcons";
 import EditMeetingModal, { EditMeetingModalProps } from "./EditMeetingModal";
@@ -488,8 +488,8 @@ export default function OutboundMeetingModal({
               <XCircleIcon size={20} color="#EF4444" />
               <Text style={styles.cancelButtonText}>Cancel Meeting</Text>
             </Pressable>
-            {/* Leave Feedback Button */}
-            <Pressable
+            {/* Leave Feedback Button - Commented out: Users can't leave feedback for meetings they've only requested (not attended yet) */}
+            {/* <Pressable
               style={styles.feedbackButton}
               onPress={async () => {
                 try {
@@ -523,7 +523,7 @@ export default function OutboundMeetingModal({
             >
               <SpeechBubbleIcon size={20} color="#000000" />
               <Text style={styles.feedbackButtonText}>Leave Feedback</Text>
-            </Pressable>
+            </Pressable> */}
           </SafeAreaView>
         </Animated.View>
 

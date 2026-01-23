@@ -402,17 +402,6 @@ export const meetingService = {
         return response as Meeting;
       }
 
-      // Log error response structure for debugging
-      if (__DEV__) {
-        console.log("🔍 Physical meeting request error response:", {
-          response_message: response.message,
-          response_code: response.response_code,
-          hasData: !!response.data,
-          dataKeys: response.data ? Object.keys(response.data) : [],
-          nonFieldErrors: response.data?.non_field_errors || response.data?.data?.non_field_errors,
-        });
-      }
-
       // Parse validation errors from response
       let errorMessage = response.message || "Failed to create meeting request";
       
@@ -762,31 +751,10 @@ export const meetingService = {
     request: VirtualMeetingRequest
   ): Promise<VirtualMeeting> {
     try {
-      if (__DEV__) {
-        console.log("🔍 Creating virtual meeting request:", {
-          requestee_id: request.requestee_id,
-          reason: request.reason?.substring(0, 50) + "...",
-          meeting_link: request.meeting_link,
-          scheduled_date: request.scheduled_date,
-          scheduled_time: request.scheduled_time,
-          duration_minutes: request.duration_minutes,
-        });
-      }
-
       const response = await api.post<any>(
         `/virtual-meetings/${EVENT_ID}/request/`,
         request
       );
-
-      if (__DEV__) {
-        console.log("✅ Virtual meeting request response:", {
-          status: response.status,
-          response_code: response.response_code,
-          message: response.message,
-          hasData: !!response.data,
-          dataKeys: response.data ? Object.keys(response.data) : [],
-        });
-      }
 
       if (response.status === "success" && response.data) {
         return response.data as VirtualMeeting;
@@ -859,9 +827,6 @@ export const meetingService = {
       if (error instanceof ApiClientError) {
         // Enhance error message if it has nested data
         if (error.data?.data) {
-          if (__DEV__) {
-            console.log("🔍 Parsing nested error data:", error.data.data);
-          }
           const fieldErrors: string[] = [];
           
           // Check for non_field_errors first (general validation errors)

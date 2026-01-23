@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
-import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon, SpeechBubbleIcon } from "./icons";
+import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
 import { LinkedInIcon } from "./SocialIcons";
 import MeetingAcceptedModal from "./MeetingAcceptedModal";
@@ -159,23 +159,28 @@ export default function InboundMeetingModal({
       translateY.stopAnimation();
       isAnimating.current = false;
 
-      // Use measured height if available, otherwise use screen height
-      const initialHeight = hasMeasured.current
-        ? modalHeight.current
-        : SCREEN_HEIGHT;
-      translateY.setValue(initialHeight);
+      // Reset measurement state when modal becomes visible
+      hasMeasured.current = false;
+
+      // Always start from screen height for consistent animation
+      translateY.setValue(SCREEN_HEIGHT);
 
       // Mark as animating
       isAnimating.current = true;
 
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start(() => {
-        isAnimating.current = false;
-      });
+      // Use setTimeout to ensure layout has completed before animating
+      const timer = setTimeout(() => {
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 11,
+        }).start(() => {
+          isAnimating.current = false;
+        });
+      }, 50);
+
+      return () => clearTimeout(timer);
     } else {
       // Stop any ongoing animations
       translateY.stopAnimation();
@@ -467,8 +472,8 @@ export default function InboundMeetingModal({
               <XCircleIcon size={20} color="#EF4444" />
               <Text style={styles.declineButtonText}>Decline</Text>
             </Pressable>
-            {/* Leave Feedback Button */}
-            <Pressable
+            {/* Leave Feedback Button - Commented out: Only ScheduledMeetingModal should have this */}
+            {/* <Pressable
               style={styles.feedbackButton}
               onPress={async () => {
                 try {
@@ -502,7 +507,7 @@ export default function InboundMeetingModal({
             >
               <SpeechBubbleIcon size={20} color="#000000" />
               <Text style={styles.feedbackButtonText}>Leave Feedback</Text>
-            </Pressable>
+            </Pressable> */}
           </SafeAreaView>
         </Animated.View>
 
