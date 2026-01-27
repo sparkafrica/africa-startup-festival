@@ -300,7 +300,7 @@ export default function HomeScreen() {
         >
           <BannerCard
             // badge="EVENT LIVE IN LAGOS"
-            title="Welcome to ATE 2026"
+            title="Welcome to OTA Test 2026"
             description="Complete your checklist and start booking 1:1 meetings with attendees and partners."
             buttonText="View attendees"
             gradient={gradients.sparkBlack}

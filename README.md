@@ -1,5 +1,4 @@
 # Spark Event Platform
-
 A modern, production-ready React Native mobile application for event management, networking, and attendee engagement. Built with Expo, TypeScript, and NativeWind for a seamless cross-platform experience.
 
 ## 📱 Overview
