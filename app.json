@@ -19,13 +19,9 @@
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload profile pictures.",
         "NSCameraUsageDescription": "This app needs access to your camera to take profile pictures.",
         "LSApplicationQueriesSchemes": [
-          "linkedin",
-          "https",
-          "http",
-          "linkedin",
-          "https",
-          "http"
-        ]
+          "linkedin"
+        ],
+        "buildNumber": "1"
       }
     },
     "android": {
