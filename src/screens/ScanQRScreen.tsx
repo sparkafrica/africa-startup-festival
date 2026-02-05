@@ -448,6 +448,7 @@ function TicketCard({
   canTransfer?: boolean; // Whether personal ticket can be transferred
   totalTickets?: number; // Total number of tickets user has
   availableToAssignCount?: number; // Number of unassigned tickets
+  availableCount?: number; // For unassigned quota card: count shown on card
   isAdminBlocked?: boolean; // Whether transfer is blocked because user is admin
   eventId?: number; // Event ID to determine if ATE event
   onViewQR?: () => void;
@@ -455,6 +456,13 @@ function TicketCard({
   onAssign?: () => void;
   onEditAssignment?: () => void;
 }) {
+  const unassignedLabel =
+    isUnassigned && availableCount != null
+      ? `${availableCount} available`
+      : isUnassigned
+        ? "Available"
+        : null;
+
   return (
     <View className="mb-4">
       <View
@@ -470,7 +478,7 @@ function TicketCard({
           <View className="flex-1 pr-2">
             <Text className="text-white text-2xl font-bold mb-2">{title}</Text>
             <Text className="text-white/50 text-base mb-10 font-mono">
-              {formatTicketCodeForDisplay(ticketNumber)}
+              {unassignedLabel ?? formatTicketCodeForDisplay(ticketNumber)}
             </Text>
             {assignedTo && (
               <View className="flex-col">
@@ -3497,6 +3505,9 @@ interface Ticket {
   assignedDate?: string;
   isPersonal: boolean; // true for personal ticket, false for available to assign
   isUnassigned: boolean; // true if ticket hasn't been assigned yet
+  quotaId?: number; // For unassigned: quota allocation uses this
+  ticketClassId?: number; // For unassigned: quota allocation uses this
+  availableCount?: number; // For unassigned: one card per quota, count shown on card
 }
 
 // Helper function to check if user is exhibitor/partner admin
@@ -3541,15 +3552,19 @@ function canTransferPersonalTicket(
     const availableToAssign = tickets.filter(
       (t) => !t.isPersonal && t.isUnassigned
     );
+    const availableSlots = availableToAssign.reduce(
+      (sum, t) => sum + (t.availableCount ?? 1),
+      0
+    );
 
     if (totalTickets === 1) {
       return { canTransfer: true }; // Allow single ticket transfer
     }
 
-    if (availableToAssign.length > 0) {
+    if (availableSlots > 0) {
       return {
         canTransfer: false,
-        reason: `You must assign ${availableToAssign.length} available ticket(s) first`,
+        reason: `You must assign ${availableSlots} available ticket(s) first`,
       };
     }
 
@@ -3561,6 +3576,10 @@ function canTransferPersonalTicket(
   const availableToAssign = tickets.filter(
     (t) => !t.isPersonal && t.isUnassigned
   );
+  const availableSlots = availableToAssign.reduce(
+    (sum, t) => sum + (t.availableCount ?? 1),
+    0
+  );
 
   if (totalTickets <= 1) {
     return {
@@ -3569,10 +3588,10 @@ function canTransferPersonalTicket(
     };
   }
 
-  if (availableToAssign.length > 0) {
+  if (availableSlots > 0) {
     return {
       canTransfer: false,
-      reason: `You must assign ${availableToAssign.length} available ticket(s) first`,
+      reason: `You must assign ${availableSlots} available ticket(s) first`,
     };
   }
 
@@ -3630,13 +3649,17 @@ function MyTicketView({
   const canTransfer = transferResult.canTransfer;
   const isAdminBlocked = transferResult.isAdminBlocked || false;
 
-  // Get tickets by category
+  // Get tickets by category (order per Figma: My Ticket, Assigned, Available)
   const myPersonalTickets = tickets.filter((t) => t.isPersonal);
   const assignedTickets = tickets.filter(
     (t) => !t.isPersonal && !t.isUnassigned
   );
   const unassignedTickets = tickets.filter(
     (t) => !t.isPersonal && t.isUnassigned
+  );
+  const availableToAssignSlots = unassignedTickets.reduce(
+    (sum, t) => sum + (t.availableCount ?? 1),
+    0
   );
 
   if (loading) {
@@ -3699,7 +3722,7 @@ function MyTicketView({
               isMyTicket={true}
               canTransfer={canTransfer}
               totalTickets={totalTickets}
-              availableToAssignCount={availableToAssignTickets.length}
+              availableToAssignCount={availableToAssignSlots}
               isAdminBlocked={isAdminBlocked}
               eventId={eventId}
               onViewQR={() =>
@@ -3708,7 +3731,7 @@ function MyTicketView({
                   ticket.ticketNumber,
                   canTransfer,
                   totalTickets,
-                  availableToAssignTickets.length
+                  availableToAssignSlots
                 )
               }
               onTransfer={() =>
@@ -3787,6 +3810,7 @@ function MyTicketView({
                   ticketNumber={ticket.ticketNumber}
                   backgroundColor={ticket.backgroundColor}
                   isUnassigned
+                  availableCount={ticket.availableCount}
                   onAssign={() =>
                     onTransfer(
                       ticket.title,
@@ -3920,17 +3944,17 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
 
-  // Fetch user's ticket on component mount
+  // Fetch user's tickets: personal (getUserTicket) + unassigned (getUserQuotas)
   useEffect(() => {
-    const fetchUserTicket = async () => {
+    const fetchTickets = async () => {
       setTicketsLoading(true);
       setTicketsError(null);
 
+      const allTickets: Ticket[] = [];
+
+      // Step 1: Personal ticket
       try {
         const backendTicket = await ticketService.getUserTicket(EVENT_ID);
-
-        // Map backend Ticket to frontend Ticket format
-        // For personal ticket, assignedTo needs to be set for buttons to show
         const frontendTicket: Ticket = {
           id: String(backendTicket.id),
           title: backendTicket.type?.name || "Ticket",
@@ -3938,27 +3962,57 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           backgroundColor: getTicketBackgroundColor(
             backendTicket.type?.user_type
           ),
-          assignedTo: "You", // Personal ticket is assigned to the user themselves
-          isPersonal: true, // User's own ticket is always personal
-          isUnassigned: false, // User's ticket is assigned to them
+          assignedTo: "You",
+          isPersonal: true,
+          isUnassigned: false,
         };
-
-        setTickets([frontendTicket]);
+        allTickets.push(frontendTicket);
       } catch (error: any) {
         const responseCode =
           error?.responseCode || error?.response_code || error?.statusCode;
-        if (responseCode === 404) {
-          // User doesn't have a ticket for this event - that's okay
-          setTickets([]);
-        } else {
+        if (responseCode !== 404) {
           setTicketsError("Failed to load tickets. Please try again.");
         }
-      } finally {
-        setTicketsLoading(false);
       }
+
+      // Step 2: Unassigned tickets from quotas - one card per quota with count
+      try {
+        const quotas = await ticketService.getUserQuotas(EVENT_ID);
+        for (const quota of quotas) {
+          const remaining =
+            quota.remaining_quota ??
+            (quota.quota - quota.allocated_tickets ?? 0);
+          if (remaining <= 0) continue;
+
+          const userType =
+            quota.ticket_class?.user_type ?? quota.ticket_class?.type ?? "";
+          const title = quota.ticket_class?.name ?? "Ticket";
+          const backgroundColor = getTicketBackgroundColor(userType);
+
+          allTickets.push({
+            id: `quota-${quota.id}`,
+            title,
+            ticketNumber: "", // No ticket code; count shown instead
+            backgroundColor,
+            isPersonal: false,
+            isUnassigned: true,
+            quotaId: quota.id,
+            ticketClassId: quota.ticket_class?.id,
+            availableCount: remaining,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching quotas:", error);
+        if (allTickets.length === 0) {
+          setTicketsError("Failed to load tickets. Please try again.");
+        }
+      }
+
+      setTickets(allTickets);
+      setTicketsLoading(false);
     };
 
-    fetchUserTicket();
+    fetchTickets();
   }, []);
 
   // Helper function to get background color based on ticket type
@@ -3989,9 +4043,13 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     const availableToAssignTickets = tickets.filter(
       (t) => !t.isPersonal && t.isUnassigned
     );
+    const availableToAssignSlots = availableToAssignTickets.reduce(
+      (sum, t) => sum + (t.availableCount ?? 1),
+      0
+    );
     return {
       totalTickets,
-      availableToAssignCount: availableToAssignTickets.length,
+      availableToAssignCount: availableToAssignSlots,
       canTransferPersonalTicket: transferResult.canTransfer,
     };
   };
