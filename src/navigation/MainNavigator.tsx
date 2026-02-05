@@ -37,12 +37,20 @@ export default function MainNavigator() {
       <Stack.Screen
         name="Home"
         component={HomeScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
+          animation: "none",
+        }}
       />
       <Stack.Screen
         name="Attendees"
         component={AttendeesScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
+          animation: "none",
+        }}
       />
       <Stack.Screen
         name="EventDetails"
@@ -143,7 +151,8 @@ export default function MainNavigator() {
         component={ScheduleScreen}
         options={{
           headerShown: false,
-          animation: "slide_from_right",
+          // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
+          animation: "none",
         }}
       />
       <Stack.Screen
@@ -151,7 +160,8 @@ export default function MainNavigator() {
         component={MeetingsScreen}
         options={{
           headerShown: false,
-          animation: "slide_from_right",
+          // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
+          animation: "none",
         }}
       />
       <Stack.Screen
@@ -159,7 +169,8 @@ export default function MainNavigator() {
         component={ConnectionsScreen}
         options={{
           headerShown: false,
-          animation: "slide_from_right",
+          // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
+          animation: "none",
         }}
       />
       <Stack.Screen

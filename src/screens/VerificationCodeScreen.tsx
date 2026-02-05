@@ -54,65 +54,20 @@ export default function VerificationCodeScreen() {
   const { email } = route.params;
   const { verifyCode, requestVerificationCode } = useAuth();
 
-  const [code, setCode] = useState(["", "", "", "", "", ""]);
+  const [code, setCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
-  const inputRefs = [
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-    useRef<TextInput>(null),
-  ];
+  const hiddenInputRef = useRef<TextInput>(null);
 
-  const handleCodeChange = (value: string, index: number) => {
-    // Handle paste: if multiple characters detected, distribute them across inputs
-    if (value.length > 1) {
-      // Extract only digits from pasted text
-      const digits = value.replace(/\D/g, "").slice(0, 6);
-      const newCode = [...code];
-
-      // Distribute digits starting from current index
-      digits.split("").forEach((digit, i) => {
-        if (index + i < 6) {
-          newCode[index + i] = digit;
-        }
-      });
-
-      setCode(newCode);
-
-      // Focus on the next empty input or the last filled input
-      const nextEmptyIndex = newCode.findIndex(
-        (digit, i) => !digit && i >= index
-      );
-      const focusIndex =
-        nextEmptyIndex !== -1 ? nextEmptyIndex : Math.min(index + digits.length, 5);
-      inputRefs[focusIndex].current?.focus();
-      return;
-    }
-
-    // Handle single character input
-    const newCode = [...code];
-    newCode[index] = value;
-    setCode(newCode);
-
-    // Auto-focus next input
-    if (value && index < 5) {
-      inputRefs[index + 1].current?.focus();
-    }
-  };
-
-  const handleKeyPress = (key: string, index: number) => {
-    // Handle backspace
-    if (key === "Backspace" && !code[index] && index > 0) {
-      inputRefs[index - 1].current?.focus();
-    }
+  const handleCodeChange = (value: string) => {
+    // Allow only digits, max 6 characters - paste and autofill work naturally
+    const digits = value.replace(/\D/g, "").slice(0, 6);
+    setCode(digits);
   };
 
   const handleSubmit = async () => {
-    const codeString = code.join("");
+    const codeString = code;
 
     // TODO: BACKEND INTEGRATION - Client-side validation (keep this)
     // For testing: accept any 6 characters
@@ -140,8 +95,8 @@ export default function VerificationCodeScreen() {
       Alert.alert("Error", "Invalid verification code. Please try again.");
       console.error("Error verifying code:", error);
       // TODO: BACKEND - Clear code inputs on error for better UX
-      setCode(["", "", "", "", "", ""]);
-      inputRefs[0].current?.focus();
+      setCode("");
+      hiddenInputRef.current?.focus();
     } finally {
       setIsSubmitting(false);
     }
@@ -158,8 +113,8 @@ export default function VerificationCodeScreen() {
       // TODO: BACKEND - Show countdown timer before allowing another resend
 
       // Clear current code
-      setCode(["", "", "", "", "", ""]);
-      inputRefs[0].current?.focus();
+      setCode("");
+      hiddenInputRef.current?.focus();
     } catch (error) {
       // TODO: BACKEND - Handle specific error types (rate limit, email not found, etc.)
       Alert.alert(
@@ -172,7 +127,8 @@ export default function VerificationCodeScreen() {
     }
   };
 
-  const isCodeComplete = code.every((digit) => digit.length === 1);
+  const isCodeComplete = code.length === 6;
+  const digits = code.split("");
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
@@ -216,28 +172,44 @@ export default function VerificationCodeScreen() {
                 <Text className="font-medium text-neutral-900">{email}</Text>
               </Text>
 
-              {/* Code Input Fields */}
-              <View className="flex-row justify-center gap-1.5 mb-8 px-1">
-                {code.map((digit, index) => (
-                  <TextInput
+              {/* Code Input - Single hidden input for paste, autofill, copy; digit boxes for display */}
+              <Pressable
+                onPress={() => hiddenInputRef.current?.focus()}
+                className="flex-row justify-center gap-1.5 mb-8 px-1"
+              >
+                <TextInput
+                  ref={hiddenInputRef}
+                  value={code}
+                  onChangeText={handleCodeChange}
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  autoComplete="one-time-code"
+                  editable={!isSubmitting}
+                  caretHidden
+                  selectTextOnFocus
+                  maxLength={6}
+                  style={{
+                    position: "absolute",
+                    width: 1,
+                    height: 1,
+                    opacity: 0,
+                  }}
+                />
+                {[0, 1, 2, 3, 4, 5].map((index) => (
+                  <View
                     key={index}
-                    ref={inputRefs[index]}
-                    className="w-11 h-14 border border-neutral-300 rounded-xl text-center text-xl font-bold text-neutral-900"
-                    value={digit}
-                    onChangeText={(value) => handleCodeChange(value, index)}
-                    onKeyPress={({ nativeEvent }) =>
-                      handleKeyPress(nativeEvent.key, index)
-                    }
-                    keyboardType="number-pad"
-                    maxLength={1}
-                    selectTextOnFocus
-                    editable={!isSubmitting}
+                    className="w-11 h-14 border rounded-xl items-center justify-center"
                     style={{
-                      borderColor: digit.length > 0 ? "#1BB273" : "#D4D4D4",
+                      borderColor:
+                        digits[index] !== undefined ? "#1BB273" : "#D4D4D4",
                     }}
-                  />
+                  >
+                    <Text className="text-xl font-bold text-neutral-900">
+                      {digits[index] ?? ""}
+                    </Text>
+                  </View>
                 ))}
-              </View>
+              </Pressable>
 
               {/* Submit Code Button */}
               <Pressable

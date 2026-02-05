@@ -714,7 +714,7 @@ export default function AttendeesScreen() {
   const [activeTab, setActiveTab] = useState<"Recommended" | "All">(
     "Recommended"
   );
-  const [viewMode, setViewMode] = useState<"card" | "list">("card");
+  const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [showViewDropdown, setShowViewDropdown] = useState(false);
   const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(
     null
