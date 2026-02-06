@@ -10,7 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authService, UserProfile, Company } from "../services/authService";
 import { api } from "../services/api";
 import { isProfileComplete } from "../utils/profileCompletion";
-import { ticketService } from "../services/ticketService";
+import { ticketService, clearTicketCache } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
 
 // Types
@@ -150,6 +150,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Continue without ticket quotas - will fall back to checking if company exists
           }
 
+          // Prefetch user ticket for Menu (reduces green→blue flash when opening Menu)
+          ticketService.getUserTicket(EVENT_ID).catch(() => {});
+
           // Determine profile completion from backend data (field-based inference)
           // Pass ticket quotas to check if company profile is required for exhibitor/partner users
           const profileComplete = isProfileComplete(userProfile, ticketQuotas);
@@ -251,6 +254,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Continue without ticket quotas - will fall back to checking if company exists
     }
 
+    // Prefetch user ticket for Menu (reduces green→blue flash when opening Menu)
+    ticketService.getUserTicket(EVENT_ID).catch(() => {});
+
     // Step 4: Map UserProfile to User (they have the same structure now, so direct assignment)
     // User interface matches backend UserProfile structure (D1: Option B)
     const user: User = userProfile;
@@ -294,6 +300,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Even if API call fails, still clear local data (network issues shouldn't block logout)
       console.error("Logout API error (clearing local data anyway):", error);
     }
+
+    // Clear ticket cache so next user doesn't see previous user's ticket
+    clearTicketCache();
 
     // Clear all local stored data (service layer already cleared tokens)
     await AsyncStorage.multiRemove([
@@ -354,6 +363,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         );
         // Continue without ticket quotas - will fall back to checking if company exists
       }
+
+      // Prefetch user ticket for Menu
+      ticketService.getUserTicket(EVENT_ID).catch(() => {});
 
       // Update stored user with latest data
       await AsyncStorage.setItem(

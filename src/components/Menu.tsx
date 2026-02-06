@@ -5,6 +5,7 @@ import Svg, { Path, Circle } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
 import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
+import { getTicketTypeDisplay } from "../utils/ticketColors";
 
 import {
   TicketsIcon,
@@ -26,33 +27,30 @@ interface MenuProps {
   onLogout?: () => void;
 }
 
-// Shared logic: ticket/user type -> badge label and color (matches TicketCard)
-function getTicketTypeDisplay(type?: string): { label: string; color: string } {
-  const t = (type || "").toLowerCase();
-  if (t.includes("founder"))
-    return { label: "Founder", color: "#000000" };
-  if (t.includes("exhibitor"))
-    return { label: "Exhibitor", color: "#3B82F6" };
-  if (t.includes("partner"))
-    return { label: "Partner", color: "#3B82F6" };
-  return { label: "Attendee", color: "#10B981" };
-}
+// Slate - neutral loading color to avoid green→blue flash for assignees
+const LOADING_COLOR = "#475569";
 
 export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
   const { user } = useAuth();
   const [ticketType, setTicketType] = useState<string | null>(null);
+  const [ticketLoading, setTicketLoading] = useState(true);
 
   // Fetch user's ticket to use its type for Menu card (color + badge)
   // Ticket type takes precedence over company_type (assignee shows Exhibitor if they have Exhibitor ticket)
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setTicketLoading(false);
+      return;
+    }
+    setTicketLoading(true);
     ticketService
       .getUserTicket(EVENT_ID)
       .then((ticket) => {
         const type = ticket?.type?.user_type ?? ticket?.type?.name ?? ticket?.ticket_class?.user_type ?? null;
         setTicketType(type ?? null);
       })
-      .catch(() => setTicketType(null));
+      .catch(() => setTicketType(null))
+      .finally(() => setTicketLoading(false));
   }, [user?.user_id]);
 
   // Get user profile data
@@ -63,9 +61,13 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
   const userEmail = user?.email || "";
   
   // Badge and color: prefer ticket type, then company type (so assignee with Exhibitor ticket shows Exhibitor)
+  // While loading, use slate to avoid green flash before real ticket type loads
   const companyType = user?.company?.company_type ?? "";
   const effectiveType = ticketType || companyType || "attendee";
-  const { label: userType, color: cardBackgroundColor } = getTicketTypeDisplay(effectiveType);
+  const display = ticketLoading
+    ? { label: "...", color: LOADING_COLOR }
+    : getTicketTypeDisplay(effectiveType);
+  const { label: userType, color: cardBackgroundColor } = display;
   
   // Get profile picture URL if available
   const profilePicUrl = user?.profile_pic || null;

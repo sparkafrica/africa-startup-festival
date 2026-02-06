@@ -6,6 +6,14 @@
  */
 
 import { api } from "./api";
+
+// In-memory cache for user ticket (Menu prefetch) - TTL 5 min
+const USER_TICKET_CACHE: Map<number, { ticket: any; ts: number }> = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+export function clearTicketCache(): void {
+  USER_TICKET_CACHE.clear();
+}
 import { ApiResponse, ApiClientError } from "./api";
 
 // ============================================================================
@@ -48,7 +56,11 @@ export interface TicketAllocation {
   status: "pending" | "accepted" | "rejected" | "cancelled";
   created_at: string;
   updated_at: string;
-  /** Recipient name - backend may return these */
+  /** Backend returns first_name, last_name (no recipient_ prefix) */
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  /** Legacy/alternate field names */
   recipient_first_name?: string;
   recipient_last_name?: string;
   recipient_phone?: string;
@@ -131,7 +143,9 @@ export interface Attendee {
  * Data for transferring/assigning tickets
  */
 export interface TicketRecipient {
-  fullName: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phoneNumber: string;
   countryCode?: string;
@@ -245,15 +259,21 @@ export const ticketService = {
     if (response.status === "success" && response.data) {
       const data = response.data as any;
 
+      let items: any[];
       if (data.results && Array.isArray(data.results)) {
-        return data.results as TicketAllocation[];
+        items = data.results;
+      } else if (Array.isArray(data)) {
+        items = data;
+      } else {
+        items = [data];
       }
 
-      if (Array.isArray(data)) {
-        return data as TicketAllocation[];
+      // Debug: log raw allocation response to verify recipient_first_name/last_name
+      if (__DEV__ && items.length > 0) {
+        console.log("[getUserAllocations] raw allocation:", JSON.stringify(items[0], null, 2));
       }
 
-      return [data as TicketAllocation];
+      return items as TicketAllocation[];
     }
 
     throw new ApiClientError({
@@ -274,6 +294,11 @@ export const ticketService = {
    * Note: Returns a single Ticket, not an array
    */
   async getUserTicket(eventId: number): Promise<Ticket> {
+    const cached = USER_TICKET_CACHE.get(eventId);
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      return cached.ticket as Ticket;
+    }
+
     const response = await api.get<Ticket>(
       `/tickets/${eventId}/user/`
     );
@@ -282,7 +307,9 @@ export const ticketService = {
       const data = response.data as any;
       
       if (data && typeof data === "object") {
-        return data as Ticket;
+        const ticket = data as Ticket;
+        USER_TICKET_CACHE.set(eventId, { ticket, ts: Date.now() });
+        return ticket;
       }
     }
 
@@ -342,9 +369,14 @@ export const ticketService = {
     ticketClassId: number,
     recipientData: TicketRecipient
   ): Promise<TicketAllocation[]> {
-    const nameParts = (recipientData.fullName || "").trim().split(/\s+/);
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || firstName;
+    const firstName =
+      recipientData.firstName?.trim() ||
+      (recipientData.fullName || "").trim().split(/\s+/)[0] ||
+      "";
+    const lastName =
+      recipientData.lastName?.trim() ||
+      (recipientData.fullName || "").trim().split(/\s+/).slice(1).join(" ") ||
+      firstName;
 
     const requestBody: AllocateTicketRequest = {
       event_id: eventId,
@@ -445,6 +477,73 @@ export const ticketService = {
     throw new ApiClientError({
       status: "error",
       message: response.message || "Failed to assign ticket",
+      response_code: response.response_code,
+      data: {},
+    });
+  },
+
+  /**
+   * Cancel allocation (return assigned ticket to quota)
+   * Per Spark EMS YAML: POST /tickets/cancel-allocation/{allocation_id}/
+   *
+   * @param allocationId - Allocation ID to cancel
+   * @returns Promise that resolves with cancelled allocation
+   */
+  async cancelAllocation(allocationId: number): Promise<TicketAllocation> {
+    const response = await api.post<unknown>(
+      `/tickets/cancel-allocation/${allocationId}/`,
+      {}
+    );
+    if (response.status === "success" && response.data) {
+      return response.data as TicketAllocation;
+    }
+    throw new ApiClientError({
+      status: "error",
+      message: response.message || "Failed to cancel allocation",
+      response_code: response.response_code,
+      data: {},
+    });
+  },
+
+  /**
+   * @deprecated Use cancelAllocation. Kept for compatibility.
+   */
+  async revokeAllocation(
+    allocationId: number,
+    _reason?: string
+  ): Promise<void> {
+    await this.cancelAllocation(allocationId);
+  },
+
+  /**
+   * Update allocation recipient details
+   * NOTE: Backend does NOT expose this endpoint in Spark EMS YAML.
+   * The only allocation endpoints are: allocate-ticket, cancel-allocation, get allocations.
+   * Returns 404 until backend adds PATCH /tickets/allocations/{id}/ or equivalent.
+   */
+  async updateAllocation(
+    allocationId: number,
+    recipientData: TicketRecipient
+  ): Promise<TicketAllocation> {
+    const nameParts = (recipientData.fullName || "").trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || firstName;
+    const body = {
+      recipient_email: recipientData.email,
+      recipient_first_name: firstName,
+      recipient_last_name: lastName,
+      recipient_phone: recipientData.phoneNumber || null,
+    };
+    const response = await api.patch<typeof body>(
+      `/tickets/allocations/${allocationId}/`,
+      body
+    );
+    if (response.status === "success" && response.data) {
+      return response.data as TicketAllocation;
+    }
+    throw new ApiClientError({
+      status: "error",
+      message: response.message || "Failed to update allocation",
       response_code: response.response_code,
       data: {},
     });

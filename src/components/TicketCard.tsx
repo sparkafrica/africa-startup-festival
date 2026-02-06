@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
 import { gradients } from "../theme/theme";
+import { getTicketBackgroundColor } from "../utils/ticketColors";
 
 interface TicketCardProps {
   ticketClassName: string;
@@ -25,23 +26,7 @@ export default function TicketCard({
 }: TicketCardProps) {
   const availableQuota = remainingQuota !== undefined ? remainingQuota : quota - allocatedTickets;
 
-  // Determine background color based on ticket type (solid colors, not gradients)
-  const getBackgroundColor = () => {
-    if (!ticketType) return "#3B82F6"; // Default to blue
-    
-    const type = ticketType.toLowerCase();
-    if (type === "founder") {
-      return "#000000"; // Black
-    } else if (type === "exhibitor" || type === "partner") {
-      return "#3B82F6"; // Blue
-    } else if (type === "attendee" || type === "general") {
-      // "general" is the backend type for Expo Pass/Attendee tickets
-      return "#10B981"; // Green
-    }
-    return "#3B82F6"; // Default to blue
-  };
-
-  const backgroundColor = getBackgroundColor();
+  const backgroundColor = getTicketBackgroundColor(ticketType ?? ticketClassName);
 
   return (
     <Pressable

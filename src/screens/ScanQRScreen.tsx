@@ -33,6 +33,7 @@ import { meetingService } from "../services/meetingService";
 import { useAuth } from "../context/AuthContext";
 import { useChecklist } from "../context/ChecklistContext";
 import { EVENT_ID } from "../config/env";
+import { getTicketBackgroundColor } from "../utils/ticketColors";
 import { ApiClientError } from "../services/api";
 import QRCode from "react-native-qrcode-svg";
 import RequestMeetingModal, {
@@ -1070,6 +1071,8 @@ function RecipientDetailsModal({
   onClose: () => void;
   onBack: () => void;
   onTransfer: (data: {
+    firstName: string;
+    lastName: string;
     fullName: string;
     email: string;
     phoneNumber: string;
@@ -1077,7 +1080,8 @@ function RecipientDetailsModal({
   }) => void | Promise<void>;
   isSubmitting?: boolean;
 }) {
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [countryCode, setCountryCode] = useState("+234");
@@ -1154,7 +1158,8 @@ function RecipientDetailsModal({
         offset.current = 0;
       });
       // Reset form when modal opens
-      setFullName("");
+      setFirstName("");
+      setLastName("");
       setEmail("");
       setPhoneNumber("");
       setShowCountryPicker(false);
@@ -1190,8 +1195,12 @@ function RecipientDetailsModal({
   }, []);
 
   const handleTransfer = () => {
+    const first = firstName.trim();
+    const last = lastName.trim();
     onTransfer({
-      fullName,
+      firstName: first,
+      lastName: last,
+      fullName: [first, last].filter(Boolean).join(" "),
       email,
       phoneNumber,
       countryCode,
@@ -1266,14 +1275,14 @@ function RecipientDetailsModal({
                 }}
               >
                 <Text className="text-sm font-medium text-black mb-2">
-                  Full Name
+                  First Name
                 </Text>
                 <TextInput
                   className="bg-white border border-neutral-300 rounded-xl px-4 py-3.5 text-base"
-                  placeholder="Jane Doe"
+                  placeholder="Jane"
                   placeholderTextColor="#9CA3AF"
-                  value={fullName}
-                  onChangeText={setFullName}
+                  value={firstName}
+                  onChangeText={setFirstName}
                   onFocus={() => {
                     setTimeout(() => {
                       if (keyboardHeight > 0 && fullNameFieldY.current > 0) {
@@ -1297,6 +1306,19 @@ function RecipientDetailsModal({
                       }
                     }, 300);
                   }}
+                />
+              </View>
+
+              <View className="mb-4">
+                <Text className="text-sm font-medium text-black mb-2">
+                  Last Name
+                </Text>
+                <TextInput
+                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3.5 text-base"
+                  placeholder="Doe"
+                  placeholderTextColor="#9CA3AF"
+                  value={lastName}
+                  onChangeText={setLastName}
                 />
               </View>
 
@@ -1714,11 +1736,14 @@ function UpdateAssignmentDetailsModal({
   assigneeName,
   assigneeEmail,
   assigneePhone,
+  isLoading = false,
 }: {
   visible: boolean;
   onClose: () => void;
   onBack: () => void;
   onUpdate: (data: {
+    firstName: string;
+    lastName: string;
     fullName: string;
     email: string;
     phoneNumber: string;
@@ -1727,8 +1752,18 @@ function UpdateAssignmentDetailsModal({
   assigneeName: string;
   assigneeEmail: string;
   assigneePhone: string;
+  isLoading?: boolean;
 }) {
-  const [fullName, setFullName] = useState(assigneeName);
+  const parseName = (name: string) => {
+    const parts = (name || "").trim().split(/\s+/);
+    return {
+      firstName: parts[0] || "",
+      lastName: parts.slice(1).join(" ") || "",
+    };
+  };
+  const initial = parseName(assigneeName);
+  const [firstName, setFirstName] = useState(initial.firstName);
+  const [lastName, setLastName] = useState(initial.lastName);
   const [email, setEmail] = useState(assigneeEmail);
   const phoneWithoutCode = assigneePhone.replace(/^\+\d+\s*/, "");
   const initialCountryCode = assigneePhone.match(/^\+\d+/)?.[0] || "+234";
@@ -1741,7 +1776,9 @@ function UpdateAssignmentDetailsModal({
 
   useEffect(() => {
     if (visible) {
-      setFullName(assigneeName);
+      const { firstName: f, lastName: l } = parseName(assigneeName);
+      setFirstName(f);
+      setLastName(l);
       setEmail(assigneeEmail);
       const phoneWithoutCode = assigneePhone.replace(/^\+\d+\s*/, "");
       const extractedCode = assigneePhone.match(/^\+\d+/)?.[0] || "+234";
@@ -1825,8 +1862,12 @@ function UpdateAssignmentDetailsModal({
   }, [visible, translateY]);
 
   const handleUpdate = () => {
+    const first = firstName.trim();
+    const last = lastName.trim();
     onUpdate({
-      fullName,
+      firstName: first,
+      lastName: last,
+      fullName: [first, last].filter(Boolean).join(" "),
       email,
       phoneNumber,
       countryCode,
@@ -1886,14 +1927,27 @@ function UpdateAssignmentDetailsModal({
 
               <View className="mb-4">
                 <Text className="text-sm font-medium text-black mb-2">
-                  Full Name
+                  First Name
                 </Text>
                 <TextInput
                   className="bg-white border border-neutral-300 rounded-xl px-4 py-3.5 text-base"
-                  placeholder="Jane Doe"
+                  placeholder="Jane"
                   placeholderTextColor="#9CA3AF"
-                  value={fullName}
-                  onChangeText={setFullName}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                />
+              </View>
+
+              <View className="mb-4">
+                <Text className="text-sm font-medium text-black mb-2">
+                  Last Name
+                </Text>
+                <TextInput
+                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3.5 text-base"
+                  placeholder="Doe"
+                  placeholderTextColor="#9CA3AF"
+                  value={lastName}
+                  onChangeText={setLastName}
                 />
               </View>
 
@@ -1980,15 +2034,18 @@ function UpdateAssignmentDetailsModal({
 
               <Pressable
                 onPress={handleUpdate}
+                disabled={isLoading}
                 className="w-full items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
+                style={{ opacity: isLoading ? 0.6 : 1 }}
               >
                 <Text className="text-base font-medium text-white">
-                  Update Assignment
+                  {isLoading ? "Updating..." : "Update Assignment"}
                 </Text>
               </Pressable>
 
               <Pressable
                 onPress={onBack}
+                disabled={isLoading}
                 className="w-full items-center justify-center bg-white border border-neutral-300 rounded-xl py-4 px-4 mb-2"
               >
                 <Text className="text-base font-medium text-black">Back</Text>
@@ -2008,12 +2065,14 @@ function RevokeTicketAccessModal({
   onBack,
   onConfirm,
   assigneeName,
+  isLoading = false,
 }: {
   visible: boolean;
   onClose: () => void;
   onBack: () => void;
   onConfirm: (reason: string) => void;
   assigneeName: string;
+  isLoading?: boolean;
 }) {
   const [reason, setReason] = useState("");
   const [isConfirmed, setIsConfirmed] = useState(false);
@@ -2206,14 +2265,14 @@ function RevokeTicketAccessModal({
 
               <Pressable
                 onPress={handleConfirm}
-                disabled={!isConfirmed || reason.trim().length === 0}
+                disabled={!isConfirmed || reason.trim().length === 0 || isLoading}
                 className="w-full items-center justify-center rounded-xl py-4 px-4 mb-3 bg-red-50 border border-red-500"
                 style={{
-                  opacity: isConfirmed && reason.trim().length > 0 ? 1 : 0.5,
+                  opacity: isConfirmed && reason.trim().length > 0 && !isLoading ? 1 : 0.5,
                 }}
               >
                 <Text className="text-base font-medium text-red-500">
-                  Confirm Revoke Access
+                  {isLoading ? "Revoking..." : "Confirm Revoke Access"}
                 </Text>
               </Pressable>
 
@@ -3084,6 +3143,7 @@ function EditAssignedTicketModal({
   assigneeEmail,
   assigneePhone,
   assignedDate,
+  allocationStatus,
   onUpdateAssignment,
   onRevokeAccess,
 }: {
@@ -3096,9 +3156,11 @@ function EditAssignedTicketModal({
   assigneeEmail: string;
   assigneePhone: string;
   assignedDate: string;
+  allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled";
   onUpdateAssignment: () => void;
   onRevokeAccess: () => void;
 }) {
+  const isAccepted = allocationStatus === "accepted";
   const translateY = useRef(new Animated.Value(0)).current;
   const offset = useRef(0);
   const isClosingRef = useRef(false);
@@ -3198,13 +3260,24 @@ function EditAssignedTicketModal({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 24 }}
           >
-            {/* Information Banner */}
-            <View className="bg-orange-50 rounded-xl p-4 border border-orange-200 mb-6">
-              <Text className="text-sm text-black leading-5">
-                Updating details will trigger a new notification to the assignee
-                with updated ticket information.
-              </Text>
-            </View>
+            {/* Information Banner - status-dependent */}
+            {isAccepted ? (
+              <View className="bg-neutral-100 rounded-xl p-4 border border-neutral-200 mb-6">
+                <Text className="text-sm text-black leading-5">
+                  This ticket has been accepted by the assignee. No further
+                  actions are available. Revoking and updating are only possible
+                  before the assignee accepts the invitation.
+                </Text>
+              </View>
+            ) : (
+              <View className="bg-amber-50 rounded-xl p-4 border border-amber-200 mb-6">
+                <Text className="text-sm text-black leading-5">
+                  Updating assignment details is not supported. To change
+                  recipient details, revoke this ticket and reassign to someone
+                  else—before they accept.
+                </Text>
+              </View>
+            )}
 
             {/* Ticket Card */}
             <View className="mb-6">
@@ -3236,7 +3309,7 @@ function EditAssignedTicketModal({
                     <View className="bg-white/20 px-2 py-1 rounded-full flex-row items-center">
                       <View className="w-1.5 h-1.5 bg-white rounded-full mr-1" />
                       <Text className="text-white text-xs font-medium">
-                        Assigned
+                        {isAccepted ? "Accepted" : "Pending"}
                       </Text>
                     </View>
                     <View className="flex-row items-center gap-1">
@@ -3274,31 +3347,26 @@ function EditAssignedTicketModal({
               </View>
             </View>
 
-            {/* Action Buttons */}
-            <Pressable
-              onPress={onUpdateAssignment}
-              className="w-full items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
-            >
-              <Text className="text-base font-medium text-white">
-                Update Assignment Details
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={onRevokeAccess}
-              className="w-full flex-row items-center justify-center bg-white rounded-xl py-4 px-4 border border-red-500 mb-2"
-            >
-              <View className="w-5 h-5 rounded-full bg-red-500 items-center justify-center mr-2">
-                <XIcon size={12} color="#FFFFFF" />
-              </View>
-              <Text className="text-base font-medium text-red-500">
-                Revoke Ticket Access
-              </Text>
-            </Pressable>
-
-            <Text className="text-xs text-neutral-400 text-center mb-4">
-              Revoking will return this ticket to "Available" status.
-            </Text>
+            {/* Action Buttons - Update not supported; Revoke only when pending */}
+            {!isAccepted && (
+              <>
+                <Pressable
+                  onPress={onRevokeAccess}
+                  className="w-full flex-row items-center justify-center bg-white rounded-xl py-4 px-4 border border-red-500 mb-2"
+                >
+                  <View className="w-5 h-5 rounded-full bg-red-500 items-center justify-center mr-2">
+                    <XIcon size={12} color="#FFFFFF" />
+                  </View>
+                  <Text className="text-base font-medium text-red-500">
+                    Revoke Ticket Access
+                  </Text>
+                </Pressable>
+                <Text className="text-xs text-neutral-400 text-center mb-4">
+                  Revoking will return this ticket to "Available" status. Do this
+                  before the assignee accepts if you need to change details.
+                </Text>
+              </>
+            )}
           </ScrollView>
           <SafeAreaView edges={["bottom"]} className="bg-white pb-4" />
         </Animated.View>
@@ -3530,6 +3598,7 @@ interface Ticket {
   quotaId?: number; // For unassigned: quota allocation uses this
   ticketClassId?: number; // For unassigned: quota allocation uses this
   availableCount?: number; // For unassigned: one card per quota, count shown on card
+  allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled";
 }
 
 // Helper function to check if user is exhibitor/partner admin
@@ -3655,7 +3724,9 @@ function MyTicketView({
     assignedTo: string,
     assigneeEmail?: string,
     assigneePhone?: string,
-    assignedDate?: string
+    assignedDate?: string,
+    allocationId?: number | null,
+    allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled"
   ) => void;
   user: { user_id: string; company?: { admin_user?: string | null } | null } | null;
   eventId: number;
@@ -3799,7 +3870,11 @@ function MyTicketView({
                   backgroundColor={ticket.backgroundColor}
                   assignedTo={ticket.assignedTo}
                   isMyTicket={false}
-                  onEditAssignment={() =>
+                  onEditAssignment={() => {
+                    const allocId =
+                      typeof ticket.id === "string" && ticket.id.startsWith("alloc-")
+                        ? parseInt(ticket.id.replace("alloc-", ""), 10)
+                        : null;
                     onEditAssignment(
                       ticket.title,
                       ticket.ticketNumber,
@@ -3807,9 +3882,11 @@ function MyTicketView({
                       ticket.assignedTo || "",
                       ticket.assigneeEmail,
                       ticket.assigneePhone,
-                      ticket.assignedDate
-                    )
-                  }
+                      ticket.assignedDate,
+                      Number.isNaN(allocId) ? null : allocId,
+                      ticket.allocationStatus
+                    );
+                  }}
                 />
               </View>
             ))}
@@ -3947,6 +4024,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     assigneeEmail: string;
     assigneePhone: string;
     assignedDate: string;
+    allocationId: number | null;
+    allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled";
   } | null>(null);
   const [updateAssignmentModalVisible, setUpdateAssignmentModalVisible] =
     useState(false);
@@ -3969,6 +4048,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const [requestMeetingModalVisible, setRequestMeetingModalVisible] =
     useState(false);
   const [recipientData, setRecipientData] = useState<{
+    firstName: string;
+    lastName: string;
     fullName: string;
     email: string;
     phoneNumber: string;
@@ -3980,14 +4061,6 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
   const [isAllocating, setIsAllocating] = useState(false);
-
-  // Helper function to get background color based on ticket type or class name
-  const getTicketBackgroundColor = (userType?: string): string => {
-    const t = (userType || "").toLowerCase();
-    if (t.includes("founder")) return "#000000";
-    if (t.includes("exhibitor") || t.includes("partner")) return "#3B82F6";
-    return "#10B981";
-  };
 
   // Fetch tickets: personal + quotas (Available) + allocations (Assigned)
   const fetchTickets = React.useCallback(async () => {
@@ -4018,15 +4091,29 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       }
     }
 
-    // Step 2: Assigned tickets from allocations
+    // Step 2: Assigned tickets from allocations (exclude revoked: denied, cancelled, rejected)
     try {
       const allocations = await ticketService.getUserAllocations(EVENT_ID);
+      const activeStatuses = ["pending", "accepted"];
       for (const alloc of allocations) {
-        const assigneeName = [alloc.recipient_first_name, alloc.recipient_last_name]
+        const status = (alloc.status || "").toLowerCase();
+        if (!activeStatuses.includes(status)) continue; // Skip denied, cancelled, rejected
+        const firstName = alloc.first_name ?? alloc.recipient_first_name;
+        const lastName = alloc.last_name ?? alloc.recipient_last_name;
+        const assigneeName = [firstName, lastName]
           .filter(Boolean)
           .join(" ")
           .trim();
-        const displayName = assigneeName || "Recipient";
+        // Backend must return first_name + last_name in allocation response. Until then, fallback to email heuristic.
+        const displayName =
+          assigneeName ||
+          (alloc.email
+            ? alloc.email
+                .split("@")[0]
+                .replace(/[._]/g, " ")
+                .replace(/\b\w/g, (c) => c.toUpperCase())
+            : null) ||
+          "Recipient";
         const assignedDate = alloc.created_at
           ? new Date(alloc.created_at).toLocaleDateString("en-US", {
               month: "short",
@@ -4041,10 +4128,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           backgroundColor: getTicketBackgroundColor(alloc.ticket_class_name),
           assignedTo: displayName,
           assigneeEmail: alloc.email,
-          assigneePhone: alloc.recipient_phone ?? "",
+          assigneePhone: alloc.phone ?? alloc.recipient_phone ?? "",
           assignedDate,
           isPersonal: false,
           isUnassigned: false,
+          allocationStatus: alloc.status,
         });
       }
     } catch (error) {
@@ -4055,12 +4143,15 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     try {
       const quotas = await ticketService.getUserQuotas(EVENT_ID);
       for (const quota of quotas) {
+        const ticketClass = quota.ticket_class;
+        const ticketClassId = ticketClass?.id;
+        // Skip if no ticket_class (required for allocation)
+        if (!ticketClass || ticketClassId == null) continue;
         const remaining =
           quota.remaining_quota ??
-          (quota.quota - quota.allocated_tickets ?? 0);
-        const userType =
-          quota.ticket_class?.user_type ?? quota.ticket_class?.type ?? "";
-        const title = quota.ticket_class?.name ?? "Ticket";
+          (quota.quota - (quota.allocated_tickets ?? 0));
+        const userType = ticketClass?.user_type ?? ticketClass?.type ?? "";
+        const title = ticketClass?.name ?? "Ticket";
         allTickets.push({
           id: `quota-${quota.id}`,
           title,
@@ -4069,7 +4160,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           isPersonal: false,
           isUnassigned: true,
           quotaId: quota.id,
-          ticketClassId: quota.ticket_class?.id,
+          ticketClassId,
           availableCount: remaining,
         });
       }
@@ -4174,12 +4265,16 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   };
 
   const handleRecipientTransfer = async (data: {
+    firstName: string;
+    lastName: string;
     fullName: string;
     email: string;
     phoneNumber: string;
     countryCode: string;
   }) => {
     const recipientData = {
+      firstName: data.firstName,
+      lastName: data.lastName,
       fullName: data.fullName,
       email: data.email,
       phoneNumber: data.phoneNumber,
@@ -4190,12 +4285,31 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     if (transferModalData.isUnassigned && transferModalData.ticketClassId) {
       setIsAllocating(true);
       try {
-        await ticketService.allocateTicket(
+        const result = await ticketService.allocateTicket(
           EVENT_ID,
           transferModalData.ticketClassId,
           recipientData
         );
-        setRecipientData(data);
+        // Log response for debugging - backend returns first_name, last_name (no recipient_ prefix)
+        const alloc = Array.isArray(result) ? result[0] : result;
+        const fullName =
+          alloc &&
+          [alloc.first_name ?? alloc.recipient_first_name, alloc.last_name ?? alloc.recipient_last_name]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+        console.log("[allocateTicket] response:", {
+          raw: result,
+          fullName: fullName || "Recipient",
+        });
+        setRecipientData({
+          firstName: data.firstName,
+          lastName: data.lastName,
+          fullName: data.fullName,
+          email: data.email,
+          phoneNumber: data.phoneNumber,
+          countryCode: data.countryCode || "",
+        });
         setRecipientModalVisible(false);
         await fetchTickets();
         setTimeout(() => setConfirmationModalVisible(true), 300);
@@ -4211,7 +4325,14 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     }
 
     // Transfer existing ticket: TODO - use ticketService.transferTicket when ticketId available
-    setRecipientData(data);
+    setRecipientData({
+      firstName: data.firstName,
+      lastName: data.lastName,
+      fullName: data.fullName,
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+      countryCode: data.countryCode || "",
+    });
     setRecipientModalVisible(false);
     setTimeout(() => setConfirmationModalVisible(true), 300);
   };
@@ -4254,7 +4375,9 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     assignedTo: string,
     assigneeEmail?: string,
     assigneePhone?: string,
-    assignedDate?: string
+    assignedDate?: string,
+    allocationId?: number | null,
+    allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled"
   ) => {
     setEditAssignedTicketData({
       title,
@@ -4264,6 +4387,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       assigneeEmail: assigneeEmail ?? "",
       assigneePhone: assigneePhone ?? "",
       assignedDate: assignedDate ?? "",
+      allocationId: allocationId ?? null,
+      allocationStatus,
     });
     setEditAssignedTicketModalVisible(true);
   };
@@ -4298,53 +4423,53 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     }, 300);
   };
 
-  const handleUpdateAssignmentConfirm = (data: {
+  const [isUpdatingAssignment, setIsUpdatingAssignment] = useState(false);
+  const [isRevokingAccess, setIsRevokingAccess] = useState(false);
+
+  const handleUpdateAssignmentConfirm = async (data: {
+    firstName: string;
+    lastName: string;
     fullName: string;
     email: string;
     phoneNumber: string;
     countryCode: string;
   }) => {
-    console.log("Update assignment with:", data);
+    // Backend does not expose update-allocation endpoint (see Spark EMS YAML).
+    // Only allocate-ticket and cancel-allocation exist. Show friendly message.
+    showToast(
+      "Update assignment is not yet supported by the backend. Cancel and re-allocate instead.",
+      "error"
+    );
     setUpdateAssignmentModalVisible(false);
-    setTimeout(() => {
-      setTicketReassignedConfirmationVisible(true);
-    }, 300);
+    setTimeout(() => setEditAssignedTicketModalVisible(true), 300);
   };
 
-  // TODO: BACKEND INTEGRATION - Revoke ticket access via API
-  // API Endpoint: POST /api/tickets/{ticketId}/revoke
-  // Request Body: { reason: string }
-  // Response: { success: boolean, ticket: Ticket, message?: string }
-  // Error Handling: Handle validation (can't revoke assigned tickets), insufficient permissions
-  // TODO: BACKEND - Call API before updating local state
-  // TODO: BACKEND - Handle API errors and show error messages
-  // TODO: BACKEND - Refresh tickets list after successful revocation
-  const handleRevokeAccessConfirm = (reason: string) => {
-    console.log("Revoke access with reason:", reason);
-    // TODO: BACKEND - Call API: await api.post(`/tickets/${ticketId}/revoke`, { reason })
-
-    // Update ticket state - move ticket back to available to assign
-    if (editAssignedTicketData) {
-      setTickets((prevTickets) =>
-        prevTickets.map((ticket) =>
-          ticket.ticketNumber === editAssignedTicketData.ticketNumber
-            ? {
-                ...ticket,
-                isUnassigned: true,
-                assignedTo: undefined,
-                assigneeEmail: undefined,
-                assigneePhone: undefined,
-                assignedDate: undefined,
-              }
-            : ticket
-        )
-      );
+  const handleRevokeAccessConfirm = async (reason: string) => {
+    const allocationId = editAssignedTicketData?.allocationId;
+    if (!allocationId) {
+      showToast("Cannot revoke: allocation ID missing.", "error");
+      return;
     }
-
-    setRevokeAccessModalVisible(false);
-    setTimeout(() => {
-      setTicketRevokedConfirmationVisible(true);
-    }, 300);
+    setIsRevokingAccess(true);
+    try {
+      await ticketService.revokeAllocation(allocationId, reason);
+      setRevokeAccessModalVisible(false);
+      await fetchTickets();
+      setTimeout(() => setTicketRevokedConfirmationVisible(true), 300);
+    } catch (error: any) {
+      const msg = error?.message || error?.data?.message || "";
+      const isAcceptedAllocation =
+        typeof msg === "string" &&
+        msg.toLowerCase().includes("pending");
+      showToast(
+        isAcceptedAllocation
+          ? "This ticket has already been accepted. Only pending allocations can be revoked."
+          : msg || "Failed to revoke access. Please try again.",
+        "error"
+      );
+    } finally {
+      setIsRevokingAccess(false);
+    }
   };
 
   const handleReassignedConfirmationClose = () => {
@@ -4627,6 +4752,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
             assigneeEmail={editAssignedTicketData.assigneeEmail}
             assigneePhone={editAssignedTicketData.assigneePhone}
             assignedDate={editAssignedTicketData.assignedDate}
+            allocationStatus={editAssignedTicketData.allocationStatus}
             onUpdateAssignment={handleUpdateAssignment}
             onRevokeAccess={handleRevokeAccess}
           />
@@ -4643,6 +4769,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
             assigneeName={editAssignedTicketData.assignedTo}
             assigneeEmail={editAssignedTicketData.assigneeEmail}
             assigneePhone={editAssignedTicketData.assigneePhone}
+            isLoading={isUpdatingAssignment}
           />
         )}
         {editAssignedTicketData && (
@@ -4655,6 +4782,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
             onBack={handleRevokeAccessBack}
             onConfirm={handleRevokeAccessConfirm}
             assigneeName={editAssignedTicketData.assignedTo}
+            isLoading={isRevokingAccess}
           />
         )}
         <TicketReassignedConfirmationModal
