@@ -48,6 +48,10 @@ export interface TicketAllocation {
   status: "pending" | "accepted" | "rejected" | "cancelled";
   created_at: string;
   updated_at: string;
+  /** Recipient name - backend may return these */
+  recipient_first_name?: string;
+  recipient_last_name?: string;
+  recipient_phone?: string;
 }
 
 /**
@@ -152,6 +156,32 @@ export interface AssignTicketRequest {
  */
 export interface RevokeTicketRequest {
   reason?: string;
+}
+
+/**
+ * Allocation Request - for allocate-ticket API
+ * Matches backend AllocationRequest schema
+ */
+export interface AllocationRequest {
+  ticket_class_id: number;
+  recipient_email: string;
+  recipient_first_name: string;
+  recipient_last_name: string;
+  organisation?: string | null;
+  organisation_website?: string | null;
+  organisation_role?: string | null;
+}
+
+/**
+ * Allocate Ticket Request
+ * Matches backend AllocateTicketRequest schema
+ */
+export interface AllocateTicketRequest {
+  event_id: number;
+  allocations: AllocationRequest[];
+  otp?: number;
+  email?: string;
+  payment_reference?: string;
 }
 
 // ============================================================================
@@ -292,6 +322,61 @@ export const ticketService = {
     throw new ApiClientError({
       status: "error",
       message: response.message || "Failed to scan ticket",
+      response_code: response.response_code,
+      data: {},
+    });
+  },
+
+  /**
+   * Allocate ticket from quota to recipient
+   *
+   * @param eventId - Event ID
+   * @param ticketClassId - Ticket class ID
+   * @param recipientData - Recipient information (fullName, email, phoneNumber)
+   * @returns Promise that resolves with created allocation(s)
+   *
+   * Backend Endpoint: POST /tickets/allocate-ticket/
+   */
+  async allocateTicket(
+    eventId: number,
+    ticketClassId: number,
+    recipientData: TicketRecipient
+  ): Promise<TicketAllocation[]> {
+    const nameParts = (recipientData.fullName || "").trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || firstName;
+
+    const requestBody: AllocateTicketRequest = {
+      event_id: eventId,
+      allocations: [
+        {
+          ticket_class_id: ticketClassId,
+          recipient_email: recipientData.email,
+          recipient_first_name: firstName,
+          recipient_last_name: lastName,
+          organisation: null,
+          organisation_website: null,
+          organisation_role: null,
+        },
+      ],
+    };
+
+    const response = await api.post<AllocateTicketRequest>(
+      "/tickets/allocate-ticket/",
+      requestBody
+    );
+
+    if (response.status === "success" && response.data) {
+      const data = response.data as any;
+      if (Array.isArray(data)) return data as TicketAllocation[];
+      if (data.results && Array.isArray(data.results))
+        return data.results as TicketAllocation[];
+      return [data as TicketAllocation];
+    }
+
+    throw new ApiClientError({
+      status: "error",
+      message: response.message || "Failed to allocate ticket",
       response_code: response.response_code,
       data: {},
     });

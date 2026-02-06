@@ -422,26 +422,30 @@ class ApiClient {
     // If it's already in the correct format, extract non_field_errors first
     if (data?.status === "error") {
       // Check if this is a "Connection already exists" case that we handle as success
-      let errorMessage = data?.message || "";
+      let errorMessage: string = typeof data?.message === "string" ? data.message : "";
       
       // Extract non_field_errors FIRST before using generic message
+      // Backend may nest under message: data.message.non_field_errors
       const nonFieldErrors = 
         (data as any)?.non_field_errors || 
+        (data as any)?.message?.non_field_errors ||
         (data as any)?.data?.non_field_errors || 
         (data as any)?.data?.data?.non_field_errors;
       
       if (nonFieldErrors) {
         if (Array.isArray(nonFieldErrors) && nonFieldErrors.length > 0) {
-          errorMessage = nonFieldErrors[0];
+          const first = nonFieldErrors[0];
+          errorMessage = typeof first === "string" ? first : JSON.stringify(first);
         } else if (typeof nonFieldErrors === "string") {
           errorMessage = nonFieldErrors;
         }
       }
       
+      const errorMessageStr = String(errorMessage || "");
       const isConnectionAlreadyExists = 
         status === 400 && 
-        (errorMessage.toLowerCase().includes("connection already exists") ||
-         errorMessage.toLowerCase().includes("already exists"));
+        (errorMessageStr.toLowerCase().includes("connection already exists") ||
+         errorMessageStr.toLowerCase().includes("already exists"));
       
       // Skip logging for "Connection already exists" (400) as it's handled as success in the UI
       if (__DEV__ && !isConnectionAlreadyExists) {
@@ -465,15 +469,17 @@ class ApiClient {
     }
 
     // Extract error message from various possible formats
-    let errorMessage = "An error occurred";
+    let errorMessage: string = "An error occurred";
     let errorDetails: any = {};
     
     // Check if this is a "Connection already exists" case for logging purposes
-    const extractedMessage = data?.message || data?.error || data?.detail || "";
+    const rawExtracted = data?.message ?? data?.error ?? data?.detail;
+    const extractedMessage = typeof rawExtracted === "string" ? rawExtracted : "";
+    const extractedStr = String(extractedMessage || "");
     const isConnectionAlreadyExists = 
       status === 400 && 
-      (extractedMessage.toLowerCase().includes("connection already exists") ||
-       extractedMessage.toLowerCase().includes("already exists"));
+      (extractedStr.toLowerCase().includes("connection already exists") ||
+       extractedStr.toLowerCase().includes("already exists"));
 
     // Log raw error details in development for debugging
     // Skip logging for "Connection already exists" (400) as it's handled as success in the UI
@@ -489,17 +495,19 @@ class ApiClient {
     }
 
     // Check for non_field_errors FIRST (they take priority over generic messages)
-    // Check at different nesting levels
+    // Check at different nesting levels (include data.message.non_field_errors)
     const nonFieldErrors = 
       (data as any)?.non_field_errors || 
+      (data as any)?.message?.non_field_errors ||
       (data as any)?.data?.non_field_errors || 
       (data as any)?.data?.data?.non_field_errors;
     
     if (nonFieldErrors && Array.isArray(nonFieldErrors) && nonFieldErrors.length > 0) {
-      errorMessage = nonFieldErrors[0]; // Use first error message
+      const first = nonFieldErrors[0];
+      errorMessage = typeof first === "string" ? first : JSON.stringify(first);
     } else if (nonFieldErrors && typeof nonFieldErrors === "string") {
       errorMessage = nonFieldErrors;
-    } else if (data?.message) {
+    } else if (data?.message && typeof data.message === "string") {
       errorMessage = data.message;
     } else if (data?.error) {
       errorMessage = typeof data.error === "string" ? data.error : JSON.stringify(data.error);
@@ -538,12 +546,14 @@ class ApiClient {
       if (!errorMessage.includes("already have") && !errorMessage.includes("pending")) {
         const nestedNonFieldErrors = 
           (data as any)?.non_field_errors || 
+          (data as any)?.message?.non_field_errors ||
           (data as any)?.data?.non_field_errors || 
           (data as any)?.data?.data?.non_field_errors;
         if (nestedNonFieldErrors && Array.isArray(nestedNonFieldErrors) && nestedNonFieldErrors.length > 0) {
           // Only override if we don't have a meaningful message yet
           if (errorMessage === "An error occurred" || errorMessage === data?.message) {
-            errorMessage = nestedNonFieldErrors[0];
+            const first = nestedNonFieldErrors[0];
+            errorMessage = typeof first === "string" ? first : JSON.stringify(first);
           }
         }
       }

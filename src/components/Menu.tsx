@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Circle } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
+import { ticketService } from "../services/ticketService";
+import { EVENT_ID } from "../config/env";
 
 import {
   TicketsIcon,
@@ -24,9 +26,35 @@ interface MenuProps {
   onLogout?: () => void;
 }
 
+// Shared logic: ticket/user type -> badge label and color (matches TicketCard)
+function getTicketTypeDisplay(type?: string): { label: string; color: string } {
+  const t = (type || "").toLowerCase();
+  if (t.includes("founder"))
+    return { label: "Founder", color: "#000000" };
+  if (t.includes("exhibitor"))
+    return { label: "Exhibitor", color: "#3B82F6" };
+  if (t.includes("partner"))
+    return { label: "Partner", color: "#3B82F6" };
+  return { label: "Attendee", color: "#10B981" };
+}
+
 export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
   const { user } = useAuth();
-  
+  const [ticketType, setTicketType] = useState<string | null>(null);
+
+  // Fetch user's ticket to use its type for Menu card (color + badge)
+  // Ticket type takes precedence over company_type (assignee shows Exhibitor if they have Exhibitor ticket)
+  useEffect(() => {
+    if (!user) return;
+    ticketService
+      .getUserTicket(EVENT_ID)
+      .then((ticket) => {
+        const type = ticket?.type?.user_type ?? ticket?.type?.name ?? ticket?.ticket_class?.user_type ?? null;
+        setTicketType(type ?? null);
+      })
+      .catch(() => setTicketType(null));
+  }, [user?.user_id]);
+
   // Get user profile data
   const userName = user?.first_name && user?.last_name 
     ? `${user.first_name} ${user.last_name}`.trim()
@@ -34,35 +62,13 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
   
   const userEmail = user?.email || "";
   
-  // Determine user type badge based on company
-  // If user has company, show company type (exhibitor/partner), otherwise show "Attendee"
-  let userType = "Attendee";
-  if (user?.company?.company_type) {
-    // Capitalize first letter (exhibitor -> Exhibitor, partner -> Partner)
-    const type = user.company.company_type;
-    userType = type.charAt(0).toUpperCase() + type.slice(1);
-  }
+  // Badge and color: prefer ticket type, then company type (so assignee with Exhibitor ticket shows Exhibitor)
+  const companyType = user?.company?.company_type ?? "";
+  const effectiveType = ticketType || companyType || "attendee";
+  const { label: userType, color: cardBackgroundColor } = getTicketTypeDisplay(effectiveType);
   
   // Get profile picture URL if available
   const profilePicUrl = user?.profile_pic || null;
-  
-  // Determine card background color based on user type (matching TicketCard theme)
-  const getCardBackgroundColor = () => {
-    if (!user?.company?.company_type) {
-      return "#10B981"; // Green for Attendee/General
-    }
-    
-    const type = user.company.company_type.toLowerCase();
-    if (type === "founder") {
-      return "#000000"; // Black
-    } else if (type === "exhibitor" || type === "partner") {
-      return "#3B82F6"; // Blue
-    } else {
-      return "#10B981"; // Green (default/attendee)
-    }
-  };
-  
-  const cardBackgroundColor = getCardBackgroundColor();
   
   const menuItems = [
     {

@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import type { RootStackScreenProps } from "../navigation/types";
@@ -432,6 +432,7 @@ function TicketCard({
   canTransfer,
   totalTickets,
   availableToAssignCount,
+  availableCount,
   isAdminBlocked,
   eventId,
   onViewQR,
@@ -594,9 +595,17 @@ function TicketCard({
       {isUnassigned && (
         <Pressable
           onPress={onAssign}
-          className="mt-3 flex-row items-center justify-center bg-neutral-100 rounded-xl py-3.5 px-4 border border-neutral-300"
+          disabled={!onAssign}
+          className="mt-3 flex-row items-center justify-center rounded-xl py-3.5 px-4 border border-neutral-300"
+          style={{
+            backgroundColor: onAssign ? "#f5f5f5" : "#e5e5e5",
+            opacity: onAssign ? 1 : 0.6,
+          }}
         >
-          <Text className="text-sm font-medium text-black">
+          <Text
+            className="text-sm font-medium"
+            style={{ color: onAssign ? "#000" : "#737373" }}
+          >
             Assign / Transfer Ticket
           </Text>
         </Pressable>
@@ -1055,6 +1064,7 @@ function RecipientDetailsModal({
   onClose,
   onBack,
   onTransfer,
+  isSubmitting,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -1064,7 +1074,8 @@ function RecipientDetailsModal({
     email: string;
     phoneNumber: string;
     countryCode: string;
-  }) => void;
+  }) => void | Promise<void>;
+  isSubmitting?: boolean;
 }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -1443,13 +1454,20 @@ function RecipientDetailsModal({
           >
             <Pressable
               onPress={handleTransfer}
+              disabled={isSubmitting}
               className="w-full items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
+              style={{ opacity: isSubmitting ? 0.6 : 1 }}
             >
-              <Text className="text-base font-medium text-white">Transfer</Text>
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text className="text-base font-medium text-white">Transfer</Text>
+              )}
             </Pressable>
 
             <Pressable
               onPress={onBack}
+              disabled={isSubmitting}
               className="w-full items-center justify-center bg-white border border-neutral-300 rounded-xl py-4 px-4"
             >
               <Text className="text-base font-medium text-black">Back</Text>
@@ -3205,7 +3223,7 @@ function EditAssignedTicketModal({
                       {title}
                     </Text>
                     <Text className="text-white/50 text-base mb-10">
-                      {ticketNumber}
+                      {ticketNumber || "—"}
                     </Text>
                     <View className="flex-col">
                       <Text className="text-white/60 text-sm">Assigned to</Text>
@@ -3218,7 +3236,7 @@ function EditAssignedTicketModal({
                     <View className="bg-white/20 px-2 py-1 rounded-full flex-row items-center">
                       <View className="w-1.5 h-1.5 bg-white rounded-full mr-1" />
                       <Text className="text-white text-xs font-medium">
-                        Unassigned
+                        Assigned
                       </Text>
                     </View>
                     <View className="flex-row items-center gap-1">
@@ -3240,14 +3258,18 @@ function EditAssignedTicketModal({
                 <Text className="text-lg font-semibold text-black mb-2">
                   {assignedTo}
                 </Text>
-                <Text className="text-sm text-neutral-500 mb-1">
-                  {assigneeEmail}
-                </Text>
-                <Text className="text-sm text-neutral-500 mb-3">
-                  {assigneePhone}
-                </Text>
+                {assigneeEmail ? (
+                  <Text className="text-sm text-neutral-500 mb-1">
+                    {assigneeEmail}
+                  </Text>
+                ) : null}
+                {assigneePhone ? (
+                  <Text className="text-sm text-neutral-500 mb-1">
+                    {assigneePhone}
+                  </Text>
+                ) : null}
                 <Text className="text-xs text-neutral-400">
-                  Assigned on {assignedDate}
+                  Assigned on {assignedDate || "—"}
                 </Text>
               </View>
             </View>
@@ -3623,13 +3645,17 @@ function MyTicketView({
     ticketNumber: string,
     assignedTo: string,
     backgroundColor?: string,
-    isUnassigned?: boolean
+    isUnassigned?: boolean,
+    ticket?: Ticket
   ) => void;
   onEditAssignment: (
     title: string,
     ticketNumber: string,
     backgroundColor: string,
-    assignedTo: string
+    assignedTo: string,
+    assigneeEmail?: string,
+    assigneePhone?: string,
+    assignedDate?: string
   ) => void;
   user: { user_id: string; company?: { admin_user?: string | null } | null } | null;
   eventId: number;
@@ -3778,7 +3804,10 @@ function MyTicketView({
                       ticket.title,
                       ticket.ticketNumber,
                       ticket.backgroundColor,
-                      ticket.assignedTo || ""
+                      ticket.assignedTo || "",
+                      ticket.assigneeEmail,
+                      ticket.assigneePhone,
+                      ticket.assignedDate
                     )
                   }
                 />
@@ -3787,6 +3816,7 @@ function MyTicketView({
           </>
         )}
 
+        {/* Always show Available to Assign when user has quotas (even 0 remaining) */}
         {unassignedTickets.length > 0 && (
           <>
             <Text className="text-[20px] font-semibold text-black mb-4 mt-6">
@@ -3811,14 +3841,18 @@ function MyTicketView({
                   backgroundColor={ticket.backgroundColor}
                   isUnassigned
                   availableCount={ticket.availableCount}
-                  onAssign={() =>
-                    onTransfer(
-                      ticket.title,
-                      ticket.ticketNumber,
-                      "",
-                      ticket.backgroundColor,
-                      true
-                    )
+                  onAssign={
+                    (ticket.availableCount ?? 0) > 0
+                      ? () =>
+                          onTransfer(
+                            ticket.title,
+                            ticket.ticketNumber,
+                            "",
+                            ticket.backgroundColor,
+                            true,
+                            ticket
+                          )
+                      : undefined
                   }
                 />
               </View>
@@ -3889,6 +3923,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     assignedTo: string;
     backgroundColor: string;
     isUnassigned: boolean;
+    ticketClassId?: number;
+    quotaId?: number;
   }>({
     title: "",
     ticketNumber: "",
@@ -3943,91 +3979,117 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
+  const [isAllocating, setIsAllocating] = useState(false);
 
-  // Fetch user's tickets: personal (getUserTicket) + unassigned (getUserQuotas)
-  useEffect(() => {
-    const fetchTickets = async () => {
-      setTicketsLoading(true);
-      setTicketsError(null);
+  // Helper function to get background color based on ticket type or class name
+  const getTicketBackgroundColor = (userType?: string): string => {
+    const t = (userType || "").toLowerCase();
+    if (t.includes("founder")) return "#000000";
+    if (t.includes("exhibitor") || t.includes("partner")) return "#3B82F6";
+    return "#10B981";
+  };
 
-      const allTickets: Ticket[] = [];
+  // Fetch tickets: personal + quotas (Available) + allocations (Assigned)
+  const fetchTickets = React.useCallback(async () => {
+    setTicketsLoading(true);
+    setTicketsError(null);
 
-      // Step 1: Personal ticket
-      try {
-        const backendTicket = await ticketService.getUserTicket(EVENT_ID);
-        const frontendTicket: Ticket = {
-          id: String(backendTicket.id),
-          title: backendTicket.type?.name || "Ticket",
-          ticketNumber: backendTicket.ticket_code,
-          backgroundColor: getTicketBackgroundColor(
-            backendTicket.type?.user_type
-          ),
-          assignedTo: "You",
-          isPersonal: true,
+    const allTickets: Ticket[] = [];
+
+    // Step 1: Personal ticket
+    try {
+      const backendTicket = await ticketService.getUserTicket(EVENT_ID);
+      allTickets.push({
+        id: String(backendTicket.id),
+        title: backendTicket.type?.name || "Ticket",
+        ticketNumber: backendTicket.ticket_code,
+        backgroundColor: getTicketBackgroundColor(
+          backendTicket.type?.user_type
+        ),
+        assignedTo: "You",
+        isPersonal: true,
+        isUnassigned: false,
+      });
+    } catch (error: any) {
+      const responseCode =
+        error?.responseCode || error?.response_code || error?.statusCode;
+      if (responseCode !== 404) {
+        setTicketsError("Failed to load tickets. Please try again.");
+      }
+    }
+
+    // Step 2: Assigned tickets from allocations
+    try {
+      const allocations = await ticketService.getUserAllocations(EVENT_ID);
+      for (const alloc of allocations) {
+        const assigneeName = [alloc.recipient_first_name, alloc.recipient_last_name]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        const displayName = assigneeName || "Recipient";
+        const assignedDate = alloc.created_at
+          ? new Date(alloc.created_at).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
+          : "";
+        allTickets.push({
+          id: `alloc-${alloc.id}`,
+          title: alloc.ticket_class_name,
+          ticketNumber: "",
+          backgroundColor: getTicketBackgroundColor(alloc.ticket_class_name),
+          assignedTo: displayName,
+          assigneeEmail: alloc.email,
+          assigneePhone: alloc.recipient_phone ?? "",
+          assignedDate,
+          isPersonal: false,
           isUnassigned: false,
-        };
-        allTickets.push(frontendTicket);
-      } catch (error: any) {
-        const responseCode =
-          error?.responseCode || error?.response_code || error?.statusCode;
-        if (responseCode !== 404) {
-          setTicketsError("Failed to load tickets. Please try again.");
-        }
+        });
       }
+    } catch (error) {
+      console.error("Error fetching allocations:", error);
+    }
 
-      // Step 2: Unassigned tickets from quotas - one card per quota with count
-      try {
-        const quotas = await ticketService.getUserQuotas(EVENT_ID);
-        for (const quota of quotas) {
-          const remaining =
-            quota.remaining_quota ??
-            (quota.quota - quota.allocated_tickets ?? 0);
-          if (remaining <= 0) continue;
-
-          const userType =
-            quota.ticket_class?.user_type ?? quota.ticket_class?.type ?? "";
-          const title = quota.ticket_class?.name ?? "Ticket";
-          const backgroundColor = getTicketBackgroundColor(userType);
-
-          allTickets.push({
-            id: `quota-${quota.id}`,
-            title,
-            ticketNumber: "", // No ticket code; count shown instead
-            backgroundColor,
-            isPersonal: false,
-            isUnassigned: true,
-            quotaId: quota.id,
-            ticketClassId: quota.ticket_class?.id,
-            availableCount: remaining,
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching quotas:", error);
-        if (allTickets.length === 0) {
-          setTicketsError("Failed to load tickets. Please try again.");
-        }
+    // Step 3: Unassigned from quotas - one card per quota, include 0 remaining
+    try {
+      const quotas = await ticketService.getUserQuotas(EVENT_ID);
+      for (const quota of quotas) {
+        const remaining =
+          quota.remaining_quota ??
+          (quota.quota - quota.allocated_tickets ?? 0);
+        const userType =
+          quota.ticket_class?.user_type ?? quota.ticket_class?.type ?? "";
+        const title = quota.ticket_class?.name ?? "Ticket";
+        allTickets.push({
+          id: `quota-${quota.id}`,
+          title,
+          ticketNumber: "",
+          backgroundColor: getTicketBackgroundColor(userType),
+          isPersonal: false,
+          isUnassigned: true,
+          quotaId: quota.id,
+          ticketClassId: quota.ticket_class?.id,
+          availableCount: remaining,
+        });
       }
+    } catch (error) {
+      console.error("Error fetching quotas:", error);
+      if (allTickets.length === 0) {
+        setTicketsError("Failed to load tickets. Please try again.");
+      }
+    }
 
-      setTickets(allTickets);
-      setTicketsLoading(false);
-    };
-
-    fetchTickets();
+    setTickets(allTickets);
+    setTicketsLoading(false);
   }, []);
 
-  // Helper function to get background color based on ticket type
-  // Matches Menu card color scheme: Attendee=Green, Exhibitor/Partner=Blue
-  const getTicketBackgroundColor = (userType?: string): string => {
-    switch (userType) {
-      case "founder":
-        return "#000000"; // Black
-      case "exhibitor":
-      case "partner":
-        return "#3B82F6"; // Blue
-      default:
-        return "#10B981"; // Green (default/attendee)
-    }
-  };
+  // Fetch on mount and when screen gains focus (e.g. returning from another tab)
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchTickets();
+    }, [fetchTickets])
+  );
 
   // Update tab when route params change
   useEffect(() => {
@@ -4082,7 +4144,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     ticketNumber: string,
     assignedTo: string,
     backgroundColor?: string,
-    isUnassigned?: boolean
+    isUnassigned?: boolean,
+    ticket?: Ticket
   ) => {
     setTransferModalData({
       title,
@@ -4090,6 +4153,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       assignedTo,
       backgroundColor: backgroundColor || "#000000",
       isUnassigned: isUnassigned || false,
+      ticketClassId: ticket?.ticketClassId,
+      quotaId: ticket?.quotaId,
     });
     setTransferModalVisible(true);
   };
@@ -4108,71 +4173,47 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     }, 300);
   };
 
-  // TODO: BACKEND INTEGRATION - Transfer ticket to recipient via API
-  // API Endpoint: POST /api/tickets/{ticketId}/transfer
-  // Request Body: { recipient: { fullName, email, phoneNumber, countryCode } }
-  // Response: { success: boolean, ticket: Ticket, message?: string }
-  // Error Handling: Handle validation errors, insufficient permissions, already transferred tickets
-  // TODO: BACKEND - Call API before updating local state
-  // TODO: BACKEND - Update local state only after successful API response
-  // TODO: BACKEND - Handle API errors and show error messages
-  // TODO: BACKEND - Refresh tickets list after successful transfer
-  const handleRecipientTransfer = (data: {
+  const handleRecipientTransfer = async (data: {
     fullName: string;
     email: string;
     phoneNumber: string;
     countryCode: string;
   }) => {
-    // TODO: BACKEND - Call API: await api.post(`/tickets/${ticketId}/transfer`, { recipient: data })
-    // Update the ticket state - mark the ticket as assigned
-    // Use functional update to ensure we have the latest state
-    setTickets((prevTickets: Ticket[]) => {
-      const ticketToAssign = prevTickets.find(
-        (t) =>
-          t.ticketNumber === transferModalData.ticketNumber && t.isUnassigned
-      );
+    const recipientData = {
+      fullName: data.fullName,
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+      countryCode: data.countryCode || "",
+    };
 
-      if (ticketToAssign) {
-        const updatedTickets = prevTickets.map((ticket: Ticket) =>
-          ticket.id === ticketToAssign.id
-            ? {
-                ...ticket,
-                isUnassigned: false,
-                assignedTo: data.fullName,
-                assigneeEmail: data.email,
-                assigneePhone: data.phoneNumber,
-                assignedDate: new Date().toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                }),
-              }
-            : ticket
+    // Quota allocation: call allocate-ticket API
+    if (transferModalData.isUnassigned && transferModalData.ticketClassId) {
+      setIsAllocating(true);
+      try {
+        await ticketService.allocateTicket(
+          EVENT_ID,
+          transferModalData.ticketClassId,
+          recipientData
         );
-
-        // Debug: Log the updated state
-        console.log("Ticket assigned:", {
-          ticketNumber: transferModalData.ticketNumber,
-          before: ticketToAssign,
-          after: updatedTickets.find((t) => t.id === ticketToAssign.id),
-          allTickets: updatedTickets,
-        });
-
-        return updatedTickets;
+        setRecipientData(data);
+        setRecipientModalVisible(false);
+        await fetchTickets();
+        setTimeout(() => setConfirmationModalVisible(true), 300);
+      } catch (error: any) {
+        showToast(
+          error?.message || "Failed to allocate ticket. Please try again.",
+          "error"
+        );
+      } finally {
+        setIsAllocating(false);
       }
+      return;
+    }
 
-      console.warn(
-        "Ticket not found for assignment:",
-        transferModalData.ticketNumber
-      );
-      return prevTickets;
-    });
-
+    // Transfer existing ticket: TODO - use ticketService.transferTicket when ticketId available
     setRecipientData(data);
     setRecipientModalVisible(false);
-    setTimeout(() => {
-      setConfirmationModalVisible(true);
-    }, 300);
+    setTimeout(() => setConfirmationModalVisible(true), 300);
   };
 
   const handleBackToHome = () => {
@@ -4210,16 +4251,19 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     title: string,
     ticketNumber: string,
     backgroundColor: string,
-    assignedTo: string
+    assignedTo: string,
+    assigneeEmail?: string,
+    assigneePhone?: string,
+    assignedDate?: string
   ) => {
     setEditAssignedTicketData({
       title,
       ticketNumber,
       backgroundColor,
       assignedTo,
-      assigneeEmail: "john.doe@email.com", // This would come from actual data
-      assigneePhone: "+234 800 000 0000", // This would come from actual data
-      assignedDate: "Dec 5, 2024", // This would come from actual data
+      assigneeEmail: assigneeEmail ?? "",
+      assigneePhone: assigneePhone ?? "",
+      assignedDate: assignedDate ?? "",
     });
     setEditAssignedTicketModalVisible(true);
   };
@@ -4536,6 +4580,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           onClose={() => setRecipientModalVisible(false)}
           onBack={handleRecipientBack}
           onTransfer={handleRecipientTransfer}
+          isSubmitting={isAllocating}
         />
         <AssigningTicketsModal
           visible={assigningTicketsModalVisible}

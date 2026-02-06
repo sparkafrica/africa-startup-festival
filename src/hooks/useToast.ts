@@ -19,6 +19,7 @@ export function useToast() {
 
   const showToast = useCallback(
     (message: string, type: ToastType = "success", duration?: number) => {
+      const safeMessage = message != null ? String(message) : "An error occurred";
       // Calculate duration based on message length for better readability
       // Base duration: 3000ms for short messages (< 50 chars)
       // For longer messages, add extra time based on character count
@@ -27,7 +28,7 @@ export function useToast() {
       let calculatedDuration = duration;
       if (!calculatedDuration) {
         const baseDuration = 3000; // 3 seconds for short messages
-        const charCount = message.length;
+        const charCount = safeMessage.length;
         if (charCount < 50) {
           calculatedDuration = baseDuration;
         } else if (charCount < 100) {
@@ -44,7 +45,7 @@ export function useToast() {
       }
       
       setToast({
-        message,
+        message: safeMessage,
         type,
         visible: true,
         duration: calculatedDuration,
