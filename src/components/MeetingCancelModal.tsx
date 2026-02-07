@@ -22,7 +22,7 @@ const MAX_CHARACTERS = 200;
 interface MeetingCancelModalProps {
   visible: boolean;
   onClose: () => void;
-  onSend: (reason: string) => void;
+  onSend: (reason: string) => void | Promise<void>;
 }
 
 export default function MeetingCancelModal({
@@ -32,6 +32,7 @@ export default function MeetingCancelModal({
 }: MeetingCancelModalProps) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | undefined>(undefined);
+  const [isSending, setIsSending] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const keyboardOffset = useRef(new Animated.Value(0)).current;
@@ -205,7 +206,7 @@ export default function MeetingCancelModal({
     return undefined;
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const validationError = validateReason(reason);
     if (validationError) {
       setError(validationError);
@@ -214,12 +215,17 @@ export default function MeetingCancelModal({
 
     setError(undefined);
     Keyboard.dismiss();
-    onSend(reason.trim());
-    setReason("");
+    setIsSending(true);
+    try {
+      await onSend(reason.trim());
+      setReason("");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const characterCount = reason.length;
-  const isSendDisabled = reason.trim().length === 0;
+  const isSendDisabled = reason.trim().length === 0 || isSending;
 
   return (
     <Modal
@@ -328,7 +334,7 @@ export default function MeetingCancelModal({
                       isSendDisabled && styles.actionButtonTextDisabled,
                     ]}
                   >
-                    Send
+                    {isSending ? "Sending..." : "Send"}
                   </Text>
                 </Pressable>
               </View>

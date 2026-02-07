@@ -115,6 +115,41 @@ export interface Partner {
 }
 
 /**
+ * Company Member (from directory)
+ * Matches backend schema: Member
+ */
+export interface CompanyMember {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  profile_pic?: string | null;
+}
+
+/**
+ * Company (from directory retrieve)
+ * Matches backend schema: Company
+ * GET /directory/{event_id}/{company_type}/{company_pk}/
+ */
+export interface Company {
+  id: number;
+  name: string;
+  contact_person?: string | null;
+  country?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  company_sector?: string | null;
+  company_description?: string | null;
+  logo?: string | null;
+  group_photo?: string | null;
+  metadata?: Record<string, any> | null;
+  company_type?: string | null;
+  founders?: any[];
+  admin_user?: string | null;
+  event_id?: number;
+  members?: CompanyMember[];
+}
+
+/**
  * PersonalSchedule
  * Matches backend schema: PersonalScheduleList
  */
@@ -1172,6 +1207,114 @@ export const eventService = {
       throw new ApiClientError({
         status: "error",
         message: error?.message || "Failed to fetch event partners",
+        response_code: error?.response_code || 0,
+        data: {},
+      });
+    }
+  },
+
+  /**
+   * List companies by type (exhibitor or partner) from directory
+   *
+   * @param eventId - The ID of the event
+   * @param companyType - "exhibitor" or "partner"
+   * @param filters - Optional filters (search, ordering, pagination)
+   * @returns Promise that resolves with paginated companies
+   *
+   * Backend Endpoint: GET /directory/{event_id}/{company_type}/
+   * Schema: PaginatedCompanyList (Company[])
+   */
+  async getDirectoryCompanies(
+    eventId: number,
+    companyType: "exhibitor" | "partner",
+    filters?: { search?: string; ordering?: string; page?: number; page_size?: number }
+  ): Promise<{ companies: Company[]; pagination: PaginationMeta }> {
+    try {
+      const params: Record<string, string> = {};
+      if (filters) {
+        if (filters.search) params.search = filters.search;
+        if (filters.ordering) params.ordering = filters.ordering;
+        if (filters.page) params.page = filters.page.toString();
+        if (filters.page_size) params.page_size = filters.page_size.toString();
+      }
+      const queryString = new URLSearchParams(params).toString();
+      const url = `/directory/${eventId}/${companyType}/${queryString ? `?${queryString}` : ""}`;
+      const response = await api.get<any>(url);
+      const data = response as any;
+
+      if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {
+        return {
+          companies: data.results as Company[],
+          pagination: { count: data.count || 0, next: data.next || null, previous: data.previous || null },
+        };
+      }
+      if (Array.isArray(data)) {
+        return { companies: data as Company[], pagination: { count: data.length, next: null, previous: null } };
+      }
+      if (data?.status === "success" && data?.data) {
+        const list = Array.isArray(data.data) ? data.data : data.data?.results;
+        if (Array.isArray(list)) {
+          return {
+            companies: list as Company[],
+            pagination: { count: list.length, next: null, previous: null },
+          };
+        }
+      }
+      throw new ApiClientError({
+        status: "error",
+        message: "Invalid response format from directory",
+        response_code: 500,
+        data: { actualResponse: data },
+      });
+    } catch (error: any) {
+      if (error instanceof ApiClientError) throw error;
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to fetch companies",
+        response_code: error?.response_code || 0,
+        data: {},
+      });
+    }
+  },
+
+  /**
+   * Get company details by type (exhibitor or partner) from directory
+   *
+   * @param eventId - The ID of the event
+   * @param companyType - "exhibitor" or "partner"
+   * @param companyPk - The company ID (from list)
+   * @returns Promise that resolves with Company object
+   *
+   * Backend Endpoint: GET /directory/{event_id}/{company_type}/{company_pk}/
+   * Schema: Company
+   */
+  async getCompanyDetail(
+    eventId: number,
+    companyType: "exhibitor" | "partner",
+    companyPk: number
+  ): Promise<Company> {
+    try {
+      const url = `/directory/${eventId}/${companyType}/${companyPk}/`;
+      const response = await api.get<any>(url);
+      const data = response as any;
+
+      if (data?.status === "success" && data?.data) {
+        return data.data as Company;
+      }
+      if (data?.id && data?.name) {
+        return data as Company;
+      }
+      throw new ApiClientError({
+        status: "error",
+        message: data?.message || "Failed to fetch company details",
+        response_code: data?.response_code || 404,
+        data: {},
+      });
+    } catch (error: any) {
+      if (error instanceof ApiClientError) throw error;
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to fetch company details",
         response_code: error?.response_code || 0,
         data: {},
       });

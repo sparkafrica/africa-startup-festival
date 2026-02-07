@@ -90,6 +90,7 @@ export interface OutboundMeetingModalProps {
     description: string;
   }) => void;
   onCancel?: () => void;
+  onConfirmCancel?: (reason: string) => Promise<void>;
   // Participant detail props
   showParticipantDetail?: boolean;
   participantTags?: string[];
@@ -119,6 +120,7 @@ export default function OutboundMeetingModal({
   onParticipantPress,
   onEdit,
   onCancel,
+  onConfirmCancel,
   showParticipantDetail = false,
   participantTags = [],
   participantBio,
@@ -717,14 +719,16 @@ export default function OutboundMeetingModal({
         {/* Cancel Meeting Input Modal */}
         <MeetingCancelModal
           visible={showCancelModal}
-          onClose={() => {
-            setShowCancelModal(false);
-          }}
-          onSend={(reason: string) => {
-            setShowCancelModal(false);
-            setShowCancelledModal(true);
-            // TODO: Send cancellation reason to backend
-            console.log("Cancel reason:", reason);
+          onClose={() => setShowCancelModal(false)}
+          onSend={async (reason: string) => {
+            if (!onConfirmCancel) return;
+            try {
+              await onConfirmCancel(reason);
+              setShowCancelModal(false);
+              setShowCancelledModal(true);
+            } catch {
+              // Error handled by parent (toast)
+            }
           }}
         />
 

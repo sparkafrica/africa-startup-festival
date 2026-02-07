@@ -54,6 +54,8 @@ export { default as ScheduledMeetingModal } from "./ScheduledMeetingModal";
 export type { ScheduledMeetingModalProps } from "./ScheduledMeetingModal";
 export { default as CancelledMeetingCard } from "./CancelledMeetingCard";
 export type { CancelledMeetingCardProps } from "./CancelledMeetingCard";
+export { default as CancelledMeetingDetailModal } from "./CancelledMeetingDetailModal";
+export type { CancelledMeetingDetailModalProps } from "./CancelledMeetingDetailModal";
 export { default as EmptyCancelledMeetings } from "./EmptyCancelledMeetings";
 export * from "./icons";
 export * from "./BottomNavIcons";

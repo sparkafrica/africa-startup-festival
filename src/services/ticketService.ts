@@ -268,11 +268,6 @@ export const ticketService = {
         items = [data];
       }
 
-      // Debug: log raw allocation response to verify recipient_first_name/last_name
-      if (__DEV__ && items.length > 0) {
-        console.log("[getUserAllocations] raw allocation:", JSON.stringify(items[0], null, 2));
-      }
-
       return items as TicketAllocation[];
     }
 

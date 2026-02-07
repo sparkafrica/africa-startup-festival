@@ -595,10 +595,15 @@ export const meetingService = {
    * Cancel a meeting
    *
    * @param meetingId - The ID of the meeting to cancel
-   * @param cancellationReason - Reason for cancellation
+   * @param cancellationReason - User-entered reason (sent as cancellation_reason)
    * @returns Promise that resolves when the meeting is cancelled
    *
    * Backend Endpoint: POST /meetings/{meeting_id}/cancel-meeting/
+   * Request body: { cancellation_reason: string }
+   *
+   * Backend note (for email templates): The app sends the user's reason in
+   * cancellation_reason. Use this field for cancellation emails (metadata vs
+   * reason field is backend's choice; the payload key is cancellation_reason).
    */
   async cancelMeeting(
     meetingId: number,
@@ -929,10 +934,13 @@ export const meetingService = {
    * Cancel a virtual meeting
    *
    * @param virtualMeetingId - The ID of the virtual meeting to cancel
-   * @param cancellationReason - Reason for cancellation
+   * @param cancellationReason - User-entered reason (sent as cancellation_reason)
    * @returns Promise that resolves when the virtual meeting is cancelled
    *
    * Backend Endpoint: POST /virtual-meetings/{virtual_meeting_id}/cancel/
+   * Request body: { cancellation_reason: string } (optional for virtual)
+   *
+   * Backend note: Same as physical meeting - use cancellation_reason for emails.
    */
   async cancelVirtualMeeting(
     virtualMeetingId: number,

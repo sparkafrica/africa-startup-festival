@@ -28,7 +28,7 @@ export type RootStackParamList = {
       }
     | undefined;
   Connections: undefined;
-  CompanyDetail: { exhibitorId: string; name?: string };
+  CompanyDetail: { exhibitorId: string; type: "exhibitor" | "partner"; name?: string };
   SpeakerDetail: { speakerId: string; name?: string };
   Contact: undefined;
   ApiTest: undefined; // Temporary test screen - remove before production

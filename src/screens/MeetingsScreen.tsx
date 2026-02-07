@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, ScrollView, ActivityIndicator, RefreshControl, Text, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -8,6 +8,7 @@ import {
   ScheduledMeetingCard,
   ScheduledMeetingModal,
   CancelledMeetingCard,
+  CancelledMeetingDetailModal,
   EmptyCancelledMeetings,
   TabButton,
   SecondaryTabButton,
@@ -77,6 +78,7 @@ interface UIMeeting {
   expiresIn?: number; // hours until expiration (for pending)
   timeUntil?: string; // "In 3hrs", "Tomorrow" (for scheduled)
   description: string; // reason from backend
+  createdAt?: string; // ISO date-time for sorting (e.g. cancelled: latest first)
 }
 
 // ============================================================================
@@ -115,6 +117,8 @@ export default function MeetingsScreen({ route }: Props) {
   const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>("inbound");
   const [selectedMeeting, setSelectedMeeting] = useState<UIMeeting | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isCancelledDetailModalVisible, setIsCancelledDetailModalVisible] =
+    useState(false);
   const [isParticipantModalVisible, setIsParticipantModalVisible] =
     useState(false);
   
@@ -131,6 +135,10 @@ export default function MeetingsScreen({ route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
 
+  // Preserve optimistically cancelled meetings (requests/scheduled) across refetches.
+  // Backend may not return cancelled pending requests in list; this ref ensures they stay in Cancelled tab.
+  const recentlyCancelledRef = useRef<UIMeeting[]>([]);
+
   // Handle navigation params to set tabs when navigating from notifications
   useEffect(() => {
     if (route.params) {
@@ -142,6 +150,37 @@ export default function MeetingsScreen({ route }: Props) {
       }
     }
   }, [route.params]);
+
+  // Derive meetingCounts and displayed meetings from allMeetingsForCounts
+  // This ensures cancelling a meeting updates the Cancelled tab immediately when switching
+  // (avoids race between optimistic update and fetchMeetings on tab switch)
+  useEffect(() => {
+    setMeetingCounts({
+      requests: allMeetingsForCounts.filter((m) => m.status === "pending").length,
+      scheduled: allMeetingsForCounts.filter((m) => m.status === "accepted").length,
+      cancelled: allMeetingsForCounts.filter((m) => m.status === "cancelled").length,
+    });
+    const statusFilter =
+      primaryTab === "requests"
+        ? "pending"
+        : primaryTab === "scheduled"
+        ? "accepted"
+        : "cancelled";
+    let filtered = allMeetingsForCounts.filter((m) => m.status === statusFilter);
+    filtered = filtered.filter((m) =>
+      secondaryTab === "inbound" ? m.isInbound : !m.isInbound
+    );
+    // Cancelled tab: latest first (by createdAt desc, else backendMeetingId desc)
+    if (primaryTab === "cancelled" && filtered.length > 1) {
+      filtered = [...filtered].sort((a, b) => {
+        const aTs = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTs = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (aTs !== bTs) return bTs - aTs; // newer first
+        return b.backendMeetingId - a.backendMeetingId;
+      });
+    }
+    setMeetings(filtered);
+  }, [allMeetingsForCounts, primaryTab, secondaryTab]);
 
   // ============================================================================
   // UTILITY FUNCTIONS
@@ -466,8 +505,9 @@ export default function MeetingsScreen({ route }: Props) {
       expiresIn,
       timeUntil,
       description: virtualMeeting.reason,
+      createdAt: virtualMeeting.created_at,
     };
-      };
+  };
 
   /**
    * Map backend Meeting to UI-friendly format
@@ -611,6 +651,7 @@ export default function MeetingsScreen({ route }: Props) {
       expiresIn,
       timeUntil,
       description: backendMeeting.reason, // Keep reason as description
+      createdAt: backendMeeting.created_at,
     };
     
     return mappedMeeting;
@@ -710,38 +751,21 @@ export default function MeetingsScreen({ route }: Props) {
       );
 
       // Merge both types of meetings - store ALL meetings for counts
-      const allUIMeetings = [...physicalUIMeetings, ...virtualUIMeetings];
+      const fromApi = [...physicalUIMeetings, ...virtualUIMeetings];
 
-      // Store all meetings for secondary tab counts (not filtered by secondary tab)
-      setAllMeetingsForCounts(allUIMeetings);
-
-      // Store counts for primary tab badges (total across all meetings)
-      setMeetingCounts({
-        requests: allUIMeetings.filter((m) => m.status === "pending").length,
-        scheduled: allUIMeetings.filter((m) => m.status === "accepted").length,
-        cancelled: allUIMeetings.filter((m) => m.status === "cancelled").length,
+      // Merge with optimistically cancelled meetings (backend may not return cancelled in list)
+      // Preserve both: (1) cancelled from prev not in API, (2) recently cancelled from ref (e.g. requests)
+      setAllMeetingsForCounts((prev) => {
+        const apiIds = new Set(fromApi.map((m) => m.id));
+        const orphanedCancelled = prev.filter(
+          (m) => m.status === "cancelled" && !apiIds.has(m.id)
+        );
+        const fromRef = (recentlyCancelledRef.current || []).filter(
+          (m) => !apiIds.has(m.id) && !orphanedCancelled.some((o) => o.id === m.id)
+        );
+        recentlyCancelledRef.current = [];
+        return [...fromApi, ...orphanedCancelled, ...fromRef];
       });
-
-      // Filter by status and direction based on current tabs
-      // Determine status filter
-      const statusFilter =
-        primaryTab === "requests"
-          ? "pending"
-          : primaryTab === "scheduled"
-          ? "accepted"
-          : "cancelled";
-
-      // Filter by status
-      let filtered = allUIMeetings.filter((m) => m.status === statusFilter);
-
-      // Filter by direction (inbound vs outbound)
-      // Inbound = current user is requestee (someone requested meeting with me)
-      // Outbound = current user is requester (I requested meeting with someone)
-      filtered = filtered.filter((m) => {
-        return secondaryTab === "inbound" ? m.isInbound : !m.isInbound;
-      });
-
-      setMeetings(filtered);
     } catch (err: any) {
       const errorMessage =
         err instanceof ApiClientError
@@ -755,7 +779,7 @@ export default function MeetingsScreen({ route }: Props) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [user?.user_id, primaryTab, secondaryTab]);
+  }, [user?.user_id]);
 
   // Fetch meetings on mount and when tabs change
   useEffect(() => {
@@ -836,13 +860,25 @@ export default function MeetingsScreen({ route }: Props) {
         }
         
         showToast("Meeting cancelled", "success");
-        // Close modal immediately and refresh
         setIsModalVisible(false);
         setSelectedMeeting(null);
-        // Small delay to allow modal animation to complete
-        setTimeout(async () => {
-          await fetchMeetings(false);
-        }, 300);
+        // Optimistic update: mark meeting as cancelled so it appears in Cancelled tab immediately
+        // (Backend may not return cancelled meetings—especially cancelled requests—in list endpoints)
+        const cancelledMeeting: UIMeeting = { ...meeting, status: "cancelled" as const };
+        recentlyCancelledRef.current = [cancelledMeeting];
+        setAllMeetingsForCounts((prev) => {
+          const found = prev.some((m) => m.id === meeting.id);
+          if (found) {
+            return prev.map((m) =>
+              m.id === meeting.id ? cancelledMeeting : m
+            );
+          }
+          return [...prev, cancelledMeeting];
+        });
+        // Refetch in background to sync with backend (in case it returns cancelled)
+        setTimeout(() => {
+          fetchMeetings(false);
+        }, 500);
       } catch (err: any) {
         let message =
           err instanceof ApiClientError
@@ -1128,9 +1164,9 @@ export default function MeetingsScreen({ route }: Props) {
             count={tabCounts.cancelled}
             isActive={primaryTab === "cancelled"}
             onPress={() => {
-              // Clear selected meeting and close modal when switching to cancelled tab
               setSelectedMeeting(null);
               setIsModalVisible(false);
+              setIsCancelledDetailModalVisible(false);
               setIsParticipantModalVisible(false);
               setPrimaryTab("cancelled");
             }}
@@ -1231,8 +1267,8 @@ export default function MeetingsScreen({ route }: Props) {
                 endTime={meeting.endTime}
                 meetingType={meeting.meetingType || "physical"}
                 onPress={() => {
-                  // Cancelled tab is for records only - no modals
-                  // Do nothing on press
+                  setSelectedMeeting(meeting);
+                  setIsCancelledDetailModalVisible(true);
                 }}
               />
             ))
@@ -1365,7 +1401,11 @@ export default function MeetingsScreen({ route }: Props) {
                 handleUpdateMeeting(selectedMeeting, editData);
               }
             }}
-            onCancel={() => handleCancelMeeting(selectedMeeting)}
+            onCancel={() => {
+              setIsModalVisible(false);
+              setSelectedMeeting(null);
+            }}
+            onConfirmCancel={(reason) => handleCancelMeeting(selectedMeeting, reason)}
           />
         )}
 
@@ -1409,10 +1449,10 @@ export default function MeetingsScreen({ route }: Props) {
             }
           }}
           onCancel={() => {
-            handleCancelMeeting(selectedMeeting);
             setIsModalVisible(false);
             setSelectedMeeting(null);
           }}
+          onConfirmCancel={(reason) => handleCancelMeeting(selectedMeeting, reason)}
           onLeaveFeedback={async () => {
             // ============================================================================
             // EXTERNAL LINK: Leave Feedback
@@ -1430,6 +1470,27 @@ export default function MeetingsScreen({ route }: Props) {
             // Current: Uses LeaveFeedbackModal for UI, backend integration pending
             // ============================================================================
           }}
+        />
+      )}
+
+      {/* Cancelled Meeting Detail Modal - read-only view */}
+      {selectedMeeting && primaryTab === "cancelled" && (
+        <CancelledMeetingDetailModal
+          visible={isCancelledDetailModalVisible}
+          onClose={() => {
+            setIsCancelledDetailModalVisible(false);
+            setSelectedMeeting(null);
+          }}
+          title={selectedMeeting.title}
+          participantName={selectedMeeting.participantName}
+          company={selectedMeeting.company}
+          date={selectedMeeting.date}
+          startTime={selectedMeeting.startTime}
+          endTime={selectedMeeting.endTime}
+          meetingType={selectedMeeting.meetingType || "physical"}
+          location={selectedMeeting.location}
+          meetingLink={selectedMeeting.meetingLink}
+          description={selectedMeeting.description}
         />
       )}
 

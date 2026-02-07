@@ -98,6 +98,7 @@ export interface ScheduledMeetingModalProps {
     description: string;
   }) => void;
   onCancel?: () => void;
+  onConfirmCancel?: (reason: string) => Promise<void>;
   onLeaveFeedback?: () => void;
   isOutbound?: boolean; // If true, shows Edit Meeting button
   // Participant detail props
@@ -128,6 +129,7 @@ export default function ScheduledMeetingModal({
   onParticipantPress,
   onEdit,
   onCancel,
+  onConfirmCancel,
   onLeaveFeedback,
   isOutbound = false,
   showParticipantDetail = false,
@@ -593,11 +595,15 @@ export default function ScheduledMeetingModal({
       <MeetingCancelModal
         visible={showCancelModal}
         onClose={() => setShowCancelModal(false)}
-        onSend={(reason) => {
-          setShowCancelModal(false);
-          // Show confirmation modal after cancellation reason is sent
-          // Don't call onCancel yet - wait until user dismisses confirmation
-          setShowCancelledModal(true);
+        onSend={async (reason) => {
+          if (!onConfirmCancel) return;
+          try {
+            await onConfirmCancel(reason);
+            setShowCancelModal(false);
+            setShowCancelledModal(true);
+          } catch {
+            // Error handled by parent (toast)
+          }
         }}
       />
 
@@ -606,7 +612,6 @@ export default function ScheduledMeetingModal({
         visible={showCancelledModal}
         onClose={() => {
           setShowCancelledModal(false);
-          // Close the scheduled meeting modal and call onCancel after user sees confirmation
           onCancel?.();
         }}
         meetingTitle={title}
@@ -617,9 +622,7 @@ export default function ScheduledMeetingModal({
         endTime={endTime}
         location={location}
         onViewCancelled={() => {
-          // TODO: Navigate to cancelled meetings view
           setShowCancelledModal(false);
-          // Close the scheduled meeting modal and call onCancel
           onCancel?.();
         }}
       />

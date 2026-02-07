@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   ScrollView,
@@ -10,6 +10,9 @@ import {
   Dimensions,
   PanResponder,
   Animated,
+  ActivityIndicator,
+  Alert,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -32,6 +35,7 @@ import {
 } from "../components";
 import { useChecklist } from "../context/ChecklistContext";
 import { meetingService } from "../services/meetingService";
+import { eventService, type Company } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
 
@@ -46,12 +50,209 @@ const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const MODAL_HEIGHT = SCREEN_HEIGHT * MODAL_HEIGHT_PERCENTAGE;
 const DRAG_THRESHOLD = 100;
 
+// UI shape for company detail display
+type CompanyUIData = {
+  name: string;
+  logo: { uri: string } | null;
+  logoColor: string;
+  booth: string;
+  website: string;
+  websiteUrl: string; // full URL for opening (e.g. https://www.ods.com)
+  industry: string;
+  country: string;
+  description: string;
+  eventOffers: { id: string; title: string; color: string; link?: string }[];
+  socialLinks: { id: string; platform: string; handle: string; url: string; icon: any; color: string }[];
+  teamMembers: { id: string; name: string }[];
+  openPositions: { id: string; title: string; link?: string }[];
+};
+
+const COLORS = ["#2762C7", "#1E40AF", "#3B82F6", "#9333EA", "#22C55E", "#E91E63", "#FFC107", "#DC2626"];
+const OFFER_COLORS = ["#6B21A8", "#22C55E", "#3B82F6", "#E91E63"];
+
+function ensureHttps(url: string): string {
+  if (!url || typeof url !== "string") return "";
+  const trimmed = url.trim();
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function buildSocialUrl(platform: string, handle: string): string {
+  const h = String(handle).replace(/^@/, "").trim();
+  if (!h) return "";
+  const lower = platform.toLowerCase();
+  if (lower === "instagram") return `https://instagram.com/${h}`;
+  if (lower === "x" || lower === "twitter") return `https://x.com/${h}`;
+  if (lower === "facebook") return `https://facebook.com/${h}`;
+  if (lower === "linkedin") {
+    if (h.startsWith("http")) return ensureHttps(h);
+    return `https://linkedin.com/in/${h.replace(/^\//, "")}`;
+  }
+  return "";
+}
+
+// Map Company (from GET /directory/{event_id}/{company_type}/{company_pk}/) to UI data
+function mapCompanyToUIData(company: Company): CompanyUIData {
+  const name = company.name || "Company";
+  const logoColor = COLORS[(name?.length || 0) % COLORS.length];
+  const meta = company.metadata || {};
+  const websiteRaw = meta.website ?? meta.company_website ?? "—";
+  const websiteUrl = websiteRaw !== "—" ? ensureHttps(websiteRaw) : "";
+
+  const offers = (meta.offers || []).map((o: any, i: number) => ({
+    id: String(o.id ?? i),
+    title: o.title || "Offer",
+    color: o.color || OFFER_COLORS[i % OFFER_COLORS.length],
+    link: o.link ? ensureHttps(o.link) : websiteUrl || undefined,
+  }));
+
+  const socialMap: Record<string, { icon: any; color: string }> = {
+    facebook: { icon: FacebookIcon, color: "#1877F2" },
+    twitter: { icon: TwitterIcon, color: "#000000" },
+    x: { icon: TwitterIcon, color: "#000000" },
+    instagram: { icon: InstagramIcon, color: "#000000" },
+    linkedin: { icon: LinkedInIcon, color: "#0A66C2" },
+  };
+  const socialLinks: CompanyUIData["socialLinks"] = [];
+  const rawLinks = meta.social_links || meta.socialLinks || {};
+  if (typeof rawLinks === "object") {
+    for (const [platform, handle] of Object.entries(rawLinks)) {
+      if (handle && socialMap[platform.toLowerCase()]) {
+        const { icon, color } = socialMap[platform.toLowerCase()];
+        const url = buildSocialUrl(platform, String(handle));
+        socialLinks.push({
+          id: platform,
+          platform: platform.charAt(0).toUpperCase() + platform.slice(1),
+          handle: String(handle),
+          url,
+          icon,
+          color,
+        });
+      }
+    }
+  }
+  if (meta.linkedin && !socialLinks.find((s) => s.id === "linkedin")) {
+    const linkedInVal = String(meta.linkedin);
+    const url = buildSocialUrl("linkedin", linkedInVal);
+    socialLinks.push({
+      id: "linkedin",
+      platform: "LinkedIn",
+      handle: linkedInVal.replace(/^https?:\/\/[^/]+/, "").replace(/^\//, "").trim() || "Profile",
+      url: url || ensureHttps(linkedInVal),
+      icon: LinkedInIcon,
+      color: "#0A66C2",
+    });
+  }
+  const teamMembers = (company.members || []).map((m) => ({
+    id: m.id,
+    name: `${m.first_name || ""} ${m.last_name || ""}`.trim() || "Team Member",
+  }));
+  const positionsRaw = meta.open_positions || meta.positions || [];
+  const openPositions = positionsRaw.map((p: any, i: number) => ({
+    id: String(p.id ?? i),
+    title: p.title || p.role || "Position",
+    link: p.link ? ensureHttps(p.link) : undefined,
+  }));
+  const boothValue = meta.booth ?? meta.boothNumber ?? (company as any).booth_info?.booth_number ?? "—";
+  return {
+    name,
+    logo: company.logo ? { uri: company.logo } : null,
+    logoColor,
+    booth: boothValue,
+    website: websiteRaw,
+    websiteUrl,
+    industry: company.company_sector ?? "—",
+    country: company.country ?? "—",
+    description: company.company_description ?? "",
+    eventOffers: offers,
+    socialLinks: socialLinks.length > 0 ? socialLinks : [
+      { id: "linkedin", platform: "LinkedIn", handle: "Profile", url: "", icon: LinkedInIcon, color: "#0A66C2" },
+    ],
+    teamMembers,
+    openPositions,
+  };
+}
+
+const DEFAULT_COMPANY_DATA: CompanyUIData = {
+  name: "Company",
+  logo: null,
+  logoColor: "#1E40AF",
+  booth: "—",
+  website: "—",
+  websiteUrl: "",
+  industry: "—",
+  country: "—",
+  description: "No description available.",
+  eventOffers: [],
+  socialLinks: [{ id: "linkedin", platform: "LinkedIn", handle: "Profile", url: "", icon: LinkedInIcon, color: "#0A66C2" }],
+  teamMembers: [],
+  openPositions: [],
+};
+
 type Props = RootStackScreenProps<"CompanyDetail">;
 
 export default function CompanyDetailScreen({ route }: Props) {
   const navigation = useNavigation<NavigationProp<any>>();
-  const { exhibitorId, name = "Flutterwave" } = route.params;
+  const { exhibitorId, type = "exhibitor", name: paramName } = route.params;
+  const displayName = paramName || "Company";
   const { markRequestMeetingComplete } = useChecklist();
+
+  const [companyData, setCompanyData] = useState<CompanyUIData>(() => ({
+    ...DEFAULT_COMPANY_DATA,
+    name: displayName,
+    logoColor: COLORS[(displayName?.length || 0) % COLORS.length],
+  }));
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [adminUserId, setAdminUserId] = useState<string | null>(null);
+
+  const openUrl = useCallback(async (url: string) => {
+    if (!url || !url.trim()) return;
+    try {
+      const formatted = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+      const supported = await Linking.canOpenURL(formatted);
+      if (supported) {
+        await Linking.openURL(formatted);
+      } else {
+        try {
+          await Linking.openURL(formatted);
+        } catch {
+          Alert.alert("Cannot Open Link", "This link could not be opened.");
+        }
+      }
+    } catch {
+      Alert.alert("Error", "Failed to open link.");
+    }
+  }, []);
+
+  const fetchCompany = useCallback(async () => {
+    const companyPk = parseInt(exhibitorId, 10);
+    if (isNaN(companyPk) || companyPk < 1) {
+      setCompanyData((prev) => ({ ...prev, name: displayName }));
+      setAdminUserId(null);
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const company = await eventService.getCompanyDetail(EVENT_ID, type, companyPk);
+      const mapped = mapCompanyToUIData(company);
+      setCompanyData(mapped);
+      setAdminUserId(company.admin_user ?? null);
+    } catch (err: any) {
+      const msg = err instanceof ApiClientError ? err.message : err?.message || "Failed to load company";
+      setLoadError(msg);
+      setCompanyData((prev) => ({ ...prev, name: displayName }));
+      setAdminUserId(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [exhibitorId, type, displayName]);
+
+  useEffect(() => {
+    fetchCompany();
+  }, [fetchCompany]);
 
   // Request Meeting Modal state
   const [isRequestMeetingModalVisible, setIsRequestMeetingModalVisible] =
@@ -134,79 +335,6 @@ export default function CompanyDetailScreen({ route }: Props) {
   ).current;
 
 
-  // TODO: BACKEND INTEGRATION - Replace mock company data with API call
-  // API Endpoint: GET /api/companies/{companyId}
-  // Response: { company: Company, offers: Offer[], socialLinks: SocialLink[], positions: Position[], teamMembers: Member[] }
-  // TODO: BACKEND - Fetch company data on component mount using route.params.exhibitorId
-  // TODO: BACKEND - Handle loading and error states
-  // TODO: BACKEND - Cache company data in state management
-  // TODO: Replace with backend data
-  const companyData = {
-    name: "Flutterwave",
-    logo: null, // Can be image source or null
-    logoColor: "#1E40AF", // Dark blue
-    booth: "24",
-    website: "flutterwave.com/ng",
-    industry: "Fintech",
-    country: "Nigeria",
-    description:
-      "Empowering innovation across Africa. High-growth tech company showcasing new new products at Spark Summit.",
-    eventOffers: [
-      {
-        id: "1",
-        title: "Startup Mentorship",
-        color: "#6B21A8", // Dark purple
-      },
-      {
-        id: "2",
-        title: "Free Azure Credits",
-        color: "#22C55E", // Bright green
-      },
-    ],
-    socialLinks: [
-      {
-        id: "facebook",
-        platform: "Facebook",
-        handle: "Flutterwave_ng",
-        icon: FacebookIcon,
-        color: "#1877F2",
-      },
-      {
-        id: "twitter",
-        platform: "Twitter",
-        handle: "Flutterwave_ng",
-        icon: TwitterIcon,
-        color: "#000000",
-      },
-      {
-        id: "instagram",
-        platform: "Instagram",
-        handle: "Flutterwave_ng",
-        icon: InstagramIcon,
-        color: "#000000",
-      },
-      {
-        id: "linkedin",
-        platform: "LinkedIn",
-        handle: "Flutterwave.ng",
-        icon: LinkedInIcon,
-        color: "#0A66C2",
-      },
-    ],
-    teamMembers: [
-      { id: "1", name: "Team Member" },
-      { id: "2", name: "Team Member" },
-      { id: "3", name: "Team Member" },
-      { id: "4", name: "Team Member" },
-      { id: "5", name: "Team Member" },
-    ],
-    openPositions: [
-      { id: "1", title: "Chief Operating Officer" },
-      { id: "2", title: "Head of Marketing" },
-      { id: "3", title: "Product Manager" },
-    ],
-  };
-
   return (
     <View style={styles.container} pointerEvents="box-none">
       <Animated.View
@@ -243,21 +371,26 @@ export default function CompanyDetailScreen({ route }: Props) {
             >
               <ChevronLeftIcon size={24} color="#404040" />
             </Pressable>
+            {isLoading && (
+              <View className="flex-1 items-end">
+                <ActivityIndicator size="small" color="#000" />
+              </View>
+            )}
           </View>
 
           {/* Company Header */}
           <View className="px-4 mb-6" style={{ marginTop: 8 }}>
           <View className="flex-row items-center mb-4">
-            {/* Logo */}
+            {/* Logo - circular, matches mock */}
             <View
-              className="w-16 h-16 rounded-full items-center justify-center mr-3"
+              className="w-16 h-16 rounded-full items-center justify-center mr-3 overflow-hidden"
               style={{ backgroundColor: companyData.logoColor }}
             >
               {companyData.logo ? (
                 <Image
-                  source={companyData.logo as ImageSourcePropType}
-                  style={{ width: 50, height: 50 }}
-                  resizeMode="contain"
+                  source={companyData.logo}
+                  style={{ width: 64, height: 64 }}
+                  resizeMode="cover"
                 />
               ) : (
                 <Text className="text-white font-bold text-2xl">
@@ -280,29 +413,27 @@ export default function CompanyDetailScreen({ route }: Props) {
             </View>
           </View>
 
-          {/* Tags */}
-          <View className="flex-row flex-nowrap items-center justify-between mb-4">
-            {/* Website Tag */}
-            <Pressable className="flex-row items-center px-3 py-1.5 bg-white border border-neutral-300 rounded-full">
+          {/* Tags - website + industry/country pills, matches mock */}
+          <View className="flex-row flex-wrap items-center gap-2 mb-4">
+            <Pressable
+              className="flex-row items-center px-3 py-1.5 bg-white border border-neutral-300 rounded-full"
+              onPress={() => companyData.websiteUrl && openUrl(companyData.websiteUrl)}
+            >
               <GlobeIcon size={14} color="#000000" />
-              <Text className="text-xs text-neutral-900 ml-1.5">
+              <Text className="text-xs text-neutral-900 ml-1.5" numberOfLines={1}>
                 {companyData.website}
               </Text>
             </Pressable>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              {/* Industry Tag */}
-              <View className="flex-row items-center px-3 py-1.5 bg-blue-50 border border-blue-300 rounded-full ml-2">
-                <Text className="text-xs text-blue-700">
-                  {companyData.industry}
-                </Text>
+            {companyData.industry !== "—" && (
+              <View className="flex-row items-center px-3 py-1.5 bg-blue-50 border border-blue-300 rounded-full">
+                <Text className="text-xs text-blue-700">{companyData.industry}</Text>
               </View>
-              {/* Country Tag */}
-              <View className="flex-row items-center px-3 py-1.5 bg-green-50 border border-green-300 rounded-full ml-2">
-                <Text className="text-xs text-green-700">
-                  {companyData.country}
-                </Text>
+            )}
+            {companyData.country !== "—" && (
+              <View className="flex-row items-center px-3 py-1.5 bg-green-50 border border-green-300 rounded-full">
+                <Text className="text-xs text-green-700">{companyData.country}</Text>
               </View>
-            </View>
+            )}
           </View>
 
           {/* Description */}
@@ -311,29 +442,31 @@ export default function CompanyDetailScreen({ route }: Props) {
           </Text>
         </View>
 
-        {/* Event Offers Section */}
+        {/* Event Offers Section - 2 per row, matches mock */}
         <View className="px-4 mb-6">
           <Text className="text-sm font-light text-neutral-900 mb-3">
             Event Offers
           </Text>
-          <View className="flex-row gap-3">
+          <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
             {companyData.eventOffers.map((offer) => (
-              <Pressable
-                key={offer.id}
-                className="flex-1 rounded-xl p-4"
-                style={{
-                  backgroundColor: offer.color,
-                  minHeight: 120,
-                }}
-              >
-                <Text className="text-white font-bold text-base mb-2">
-                  {offer.title}
-                </Text>
-                <View className="flex-row items-center mt-auto">
-                  <Text className="text-white text-sm mr-1">Redeem</Text>
-                  <ArrowUpRightIcon size={14} color="#FFFFFF" />
-                </View>
-              </Pressable>
+              <View key={offer.id} style={{ width: "50%", padding: 6 }}>
+                <Pressable
+                  className="rounded-xl p-4"
+                  style={{
+                    backgroundColor: offer.color,
+                    minHeight: 120,
+                  }}
+                  onPress={() => offer.link && openUrl(offer.link)}
+                >
+                  <Text className="text-white font-bold text-base mb-2" numberOfLines={2}>
+                    {offer.title.trim()}
+                  </Text>
+                  <View className="flex-row items-center mt-auto">
+                    <Text className="text-white text-sm mr-1">Redeem</Text>
+                    <ArrowUpRightIcon size={14} color="#FFFFFF" />
+                  </View>
+                </Pressable>
+              </View>
             ))}
           </View>
         </View>
@@ -368,6 +501,7 @@ export default function CompanyDetailScreen({ route }: Props) {
                           marginRight:
                             colIndex === 0 && row.length === 2 ? "4%" : 0,
                         }}
+                        onPress={() => social.url && openUrl(social.url)}
                       >
                         <IconComponent size={16} color={social.color} />
                         <Text
@@ -389,31 +523,32 @@ export default function CompanyDetailScreen({ route }: Props) {
           </View>
         </View>
 
-        {/* Open Positions Section */}
+        {/* Open Positions Section - matches mock */}
         <View className="px-4 mb-6">
           <Text className="text-sm font-light text-neutral-900 mb-3">
             Open Positions
           </Text>
-          <View className="gap-2">
-            {companyData.openPositions.map((position) => (
-              <Pressable
-                key={position.id}
-                className="bg-white border border-neutral-200 rounded-xl px-4 py-3 flex-row items-center justify-between"
-                onPress={() => {
-                  // TODO: Navigate to position details
-                  console.log(`View position: ${position.title}`);
-                }}
-              >
-                <Text className="text-sm font-bold text-neutral-900 flex-1">
-                  {position.title}
-                </Text>
-                <View className="flex-row items-center">
-                  <Text className="text-sm text-neutral-600 mr-1">View</Text>
-                  <ArrowUpRightIcon size={14} color="#404040" />
-                </View>
-              </Pressable>
-            ))}
-          </View>
+          {companyData.openPositions.length === 0 ? (
+            <Text className="text-sm text-neutral-500">No open positions listed.</Text>
+          ) : (
+            <View style={{ gap: 8 }}>
+              {companyData.openPositions.map((position) => (
+                <Pressable
+                  key={position.id}
+                  className="bg-white border border-neutral-200 rounded-xl px-4 py-3 flex-row items-center justify-between"
+                  onPress={() => position.link && openUrl(position.link)}
+                >
+                  <Text className="text-sm font-bold text-neutral-900 flex-1" numberOfLines={1}>
+                    {position.title}
+                  </Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-sm text-neutral-600 mr-1">View</Text>
+                    <ArrowUpRightIcon size={14} color="#404040" />
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Meet Our Team Section */}
@@ -466,25 +601,23 @@ export default function CompanyDetailScreen({ route }: Props) {
         visible={isRequestMeetingModalVisible}
         onClose={() => setIsRequestMeetingModalVisible(false)}
         onSubmit={async (data: MeetingFormData) => {
-          // Backend meeting API requires requestee_id (user). Exhibitors/companies may not expose user id.
-          // TODO: Wire when backend provides company contact user id or company-based request endpoint.
-          const companyUserId = null; // route.params or company fetch could provide user id if available
-          if (!companyUserId) {
+          // Backend: meeting request goes to the admin of the company.
+          if (!adminUserId) {
             Alert.alert(
-              "Not supported",
-              "Requesting meetings with exhibitors/partners is not yet supported. Use Attendees or Connections to request meetings."
+              "Cannot Request Meeting",
+              "This company has no contact available for meeting requests. Try connecting via Attendees or Connections instead."
             );
-            throw new Error("No company user id");
+            throw new Error("No company admin user");
           }
           try {
             await meetingService.submitMeetingRequestFromForm(
               EVENT_ID,
               data,
-              String(companyUserId)
+              adminUserId
             );
             markRequestMeetingComplete();
             setMeetingRequestData({
-              attendeeName: name,
+              attendeeName: companyData.name,
               meetingType: data.meetingType,
               meetingTitle: data.title || "Meeting",
             });
@@ -499,7 +632,7 @@ export default function CompanyDetailScreen({ route }: Props) {
             throw e;
           }
         }}
-        attendeeName={name}
+        attendeeName={displayName}
       />
 
       {/* Meeting Request Message Modal */}

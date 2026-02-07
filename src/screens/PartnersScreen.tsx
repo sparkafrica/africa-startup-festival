@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, ScrollView, Pressable, Text } from "react-native";
+import React, { useState, useCallback, useEffect } from "react";
+import { View, ScrollView, Pressable, Text, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -14,6 +14,9 @@ import {
 } from "../components";
 import { ChevronLeftIcon, FilterIcon } from "../components/HeaderIcons";
 import { ChevronDownIcon } from "../components/icons";
+import { eventService } from "../services/eventService";
+import { EVENT_ID } from "../config/env";
+import { ApiClientError } from "../services/api";
 import {
   HomeIcon,
   HomeIconFilled,
@@ -90,29 +93,48 @@ export default function PartnersScreen() {
     return id;
   };
 
-  // TODO: BACKEND INTEGRATION - Replace mock partner data with API call
-  // API Endpoint: GET /api/companies?type=partner
-  // Query Params: ?filters={encodedFilters}&page={page}&limit={limit}
-  // Response: { companies: Company[], total: number, page: number }
-  // TODO: BACKEND - Fetch partners on component mount and when filters change
-  // TODO: BACKEND - Handle pagination/infinite scroll
-  // TODO: BACKEND - Cache partners in state management
-  // TODO: BACKEND - Handle loading and error states
-  // TODO: Replace with backend data
-  const partners = [
-    { name: "Kora", logoColor: "#2762C7" },
-    { name: "Uber", logoColor: "#000000" },
-    { name: "MTN", logoColor: "#FFC107" },
-    { name: "ZOHO", logoColor: "#E91E63" },
-    { name: "ZENITH", logoColor: "#DC2626" },
-    { name: "Antly", logoColor: "#9333EA" },
-    { name: "Uber", logoColor: "#000000" },
-    { name: "Kora", logoColor: "#2762C7" },
-    { name: "Antly", logoColor: "#9333EA" },
-    { name: "ZENITH", logoColor: "#DC2626" },
-    { name: "ZOHO", logoColor: "#E91E63" },
-    { name: "MTN", logoColor: "#FFC107" },
-  ];
+  const [partners, setPartners] = useState<{ id: number; name: string; logoColor: string; logo?: string }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const COLORS = ["#2762C7", "#000000", "#FFC107", "#E91E63", "#DC2626", "#9333EA", "#10B981", "#F97316"];
+
+  const fetchPartners = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+    setError(null);
+    try {
+      const response = await eventService.getDirectoryCompanies(EVENT_ID, "partner", {
+        page_size: 100,
+        ordering: "-id",
+      });
+      const list = response.companies.map((c) => {
+        const name = c.name || `Partner ${c.id}`;
+        const logoColor = COLORS[name.length % COLORS.length];
+        return {
+          id: c.id,
+          name,
+          logoColor,
+          logo: c.logo ?? undefined,
+        };
+      });
+      setPartners(list);
+    } catch (err: any) {
+      const msg = err instanceof ApiClientError ? err.message : err?.message || "Failed to load partners";
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPartners();
+  }, [fetchPartners]);
 
   const removeFilter = (filterId: string) => {
     setSelectedFilterIds(selectedFilterIds.filter((id) => id !== filterId));
@@ -184,6 +206,9 @@ export default function PartnersScreen() {
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchPartners(true)} />
+        }
       >
         {/* Screen Title Section */}
         <View className="flex-row items-center px-4 pt-2 pb-4">
@@ -239,29 +264,52 @@ export default function PartnersScreen() {
 
         {/* Partners Grid */}
         <View className="px-4">
-          <View className="flex-row flex-wrap -mx-1.5">
-            {partners.map((partner, index) => (
-              <View
-                key={index}
-                className="px-1.5 mb-3"
-                style={{ width: "50%" }}
+          {isLoading ? (
+            <View className="py-12 items-center">
+              <ActivityIndicator size="large" color="#000" />
+              <Text className="text-neutral-600 mt-3">Loading partners...</Text>
+            </View>
+          ) : error ? (
+            <View className="py-12 items-center">
+              <Text className="text-red-600 text-center">{error}</Text>
+              <Pressable
+                onPress={() => fetchPartners()}
+                className="mt-3 px-4 py-2 bg-neutral-200 rounded-lg"
               >
-                <PartnerCard
-                  name={partner.name}
-                  logoColor={partner.logoColor}
-                  onPress={() =>
-                    navigation.navigate("CompanyDetail", {
-                      exhibitorId: partner.name.toLowerCase(),
-                      name: partner.name,
-                    })
-                  }
-                />
-                <Text className="text-xs text-neutral-600 text-center mt-2">
-                  {partner.name}
-                </Text>
-              </View>
-            ))}
-          </View>
+                <Text className="text-neutral-900 font-medium">Retry</Text>
+              </Pressable>
+            </View>
+          ) : partners.length === 0 ? (
+            <View className="py-12">
+              <Text className="text-neutral-600 text-center">No partners available.</Text>
+            </View>
+          ) : (
+            <View className="flex-row flex-wrap -mx-1.5">
+              {partners.map((partner) => (
+                <View
+                  key={partner.id}
+                  className="px-1.5 mb-3"
+                  style={{ width: "50%" }}
+                >
+                  <PartnerCard
+                    name={partner.name}
+                    logo={partner.logo ? { uri: partner.logo } : undefined}
+                    logoColor={partner.logoColor}
+                    onPress={() =>
+                      navigation.navigate("CompanyDetail", {
+                        exhibitorId: partner.id.toString(),
+                        type: "partner",
+                        name: partner.name,
+                      })
+                    }
+                  />
+                  <Text className="text-xs text-neutral-600 text-center mt-2">
+                    {partner.name}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
 

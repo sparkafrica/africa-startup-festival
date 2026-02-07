@@ -115,17 +115,16 @@ export default function HomeScreen() {
     }
   };
 
-  // Fetch featured exhibitors
+  // Fetch featured exhibitors (from directory)
   const fetchFeaturedExhibitors = async () => {
     setExhibitorsLoading(true);
     setExhibitorsError(null);
     try {
-      const response = await eventService.getEventExhibitors(EVENT_ID, {
+      const response = await eventService.getDirectoryCompanies(EVENT_ID, "exhibitor", {
         page_size: 4,
         ordering: "-id",
       });
-      
-      setFeaturedExhibitors(response.exhibitors.slice(0, 4));
+      setFeaturedExhibitors(response.companies.slice(0, 4).map((c) => ({ id: c.id, organisation: c.name, logo: c.logo })));
     } catch (err: any) {
       const errorMessage =
         err instanceof ApiClientError
@@ -137,17 +136,16 @@ export default function HomeScreen() {
     }
   };
 
-  // Fetch featured partners
+  // Fetch featured partners (from directory)
   const fetchFeaturedPartners = async () => {
     setPartnersLoading(true);
     setPartnersError(null);
     try {
-      const response = await eventService.getEventPartners(EVENT_ID, {
+      const response = await eventService.getDirectoryCompanies(EVENT_ID, "partner", {
         page_size: 4,
         ordering: "-id",
       });
-      
-      setFeaturedPartners(response.partners.slice(0, 4));
+      setFeaturedPartners(response.companies.slice(0, 4).map((c) => ({ id: c.id, organisation: c.name, logo: c.logo })));
     } catch (err: any) {
       const errorMessage =
         err instanceof ApiClientError
@@ -385,10 +383,12 @@ export default function HomeScreen() {
                       <View key={exhibitor.id} className="px-1.5 mb-2" style={{ width: "50%" }}>
                         <ExhibitorCard
                           name={exhibitor.organisation || "Exhibitor"}
+                          logo={(exhibitor as any).logo}
                           logoColor={logoColor}
                           onPress={() =>
                             navigation.navigate("CompanyDetail", {
                               exhibitorId: exhibitor.id.toString(),
+                              type: "exhibitor",
                               name: exhibitor.organisation || "Exhibitor",
                             })
                           }
@@ -456,10 +456,12 @@ export default function HomeScreen() {
                       <View key={partner.id} className="px-1.5 mb-2" style={{ width: "50%" }}>
                         <PartnerCard
                           name={partner.organisation || "Partner"}
+                          logo={(partner as any).logo ? { uri: (partner as any).logo } : undefined}
                           logoColor={logoColor}
                           onPress={() =>
                             navigation.navigate("CompanyDetail", {
                               exhibitorId: partner.id.toString(),
+                              type: "partner",
                               name: partner.organisation || "Partner",
                             })
                           }
