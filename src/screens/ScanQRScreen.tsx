@@ -436,6 +436,7 @@ function TicketCard({
   availableCount,
   isAdminBlocked,
   eventId,
+  allocationStatus,
   onViewQR,
   onTransfer,
   onAssign,
@@ -453,6 +454,7 @@ function TicketCard({
   availableCount?: number; // For unassigned quota card: count shown on card
   isAdminBlocked?: boolean; // Whether transfer is blocked because user is admin
   eventId?: number; // Event ID to determine if ATE event
+  allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled";
   onViewQR?: () => void;
   onTransfer?: () => void;
   onAssign?: () => void;
@@ -580,7 +582,7 @@ function TicketCard({
           )}
         </View>
       )}
-      {/* Assigned Ticket buttons - Edit Assignment */}
+      {/* Assigned Ticket buttons - View vs Edit based on allocation status */}
       {assignedTo && !isMyTicket && (
         <Pressable
           onPress={onEditAssignment}
@@ -588,7 +590,7 @@ function TicketCard({
         >
           <EditIcon size={16} color="#404040" />
           <Text className="text-sm font-medium text-black ml-2">
-            Edit Assignment
+            {allocationStatus === "accepted" ? "View Assignment" : "Edit Assignment"}
           </Text>
         </Pressable>
       )}
@@ -3870,6 +3872,7 @@ function MyTicketView({
                   backgroundColor={ticket.backgroundColor}
                   assignedTo={ticket.assignedTo}
                   isMyTicket={false}
+                  allocationStatus={ticket.allocationStatus}
                   onEditAssignment={() => {
                     const allocId =
                       typeof ticket.id === "string" && ticket.id.startsWith("alloc-")
