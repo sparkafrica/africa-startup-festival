@@ -209,6 +209,73 @@ export const notificationService = {
    * Backend Endpoint: PATCH /notifications/{id}/mark-read/
    * Returns 200 OK with no response body
    */
+  /**
+   * Register FCM device for push notifications
+   *
+   * @param registrationId - FCM/APNs device token
+   * @param type - Device type: "android" | "ios" | "web"
+   * @returns Promise that resolves when device is registered
+   *
+   * Backend Endpoint: POST /devices/
+   * Request body: { registration_id: string, type: "android" | "ios" | "web" }
+   */
+  async registerDevice(
+    registrationId: string,
+    type: "android" | "ios" | "web"
+  ): Promise<void> {
+    try {
+      const response = await api.post<any>("/devices/", {
+        registration_id: registrationId,
+        type,
+      });
+
+      if (
+        !response ||
+        response.status === "success" ||
+        response.response_code === 201
+      ) {
+        return;
+      }
+
+      throw new ApiClientError({
+        status: "error",
+        message: response?.message || "Failed to register device",
+        response_code: response?.response_code || 500,
+        data: response?.data || {},
+      });
+    } catch (error: any) {
+      if (error instanceof ApiClientError) throw error;
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to register device",
+        response_code: error?.response_code || 500,
+        data: error?.response?.data || error?.data || {},
+      });
+    }
+  },
+
+  /**
+   * Unregister FCM device
+   *
+   * @param registrationId - FCM device registration ID to remove
+   *
+   * Backend Endpoint: DELETE /devices/{registration_id}/
+   */
+  async unregisterDevice(registrationId: string): Promise<void> {
+    try {
+      const encoded = encodeURIComponent(registrationId);
+      await api.delete<any>(`/devices/${encoded}/`);
+    } catch (error: any) {
+      if (error instanceof ApiClientError) throw error;
+      throw new ApiClientError({
+        status: "error",
+        message: error?.message || "Failed to unregister device",
+        response_code: error?.response_code || 500,
+        data: error?.response?.data || error?.data || {},
+      });
+    }
+  },
+
   async markAsRead(notificationId: number): Promise<void> {
     try {
       const response = await api.patch<any>(

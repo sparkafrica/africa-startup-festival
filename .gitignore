@@ -45,6 +45,9 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Firebase service account key (upload to EAS, never commit)
+*ate2026-firebase-adminsdk-*.json
+
 # typescript
 *.tsbuildinfo
 

@@ -7,6 +7,8 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Linking,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -55,20 +57,6 @@ function SendIcon({ size = 20, color = "#FFFFFF" }: IconProps) {
   );
 }
 
-function ChevronDownIcon({ size = 20, color = "#404040" }: IconProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <Path
-        d="M5 7.5L10 12.5L15 7.5"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
 function Header() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
@@ -86,28 +74,54 @@ function Header() {
   );
 }
 
+const SUPPORT_EMAIL = "contact@africatechnologyexpo.com";
+
 export default function ContactScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [selectedTopic, setSelectedTopic] = useState("Select Topic");
+  const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
 
-  // TODO: BACKEND INTEGRATION - Send contact message to backend
-  // API Endpoint: POST /api/contact
-  // Request Body: { name: string, email: string, topic?: string, message: string }
-  // Response: { success: boolean, messageId?: string }
-  // Error Handling: Handle validation errors, rate limiting
-  // TODO: BACKEND - Validate form fields before submission
-  // TODO: BACKEND - Show loading state during submission
-  // TODO: BACKEND - Show success/error messages
-  // TODO: BACKEND - Send confirmation email to user
-  // TODO: BACKEND - Track analytics for contact form submissions
   const handleSendMessage = () => {
-    console.log("Send Message", { name, email, selectedTopic, message });
-    // TODO: BACKEND - Call API: await api.post('/contact', { name, email, topic: selectedTopic, message })
-    // TODO: BACKEND - Handle API response and errors
-    // TODO: BACKEND - Clear form on success
-    // TODO: BACKEND - Show success toast/modal
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedSubject = subject.trim();
+    const trimmedMessage = message.trim();
+
+    if (!trimmedName || !trimmedEmail || !trimmedSubject || !trimmedMessage) {
+      Alert.alert(
+        "Missing fields",
+        "Please fill in Name, Email, Subject, and Message."
+      );
+      return;
+    }
+
+    const body = [
+      `From: ${trimmedName} <${trimmedEmail}>`,
+      "",
+      trimmedMessage,
+    ].join("\n");
+
+    const mailtoUrl = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(trimmedSubject)}&body=${encodeURIComponent(body)}`;
+
+    Linking.canOpenURL(mailtoUrl)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(mailtoUrl);
+          setName("");
+          setEmail("");
+          setSubject("");
+          setMessage("");
+        } else {
+          Alert.alert(
+            "Cannot send email",
+            "No email app is configured. You can copy the address: " + SUPPORT_EMAIL
+          );
+        }
+      })
+      .catch(() => {
+        Alert.alert("Error", "Could not open email client.");
+      });
   };
 
   return (
@@ -136,13 +150,7 @@ export default function ContactScreen() {
                   shadowRadius: 4,
                   elevation: 2,
                 }}
-                onPress={() => {
-                  // TODO: BACKEND INTEGRATION - Open email client or copy email
-                  // TODO: BACKEND - Use Linking.openURL('mailto:support@sparkevent.com')
-                  // TODO: BACKEND - Or copy email to clipboard with Clipboard API
-                  // TODO: BACKEND - Track analytics for email support clicks
-                  console.log("Email Support pressed");
-                }}
+                onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
               >
                 <View className="flex-row items-center">
                   <View
@@ -156,7 +164,7 @@ export default function ContactScreen() {
                       Email Support
                     </Text>
                     <Text className="text-sm text-black mb-1">
-                      support@sparkevent.com
+                      {SUPPORT_EMAIL}
                     </Text>
                     <Text className="text-xs text-neutral-500">
                       Response within 24 hours
@@ -196,20 +204,15 @@ export default function ContactScreen() {
                   />
                 </View>
 
-                {/* Select Topic Dropdown */}
+                {/* Subject Input */}
                 <View className="mb-4">
-                  <Pressable className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between">
-                    <Text
-                      className={`text-base ${
-                        selectedTopic === "Select Topic"
-                          ? "text-neutral-400"
-                          : "text-black"
-                      }`}
-                    >
-                      {selectedTopic}
-                    </Text>
-                    <ChevronDownIcon size={20} color="#404040" />
-                  </Pressable>
+                  <TextInput
+                    className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                    value={subject}
+                    onChangeText={setSubject}
+                    placeholder="Subject"
+                    placeholderTextColor="#9CA3AF"
+                  />
                 </View>
 
                 {/* Message Textarea */}

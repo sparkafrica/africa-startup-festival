@@ -2,6 +2,16 @@ import "react-native-gesture-handler";
 import "./global.d.ts";
 import React from "react";
 import { StatusBar } from "expo-status-bar";
+import * as Notifications from "expo-notifications";
+
+// Show notifications when app is in foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 import { NavigationContainer } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Text, View, ActivityIndicator, Image } from "react-native";

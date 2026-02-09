@@ -14,6 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sparkllc.mobile",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload profile pictures.",
@@ -24,9 +25,10 @@
         "buildNumber": "2"
       }
     },
-    "android": {
+"android": {
       "package": "com.sparkllc.mobile",
-      "versionCode": 3,	
+      "versionCode": 3,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
@@ -57,6 +59,7 @@
     "runtimeVersion": {
       "policy": "sdkVersion"
     },
-    "owner": "unkn0wnt"
+    "owner": "unkn0wnt",
+    "plugins": ["expo-notifications"]
   }
 }

@@ -11,6 +11,8 @@ import { authService, UserProfile, Company } from "../services/authService";
 import { api } from "../services/api";
 import { isProfileComplete } from "../utils/profileCompletion";
 import { ticketService, clearTicketCache } from "../services/ticketService";
+import { notificationService } from "../services/notificationService";
+import { registerForPushNotifications } from "../utils/pushRegistration";
 import { EVENT_ID } from "../config/env";
 
 // Types
@@ -61,6 +63,7 @@ const STORAGE_KEYS = {
   ONBOARDING_COMPLETE: "@spark:onboarding_complete",
   PROFILE_COMPLETE: "@spark:profile_complete",
   WELCOME_SEEN: "@spark:welcome_seen",
+  PUSH_REGISTRATION_ID: "@spark:push_registration_id",
 } as const;
 
 interface AuthProviderProps {
@@ -206,6 +209,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     checkAuthState();
   }, [checkAuthState]);
 
+  // Register for push notifications when user is authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let cancelled = false;
+    registerForPushNotifications()
+      .then((registrationId) => {
+        if (!cancelled && registrationId) {
+          AsyncStorage.setItem(STORAGE_KEYS.PUSH_REGISTRATION_ID, registrationId);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
+
   /**
    * Request verification code to be sent to email
    *
@@ -293,6 +311,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Backend Endpoint: POST /auth/logout/
    */
   const logout = async () => {
+    // Unregister push device before clearing tokens (API needs auth)
+    try {
+      const registrationId = await AsyncStorage.getItem(STORAGE_KEYS.PUSH_REGISTRATION_ID);
+      if (registrationId) {
+        await notificationService.unregisterDevice(registrationId);
+      }
+    } catch (error) {
+      // Don't block logout if unregister fails
+    }
+
     try {
       // Service layer handles API call and token clearing
       await authService.logout();
@@ -310,6 +338,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       STORAGE_KEYS.WELCOME_SEEN,
       STORAGE_KEYS.PROFILE_COMPLETE,
       STORAGE_KEYS.ONBOARDING_COMPLETE,
+      STORAGE_KEYS.PUSH_REGISTRATION_ID,
     ]);
 
     // Reset all state

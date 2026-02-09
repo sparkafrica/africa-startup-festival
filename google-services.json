@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "693397004674",
+    "project_id": "ate2026",
+    "storage_bucket": "ate2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:693397004674:android:c240f77bb7cd254ca22f9b",
+        "android_client_info": {
+          "package_name": "com.sparkllc.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZU7JDJXnsBgMkODbDTt1aDYJR-g1mk4M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

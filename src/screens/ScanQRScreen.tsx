@@ -3253,7 +3253,7 @@ function EditAssignedTicketModal({
           >
             <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
             <Text className="text-xl font-semibold text-black mb-6">
-              Edit Assigned Ticket
+              {isAccepted ? "Assigned Ticket" : "Edit Assigned Ticket"}
             </Text>
           </View>
 
