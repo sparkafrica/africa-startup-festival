@@ -10,7 +10,6 @@ import {
   Platform,
   Animated as RNAnimated,
   PanResponder,
-  ActivityIndicator,
   RefreshControl,
   Image,
   ImageSourcePropType,
@@ -44,6 +43,7 @@ import {
   BottomNavigation,
   FilterModal,
   FilterTag,
+  LoadingSpinner,
   RequestMeetingModal,
   ConnectMessageModal,
   MeetingRequestMessageModal,
@@ -1767,7 +1767,7 @@ export default function AttendeesScreen() {
         {/* Loading State */}
         {isLoading && allAttendeesBackend.length === 0 ? (
           <View className="flex-1 items-center justify-center py-20">
-            <ActivityIndicator size="large" color="#000000" />
+            <LoadingSpinner size="large" />
             <Text className="text-gray-500 mt-4">Loading attendees...</Text>
           </View>
         ) : error && allAttendeesBackend.length === 0 ? (
@@ -1860,8 +1860,8 @@ export default function AttendeesScreen() {
                   <RefreshControl
                     refreshing={refreshing}
                     onRefresh={onRefresh}
-                    tintColor="#000000"
-                    colors={["#000000"]}
+                    tintColor="#1BB273"
+                    colors={["#1BB273"]}
                   />
                 }
                 onEndReached={loadMoreAttendees}
@@ -1869,7 +1869,7 @@ export default function AttendeesScreen() {
                 ListFooterComponent={
                   loadingMore ? (
                     <View className="py-4 items-center">
-                      <ActivityIndicator size="small" color="#000000" />
+                      <LoadingSpinner size="small" />
                     </View>
                   ) : null
                 }

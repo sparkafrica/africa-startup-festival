@@ -1,5 +1,5 @@
 import React from "react";
-import { View, ScrollView, Pressable, Linking, Alert, ActivityIndicator, Text, RefreshControl } from "react-native";
+import { View, ScrollView, Pressable, Linking, Alert, Text, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   HeaderBar,
@@ -8,6 +8,7 @@ import {
   DropdownButton,
   TimeZoneAlertBanner,
   FilterModal,
+  LoadingSpinner,
   EventViewModal,
   LeaveFeedbackModal,
   FeedbackSentModal,
@@ -630,15 +631,15 @@ export default function ScheduleScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#000000"
-            colors={["#000000"]}
+            tintColor="#1BB273"
+            colors={["#1BB273"]}
           />
         }
       >
         <View className="px-4">
           {isLoading ? (
             <View className="flex-1 items-center justify-center py-20">
-              <ActivityIndicator size="large" color="#000000" />
+              <LoadingSpinner size="large" />
               <Text className="text-gray-500 mt-4">Loading events...</Text>
             </View>
           ) : error ? (
