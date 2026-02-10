@@ -97,31 +97,28 @@ export default function ContactScreen() {
     }
 
     const body = [
-      `From: ${trimmedName} <${trimmedEmail}>`,
+      `Name: ${trimmedName}`,
+      `Email: ${trimmedEmail}`,
+      `Subject: ${trimmedSubject}`,
       "",
       trimmedMessage,
     ].join("\n");
 
-    const mailtoUrl = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(trimmedSubject)}&body=${encodeURIComponent(body)}`;
+    const mailtoUrl = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
+      trimmedSubject
+    )}&body=${encodeURIComponent(body)}`;
 
-    Linking.canOpenURL(mailtoUrl)
-      .then((supported) => {
-        if (supported) {
-          Linking.openURL(mailtoUrl);
-          setName("");
-          setEmail("");
-          setSubject("");
-          setMessage("");
-        } else {
-          Alert.alert(
-            "Cannot send email",
-            "No email app is configured. You can copy the address: " + SUPPORT_EMAIL
-          );
-        }
-      })
-      .catch(() => {
-        Alert.alert("Error", "Could not open email client.");
-      });
+    try {
+      // This opens the same email app as the support card,
+      // but with Subject + Message prefilled.
+      Linking.openURL(mailtoUrl);
+    } catch {
+      Alert.alert(
+        "Cannot send email",
+        "Please check that you have an email app installed and configured. You can also email us directly at " +
+          SUPPORT_EMAIL
+      );
+    }
   };
 
   return (
