@@ -12,7 +12,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
-  ActivityIndicator,
   StyleSheet,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
@@ -39,6 +38,7 @@ import QRCode from "react-native-qrcode-svg";
 import RequestMeetingModal, {
   type MeetingFormData,
 } from "../components/RequestMeetingModal";
+import { LoadingSpinner } from "../components";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -1483,7 +1483,7 @@ function RecipientDetailsModal({
               style={{ opacity: isSubmitting ? 0.6 : 1 }}
             >
               {isSubmitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <LoadingSpinner size="small" color="#FFFFFF" />
               ) : (
                 <Text className="text-base font-medium text-white">Transfer</Text>
               )}
@@ -2853,7 +2853,7 @@ function QRScannerModal({
               </Text>
               {isProcessing && (
                 <View className="w-full items-center justify-center bg-neutral-100 rounded-xl py-4 px-4 mb-3 flex-row gap-2">
-                  <ActivityIndicator size="small" color="#000000" />
+                  <LoadingSpinner size="small" color="#000000" />
                   <Text className="text-base font-medium text-black">
                     Processing...
                   </Text>
@@ -3119,7 +3119,7 @@ function ScannedTicketProfileModal({
               style={{ opacity: isConnecting ? 0.6 : 1 }}
             >
               {isConnecting ? (
-                <ActivityIndicator size="small" color="#000000" />
+                <LoadingSpinner size="small" color="#000000" />
               ) : (
                 <ConnectIcon size={20} color="#000000" />
               )}
@@ -3764,7 +3764,7 @@ function MyTicketView({
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center py-20">
-        <ActivityIndicator size="large" color="#000000" />
+        <LoadingSpinner size="large" color="#000000" />
         <Text className="text-base text-neutral-600 mt-4">
           Loading tickets...
         </Text>

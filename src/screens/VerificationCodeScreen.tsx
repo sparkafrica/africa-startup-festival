@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,6 +17,7 @@ import type {
   RootStackParamList,
 } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
+import { LoadingSpinner } from "../components";
 import Svg, { Path, Rect } from "react-native-svg";
 
 // Email Icon Component
@@ -225,7 +225,7 @@ export default function VerificationCodeScreen() {
                 }}
               >
                 {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <LoadingSpinner size="small" color="#FFFFFF" />
                 ) : (
                   <Text className="text-white text-base font-semibold">
                     Submit Code
@@ -252,7 +252,7 @@ export default function VerificationCodeScreen() {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             {isResending ? (
-              <ActivityIndicator size="small" color="#000000" />
+              <LoadingSpinner size="small" color="#000000" />
             ) : (
               <Text className="text-base text-neutral-900 underline font-medium">
                 Resend code

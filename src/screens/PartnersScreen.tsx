@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { View, ScrollView, Pressable, Text, ActivityIndicator, RefreshControl } from "react-native";
+import { View, ScrollView, Pressable, Text, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -10,6 +10,7 @@ import {
   BottomNavigation,
   FilterTag,
   FilterModal,
+  LoadingSpinner,
   type FilterCategory,
 } from "../components";
 import { ChevronLeftIcon, FilterIcon } from "../components/HeaderIcons";
@@ -207,7 +208,7 @@ export default function PartnersScreen() {
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => fetchPartners(true)} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchPartners(true)} tintColor="#1BB273" colors={["#1BB273"]} />
         }
       >
         {/* Screen Title Section */}
@@ -266,7 +267,7 @@ export default function PartnersScreen() {
         <View className="px-4">
           {isLoading ? (
             <View className="py-12 items-center">
-              <ActivityIndicator size="large" color="#000" />
+              <LoadingSpinner size="large" />
               <Text className="text-neutral-600 mt-3">Loading partners...</Text>
             </View>
           ) : error ? (

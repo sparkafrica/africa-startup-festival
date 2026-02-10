@@ -8,7 +8,6 @@ import {
   ImageSourcePropType,
   StyleSheet,
   Dimensions,
-  ActivityIndicator,
   Linking,
   Alert,
   PanResponder,
@@ -23,6 +22,7 @@ import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
 import {
   RequestMeetingModal,
   MeetingRequestMessageModal,
+  LoadingSpinner,
   type MeetingFormData,
 } from "../components";
 import { useChecklist } from "../context/ChecklistContext";
@@ -255,7 +255,7 @@ export default function SpeakerDetailScreen({ route }: Props) {
             <View style={styles.handle} />
           </View>
           <View className="flex-1 items-center justify-center py-20">
-            <ActivityIndicator size="large" color="#000000" />
+            <LoadingSpinner size="large" />
             <Text className="text-gray-500 mt-4">Loading speaker details...</Text>
           </View>
         </View>

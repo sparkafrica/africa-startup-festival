@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, ScrollView, Pressable, Text, ActivityIndicator, RefreshControl } from "react-native";
+import { View, ScrollView, Pressable, Text, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -13,6 +13,7 @@ import {
   BottomNavigation,
   FilterTag,
   FilterModal,
+  LoadingSpinner,
   type FilterCategory,
 } from "../components";
 import { ChevronLeftIcon, FilterIcon } from "../components/HeaderIcons";
@@ -251,8 +252,8 @@ export default function SpeakersScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#000000"
-            colors={["#000000"]}
+            tintColor="#1BB273"
+            colors={["#1BB273"]}
           />
         }
       >
@@ -312,7 +313,7 @@ export default function SpeakersScreen() {
         <View className="px-4">
           {isLoading ? (
             <View className="py-20 items-center">
-              <ActivityIndicator size="large" color="#000000" />
+              <LoadingSpinner size="large" />
               <Text className="text-gray-500 mt-4">Loading speakers...</Text>
             </View>
           ) : error ? (

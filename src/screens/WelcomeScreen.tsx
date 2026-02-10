@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   Pressable,
-  ActivityIndicator,
   Modal,
   TextInput,
   Animated,
@@ -23,6 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { ticketService, TicketQuota } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
 import TicketCard from "../components/TicketCard";
+import { LoadingSpinner } from "../components";
 import Svg, { Path, Rect, Circle } from "react-native-svg";
 
 // Checkmark Icon
@@ -978,7 +978,7 @@ export default function WelcomeScreen() {
           className="bg-white border-2 border-neutral-300 rounded-xl py-4 items-center justify-center"
         >
           {isProcessing ? (
-            <ActivityIndicator size="small" color="#000000" />
+            <LoadingSpinner size="small" color="#000000" />
           ) : (
             <Text className="text-black text-base font-semibold">
               {ticketQuotaCount > 0 ? "Skip for now" : "Continue to Profile"}

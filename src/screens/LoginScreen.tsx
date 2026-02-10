@@ -8,7 +8,6 @@ import {
   Platform,
   ScrollView,
   Image,
-  ActivityIndicator,
   Alert,
   Linking,
 } from "react-native";
@@ -17,6 +16,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
+import { LoadingSpinner } from "../components";
 
 // Logo import
 const logoImage = require("../assets/images/logo.png");
@@ -160,7 +160,7 @@ export default function LoginScreen() {
                 }}
               >
                 {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <LoadingSpinner size="small" color="#FFFFFF" />
                 ) : (
                   <Text className="text-white text-base font-semibold">
                     Send verification code

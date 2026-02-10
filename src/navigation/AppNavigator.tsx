@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { View } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useAuth } from "../context/AuthContext";
+import { LoadingSpinner } from "../components";
 import AuthNavigator from "./AuthNavigator";
 import MainNavigator from "./MainNavigator";
 import ProfileScreen from "../screens/ProfileScreen";
@@ -33,7 +34,7 @@ export default function AppNavigator() {
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator size="large" color="#1BB273" />
+        <LoadingSpinner size="large" />
       </View>
     );
   }

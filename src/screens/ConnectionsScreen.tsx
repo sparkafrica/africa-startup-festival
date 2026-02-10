@@ -8,7 +8,6 @@ import {
   ScrollView,
   Animated,
   PanResponder,
-  ActivityIndicator,
   Image,
   RefreshControl,
   Linking,
@@ -18,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   HeaderBar,
   BottomNavigation,
+  LoadingSpinner,
   RequestMeetingModal,
 } from "../components";
 import {
@@ -887,7 +887,7 @@ export default function ConnectionsScreen() {
       {/* Loading spinner for meeting submission */}
       {isSubmittingMeeting && (
         <View className="bg-blue-50 border-b border-blue-200 px-4 py-2 flex-row items-center justify-center">
-          <ActivityIndicator size="small" color="#1BB273" />
+          <LoadingSpinner size="small" />
           <Text className="text-sm text-blue-900 ml-2">
             Sending meeting request...
           </Text>
@@ -921,7 +921,7 @@ export default function ConnectionsScreen() {
         {/* Connections List */}
         {isLoading ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color="#1BB273" />
+            <LoadingSpinner size="large" />
             <Text className="text-base text-neutral-500 mt-4">
               Loading connections...
             </Text>
@@ -1160,7 +1160,7 @@ export default function ConnectionsScreen() {
                           className="w-full flex-row items-center justify-center bg-[#1BB273] rounded-xl py-3.5 px-4 mb-3"
                         >
                           {isProcessingAction ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
+                            <LoadingSpinner size="small" color="#FFFFFF" />
                           ) : (
                             <Text className="text-base font-semibold text-white">
                               Accept Connection
@@ -1174,7 +1174,7 @@ export default function ConnectionsScreen() {
                           style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
                         >
                           {isProcessingAction ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
+                            <LoadingSpinner size="small" color="#FFFFFF" />
                           ) : (
                             <Text className="text-base font-semibold text-white">
                               Decline
@@ -1210,7 +1210,7 @@ export default function ConnectionsScreen() {
                       style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
                     >
                       {isProcessingAction ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <LoadingSpinner size="small" color="#FFFFFF" />
                       ) : (
                         <Text className="text-base font-semibold text-white">
                           Remove Connection
@@ -1279,7 +1279,7 @@ export default function ConnectionsScreen() {
                       style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
                     >
                       {isProcessingAction ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <LoadingSpinner size="small" color="#FFFFFF" />
                       ) : (
                         <Text className="text-base font-semibold text-white">
                           Remove Connection

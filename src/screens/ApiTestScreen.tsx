@@ -14,11 +14,11 @@ import {
   TextInput,
   Pressable,
   ScrollView,
-  ActivityIndicator,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { authService, api } from "../services";
+import { LoadingSpinner } from "../components";
 import { handleApiError } from "../services/api.helpers";
 
 export default function ApiTestScreen() {
@@ -239,7 +239,7 @@ export default function ApiTestScreen() {
             style={{ opacity: loading ? 0.6 : 1 }}
           >
             {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <LoadingSpinner size="small" color="#FFFFFF" />
             ) : (
               <Text className="text-white font-semibold">1. Request OTP</Text>
             )}
@@ -252,7 +252,7 @@ export default function ApiTestScreen() {
             style={{ opacity: loading ? 0.6 : 1 }}
           >
             {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <LoadingSpinner size="small" color="#FFFFFF" />
             ) : (
               <Text className="text-white font-semibold">2. Verify OTP</Text>
             )}
@@ -265,7 +265,7 @@ export default function ApiTestScreen() {
             style={{ opacity: loading ? 0.6 : 1 }}
           >
             {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <LoadingSpinner size="small" color="#FFFFFF" />
             ) : (
               <Text className="text-white font-semibold">
                 3. Get Current User (Auth Required)
@@ -291,7 +291,7 @@ export default function ApiTestScreen() {
             style={{ opacity: loading ? 0.6 : 1 }}
           >
             {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <LoadingSpinner size="small" color="#FFFFFF" />
             ) : (
               <Text className="text-white font-semibold">5. Logout</Text>
             )}

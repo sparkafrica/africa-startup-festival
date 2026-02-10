@@ -13,7 +13,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -22,6 +21,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
 } from "./icons";
+import LoadingSpinner from "./LoadingSpinner";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
 
@@ -445,7 +445,7 @@ export default function RequestMeetingModal({
               {/* Loading/Error State for Slots */}
               {isLoadingSlots && (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color="#1BB273" />
+                  <LoadingSpinner size="small" />
                   <Text style={styles.loadingText}>Loading available slots...</Text>
                 </View>
               )}
@@ -844,7 +844,7 @@ export default function RequestMeetingModal({
               disabled={!isFormValid() || isSubmitting}
             >
               {isSubmitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <LoadingSpinner size="small" color="#FFFFFF" />
               ) : (
                 <Text
                   style={[

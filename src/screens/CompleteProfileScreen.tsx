@@ -10,7 +10,6 @@ import {
   Modal,
   Alert,
   Switch,
-  ActivityIndicator,
   Image,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -29,6 +28,7 @@ import { companyService } from "../services/companyService";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
+import { LoadingSpinner } from "../components";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
 
@@ -1123,7 +1123,7 @@ function AttendeeProfileForm({
                 )}
                 {isUploadingImage && (
                   <View className="absolute inset-0 bg-black/50 items-center justify-center">
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <LoadingSpinner size="small" color="#FFFFFF" />
                   </View>
                 )}
               </View>
@@ -1822,7 +1822,7 @@ function PersonalProfileForm({
                 )}
                 {isUploadingImage && (
                   <View className="absolute inset-0 bg-black/50 items-center justify-center">
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <LoadingSpinner size="small" color="#FFFFFF" />
                   </View>
                 )}
               </View>
@@ -2674,7 +2674,7 @@ function CompanyProfileForm({
                 )}
                 {isUploadingImage && (
                   <View className="absolute inset-0 bg-black/50 items-center justify-center">
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <LoadingSpinner size="small" color="#FFFFFF" />
                   </View>
                 )}
               </View>
@@ -3425,7 +3425,7 @@ export default function CompleteProfileScreen({ route }: Props) {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#1BB273" />
+          <LoadingSpinner size="large" />
         </View>
       </SafeAreaView>
     );

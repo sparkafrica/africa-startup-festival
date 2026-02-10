@@ -12,10 +12,10 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Keyboard,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ClockIcon } from "./BottomNavIcons";
+import LoadingSpinner from "./LoadingSpinner";
 import { ChevronDownIcon, ChevronUpIcon } from "./icons";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
@@ -687,7 +687,7 @@ export default function EditMeetingModal({
                     <ScrollView nestedScrollEnabled={true}>
                       {isLoadingSlots ? (
                         <View className="px-4 py-3 items-center">
-                          <ActivityIndicator size="small" color="#1BB273" />
+                          <LoadingSpinner size="small" />
                         </View>
                       ) : availableTimes.length === 0 ? (
                         <View className="px-4 py-3">
@@ -1124,7 +1124,7 @@ export default function EditMeetingModal({
                     <ScrollView nestedScrollEnabled={true}>
                       {isLoadingSlots ? (
                         <View className="px-4 py-3 items-center">
-                          <ActivityIndicator size="small" color="#1BB273" />
+                          <LoadingSpinner size="small" />
                         </View>
                       ) : availableTimes.length === 0 ? (
                         <View className="px-4 py-3">

@@ -10,7 +10,6 @@ import {
   Modal,
   Alert,
   Image,
-  ActivityIndicator,
   RefreshControl,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -24,6 +23,7 @@ import { companyService } from "../services/companyService";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
+import { LoadingSpinner } from "../components";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
 
@@ -1160,7 +1160,7 @@ function PersonalProfileSection({
         keyboardDismissMode="interactive"
         refreshControl={
           onRefresh != null && refreshing !== undefined ? (
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1BB273" colors={["#1BB273"]} />
           ) : undefined
         }
       >
@@ -1196,7 +1196,7 @@ function PersonalProfileSection({
                   )}
                   {isUploadingImage && (
                     <View className="absolute inset-0 bg-black/50 items-center justify-center">
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <LoadingSpinner size="small" color="#FFFFFF" />
                     </View>
                   )}
                 </View>
@@ -1876,7 +1876,7 @@ function AttendeeProfileSection({
         keyboardDismissMode="interactive"
         refreshControl={
           onRefresh != null && refreshing !== undefined ? (
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1BB273" colors={["#1BB273"]} />
           ) : undefined
         }
       >
@@ -1912,7 +1912,7 @@ function AttendeeProfileSection({
                   )}
                   {isUploadingImage && (
                     <View className="absolute inset-0 bg-black/50 items-center justify-center">
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <LoadingSpinner size="small" color="#FFFFFF" />
                     </View>
                   )}
                 </View>
@@ -2692,7 +2692,7 @@ function CompanyProfileSection({
         keyboardDismissMode="interactive"
         refreshControl={
           onRefresh != null && refreshing !== undefined ? (
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1BB273" colors={["#1BB273"]} />
           ) : undefined
         }
       >
@@ -3380,7 +3380,7 @@ export default function ProfileScreen() {
                 disabled={attendeeIsSubmitting}
               >
                 {attendeeIsSubmitting && (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <LoadingSpinner size="small" color="#FFFFFF" />
                 )}
                 <Text className="text-white pb-2 text-base font-inter-semibold">
                   Save Changes
@@ -3430,7 +3430,7 @@ export default function ProfileScreen() {
                 disabled={activeTab === "Company" && companyIsSubmitting}
               >
                 {activeTab === "Company" && companyIsSubmitting && (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <LoadingSpinner size="small" color="#FFFFFF" />
                 )}
                 <Text className="text-white pb-2 text-base font-semibold">
                   Save Changes

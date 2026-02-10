@@ -10,7 +10,6 @@ import {
   Dimensions,
   PanResponder,
   Animated,
-  ActivityIndicator,
   Alert,
   Linking,
 } from "react-native";
@@ -31,6 +30,7 @@ import { ArrowUpRightIcon } from "../components/icons";
 import {
   RequestMeetingModal,
   MeetingRequestMessageModal,
+  LoadingSpinner,
   type MeetingFormData,
 } from "../components";
 import { useChecklist } from "../context/ChecklistContext";
@@ -373,7 +373,7 @@ export default function CompanyDetailScreen({ route }: Props) {
             </Pressable>
             {isLoading && (
               <View className="flex-1 items-end">
-                <ActivityIndicator size="small" color="#000" />
+                <LoadingSpinner size="small" color="#000" />
               </View>
             )}
           </View>

@@ -14,11 +14,12 @@ Notifications.setNotificationHandler({
 });
 import { NavigationContainer } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Text, View, ActivityIndicator, Image } from "react-native";
+import { Text, View, Image } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider } from "./src/context/AuthContext";
 import { ChecklistProvider } from "./src/context/ChecklistContext";
 import AppNavigator from "./src/navigation/AppNavigator";
+import { LoadingSpinner } from "./src/components";
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
@@ -72,7 +73,7 @@ export default function App() {
             resizeMode="cover"
           />
         </View>
-        <ActivityIndicator size="large" />
+        <LoadingSpinner size="large" />
       </View>
     );
   }

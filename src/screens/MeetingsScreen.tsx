@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, ScrollView, ActivityIndicator, RefreshControl, Text, Pressable } from "react-native";
+import { View, ScrollView, RefreshControl, Text, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   HeaderBar,
@@ -15,6 +15,7 @@ import {
   ArrowDownRedIcon,
   ArrowUpGreenIcon,
   InboundMeetingModal,
+  LoadingSpinner,
   OutboundMeetingModal,
   ParticipantDetailModal,
 } from "../components";
@@ -1211,7 +1212,7 @@ export default function MeetingsScreen({ route }: Props) {
         <View className="px-4 pt-4 flex-1">
           {isLoading ? (
             <View className="flex-1 items-center justify-center py-12">
-              <ActivityIndicator size="large" color="#1BB273" />
+              <LoadingSpinner size="large" />
               <Text className="text-base text-neutral-500 mt-4">
                 Loading meetings...
               </Text>

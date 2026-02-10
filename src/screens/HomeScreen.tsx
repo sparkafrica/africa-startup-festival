@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, ScrollView, Pressable, Text, ActivityIndicator, RefreshControl } from "react-native";
+import { View, ScrollView, Pressable, Text, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -15,6 +15,7 @@ import {
   Card,
   ChecklistItem,
   ExhibitorCard,
+  LoadingSpinner,
   PartnerCard,
   SpeakerCard,
   BottomNavigation,
@@ -363,7 +364,7 @@ export default function HomeScreen() {
           >
             {exhibitorsLoading ? (
               <View className="py-8 items-center">
-                <ActivityIndicator size="large" color="#000000" />
+                <LoadingSpinner size="large" color="#000000" />
                 <Text className="text-gray-500 mt-2">Loading exhibitors...</Text>
               </View>
             ) : exhibitorsError ? (
@@ -436,7 +437,7 @@ export default function HomeScreen() {
           >
             {partnersLoading ? (
               <View className="py-8 items-center">
-                <ActivityIndicator size="large" color="#000000" />
+                <LoadingSpinner size="large" color="#000000" />
                 <Text className="text-gray-500 mt-2">Loading partners...</Text>
               </View>
             ) : partnersError ? (
@@ -509,7 +510,7 @@ export default function HomeScreen() {
           >
             {speakersLoading ? (
               <View className="py-8 items-center">
-                <ActivityIndicator size="large" color="#000000" />
+                <LoadingSpinner size="large" color="#000000" />
                 <Text className="text-gray-500 mt-2">Loading speakers...</Text>
               </View>
             ) : speakersError ? (

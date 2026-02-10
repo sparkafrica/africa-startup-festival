@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -7,6 +7,7 @@ import type { RootStackParamList } from "../navigation/types";
 import { StatusBar } from "expo-status-bar";
 import NotificationItem from "../components/NotificationItem";
 import NotificationDetailModal from "../components/NotificationDetailModal";
+import { LoadingSpinner } from "../components";
 import {
   CloseIcon,
   ProfileIcon,
@@ -272,7 +273,7 @@ export default function NotificationsScreen() {
         {/* Notifications List */}
         {isLoading && notifications.length === 0 ? (
           <View className="flex-1 items-center justify-center px-6">
-            <ActivityIndicator size="large" color="#1BB273" />
+            <LoadingSpinner size="large" />
             <Text className="text-base text-neutral-500 mt-4">
               Loading notifications...
             </Text>
@@ -353,7 +354,7 @@ export default function NotificationsScreen() {
             {/* Loading more indicator */}
             {isLoadingMore && (
               <View className="py-4 items-center">
-                <ActivityIndicator size="small" color="#1BB273" />
+                <LoadingSpinner size="small" />
               </View>
             )}
           </ScrollView>
@@ -404,7 +405,7 @@ export default function NotificationsScreen() {
             alignItems: "center",
           }}
         >
-          <ActivityIndicator size="large" color="#FFFFFF" />
+          <LoadingSpinner size="large" color="#FFFFFF" />
         </View>
       )}
 
