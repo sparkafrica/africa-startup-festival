@@ -172,10 +172,14 @@ export default function VerificationCodeScreen() {
                 <Text className="font-medium text-neutral-900">{email}</Text>
               </Text>
 
-              {/* Code Input - Single hidden input for paste, autofill, copy; digit boxes for display */}
+              {/* Code Input - Tap to focus, then type or paste naturally */}
+              <Text className="text-xs text-neutral-500 text-center mb-2">
+                Tap the boxes to type or paste your code
+              </Text>
               <Pressable
                 onPress={() => hiddenInputRef.current?.focus()}
                 className="flex-row justify-center gap-1.5 mb-8 px-1"
+                style={{ position: "relative" }}
               >
                 <TextInput
                   ref={hiddenInputRef}
@@ -190,9 +194,12 @@ export default function VerificationCodeScreen() {
                   maxLength={6}
                   style={{
                     position: "absolute",
-                    width: 1,
-                    height: 1,
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
                     opacity: 0,
+                    fontSize: 1,
                   }}
                 />
                 {[0, 1, 2, 3, 4, 5].map((index) => (

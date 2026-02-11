@@ -273,6 +273,18 @@ const validateInterests = (
   return { valid: true };
 };
 
+const validateOfferLink = (link: string): { valid: boolean; error?: string } => {
+  if (!link.trim()) {
+    return { valid: false, error: "Offer link is required" };
+  }
+  const urlPattern =
+    /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(\/.*)?$/i;
+  if (!urlPattern.test(link.trim())) {
+    return { valid: false, error: "Please enter a valid URL" };
+  }
+  return { valid: true };
+};
+
 const validateOfferTitle = (
   title: string
 ): { valid: boolean; error?: string } => {
@@ -2150,10 +2162,11 @@ function CompanyProfileForm({
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [companyDescription, setCompanyDescription] = useState("");
   const [offers, setOffers] = useState<
-    Array<{ id: string; title: string; color: string }>
+    Array<{ id: string; title: string; color: string; link: string }>
   >([]);
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [newOfferTitle, setNewOfferTitle] = useState("");
+  const [newOfferLink, setNewOfferLink] = useState("");
   const [newOfferColor, setNewOfferColor] = useState("purple");
   const [showColorModal, setShowColorModal] = useState(false);
   const [socialLinks, setSocialLinks] = useState({
@@ -2221,13 +2234,19 @@ function CompanyProfileForm({
     }
     if (Array.isArray(meta.offers) && meta.offers.length > 0) {
       setOffers(
-        (meta.offers as Array<{ id?: string; title: string; color: string }>).map(
-          (o, i) => ({
-            id: o.id ?? `offer-${i}`,
-            title: o.title ?? "",
-            color: o.color ?? "purple",
-          })
-        )
+        (
+          meta.offers as Array<{
+            id?: string;
+            title: string;
+            color: string;
+            link?: string;
+          }>
+        ).map((o, i) => ({
+          id: o.id ?? `offer-${i}`,
+          title: o.title ?? "",
+          color: o.color ?? "purple",
+          link: (o as any).link ?? "",
+        }))
       );
     }
     if (meta.isRecruiting === true) setIsRecruiting(true);
@@ -2256,9 +2275,17 @@ function CompanyProfileForm({
     COUNTRY_OPTIONS[0];
 
   const handleAddOffer = () => {
-    const offerValidation = validateOfferTitle(newOfferTitle);
-    if (!offerValidation.valid) {
-      setOfferErrors({ newOfferTitle: offerValidation.error || "" });
+    const titleValidation = validateOfferTitle(newOfferTitle);
+    const linkValidation = validateOfferLink(newOfferLink);
+    const errors: Record<string, string> = {};
+    if (!titleValidation.valid) {
+      errors.newOfferTitle = titleValidation.error || "";
+    }
+    if (!linkValidation.valid) {
+      errors.newOfferLink = linkValidation.error || "";
+    }
+    if (Object.keys(errors).length > 0) {
+      setOfferErrors(errors);
       return;
     }
 
@@ -2268,9 +2295,11 @@ function CompanyProfileForm({
         id: Date.now().toString(),
         title: newOfferTitle,
         color: newOfferColor,
+        link: newOfferLink.trim(),
       },
     ]);
     setNewOfferTitle("");
+    setNewOfferLink("");
     setNewOfferColor("purple");
     setShowAddOffer(false);
     setOfferErrors({});
@@ -2488,6 +2517,14 @@ function CompanyProfileForm({
         errors[`position_link_${index}`] = `Position ${index + 1}: ${
           linkValidation.error
         }`;
+      }
+    });
+
+    // Validate each offer has a valid link
+    offers.forEach((offer, index) => {
+      const linkValidation = validateOfferLink(offer.link);
+      if (!linkValidation.valid) {
+        errors[`offer_link_${index}`] = `Offer "${offer.title}": ${linkValidation.error}`;
       }
     });
 
@@ -2891,9 +2928,36 @@ function CompanyProfileForm({
                 <TextInput
                   className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
                   value={newOfferTitle}
-                  onChangeText={setNewOfferTitle}
+                  onChangeText={(t) => {
+                    setNewOfferTitle(t);
+                    if (offerErrors.newOfferTitle)
+                      setOfferErrors((e) => ({ ...e, newOfferTitle: "" }));
+                  }}
                   placeholder="Offer title (e.g., Free Consultation)"
                 />
+                {offerErrors.newOfferTitle && (
+                  <Text className="text-red-500 text-xs">
+                    {offerErrors.newOfferTitle}
+                  </Text>
+                )}
+                <TextInput
+                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                  value={newOfferLink}
+                  onChangeText={(t) => {
+                    setNewOfferLink(t);
+                    if (offerErrors.newOfferLink)
+                      setOfferErrors((e) => ({ ...e, newOfferLink: "" }));
+                  }}
+                  placeholder="Offer link (e.g., https://example.com/offer)"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+                {offerErrors.newOfferLink && (
+                  <Text className="text-red-500 text-xs">
+                    {offerErrors.newOfferLink}
+                  </Text>
+                )}
                 <Pressable
                   onPress={() => setShowColorModal(true)}
                   className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
@@ -2925,6 +2989,7 @@ function CompanyProfileForm({
                     onPress={() => {
                       setShowAddOffer(false);
                       setNewOfferTitle("");
+                      setNewOfferLink("");
                     }}
                     className="flex-1 bg-white border border-neutral-300 rounded-xl py-3 items-center"
                   >

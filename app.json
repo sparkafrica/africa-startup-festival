@@ -20,12 +20,10 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload profile pictures.",
         "NSCameraUsageDescription": "This app needs access to your camera to take profile pictures.",
-        "LSApplicationQueriesSchemes": [
-          "linkedin"
-        ]
+        "LSApplicationQueriesSchemes": ["linkedin"]
       }
     },
-"android": {
+    "android": {
       "package": "com.sparkllc.mobile",
       "versionCode": 3,
       "googleServicesFile": "./google-services.json",
@@ -60,6 +58,18 @@
       "policy": "sdkVersion"
     },
     "owner": "unkn0wnt",
-    "plugins": ["expo-notifications"]
+    "plugins": [
+      "expo-notifications",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
+    ]
   }
 }

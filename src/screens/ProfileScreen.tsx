@@ -220,6 +220,30 @@ const validateBoothNumber = (
   return { valid: true };
 };
 
+const validateOfferLink = (link: string): { valid: boolean; error?: string } => {
+  if (!link.trim()) {
+    return { valid: false, error: "Offer link is required" };
+  }
+  const urlPattern =
+    /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(\/.*)?$/i;
+  if (!urlPattern.test(link.trim())) {
+    return { valid: false, error: "Please enter a valid URL" };
+  }
+  return { valid: true };
+};
+
+const validateJobLink = (link: string): { valid: boolean; error?: string } => {
+  if (!link.trim()) {
+    return { valid: false, error: "Job link is required" };
+  }
+  const urlPattern =
+    /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(\/.*)?$/i;
+  if (!urlPattern.test(link.trim())) {
+    return { valid: false, error: "Please enter a valid job application URL" };
+  }
+  return { valid: true };
+};
+
 const validateCompanyDescription = (
   description: string
 ): { valid: boolean; error?: string } => {
@@ -2225,11 +2249,12 @@ function CompanyProfileSection({
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
-  const [offers, setOffers] = useState<Array<{ title: string; color: string }>>(
-    []
-  );
+  const [offers, setOffers] = useState<
+    Array<{ id: string; title: string; color: string; link: string }>
+  >([]);
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [newOfferTitle, setNewOfferTitle] = useState("");
+  const [newOfferLink, setNewOfferLink] = useState("");
   const [newOfferColor, setNewOfferColor] = useState<string | undefined>(
     undefined
   );
@@ -2299,9 +2324,18 @@ function CompanyProfileSection({
     }
     if (Array.isArray(meta.offers) && meta.offers.length > 0) {
       setOffers(
-        (meta.offers as Array<{ title: string; color?: string }>).map((o) => ({
+        (
+          meta.offers as Array<{
+            id?: string;
+            title: string;
+            color?: string;
+            link?: string;
+          }>
+        ).map((o, i) => ({
+          id: (o as any).id ?? `offer-${i}`,
           title: o.title ?? "",
           color: o.color ?? "#4CAF50",
+          link: (o as any).link ?? "",
         }))
       );
     }
@@ -2328,34 +2362,68 @@ function CompanyProfileSection({
     COUNTRY_OPTIONS[0];
 
   const addOffer = () => {
-    if (newOfferTitle.trim()) {
-      // Use selected color or default to green if none selected
-      const offerColor = newOfferColor || "#4CAF50";
-      setOffers([...offers, { title: newOfferTitle, color: offerColor }]);
-      setNewOfferTitle("");
-      setNewOfferColor(undefined);
-      setShowAddOffer(false);
+    if (!newOfferTitle.trim()) {
+      setValidationErrors((e) => ({ ...e, newOfferTitle: "Offer title is required" }));
+      return;
     }
+    const linkValidation = validateOfferLink(newOfferLink);
+    if (!linkValidation.valid) {
+      setValidationErrors((e) => ({ ...e, newOfferLink: linkValidation.error ?? "" }));
+      return;
+    }
+    const offerColor = newOfferColor || "#4CAF50";
+    setOffers([
+      ...offers,
+      {
+        id: Date.now().toString(),
+        title: newOfferTitle.trim(),
+        color: offerColor,
+        link: newOfferLink.trim(),
+      },
+    ]);
+    setNewOfferTitle("");
+    setNewOfferLink("");
+    setNewOfferColor(undefined);
+    setShowAddOffer(false);
+    setValidationErrors((e) => {
+      const next = { ...e };
+      delete next.newOfferTitle;
+      delete next.newOfferLink;
+      return next;
+    });
   };
 
-  const removeOffer = (offer: { title: string; color: string }) => {
-    setOffers(offers.filter((o) => o.title !== offer.title));
+  const removeOffer = (offer: { id: string }) => {
+    setOffers(offers.filter((o) => o.id !== offer.id));
   };
 
   const addPosition = () => {
-    if (newJobRole.trim()) {
-      setPositions([
-        ...positions,
-        {
-          id: Date.now().toString(),
-          role: newJobRole.trim(),
-          link: newJobLink.trim() || "",
-        },
-      ]);
-      setNewJobRole("");
-      setNewJobLink("");
-      setShowAddPosition(false);
+    if (!newJobRole.trim()) {
+      setValidationErrors((e) => ({ ...e, newJobRole: "Job role is required" }));
+      return;
     }
+    const linkValidation = validateJobLink(newJobLink);
+    if (!linkValidation.valid) {
+      setValidationErrors((e) => ({ ...e, newJobLink: linkValidation.error ?? "" }));
+      return;
+    }
+    setPositions([
+      ...positions,
+      {
+        id: Date.now().toString(),
+        role: newJobRole.trim(),
+        link: newJobLink.trim(),
+      },
+    ]);
+    setNewJobRole("");
+    setNewJobLink("");
+    setShowAddPosition(false);
+    setValidationErrors((e) => {
+      const next = { ...e };
+      delete next.newJobRole;
+      delete next.newJobLink;
+      return next;
+    });
   };
 
   const removePosition = (id: string) => {
@@ -2516,6 +2584,20 @@ function CompanyProfileSection({
       errors.positions =
         "Please add at least one position when recruiting is enabled";
     }
+    positions.forEach((p, i) => {
+      const linkVal = validateJobLink(p.link);
+      if (!linkVal.valid) {
+        errors[`position_link_${i}`] = `Position "${p.role}": ${linkVal.error}`;
+      }
+    });
+
+    // Validate offers - each must have a valid link
+    offers.forEach((o, i) => {
+      const linkVal = validateOfferLink(o.link);
+      if (!linkVal.valid) {
+        errors[`offer_link_${i}`] = `Offer "${o.title}": ${linkVal.error}`;
+      }
+    });
 
     // If there are validation errors, show them
     if (Object.keys(errors).length > 0) {
@@ -2967,9 +3049,36 @@ function CompanyProfileSection({
                 <TextInput
                   className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
                   value={newOfferTitle}
-                  onChangeText={setNewOfferTitle}
+                  onChangeText={(t) => {
+                    setNewOfferTitle(t);
+                    if (validationErrors.newOfferTitle)
+                      setValidationErrors((e) => ({ ...e, newOfferTitle: "" }));
+                  }}
                   placeholder="Offer title (e.g., Free Consultation)"
                 />
+                {validationErrors.newOfferTitle && (
+                  <Text className="text-red-500 text-xs mb-2">
+                    {validationErrors.newOfferTitle}
+                  </Text>
+                )}
+                <TextInput
+                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                  value={newOfferLink}
+                  onChangeText={(t) => {
+                    setNewOfferLink(t);
+                    if (validationErrors.newOfferLink)
+                      setValidationErrors((e) => ({ ...e, newOfferLink: "" }));
+                  }}
+                  placeholder="Offer link (e.g., https://example.com/offer)"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+                {validationErrors.newOfferLink && (
+                  <Text className="text-red-500 text-xs mb-3">
+                    {validationErrors.newOfferLink}
+                  </Text>
+                )}
 
                 {/* Offer color picker (ROYGBIV) */}
                 <View className="mb-3">
@@ -3030,6 +3139,7 @@ function CompanyProfileSection({
                     onPress={() => {
                       setShowAddOffer(false);
                       setNewOfferTitle("");
+                      setNewOfferLink("");
                       setNewOfferColor(undefined);
                     }}
                     className="flex-1 bg-white border border-neutral-300 rounded-xl py-3 items-center"
@@ -3044,9 +3154,9 @@ function CompanyProfileSection({
 
             {/* Event Offers List */}
             <View className="flex-row flex-wrap gap-2 pb-4">
-              {offers.map((offer, index) => (
+              {offers.map((offer) => (
                 <View
-                  key={`${offer.title}-${index}`}
+                  key={offer.id}
                   className="flex-row items-center px-4 py-2 rounded-full"
                   style={{
                     backgroundColor: offer.color || "#4CAF50",
@@ -3159,15 +3269,36 @@ function CompanyProfileSection({
                     <TextInput
                       className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
                       value={newJobRole}
-                      onChangeText={setNewJobRole}
+                      onChangeText={(t) => {
+                        setNewJobRole(t);
+                        if (validationErrors.newJobRole)
+                          setValidationErrors((e) => ({ ...e, newJobRole: "" }));
+                      }}
                       placeholder="Job Role"
                     />
+                    {validationErrors.newJobRole && (
+                      <Text className="text-red-500 text-xs mb-2">
+                        {validationErrors.newJobRole}
+                      </Text>
+                    )}
                     <TextInput
                       className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
                       value={newJobLink}
-                      onChangeText={setNewJobLink}
-                      placeholder="Job Link"
+                      onChangeText={(t) => {
+                        setNewJobLink(t);
+                        if (validationErrors.newJobLink)
+                          setValidationErrors((e) => ({ ...e, newJobLink: "" }));
+                      }}
+                      placeholder="Job Link (required)"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="url"
                     />
+                    {validationErrors.newJobLink && (
+                      <Text className="text-red-500 text-xs mb-3">
+                        {validationErrors.newJobLink}
+                      </Text>
+                    )}
                     <View className="flex-row gap-2">
                       <Pressable
                         onPress={addPosition}
@@ -3182,6 +3313,12 @@ function CompanyProfileSection({
                           setShowAddPosition(false);
                           setNewJobRole("");
                           setNewJobLink("");
+                          setValidationErrors((e) => {
+                            const next = { ...e };
+                            delete next.newJobRole;
+                            delete next.newJobLink;
+                            return next;
+                          });
                         }}
                         className="flex-1 bg-white border border-neutral-300 rounded-xl py-3 items-center"
                       >
