@@ -19,6 +19,8 @@ import { Text, View, Image } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider } from "./src/context/AuthContext";
 import { ChecklistProvider } from "./src/context/ChecklistContext";
+import { MeetingsBadgeProvider } from "./src/context/MeetingsBadgeContext";
+import { NotificationsProvider } from "./src/context/NotificationsContext";
 import AppNavigator from "./src/navigation/AppNavigator";
 import { LoadingSpinner } from "./src/components";
 
@@ -89,10 +91,14 @@ export default function App() {
     <View className="flex-1 font-sans">
       <AuthProvider>
         <ChecklistProvider>
-          <NavigationContainer>
-            <AppNavigator />
-            <StatusBar style="auto" />
-          </NavigationContainer>
+          <MeetingsBadgeProvider>
+            <NotificationsProvider>
+              <NavigationContainer>
+              <AppNavigator />
+              <StatusBar style="auto" />
+            </NavigationContainer>
+            </NotificationsProvider>
+          </MeetingsBadgeProvider>
         </ChecklistProvider>
       </AuthProvider>
     </View>

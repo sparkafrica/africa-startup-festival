@@ -4,6 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { useMeetingsBadgeCount } from "../hooks";
+import { useNotifications } from "../context/NotificationsContext";
 import { eventService } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
@@ -34,6 +36,8 @@ import {
 export default function SpeakersScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Speakers">>();
+  const meetingsBadgeCount = useMeetingsBadgeCount();
+  const { hasUnreadNotifications } = useNotifications();
   const [selectedFilterIds, setSelectedFilterIds] = useState<string[]>([]);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
@@ -222,6 +226,7 @@ export default function SpeakersScreen() {
         ),
       label: "Meetings",
       route: "Meetings",
+      badge: meetingsBadgeCount,
     },
     {
       icon: (active: boolean) =>
@@ -241,7 +246,7 @@ export default function SpeakersScreen() {
         onScanPress={() => navigation.navigate("ScanQR")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
-        hasUnreadNotifications={false}
+        hasUnreadNotifications={hasUnreadNotifications}
       />
 
       <ScrollView

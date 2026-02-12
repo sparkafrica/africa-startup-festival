@@ -1298,12 +1298,14 @@ export const eventService = {
       const response = await api.get<any>(url);
       const data = response as any;
 
-      if (data?.status === "success" && data?.data) {
-        return data.data as Company;
+      let company: any = null;
+      if (data?.status === "success" && data?.data && typeof data.data === "object") {
+        company = data.data;
+      } else if (data?.id != null && data?.name) {
+        company = data;
       }
-      if (data?.id && data?.name) {
-        return data as Company;
-      }
+      if (company) return company as Company;
+
       throw new ApiClientError({
         status: "error",
         message: data?.message || "Failed to fetch company details",

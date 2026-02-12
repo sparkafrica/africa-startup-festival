@@ -217,22 +217,27 @@ export const meetingService = {
     try {
       const response = await api.get<any>("/meetings/");
 
-      // Backend returns array of Meeting objects directly or wrapped in ApiResponse
       const data = response as any;
 
-      // If it's an array, return it directly
       if (Array.isArray(data)) {
         return data as Meeting[];
       }
 
-      // If wrapped in ApiResponse format
       if (data?.status === "success" && data?.data) {
         if (Array.isArray(data.data)) {
           return data.data as Meeting[];
         }
+        // Paginated: { results: Meeting[] }
+        if (data.data?.results && Array.isArray(data.data.results)) {
+          return data.data.results as Meeting[];
+        }
       }
 
-      // Fallback: return empty array
+      // Direct paginated: { results: Meeting[] }
+      if (data?.results && Array.isArray(data.results)) {
+        return data.results as Meeting[];
+      }
+
       return [];
     } catch (error: any) {
       // Re-throw ApiClientError as-is
@@ -728,6 +733,13 @@ export const meetingService = {
         if (Array.isArray(data.data)) {
           return data.data as VirtualMeeting[];
         }
+        if (data.data?.results && Array.isArray(data.data.results)) {
+          return data.data.results as VirtualMeeting[];
+        }
+      }
+
+      if (data?.results && Array.isArray(data.results)) {
+        return data.results as VirtualMeeting[];
       }
 
       return [];

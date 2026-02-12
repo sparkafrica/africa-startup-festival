@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, ScrollView, Pressable, Text, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useChecklist } from "../context/ChecklistContext";
+import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
+import { useNotifications } from "../context/NotificationsContext";
+import { useMeetingsBadgeCount } from "../hooks";
 import { gradients } from "../theme/theme";
 import { eventService } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
@@ -38,7 +41,18 @@ import {
 export default function HomeScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
+  const meetingsBadgeCount = useMeetingsBadgeCount();
+  const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
+  const scrollViewRef = useRef<ScrollView>(null);
   const [checklistExpanded, setChecklistExpanded] = useState(true);
+
+  // Scroll to top whenever Home gains focus (e.g. tapping Home from another tab)
+  useFocusEffect(
+    useCallback(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      refreshMeetingsBadge(); // Keep badge count fresh so it shows on Home (e.g. for assignee)
+    }, [refreshMeetingsBadge])
+  );
 
   // Get checklist state and methods from context
   const {
@@ -50,9 +64,7 @@ export default function HomeScreen() {
   // Track if checklist has been auto-collapsed (to prevent re-collapsing on manual opens)
   const [hasAutoCollapsed, setHasAutoCollapsed] = useState(false);
 
-  // Note: Unread notifications count requires push notifications setup with Firebase
-  // Skipping for now - will be implemented when push notifications are configured
-  const [hasUnreadNotifications] = useState(false);
+  const { hasUnreadNotifications } = useNotifications();
 
   // State for featured data
   const [featuredSpeakers, setFeaturedSpeakers] = useState<any[]>([]);
@@ -255,6 +267,7 @@ export default function HomeScreen() {
         ),
       label: "Meetings",
       route: "Meetings",
+      badge: meetingsBadgeCount,
     },
     {
       icon: (active: boolean) =>
@@ -278,6 +291,7 @@ export default function HomeScreen() {
       />
 
       <ScrollView
+        ref={scrollViewRef}
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
@@ -581,7 +595,7 @@ export default function HomeScreen() {
           activeRoute="Home"
           onNavigate={(route) => {
             if (route === "Home") {
-              // Already on Home screen
+              scrollViewRef.current?.scrollTo({ y: 0, animated: true });
             } else if (route === "Attendees") {
               navigation.navigate("Attendees");
             } else if (route === "Schedule") {

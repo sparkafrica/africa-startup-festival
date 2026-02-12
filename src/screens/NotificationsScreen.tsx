@@ -20,6 +20,7 @@ import { notificationService } from "../services/notificationService";
 import { ApiClientError } from "../services/api";
 import { mapBackendNotificationToUI, fetchNotificationDetails, type UINotification } from "../utils/notificationUtils";
 import { useAuth } from "../context/AuthContext";
+import { useNotifications } from "../context/NotificationsContext";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
 
@@ -27,6 +28,7 @@ export default function NotificationsScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Notifications">>();
   const { user } = useAuth();
+  const { refreshUnreadCount } = useNotifications();
   const { showToast, hideToast, toast } = useToast();
   
   // State
@@ -129,6 +131,7 @@ export default function NotificationsScreen() {
 
     try {
       await notificationService.markAsRead(notification.backendNotificationId);
+      await refreshUnreadCount();
     } catch (err: any) {
       // Rollback on error
       setNotifications((prev) =>
@@ -140,7 +143,7 @@ export default function NotificationsScreen() {
         console.error("Error marking notification as read:", err);
       }
     }
-  }, []);
+  }, [refreshUnreadCount]);
 
   /**
    * Handle notification press

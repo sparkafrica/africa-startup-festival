@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback } from "react";
 import { View, ScrollView, Pressable, Linking, Alert, Text, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -28,10 +28,13 @@ import {
   HeartIcon,
   HeartIconFilled,
 } from "../components/BottomNavIcons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useChecklist } from "../context/ChecklistContext";
+import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
+import { useNotifications } from "../context/NotificationsContext";
+import { useMeetingsBadgeCount } from "../hooks";
 import { eventService, type EventSchedule } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
@@ -72,6 +75,9 @@ import { ApiClientError } from "../services/api";
 export default function ScheduleScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
+  const meetingsBadgeCount = useMeetingsBadgeCount();
+  const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
+  const { hasUnreadNotifications } = useNotifications();
   const [selectedStage, setSelectedStage] =
     React.useState<string>("main-stage");
   const [isFilterModalVisible, setIsFilterModalVisible] = React.useState(false);
@@ -305,6 +311,12 @@ export default function ScheduleScreen() {
     fetchEventSchedules();
   }, [fetchEventSchedules]);
 
+  useFocusEffect(
+    useCallback(() => {
+      refreshMeetingsBadge();
+    }, [refreshMeetingsBadge])
+  );
+
   // MOCK DATA - Commented out, using backend API now
   /*
   React.useEffect(() => {
@@ -512,23 +524,11 @@ export default function ScheduleScreen() {
 
   const filterCategories: FilterCategory[] = [
     {
-      id: "time",
-      title: "Time",
-      options: [
-        { id: "10:00 AM", label: "10:00 AM" },
-        { id: "10:20 AM", label: "10:20 AM" },
-        { id: "11:00 AM", label: "11:00 AM" },
-        { id: "11:20 AM", label: "11:20 AM" },
-        { id: "12:00 PM", label: "12:00 PM" },
-        { id: "12:20 PM", label: "12:20 PM" },
-      ],
-    },
-    {
       id: "days",
       title: "Days",
       options: [
-        { id: "26th June, 2025", label: "26th June, 2025" },
-        { id: "27th June, 2025", label: "27th June, 2025" },
+        { id: "26th June, 2026", label: "26th June, 2026" },
+        { id: "27th June, 2026", label: "27th June, 2026" },
       ],
     },
   ];
@@ -573,6 +573,7 @@ export default function ScheduleScreen() {
         ),
       label: "Meetings",
       route: "Meetings",
+      badge: meetingsBadgeCount,
     },
     {
       icon: (active: boolean) =>
@@ -593,6 +594,7 @@ export default function ScheduleScreen() {
         onScanPress={() => navigation.navigate("ScanQR")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
+        hasUnreadNotifications={hasUnreadNotifications}
       />
 
       {/* Fixed Header Section */}

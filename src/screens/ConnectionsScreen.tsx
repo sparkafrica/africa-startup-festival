@@ -21,6 +21,10 @@ import {
   RequestMeetingModal,
 } from "../components";
 import {
+  getCanUserBookMeetings,
+  showExpoCannotBookMeetingAlert,
+} from "../utils/meetingRestrictions";
+import {
   HomeIcon,
   HomeIconFilled,
   PeopleIcon,
@@ -40,11 +44,14 @@ import type { RootStackParamList } from "../navigation/types";
 import type { MeetingFormData } from "../components";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
+import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useChecklist } from "../context/ChecklistContext";
+import { useNotifications } from "../context/NotificationsContext";
 import { connectionService, type Connection as BackendConnection } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
+import { useMeetingsBadgeCount } from "../hooks";
 import Toast from "../components/Toast";
 import { EVENT_ID } from "../config/env";
 
@@ -224,6 +231,9 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
 export default function ConnectionsScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
+  const meetingsBadgeCount = useMeetingsBadgeCount();
+  const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
+  const { hasUnreadNotifications } = useNotifications();
   const { user } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const { markRequestMeetingComplete } = useChecklist();
@@ -350,8 +360,9 @@ export default function ConnectionsScreen() {
   // Fetch on mount and when screen gains focus (e.g. after connecting from Attendees)
   useFocusEffect(
     useCallback(() => {
+      refreshMeetingsBadge();
       fetchConnections();
-    }, [fetchConnections])
+    }, [fetchConnections, refreshMeetingsBadge])
   );
 
   // Filter connections based on search query (commented out for now)
@@ -759,6 +770,7 @@ export default function ConnectionsScreen() {
         ),
       label: "Meetings",
       route: "Meetings",
+      badge: meetingsBadgeCount,
     },
     {
       icon: (active: boolean) =>
@@ -882,6 +894,7 @@ export default function ConnectionsScreen() {
         onScanPress={() => navigation.navigate("ScanQR")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
+        hasUnreadNotifications={hasUnreadNotifications}
       />
 
       {/* Loading spinner for meeting submission */}
@@ -1187,10 +1200,16 @@ export default function ConnectionsScreen() {
                   {/* Show Request Meeting button for accepted connections */}
                   {selectedConnection.status === "accepted" && (
                     <Pressable
-                      onPress={() => {
-                        setMeetingConnection(selectedConnection);
-                        closeBottomSheet();
-                        setIsRequestMeetingModalVisible(true);
+                      onPress={async () => {
+                        const canBook = await getCanUserBookMeetings();
+                        if (canBook) {
+                          setMeetingConnection(selectedConnection);
+                          closeBottomSheet();
+                          setIsRequestMeetingModalVisible(true);
+                        } else {
+                          closeBottomSheet();
+                          showExpoCannotBookMeetingAlert(navigation);
+                        }
                       }}
                       className="w-full flex-row items-center justify-center bg-neutral-900 rounded-xl py-3.5 px-4 mb-3"
                     >

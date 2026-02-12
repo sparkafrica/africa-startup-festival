@@ -126,6 +126,7 @@ class ApiClient {
   private client: AxiosInstance;
   private isRefreshing = false;
   private refreshSubscribers: Array<(token: string) => void> = [];
+  private onSessionExpired: (() => void) | null = null;
 
   constructor() {
     // Create axios instance with base configuration
@@ -218,12 +219,10 @@ class ApiClient {
             }
             return this.client(originalRequest);
           } catch (refreshError) {
-            // Refresh failed - clear tokens and redirect to login
+            // Refresh failed - clear tokens and notify app to log user out
             await this.clearTokens();
             this.refreshSubscribers = [];
-
-            // You can emit an event here to trigger logout in your app
-            // For now, we'll just reject the error
+            this.onSessionExpired?.();
             return Promise.reject(refreshError);
           } finally {
             this.isRefreshing = false;
@@ -268,6 +267,14 @@ class ApiClient {
    */
   async getToken(): Promise<string | null> {
     return await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+  }
+
+  /**
+   * Register a callback when session expires (e.g. no refresh token or refresh failed).
+   * AuthContext should set this to clear user state and redirect to login.
+   */
+  setOnSessionExpired(callback: (() => void) | null): void {
+    this.onSessionExpired = callback;
   }
 
   /**

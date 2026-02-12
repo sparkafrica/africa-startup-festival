@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path, Circle } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
 import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
-import { getTicketTypeDisplay } from "../utils/ticketColors";
+import { getTicketTypeDisplay, getTicketGradientColors } from "../utils/ticketColors";
 
 import {
   TicketsIcon,
@@ -23,6 +24,7 @@ import {
 
 interface MenuProps {
   onClose: () => void;
+  refreshTrigger?: number;
   onNavigate?: (route: string) => void;
   onLogout?: () => void;
 }
@@ -30,13 +32,14 @@ interface MenuProps {
 // Slate - neutral loading color to avoid green→blue flash for assignees
 const LOADING_COLOR = "#475569";
 
-export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
+export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: MenuProps) {
   const { user } = useAuth();
   const [ticketType, setTicketType] = useState<string | null>(null);
   const [ticketLoading, setTicketLoading] = useState(true);
 
   // Fetch user's ticket to use its type for Menu card (color + badge)
-  // Ticket type takes precedence over company_type (assignee shows Exhibitor if they have Exhibitor ticket)
+  // Prefer type.name (canonical tier) over user_type so colors stay correct when backend updates pass type
+  // bypassCache so we always get fresh pass type on open (avoids stale delegate/exhibitor after backend change)
   useEffect(() => {
     if (!user) {
       setTicketLoading(false);
@@ -44,22 +47,28 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
     }
     setTicketLoading(true);
     ticketService
-      .getUserTicket(EVENT_ID)
+      .getUserTicket(EVENT_ID, { bypassCache: true })
       .then((ticket) => {
-        const type = ticket?.type?.user_type ?? ticket?.type?.name ?? ticket?.ticket_class?.user_type ?? null;
+        const type =
+          ticket?.type?.name ??
+          ticket?.type?.user_type ??
+          ticket?.ticket_class?.name ??
+          ticket?.ticket_class?.user_type ??
+          null;
         setTicketType(type ?? null);
       })
       .catch(() => setTicketType(null))
       .finally(() => setTicketLoading(false));
-  }, [user?.user_id]);
+  }, [user?.user_id, refreshTrigger]);
 
   // Get user profile data
-  const userName = user?.first_name && user?.last_name 
-    ? `${user.first_name} ${user.last_name}`.trim()
-    : user?.first_name || user?.email?.split('@')[0] || "User";
-  
+  const userName =
+    user?.first_name && user?.last_name
+      ? `${user.first_name} ${user.last_name}`.trim()
+      : user?.first_name || user?.email?.split("@")[0] || "User";
+
   const userEmail = user?.email || "";
-  
+
   // Badge and color: prefer ticket type, then company type (so assignee with Exhibitor ticket shows Exhibitor)
   // While loading, use slate to avoid green flash before real ticket type loads
   const companyType = user?.company?.company_type ?? "";
@@ -68,10 +77,11 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
     ? { label: "...", color: LOADING_COLOR }
     : getTicketTypeDisplay(effectiveType);
   const { label: userType, color: cardBackgroundColor } = display;
-  
+  const cardGradient = getTicketGradientColors(effectiveType);
+
   // Get profile picture URL if available
   const profilePicUrl = user?.profile_pic || null;
-  
+
   const menuItems = [
     {
       label: "My Ticket(s)",
@@ -104,7 +114,7 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
       route: "Contact",
     },
     {
-      label: "App Guide Video",
+      label: "App Guide",
       icon: <VideoIcon size={20} color="#444" />,
       route: "AppGuide",
     },
@@ -130,16 +140,16 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 40 }}
         >
-          {/* Profile Card */}
+          {/* Profile Card – all types use left-to-right gradient */}
           <View className="px-6 mt-4">
-            <View
+            <LinearGradient
+              colors={cardGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
               className="rounded-2xl p-5 overflow-hidden"
-              style={{ backgroundColor: cardBackgroundColor }}
             >
-              {/* Decorative Background Graphics */}
               <View className="absolute inset-0 opacity-20">
                 <Svg width="100%" height="100%" viewBox="0 0 200 120">
-                  {/* Treble Clef */}
                   <Path
                     d="M20 20C20 20 25 15 30 18C35 21 35 30 30 40C25 50 20 60 25 70C30 80 40 85 50 80C60 75 65 65 60 55C55 45 50 35 55 25C60 15 70 10 80 15C90 20 95 30 90 40C85 50 80 60 85 70C90 80 100 85 110 80"
                     stroke="white"
@@ -147,65 +157,33 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
                     fill="none"
                     strokeLinecap="round"
                   />
-                  {/* Musical Note 1 */}
                   <Circle cx="140" cy="30" r="3" fill="white" />
-                  <Path
-                    d="M140 30L140 50M140 50L150 45"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                  {/* Musical Note 2 */}
+                  <Path d="M140 30L140 50M140 50L150 45" stroke="white" strokeWidth="2" strokeLinecap="round" />
                   <Circle cx="160" cy="50" r="3" fill="white" />
-                  <Path
-                    d="M160 50L160 70M160 70L170 65"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                  {/* Musical Note 3 */}
+                  <Path d="M160 50L160 70M160 70L170 65" stroke="white" strokeWidth="2" strokeLinecap="round" />
                   <Circle cx="120" cy="70" r="3" fill="white" />
-                  <Path
-                    d="M120 70L120 90M120 90L130 85"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
+                  <Path d="M120 70L120 90M120 90L130 85" stroke="white" strokeWidth="2" strokeLinecap="round" />
                 </Svg>
               </View>
-
               <View className="flex-row items-center relative z-10">
                 <View className="w-12 h-12 rounded-full bg-white items-center justify-center mr-4 overflow-hidden">
                   {profilePicUrl ? (
-                    <Image 
-                      source={{ uri: profilePicUrl }} 
-                      className="w-full h-full"
-                      resizeMode="cover"
-                    />
+                    <Image source={{ uri: profilePicUrl }} className="w-full h-full" resizeMode="cover" />
                   ) : (
                     <UserAvatarIcon size={28} color="#1BB273" />
                   )}
                 </View>
-
                 <View className="flex-1">
                   <View className="flex-row items-center space-x-2">
-                    <Text className="text-white text-[18px] font-bold">
-                      {userName}
-                    </Text>
-
+                    <Text className="text-white text-[18px] font-bold">{userName}</Text>
                     <View className="px-2 py-[2px] bg-white/30 rounded-full">
-                      <Text className="text-white text-[12px] capitalize">
-                        {userType}
-                      </Text>
+                      <Text className="text-white text-[12px] capitalize">{userType}</Text>
                     </View>
                   </View>
-
-                  <Text className="text-white/80 text-[14px] mt-1">
-                    {userEmail}
-                  </Text>
+                  <Text className="text-white/80 text-[14px] mt-1">{userEmail}</Text>
                 </View>
               </View>
-            </View>
+            </LinearGradient>
           </View>
 
           {/* Menu Items */}
@@ -217,7 +195,7 @@ export default function Menu({ onClose, onNavigate, onLogout }: MenuProps) {
                   onNavigate?.(item.route);
                 }}
                 className={`flex-row items-center py-4 border-b border-neutral-100 ${
-                  item.label === "App Guide Video" ? "px-6" : "px-6"
+                  item.label === "App Guide" ? "px-6" : "px-6"
                 }`}
               >
                 <View className="w-8 mr-2 flex-shrink-0">{item.icon}</View>

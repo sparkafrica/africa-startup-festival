@@ -30,6 +30,10 @@ import { eventService } from "../services/eventService";
 import { meetingService } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
+import {
+  getCanUserBookMeetings,
+  showExpoCannotBookMeetingAlert,
+} from "../utils/meetingRestrictions";
 
 // ============================================
 // MODAL HEIGHT CONFIGURATION
@@ -426,8 +430,10 @@ export default function SpeakerDetailScreen({ route }: Props) {
           <View className="px-4 pt-8 pb-6">
             <Pressable
               className="bg-neutral-900 rounded-xl py-4 items-center flex-row justify-center mb-3"
-              onPress={() => {
-                setIsRequestMeetingModalVisible(true);
+              onPress={async () => {
+                const canBook = await getCanUserBookMeetings();
+                if (canBook) setIsRequestMeetingModalVisible(true);
+                else showExpoCannotBookMeetingAlert(navigation);
               }}
               style={{
                 shadowColor: "#000",

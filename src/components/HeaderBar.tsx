@@ -53,7 +53,7 @@ export default function HeaderBar({
             hitSlop={10}
           >
             <BellIcon size={18} color="#404040" />
-            {/* Red notification dot - only shown when there are unread notifications */}
+            {/* Green notification badge - shown when there are unread notifications */}
             {hasUnreadNotifications && (
               <View
                 style={{
@@ -63,7 +63,7 @@ export default function HeaderBar({
                   width: 9,
                   height: 9,
                   borderRadius: 4.5,
-                  backgroundColor: "#F04D52",
+                  backgroundColor: "#22C55E",
                   borderWidth: 2,
                   borderColor: "#FFF",
                 }}

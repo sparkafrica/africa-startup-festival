@@ -31,3 +31,7 @@ export { ticketService } from "./ticketService";
 export { companyService } from "./companyService";
 export { connectionService } from "./connectionService";
 export { meetingService } from "./meetingService";
+export { jobService } from "./jobService";
+export type { CompanyJobs, JobItem, JobItemType } from "./jobService";
+export { offerService } from "./offerService";
+export type { PartnerOffer } from "./offerService";

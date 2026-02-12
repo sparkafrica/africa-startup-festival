@@ -1,0 +1,593 @@
+/**
+ * Upgrade Ticket Modal – two steps:
+ * 1) Select new ticket tier, tap "Upgrade to [tier]"
+ * 2) Select payment method from backend enum (modal step); then API is called and user is redirected to payment link.
+ */
+
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  Linking,
+  Alert,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  ticketService,
+  type TicketClass,
+  UPGRADE_PAYMENT_METHODS,
+} from "../services/ticketService";
+import { ApiClientError } from "../services/api";
+import { getTicketBackgroundColor, getTicketGradientColors } from "../utils/ticketColors";
+import { colors, typography, spacing, borderRadius } from "../theme/theme";
+import { LinearGradient } from "expo-linear-gradient";
+
+const TIER_ORDER = "Expo → Oasis → Delegate → Chairperson";
+
+/** Tier sort order (lowest to highest): Expo=0, Oasis=1, Delegate=2, Chairperson=3 */
+function tierSortKey(nameOrType?: string): number {
+  const t = (nameOrType ?? "").toLowerCase();
+  if (t.includes("chairperson") || t.includes("founder")) return 3;
+  if (t.includes("delegate")) return 2;
+  if (t.includes("oasis")) return 1;
+  // expo, attendee, general, or unknown
+  return 0;
+}
+
+/**
+ * Filter ticket classes to upgrade targets only (Oasis, Delegate, Chairperson),
+ * then keep only tiers strictly above the user's current tier (no same-tier or downgrade).
+ * - Expo (0) → Oasis, Delegate, Chairperson
+ * - Oasis (1) → Delegate, Chairperson
+ * - Delegate (2) → Chairperson only
+ * - Chairperson (3) → none
+ */
+function filterAndSortUpgradeClasses(
+  classes: TicketClass[],
+  currentTierLabel: string
+): TicketClass[] {
+  const userTierKey = tierSortKey(currentTierLabel);
+  return classes
+    .filter((c) => {
+      const tierKey = tierSortKey(c.name || c.user_type);
+      return tierKey > 0 && tierKey > userTierKey;
+    })
+    .sort((a, b) => tierSortKey(a.name || a.user_type) - tierSortKey(b.name || b.user_type));
+}
+
+export interface UpgradeTicketModalProps {
+  visible: boolean;
+  onClose: () => void;
+  currentTierLabel: string;
+  ticketId: number;
+  eventId: number;
+  onSuccess: () => void;
+}
+
+export default function UpgradeTicketModal({
+  visible,
+  onClose,
+  currentTierLabel,
+  ticketId,
+  eventId,
+  onSuccess,
+}: UpgradeTicketModalProps) {
+  const [classesLoading, setClassesLoading] = useState(false);
+  const [classesError, setClassesError] = useState<string | null>(null);
+  const [upgradeOptions, setUpgradeOptions] = useState<
+    { ticket_class_id: number; value: string; label: string }[]
+  >([]);
+  const [selectedTicketClassId, setSelectedTicketClassId] = useState<number | null>(null);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchClasses = useCallback(async () => {
+    if (!eventId) return;
+    setClassesLoading(true);
+    setClassesError(null);
+    try {
+      const classes = await ticketService.getTicketClasses(eventId);
+      const sorted = filterAndSortUpgradeClasses(classes, currentTierLabel);
+      const options = sorted.map((c) => ({
+        ticket_class_id: c.id,
+        // Use name first for value so color lookup gets "oasis"/"delegate"/"chairperson" (name), not generic user_type e.g. "attendee"
+        value: (c.name || c.user_type || "").toLowerCase(),
+        label: c.name || c.user_type || "Ticket",
+      }));
+      setUpgradeOptions(options);
+      // Always set selection to first available option (only higher tiers are in the list)
+      setSelectedTicketClassId(options.length > 0 ? options[0].ticket_class_id : null);
+    } catch (err) {
+      const msg =
+        err instanceof ApiClientError ? err.message : "Failed to load ticket options.";
+      setClassesError(msg);
+    } finally {
+      setClassesLoading(false);
+    }
+  }, [eventId, currentTierLabel]);
+
+  useEffect(() => {
+    if (visible && eventId) {
+      setError(null);
+      setStep(1);
+      fetchClasses();
+    }
+  }, [visible, eventId, fetchClasses]);
+
+  const selectedOption = upgradeOptions.find(
+    (o) => o.ticket_class_id === selectedTicketClassId
+  );
+  const selectedLabel = selectedOption?.label ?? "";
+
+  const handleUpgrade = async (paymentMethod: string) => {
+    if (selectedTicketClassId == null) return;
+    setError(null);
+    setLoading(true);
+    const currency = "NGN";
+    try {
+      const result = await ticketService.upgradeTicket(
+        eventId,
+        ticketId,
+        selectedTicketClassId,
+        paymentMethod,
+        currency
+      );
+      const paymentUrl = result?.payment_url;
+      const amount = result?.amount ?? "";
+      if (paymentUrl) {
+        onSuccess();
+        onClose();
+        const message =
+          amount !== ""
+            ? `Amount to pay: ${amount}. You will be redirected to complete payment.`
+            : "You will be redirected to complete payment.";
+        Alert.alert("Complete payment", message, [
+          { text: "Open payment", onPress: () => Linking.openURL(paymentUrl) },
+          { text: "Later" },
+        ]);
+      } else {
+        onSuccess();
+        onClose();
+      }
+    } catch (err) {
+      let message = "Upgrade failed. Please try again.";
+      if (err instanceof ApiClientError) {
+        message = err.message || message;
+        const d = err.data;
+        const errList = d?.errors ?? d?.data?.errors;
+        if (errList != null) {
+          const parts =
+            typeof errList === "object" && !Array.isArray(errList)
+              ? Object.entries(errList).map(
+                  ([k, v]) =>
+                    `${k}: ${Array.isArray(v) ? (v as any[]).join(", ") : v}`
+                )
+              : [String(errList)];
+          if (parts.length) message = message + "\n\n" + parts.join("\n");
+        }
+      }
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+
+          {step === 1 ? (
+            <>
+              <Text style={styles.title}>Upgrade your ticket</Text>
+              <Text style={styles.subtitle}>
+                You have a {currentTierLabel} pass. Choose the pass you want to upgrade to.
+              </Text>
+              <View style={styles.tierInfo}>
+                <Text style={styles.tierInfoLabel}>Ticket tiers</Text>
+                <Text style={styles.tierOrder}>{TIER_ORDER}</Text>
+              </View>
+              {classesLoading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color={colors.text.primary} />
+                  <Text style={styles.loadingText}>Loading ticket options...</Text>
+                </View>
+              ) : classesError ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{classesError}</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.chooseLabel}>Upgrade to</Text>
+                  <View style={styles.options}>
+                    {upgradeOptions.map((opt) => {
+                      const isSelected = selectedTicketClassId === opt.ticket_class_id;
+                      const tierColor = getTicketBackgroundColor(opt.value);
+                      const gradientColors = getTicketGradientColors(opt.value);
+                      return (
+                        <Pressable
+                          key={opt.ticket_class_id}
+                          onPress={() => setSelectedTicketClassId(opt.ticket_class_id)}
+                          style={[
+                            styles.optionRow,
+                            isSelected && {
+                              borderColor: tierColor,
+                              backgroundColor: colors.neutral[50],
+                            },
+                          ]}
+                        >
+                          {isSelected ? (
+                            <LinearGradient
+                              colors={gradientColors}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 0 }}
+                              style={styles.optionRowAccent}
+                            />
+                          ) : null}
+                          <View
+                            style={[
+                              styles.radioOuter,
+                              isSelected && { borderColor: tierColor },
+                            ]}
+                          >
+                            {isSelected ? (
+                              <View
+                                style={[
+                                  styles.radioInner,
+                                  { backgroundColor: tierColor },
+                                ]}
+                              />
+                            ) : null}
+                          </View>
+                          <Text
+                            style={[
+                              styles.optionLabel,
+                              isSelected && {
+                                color: tierColor,
+                                fontWeight: "600",
+                              },
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+              <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <Pressable
+                  onPress={() => setStep(2)}
+                  disabled={classesLoading || upgradeOptions.length === 0}
+                  style={({ pressed }) => [
+                    styles.primaryButton,
+                    pressed && styles.primaryButtonPressed,
+                    (classesLoading || upgradeOptions.length === 0) &&
+                      styles.primaryButtonDisabled,
+                  ]}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {upgradeOptions.length === 0
+                      ? "No options"
+                      : `Upgrade to ${selectedLabel}`}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={onClose}
+                  style={({ pressed }) => [
+                    styles.secondaryButton,
+                    pressed && styles.secondaryButtonPressed,
+                  ]}
+                >
+                  <Text style={styles.secondaryButtonText}>Cancel</Text>
+                </Pressable>
+              </ScrollView>
+            </>
+          ) : (
+            <>
+              <View style={styles.stepHeader}>
+                <Pressable
+                  onPress={() => { setStep(1); setError(null); }}
+                  style={styles.backButton}
+                  hitSlop={10}
+                >
+                  <Text style={styles.backButtonText}>← Back</Text>
+                </Pressable>
+                <Text style={styles.stepTitle}>Select payment method</Text>
+                <Text style={styles.stepSubtitle}>
+                  You’re upgrading to {selectedLabel}. Choose how to pay.
+                </Text>
+              </View>
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+              {loading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color={colors.text.primary} />
+                  <Text style={styles.loadingText}>Processing…</Text>
+                </View>
+              ) : (
+                <View style={styles.paymentList}>
+                  {UPGRADE_PAYMENT_METHODS.map((pm) => (
+                    <Pressable
+                      key={pm.value}
+                      onPress={() => handleUpgrade(pm.value)}
+                      style={({ pressed }) => [
+                        styles.paymentMethodRow,
+                        pressed && styles.paymentMethodRowPressed,
+                      ]}
+                    >
+                      <Text style={styles.paymentMethodLabel}>{pm.label}</Text>
+                      <Text style={styles.paymentMethodChevron}>→</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+          <SafeAreaView edges={["bottom"]} style={styles.safeBottom} />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: spacing[6],
+    paddingTop: spacing[2],
+  },
+  handle: {
+    width: 48,
+    height: 4,
+    backgroundColor: colors.neutral[300],
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: spacing[4],
+  },
+  title: {
+    fontSize: typography.fontSize["2xl"],
+    fontWeight: "700",
+    color: colors.text.primary,
+    fontFamily: typography.fontFamily["inter-bold"],
+    marginBottom: spacing[2],
+  },
+  subtitle: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+    fontFamily: typography.fontFamily.sans,
+    marginBottom: spacing[5],
+  },
+  tierInfo: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing[4],
+    marginBottom: spacing[5],
+    borderWidth: 1,
+    borderColor: colors.neutral[200],
+  },
+  tierInfoLabel: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.tertiary,
+    fontFamily: typography.fontFamily.sans,
+    marginBottom: spacing[2],
+  },
+  tierOrder: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.primary,
+    fontFamily: typography.fontFamily["inter-medium"],
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2],
+    marginBottom: spacing[4],
+  },
+  loadingText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    fontFamily: typography.fontFamily.sans,
+  },
+  chooseLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: "600",
+    color: colors.text.primary,
+    fontFamily: typography.fontFamily["inter-semibold"],
+    marginBottom: spacing[3],
+  },
+  options: {
+    marginBottom: spacing[5],
+  },
+  optionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[4],
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.neutral[200],
+    marginBottom: spacing[2],
+    overflow: "hidden",
+    position: "relative",
+  },
+  optionRowAccent: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    borderTopLeftRadius: borderRadius.md,
+    borderBottomLeftRadius: borderRadius.md,
+  },
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.neutral[300],
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing[3],
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  optionLabel: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.primary,
+    fontFamily: typography.fontFamily.sans,
+  },
+  stepHeader: {
+    marginBottom: spacing[5],
+  },
+  backButton: {
+    alignSelf: "flex-start",
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[1],
+    marginBottom: spacing[3],
+  },
+  backButtonText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    fontFamily: typography.fontFamily.sans,
+  },
+  stepTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: "700",
+    color: colors.text.primary,
+    fontFamily: typography.fontFamily["inter-bold"],
+    marginBottom: spacing[2],
+  },
+  stepSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    fontFamily: typography.fontFamily.sans,
+    marginBottom: spacing[4],
+  },
+  paymentList: {
+    gap: spacing[2],
+  },
+  paymentMethodRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing[4],
+    paddingHorizontal: spacing[4],
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.neutral[200],
+    backgroundColor: colors.background,
+  },
+  paymentMethodRowPressed: {
+    opacity: 0.8,
+  },
+  paymentMethodLabel: {
+    fontSize: typography.fontSize.base,
+    fontWeight: "500",
+    color: colors.text.primary,
+    fontFamily: typography.fontFamily["inter-medium"],
+  },
+  paymentMethodChevron: {
+    fontSize: typography.fontSize.lg,
+    color: colors.neutral[400],
+  },
+  errorBox: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: borderRadius.md,
+    padding: spacing[4],
+    marginBottom: spacing[4],
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  errorText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.error,
+    fontFamily: typography.fontFamily.sans,
+  },
+  scroll: {
+    maxHeight: 160,
+  },
+  scrollContent: {
+    paddingBottom: spacing[10],
+  },
+  primaryButton: {
+    backgroundColor: colors.text.primary,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing[4],
+    paddingHorizontal: spacing[5],
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing[4],
+    minHeight: 52,
+  },
+  primaryButtonPressed: {
+    opacity: 0.9,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.7,
+  },
+  primaryButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: "600",
+    color: colors.text.inverse,
+    fontFamily: typography.fontFamily["inter-semibold"],
+  },
+  secondaryButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing[4],
+    minHeight: 48,
+  },
+  secondaryButtonPressed: {
+    opacity: 0.7,
+  },
+  secondaryButtonText: {
+    fontSize: typography.fontSize.base,
+    color: colors.text.secondary,
+    fontFamily: typography.fontFamily.sans,
+  },
+  safeBottom: {
+    backgroundColor: colors.background,
+    paddingTop: spacing[4],
+  },
+});

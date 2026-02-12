@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { Alert } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
@@ -9,6 +9,13 @@ import Menu from "../components/Menu";
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { logout } = useAuth();
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      setRefreshTrigger((n) => n + 1);
+    }, [])
+  );
 
   const handleNavigate = (route: string) => {
     // Close menu first, then navigate
@@ -28,12 +35,10 @@ export default function MenuScreen() {
           console.log("Navigate to Map");
           break;
         case "Offers":
-          // TODO: Add Offers route when implemented
-          console.log("Navigate to Offers");
+          navigation.navigate("PartnersOffers");
           break;
         case "Talent":
-          // TODO: Add Talent route when implemented
-          console.log("Navigate to Talent");
+          navigation.navigate("Talent");
           break;
         case "Contact":
           navigation.navigate("Contact");
@@ -79,6 +84,7 @@ export default function MenuScreen() {
   return (
     <Menu
       onClose={() => navigation.goBack()}
+      refreshTrigger={refreshTrigger}
       onNavigate={handleNavigate}
       onLogout={handleLogout}
     />

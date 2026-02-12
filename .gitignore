@@ -42,7 +42,8 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files (secrets like EXPO_PUBLIC_SPARK_API_KEY go here; do not commit)
+.env
 .env*.local
 
 # Firebase service account key (upload to EAS, never commit)

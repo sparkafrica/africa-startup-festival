@@ -31,12 +31,19 @@ import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useChecklist } from "../context/ChecklistContext";
 import { useAuth } from "../context/AuthContext";
+import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
+import { useNotifications } from "../context/NotificationsContext";
 import { attendeeService, type Attendee as BackendAttendee } from "../services/attendeeService";
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
+import {
+  getCanUserBookMeetings,
+  showExpoCannotBookMeetingAlert,
+} from "../utils/meetingRestrictions";
 import { useToast } from "../hooks/useToast";
+import { useMeetingsBadgeCount } from "../hooks";
 import Toast from "../components/Toast";
 import {
   HeaderBar,
@@ -708,6 +715,9 @@ function AttendeeCard({
 export default function AttendeesScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
+  const meetingsBadgeCount = useMeetingsBadgeCount();
+  const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
+  const { hasUnreadNotifications } = useNotifications();
   const { markConnectAttendeesComplete, markRequestMeetingComplete } =
     useChecklist();
   const { user } = useAuth();
@@ -1065,6 +1075,7 @@ export default function AttendeesScreen() {
   // Refetch on screen focus only if data is empty
   useFocusEffect(
     useCallback(() => {
+      refreshMeetingsBadge();
       if (allAttendeesBackend.length === 0 && !isLoading) {
         fetchAttendees();
       }
@@ -1564,6 +1575,7 @@ export default function AttendeesScreen() {
         ),
       label: "Meetings",
       route: "Meetings",
+      badge: meetingsBadgeCount,
     },
     {
       icon: (active: boolean) =>
@@ -1583,6 +1595,7 @@ export default function AttendeesScreen() {
         onScanPress={() => navigation.navigate("ScanQR")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
+        hasUnreadNotifications={hasUnreadNotifications}
       />
 
       <View className="flex-1">
@@ -1814,9 +1827,14 @@ export default function AttendeesScreen() {
                         attendee={attendee}
                         onSwipeLeft={handleReject}
                         onSwipeRight={handleAccept}
-                        onRequestMeeting={(attendee) => {
-                          setMeetingAttendee(attendee);
-                          setIsRequestMeetingModalVisible(true);
+                        onRequestMeeting={async (attendee) => {
+                          const canBook = await getCanUserBookMeetings();
+                          if (canBook) {
+                            setMeetingAttendee(attendee);
+                            setIsRequestMeetingModalVisible(true);
+                          } else {
+                            showExpoCannotBookMeetingAlert(navigation);
+                          }
                         }}
                         onConnect={(attendee) => handleConnect(attendee, true)}
                         index={index}
@@ -2146,10 +2164,16 @@ export default function AttendeesScreen() {
                 {/* Action Buttons */}
                 <View className="mt-2">
                   <Pressable
-                    onPress={() => {
-                      setMeetingAttendee(selectedAttendee);
-                      closeBottomSheet();
-                      setIsRequestMeetingModalVisible(true);
+                    onPress={async () => {
+                      const canBook = await getCanUserBookMeetings();
+                      if (canBook) {
+                        setMeetingAttendee(selectedAttendee);
+                        closeBottomSheet();
+                        setIsRequestMeetingModalVisible(true);
+                      } else {
+                        closeBottomSheet();
+                        showExpoCannotBookMeetingAlert(navigation);
+                      }
                     }}
                     className="w-full flex-row items-center justify-center bg-black rounded-xl py-3 px-4 mb-2"
                   >

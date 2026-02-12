@@ -28,6 +28,11 @@ import { EVENT_ID } from "../config/env";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
 
+// Fixed dropdown drawer: show ~5 options, scroll inside (no pushing modal content)
+const DROPDOWN_ROW_HEIGHT = 48;
+const DROPDOWN_VISIBLE_ROWS = 5;
+const DROPDOWN_DRAWER_MAX_HEIGHT = DROPDOWN_ROW_HEIGHT * DROPDOWN_VISIBLE_ROWS;
+
 interface RequestMeetingModalProps {
   visible: boolean;
   onClose: () => void;
@@ -416,6 +421,98 @@ export default function RequestMeetingModal({
             style={styles.keyboardAvoidingView}
             keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
           >
+            <View style={styles.contentWrapper}>
+              {/* Fixed drawer overlay for Time / Table — does not push modal content */}
+              {(showTimePicker || showTablePicker) && (
+                <>
+                  <Pressable
+                    style={styles.dropdownBackdrop}
+                    onPress={() => {
+                      setShowTimePicker(false);
+                      setShowTablePicker(false);
+                    }}
+                  />
+                  <View style={styles.dropdownDrawer}>
+                    <ScrollView
+                      style={styles.dropdownDrawerScroll}
+                      keyboardShouldPersistTaps="handled"
+                      showsVerticalScrollIndicator={true}
+                      nestedScrollEnabled
+                    >
+                      {showTimePicker &&
+                        (availableTimes.length === 0 ? (
+                          <View style={styles.emptyState}>
+                            <Text style={styles.emptyStateText}>
+                              {selectedDate
+                                ? "No available times for this date"
+                                : "Please select a date first"}
+                            </Text>
+                          </View>
+                        ) : (
+                          availableTimes.map((time) => (
+                            <Pressable
+                              key={time.id}
+                              style={styles.pickerOption}
+                              onPress={() => {
+                                setSelectedTime(time.label);
+                                setSelectedTimeKey(time.value);
+                                setTableNumber("");
+                                setShowTimePicker(false);
+                                clearError("time");
+                                if (
+                                  meetingType === "Virtual" ||
+                                  availableTimes.filter((t) => t.value === time.value).length === 1
+                                ) {
+                                  const slot = meetingSlots.find(
+                                    (s) => s.id === (time as any).slotId
+                                  );
+                                  setSelectedSlot(slot || null);
+                                }
+                              }}
+                            >
+                              <ClockIcon size={20} active={true} />
+                              <Text style={styles.pickerOptionText}>
+                                {time.label}
+                              </Text>
+                            </Pressable>
+                          ))
+                        ))}
+                      {showTablePicker &&
+                        (availableTables.length === 0 ? (
+                          <View style={styles.emptyState}>
+                            <Text style={styles.emptyStateText}>
+                              Please select a date and time first
+                            </Text>
+                          </View>
+                        ) : (
+                          availableTables.map((table: any) => (
+                            <Pressable
+                              key={table.id}
+                              style={styles.pickerOption}
+                              onPress={() => {
+                                setTableNumber(table.label);
+                                setShowTablePicker(false);
+                                clearError("tableNumber");
+                                const slot = meetingSlots.find(
+                                  (s: MeetingSlot) => s.id === table.slotId
+                                );
+                                setSelectedSlot(slot || null);
+                              }}
+                            >
+                              <Text style={styles.pickerOptionText}>
+                                {table.label}
+                              </Text>
+                              {tableNumber === table.label && (
+                                <Text style={styles.checkmark}>✓</Text>
+                              )}
+                            </Pressable>
+                          ))
+                        ))}
+                    </ScrollView>
+                  </View>
+                </>
+              )}
+
             <ScrollView
               ref={scrollViewRef}
               style={styles.content}
@@ -624,45 +721,6 @@ export default function RequestMeetingModal({
                   )}
                 </Pressable>
 
-                {/* Time Options */}
-                {showTimePicker && (
-                  <View style={styles.pickerOptions}>
-                    {availableTimes.length === 0 ? (
-                      <View style={styles.emptyState}>
-                        <Text style={styles.emptyStateText}>
-                          {selectedDate
-                            ? "No available times for this date"
-                            : "Please select a date first"}
-                        </Text>
-                      </View>
-                    ) : (
-                      availableTimes.map((time) => (
-                        <Pressable
-                          key={time.id}
-                          style={styles.pickerOption}
-                          onPress={() => {
-                            setSelectedTime(time.label); // Display label for UI
-                            setSelectedTimeKey(time.value); // TimeKey for filtering (e.g., "09:30:00-09:50:00")
-                            setTableNumber(""); // Reset table when time changes
-                            setShowTimePicker(false);
-                            clearError("time");
-                            
-                            // If virtual or only one slot for this time, auto-select
-                            if (meetingType === "Virtual" || availableTimes.filter(t => t.value === time.value).length === 1) {
-                              const slot = meetingSlots.find(s => s.id === (time as any).slotId);
-                              setSelectedSlot(slot || null);
-                            }
-                          }}
-                        >
-                          <ClockIcon size={20} active={true} />
-                          <Text style={styles.pickerOptionText}>
-                            {time.label}
-                          </Text>
-                        </Pressable>
-                      ))
-                    )}
-                  </View>
-                )}
                 {errors.time && (
                   <Text style={styles.errorText}>{errors.time}</Text>
                 )}
@@ -699,41 +757,6 @@ export default function RequestMeetingModal({
                     )}
                   </Pressable>
 
-                  {/* Table Options */}
-                  {showTablePicker && (
-                    <View style={styles.pickerOptions}>
-                      {availableTables.length === 0 ? (
-                        <View style={styles.emptyState}>
-                          <Text style={styles.emptyStateText}>
-                            Please select a date and time first
-                          </Text>
-                        </View>
-                      ) : (
-                        availableTables.map((table: any) => (
-                          <Pressable
-                            key={table.id}
-                            style={styles.pickerOption}
-                            onPress={() => {
-                              setTableNumber(table.label);
-                              setShowTablePicker(false);
-                              clearError("tableNumber");
-                              
-                              // Set the selected slot
-                              const slot = meetingSlots.find((s: MeetingSlot) => s.id === table.slotId);
-                              setSelectedSlot(slot || null);
-                            }}
-                          >
-                            <Text style={styles.pickerOptionText}>
-                              {table.label}
-                            </Text>
-                            {tableNumber === table.label && (
-                              <Text style={styles.checkmark}>✓</Text>
-                            )}
-                          </Pressable>
-                        ))
-                      )}
-                    </View>
-                  )}
                   {errors.tableNumber && (
                     <Text style={styles.errorText}>{errors.tableNumber}</Text>
                   )}
@@ -832,6 +855,7 @@ export default function RequestMeetingModal({
                 )}
               </View>
             </ScrollView>
+            </View>
           </KeyboardAvoidingView>
 
           <SafeAreaView edges={["bottom"]} style={styles.actionsContainer}>
@@ -995,6 +1019,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#171717",
     minHeight: 48,
+  },
+  contentWrapper: {
+    flex: 1,
+    position: "relative",
+  },
+  dropdownBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    zIndex: 10,
+  },
+  dropdownDrawer: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    top: 200,
+    maxHeight: DROPDOWN_DRAWER_MAX_HEIGHT,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
+    overflow: "hidden",
+    zIndex: 11,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  dropdownDrawerScroll: {
+    maxHeight: DROPDOWN_DRAWER_MAX_HEIGHT,
   },
   pickerOptions: {
     marginTop: 8,

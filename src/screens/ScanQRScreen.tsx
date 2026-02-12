@@ -15,6 +15,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
@@ -32,13 +33,23 @@ import { meetingService } from "../services/meetingService";
 import { useAuth } from "../context/AuthContext";
 import { useChecklist } from "../context/ChecklistContext";
 import { EVENT_ID } from "../config/env";
-import { getTicketBackgroundColor } from "../utils/ticketColors";
+import {
+  getTicketBackgroundColor,
+  getTicketTypeDisplay,
+  getTicketGradientColors,
+  isUpgradeableAttendeeTier,
+} from "../utils/ticketColors";
 import { ApiClientError } from "../services/api";
 import QRCode from "react-native-qrcode-svg";
 import RequestMeetingModal, {
   type MeetingFormData,
 } from "../components/RequestMeetingModal";
 import { LoadingSpinner } from "../components";
+import UpgradeTicketModal from "../components/UpgradeTicketModal";
+import {
+  getCanUserBookMeetings,
+  showExpoCannotBookMeetingAlert,
+} from "../utils/meetingRestrictions";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -427,6 +438,7 @@ function TicketCard({
   title,
   ticketNumber,
   backgroundColor,
+  ticketType,
   assignedTo,
   isUnassigned,
   isMyTicket,
@@ -437,26 +449,31 @@ function TicketCard({
   isAdminBlocked,
   eventId,
   allocationStatus,
+  canUpgrade,
   onViewQR,
   onTransfer,
+  onUpgrade,
   onAssign,
   onEditAssignment,
 }: {
   title: string;
   ticketNumber: string;
   backgroundColor: string;
+  ticketType?: string;
   assignedTo?: string;
   isUnassigned?: boolean;
   isMyTicket?: boolean;
-  canTransfer?: boolean; // Whether personal ticket can be transferred
-  totalTickets?: number; // Total number of tickets user has
-  availableToAssignCount?: number; // Number of unassigned tickets
-  availableCount?: number; // For unassigned quota card: count shown on card
-  isAdminBlocked?: boolean; // Whether transfer is blocked because user is admin
-  eventId?: number; // Event ID to determine if ATE event
+  canTransfer?: boolean;
+  totalTickets?: number;
+  availableToAssignCount?: number;
+  availableCount?: number;
+  isAdminBlocked?: boolean;
+  eventId?: number;
   allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled";
+  canUpgrade?: boolean;
   onViewQR?: () => void;
   onTransfer?: () => void;
+  onUpgrade?: () => void;
   onAssign?: () => void;
   onEditAssignment?: () => void;
 }) {
@@ -467,11 +484,16 @@ function TicketCard({
         ? "Available"
         : null;
 
+  const gradientColors = getTicketGradientColors(ticketType ?? "expo");
+  const cardClassName = "rounded-2xl p-5 relative overflow-hidden";
+
   return (
     <View className="mb-4">
-      <View
-        className="rounded-2xl p-5 relative overflow-hidden"
-        style={{ backgroundColor }}
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        className={cardClassName}
       >
         <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
           <View className="absolute top-3 right-3 w-10 h-10 border-2 border-white/30 rounded-lg" />
@@ -509,7 +531,7 @@ function TicketCard({
             </View>
           </View>
         </View>
-      </View>
+      </LinearGradient>
       {/* My Ticket buttons - View QR Code / Transfer Ticket */}
       {assignedTo && isMyTicket && (
         <View className="mt-8 gap-3 pr-4 pt-4">
@@ -523,6 +545,19 @@ function TicketCard({
               View QR Code
             </Text>
           </Pressable>
+
+          {/* Upgrade button - only for attendee tiers (Expo/Oasis/Delegate), not exhibitor/partner/chairperson */}
+          {canUpgrade && onUpgrade && (
+            <Pressable
+              onPress={onUpgrade}
+              className="flex-row items-center justify-center rounded-xl py-3.5 px-4 border border-neutral-400"
+              style={{ width: "100%", backgroundColor: "#f0fdf4" }}
+            >
+              <Text className="text-sm font-medium text-emerald-700">
+                Upgrade ticket
+              </Text>
+            </Pressable>
+          )}
 
           {/* Transfer button - only shown if transfer is allowed */}
           {canTransfer && onTransfer && (
@@ -881,11 +916,13 @@ function AssigningTicketsModal({
     title: string;
     ticketNumber: string;
     backgroundColor: string;
+    ticketType?: string;
   }>;
   onAssignTicket: (ticket: {
     title: string;
     ticketNumber: string;
     backgroundColor: string;
+    ticketType?: string;
   }) => void;
 }) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -978,45 +1015,51 @@ function AssigningTicketsModal({
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 24 }}
           >
-            {availableTickets.map((ticket, index) => (
-              <Pressable
-                key={index}
-                onPress={() => onAssignTicket(ticket)}
-                className="mb-4"
-              >
-                <View
-                  className="rounded-2xl p-5 relative overflow-hidden"
-                  style={{ backgroundColor: ticket.backgroundColor }}
+            {availableTickets.map((ticket, index) => {
+              const gradientColors = getTicketGradientColors(ticket.ticketType ?? "expo");
+              const cardClassName = "rounded-2xl p-5 relative overflow-hidden";
+              return (
+                <Pressable
+                  key={index}
+                  onPress={() => onAssignTicket(ticket)}
+                  className="mb-4"
                 >
-                  <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
-                    <View className="absolute top-3 right-3 w-10 h-10 border-2 border-white/30 rounded-lg" />
-                    <View className="absolute top-8 right-8 w-5 h-5 border-2 border-white/30 rounded" />
-                    <View className="absolute top-14 right-14 w-3 h-3 border border-white/30 rounded" />
-                  </View>
-                  <View className="flex-row items-start justify-between">
-                    <View className="flex-1 pr-3">
-                      <Text className="text-white text-2xl font-bold mb-2">
-                        {ticket.title}
-                      </Text>
-                      <Text className="text-white/50 text-base">
-                        {ticket.ticketNumber}
-                      </Text>
+                  <LinearGradient
+                    colors={gradientColors}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    className={cardClassName}
+                  >
+                    <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
+                      <View className="absolute top-3 right-3 w-10 h-10 border-2 border-white/30 rounded-lg" />
+                      <View className="absolute top-8 right-8 w-5 h-5 border-2 border-white/30 rounded" />
+                      <View className="absolute top-14 right-14 w-3 h-3 border border-white/30 rounded" />
                     </View>
-                    <View className="flex-row items-center gap-2">
-                      <View className="bg-white/20 px-2 py-1 rounded-full flex-row items-center">
-                        <View className="w-1.5 h-1.5 bg-white rounded-full mr-1" />
-                        <Text className="text-white text-xs font-medium">
-                          Unassigned
+                    <View className="flex-row items-start justify-between">
+                      <View className="flex-1 pr-3">
+                        <Text className="text-white text-2xl font-bold mb-2">
+                          {ticket.title}
+                        </Text>
+                        <Text className="text-white/50 text-base">
+                          {ticket.ticketNumber}
                         </Text>
                       </View>
-                      <View className="w-6 h-6 items-center justify-center">
-                        <TicketIcon size={18} color="#FFFFFF" />
+                      <View className="flex-row items-center gap-2">
+                        <View className="bg-white/20 px-2 py-1 rounded-full flex-row items-center">
+                          <View className="w-1.5 h-1.5 bg-white rounded-full mr-1" />
+                          <Text className="text-white text-xs font-medium">
+                            Unassigned
+                          </Text>
+                        </View>
+                        <View className="w-6 h-6 items-center justify-center">
+                          <TicketIcon size={18} color="#FFFFFF" />
+                        </View>
                       </View>
                     </View>
-                  </View>
-                </View>
-              </Pressable>
-            ))}
+                  </LinearGradient>
+                </Pressable>
+              );
+            })}
           </ScrollView>
           <SafeAreaView
             edges={["bottom"]}
@@ -3601,6 +3644,10 @@ interface Ticket {
   ticketClassId?: number; // For unassigned: quota allocation uses this
   availableCount?: number; // For unassigned: one card per quota, count shown on card
   allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled";
+  /** Personal ticket only: backend ticket id for upgrade API */
+  backendTicketId?: number;
+  /** Personal ticket only: type name/user_type for tier (Expo/Oasis/Delegate/Chairperson) */
+  ticketType?: string;
 }
 
 // Helper function to check if user is exhibitor/partner admin
@@ -3610,9 +3657,14 @@ function isExhibitorPartnerAdmin(
   if (!user || !user.company) {
     return false;
   }
-
-  // User is admin if company.admin_user matches user.user_id
   return user.company.admin_user === user.user_id;
+}
+
+// Only exhibitor/partner admins are blocked from transferring; chairperson/delegate/etc are not
+function isExhibitorOrPartnerType(typeOrCompany?: string | null): boolean {
+  if (!typeOrCompany || typeof typeOrCompany !== "string") return false;
+  const t = typeOrCompany.toLowerCase();
+  return t.includes("exhibitor") || t.includes("partner");
 }
 
 // Helper function to check if event is ATE (event_id = 10)
@@ -3629,8 +3681,15 @@ function canTransferPersonalTicket(
 ): { canTransfer: boolean; reason?: string; isAdminBlocked?: boolean } {
   // For ATE (event_id = 10)
   if (isATEEvent(eventId)) {
-    // Rule 1: Block exhibitor/partner admins
-    if (isExhibitorPartnerAdmin(user)) {
+    // Rule 1: Block only when user is company admin AND their pass/company is exhibitor or partner
+    // (Chairperson/delegate/etc with admin_user still set can transfer — backend may not have cleared admin)
+    const personalTicket = tickets.find((t) => t.isPersonal);
+    const personalType = personalTicket?.ticketType ?? personalTicket?.title ?? "";
+    const companyType = (user as any)?.company?.company_type ?? "";
+    const isExhibitorOrPartner =
+      isExhibitorOrPartnerType(personalType) || isExhibitorOrPartnerType(companyType);
+
+    if (isExhibitorPartnerAdmin(user) && isExhibitorOrPartner) {
       return {
         canTransfer: false,
         reason: "Exhibitor/partner admins cannot transfer personal tickets",
@@ -3697,6 +3756,7 @@ function MyTicketView({
   error,
   onViewQR,
   onTransfer,
+  onUpgrade,
   onEditAssignment,
   user,
   eventId,
@@ -3719,6 +3779,7 @@ function MyTicketView({
     isUnassigned?: boolean,
     ticket?: Ticket
   ) => void;
+  onUpgrade?: (ticket: Ticket) => void;
   onEditAssignment: (
     title: string,
     ticketNumber: string,
@@ -3800,53 +3861,65 @@ function MyTicketView({
         <Text className="text-[20px] font-semibold text-black mb-4">
           My Ticket
         </Text>
-        {myPersonalTickets.map((ticket) => (
-          <View
-            key={ticket.id}
-            style={{
-              backgroundColor: "#fff",
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: "#E5E7EB",
-              padding: 10,
-              overflow: "hidden",
-              marginBottom: 16,
-            }}
-          >
-            <TicketCard
-              title={ticket.title}
-              ticketNumber={ticket.ticketNumber}
-              backgroundColor={ticket.backgroundColor}
-              assignedTo={ticket.assignedTo}
-              isMyTicket={true}
-              canTransfer={canTransfer}
-              totalTickets={totalTickets}
-              availableToAssignCount={availableToAssignSlots}
-              isAdminBlocked={isAdminBlocked}
-              eventId={eventId}
-              onViewQR={() =>
-                onViewQR(
-                  ticket.title,
-                  ticket.ticketNumber,
-                  canTransfer,
-                  totalTickets,
-                  availableToAssignSlots
-                )
-              }
-              onTransfer={() =>
-                canTransfer
-                  ? onTransfer(
-                      ticket.title,
-                      ticket.ticketNumber,
-                      ticket.assignedTo || "",
-                      ticket.backgroundColor,
-                      false
-                    )
-                  : undefined
-              }
-            />
-          </View>
-        ))}
+        {myPersonalTickets.map((ticket) => {
+          const upgradeable =
+            isUpgradeableAttendeeTier(ticket.ticketType) &&
+            ticket.backendTicketId != null;
+          return (
+            <View
+              key={ticket.id}
+              style={{
+                backgroundColor: "#fff",
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "#E5E7EB",
+                padding: 10,
+                overflow: "hidden",
+                marginBottom: 16,
+              }}
+            >
+              <TicketCard
+                title={ticket.title}
+                ticketNumber={ticket.ticketNumber}
+                backgroundColor={ticket.backgroundColor}
+                ticketType={ticket.ticketType}
+                assignedTo={ticket.assignedTo}
+                isMyTicket={true}
+                canTransfer={canTransfer}
+                totalTickets={totalTickets}
+                availableToAssignCount={availableToAssignSlots}
+                isAdminBlocked={isAdminBlocked}
+                eventId={eventId}
+                canUpgrade={upgradeable}
+                onViewQR={() =>
+                  onViewQR(
+                    ticket.title,
+                    ticket.ticketNumber,
+                    canTransfer,
+                    totalTickets,
+                    availableToAssignSlots
+                  )
+                }
+                onTransfer={() =>
+                  canTransfer
+                    ? onTransfer(
+                        ticket.title,
+                        ticket.ticketNumber,
+                        ticket.assignedTo || "",
+                        ticket.backgroundColor,
+                        false
+                      )
+                    : undefined
+                }
+                onUpgrade={
+                  upgradeable && onUpgrade
+                    ? () => onUpgrade(ticket)
+                    : undefined
+                }
+              />
+            </View>
+          );
+        })}
 
         {assignedTickets.length > 0 && (
           <>
@@ -3870,6 +3943,7 @@ function MyTicketView({
                   title={ticket.title}
                   ticketNumber={ticket.ticketNumber}
                   backgroundColor={ticket.backgroundColor}
+                  ticketType={ticket.ticketType}
                   assignedTo={ticket.assignedTo}
                   isMyTicket={false}
                   allocationStatus={ticket.allocationStatus}
@@ -3919,6 +3993,7 @@ function MyTicketView({
                   title={ticket.title}
                   ticketNumber={ticket.ticketNumber}
                   backgroundColor={ticket.backgroundColor}
+                  ticketType={ticket.ticketType}
                   isUnassigned
                   availableCount={ticket.availableCount}
                   onAssign={
@@ -4050,6 +4125,10 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const [qrScannerModalVisible, setQrScannerModalVisible] = useState(false);
   const [requestMeetingModalVisible, setRequestMeetingModalVisible] =
     useState(false);
+  const [upgradeTicketModalVisible, setUpgradeTicketModalVisible] =
+    useState(false);
+  const [upgradeTicketModalTicket, setUpgradeTicketModalTicket] =
+    useState<Ticket | null>(null);
   const [recipientData, setRecipientData] = useState<{
     firstName: string;
     lastName: string;
@@ -4072,19 +4151,27 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
     const allTickets: Ticket[] = [];
 
-    // Step 1: Personal ticket
+    // Step 1: Personal ticket (bypassCache so pass type/colors stay correct after backend change)
     try {
-      const backendTicket = await ticketService.getUserTicket(EVENT_ID);
+      const backendTicket = await ticketService.getUserTicket(EVENT_ID, {
+        bypassCache: true,
+      });
+      const userType =
+        backendTicket.type?.name ??
+        backendTicket.type?.user_type ??
+        backendTicket.ticket_class?.name ??
+        backendTicket.ticket_class?.user_type ??
+        "";
       allTickets.push({
         id: String(backendTicket.id),
         title: backendTicket.type?.name || "Ticket",
         ticketNumber: backendTicket.ticket_code,
-        backgroundColor: getTicketBackgroundColor(
-          backendTicket.type?.user_type
-        ),
+        backgroundColor: getTicketBackgroundColor(userType),
         assignedTo: "You",
         isPersonal: true,
         isUnassigned: false,
+        backendTicketId: backendTicket.id,
+        ticketType: userType,
       });
     } catch (error: any) {
       const responseCode =
@@ -4129,6 +4216,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           title: alloc.ticket_class_name,
           ticketNumber: "",
           backgroundColor: getTicketBackgroundColor(alloc.ticket_class_name),
+          ticketType: alloc.ticket_class_name,
           assignedTo: displayName,
           assigneeEmail: alloc.email,
           assigneePhone: alloc.phone ?? alloc.recipient_phone ?? "",
@@ -4153,13 +4241,18 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         const remaining =
           quota.remaining_quota ??
           (quota.quota - (quota.allocated_tickets ?? 0));
-        const userType = ticketClass?.user_type ?? ticketClass?.type ?? "";
+        const userType =
+          ticketClass?.name ??
+          ticketClass?.user_type ??
+          ticketClass?.type ??
+          "";
         const title = ticketClass?.name ?? "Ticket";
         allTickets.push({
           id: `quota-${quota.id}`,
           title,
           ticketNumber: "",
           backgroundColor: getTicketBackgroundColor(userType),
+          ticketType: userType,
           isPersonal: false,
           isUnassigned: true,
           quotaId: quota.id,
@@ -4559,8 +4652,10 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
   const { markRequestMeetingComplete } = useChecklist();
 
-  const handleRequestMeeting = () => {
-    setRequestMeetingModalVisible(true);
+  const handleRequestMeeting = async () => {
+    const canBook = await getCanUserBookMeetings();
+    if (canBook) setRequestMeetingModalVisible(true);
+    else showExpoCannotBookMeetingAlert(navigation);
   };
 
   const handleMeetingRequestSubmit = async (formData: MeetingFormData) => {
@@ -4671,6 +4766,10 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
             error={ticketsError}
             onViewQR={handleViewQR}
             onTransfer={handleTransfer}
+            onUpgrade={(ticket) => {
+              setUpgradeTicketModalTicket(ticket);
+              setUpgradeTicketModalVisible(true);
+            }}
             onEditAssignment={handleEditAssignment}
             user={user}
             eventId={EVENT_ID}
@@ -4710,6 +4809,25 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           onTransfer={handleRecipientTransfer}
           isSubmitting={isAllocating}
         />
+        <UpgradeTicketModal
+          visible={
+            upgradeTicketModalVisible &&
+            upgradeTicketModalTicket != null &&
+            upgradeTicketModalTicket.backendTicketId != null
+          }
+          onClose={() => {
+            setUpgradeTicketModalVisible(false);
+            setUpgradeTicketModalTicket(null);
+          }}
+          currentTierLabel={
+            upgradeTicketModalTicket
+              ? getTicketTypeDisplay(upgradeTicketModalTicket.ticketType).label
+              : "Expo"
+          }
+          ticketId={upgradeTicketModalTicket?.backendTicketId ?? 0}
+          eventId={EVENT_ID}
+          onSuccess={() => fetchTickets()}
+        />
         <AssigningTicketsModal
           visible={assigningTicketsModalVisible}
           onClose={() => {
@@ -4721,12 +4839,14 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
             {
               title: "Exhibitor Pass",
               ticketNumber: "223e4567-e89b-12d3-a456-426614174001",
-              backgroundColor: "#10B981",
+              backgroundColor: "#7C3AED",
+              ticketType: "exhibitor",
             },
             {
               title: "Attendee Pass",
               ticketNumber: "323e4567-e89b-12d3-a456-426614174002",
-              backgroundColor: "#3B82F6",
+              backgroundColor: "#059669",
+              ticketType: "attendee",
             },
           ]}
           onAssignTicket={handleAssignTicket}

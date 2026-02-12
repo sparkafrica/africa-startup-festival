@@ -18,6 +18,15 @@ import Animated, {
 
 const BRAND_COLOR = "#1BB273";
 
+function withAlpha(color: string, alphaHex: string): string {
+  const c = color.replace(/^#/, "");
+  if (c.length === 3) {
+    return `#${c[0]}${c[0]}${c[1]}${c[1]}${c[2]}${c[2]}${alphaHex}`;
+  }
+  if (c.length === 6) return `#${c}${alphaHex}`;
+  return color;
+}
+
 export interface LoadingSpinnerProps {
   size?: "small" | "large";
   color?: string;
@@ -57,7 +66,7 @@ export default function LoadingSpinner({
             height: dim,
             borderRadius: dim / 2,
             borderWidth: size === "small" ? 2 : 3,
-            borderColor: `${color}33`,
+            borderColor: withAlpha(color, "33"),
             borderTopColor: color,
           },
           animatedStyle,

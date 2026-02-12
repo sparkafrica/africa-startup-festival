@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, Component } from "react";
 import {
   View,
   ScrollView,
@@ -38,6 +38,10 @@ import { meetingService } from "../services/meetingService";
 import { eventService, type Company } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
+import {
+  getCanUserBookMeetings,
+  showExpoCannotBookMeetingAlert,
+} from "../utils/meetingRestrictions";
 
 // ============================================
 // MODAL HEIGHT CONFIGURATION
@@ -92,18 +96,22 @@ function buildSocialUrl(platform: string, handle: string): string {
 }
 
 // Map Company (from GET /directory/{event_id}/{company_type}/{company_pk}/) to UI data
-function mapCompanyToUIData(company: Company): CompanyUIData {
+function mapCompanyToUIData(company: Company | null | undefined): CompanyUIData {
+  if (!company || typeof company !== "object") {
+    return { ...DEFAULT_COMPANY_DATA };
+  }
   const name = company.name || "Company";
   const logoColor = COLORS[(name?.length || 0) % COLORS.length];
   const meta = company.metadata || {};
   const websiteRaw = meta.website ?? meta.company_website ?? "—";
-  const websiteUrl = websiteRaw !== "—" ? ensureHttps(websiteRaw) : "";
+  const websiteUrl = websiteRaw !== "—" ? ensureHttps(String(websiteRaw)) : "";
 
-  const offers = (meta.offers || []).map((o: any, i: number) => ({
-    id: String(o.id ?? i),
-    title: o.title || "Offer",
-    color: o.color || OFFER_COLORS[i % OFFER_COLORS.length],
-    link: o.link ? ensureHttps(o.link) : websiteUrl || undefined,
+  const offersRaw = Array.isArray(meta.offers) ? meta.offers : [];
+  const offers = offersRaw.map((o: any, i: number) => ({
+    id: String(o?.id ?? i),
+    title: (o?.title ?? "Offer").toString().trim() || "Offer",
+    color: o?.color || OFFER_COLORS[i % OFFER_COLORS.length],
+    link: o?.link ? ensureHttps(String(o.link)) : websiteUrl || undefined,
   }));
 
   const socialMap: Record<string, { icon: any; color: string }> = {
@@ -115,7 +123,7 @@ function mapCompanyToUIData(company: Company): CompanyUIData {
   };
   const socialLinks: CompanyUIData["socialLinks"] = [];
   const rawLinks = meta.social_links || meta.socialLinks || {};
-  if (typeof rawLinks === "object") {
+  if (typeof rawLinks === "object" && rawLinks !== null) {
     for (const [platform, handle] of Object.entries(rawLinks)) {
       if (handle && socialMap[platform.toLowerCase()]) {
         const { icon, color } = socialMap[platform.toLowerCase()];
@@ -143,20 +151,32 @@ function mapCompanyToUIData(company: Company): CompanyUIData {
       color: "#0A66C2",
     });
   }
-  const teamMembers = (company.members || []).map((m) => ({
-    id: m.id,
-    name: `${m.first_name || ""} ${m.last_name || ""}`.trim() || "Team Member",
+  const membersRaw = Array.isArray(company.members) ? company.members : [];
+  const teamMembers = membersRaw.map((m: any, i: number) => ({
+    id: String(m?.id ?? i),
+    name: `${m?.first_name ?? ""} ${m?.last_name ?? ""}`.trim() || "Team Member",
   }));
-  const positionsRaw = meta.open_positions || meta.positions || [];
+  const positionsRaw = Array.isArray(meta.open_positions) ? meta.open_positions : Array.isArray(meta.positions) ? meta.positions : [];
   const openPositions = positionsRaw.map((p: any, i: number) => ({
-    id: String(p.id ?? i),
-    title: p.title || p.role || "Position",
-    link: p.link ? ensureHttps(p.link) : undefined,
+    id: String(p?.id ?? i),
+    title: (p?.title ?? p?.role ?? "Position").toString().trim() || "Position",
+    link: p?.link ? ensureHttps(String(p.link)) : undefined,
   }));
   const boothValue = meta.booth ?? meta.boothNumber ?? (company as any).booth_info?.booth_number ?? "—";
+
+  let logo: { uri: string } | null = null;
+  if (company.logo) {
+    if (typeof company.logo === "string") {
+      logo = { uri: company.logo };
+    } else if (typeof company.logo === "object" && company.logo !== null && "url" in company.logo) {
+      const url = (company.logo as { url?: string }).url;
+      if (typeof url === "string" && url) logo = { uri: url };
+    }
+  }
+
   return {
     name,
-    logo: company.logo ? { uri: company.logo } : null,
+    logo,
     logoColor,
     booth: boothValue,
     website: websiteRaw,
@@ -191,7 +211,40 @@ const DEFAULT_COMPANY_DATA: CompanyUIData = {
 
 type Props = RootStackScreenProps<"CompanyDetail">;
 
-export default function CompanyDetailScreen({ route }: Props) {
+// ErrorBoundary to catch render crashes (only logs when error occurs)
+class CompanyDetailErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  state = { hasError: false, error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    if (__DEV__) {
+      console.error("[CompanyDetail] Render error:", error, errorInfo.componentStack);
+    }
+  }
+
+  render() {
+    if (this.state.hasError && this.state.error) {
+      if (__DEV__) {
+        return (
+          <View style={{ flex: 1, justifyContent: "center", padding: 20 }}>
+            <Text style={{ color: "red", marginBottom: 8 }}>CompanyDetail crashed (dev only)</Text>
+            <Text style={{ fontSize: 12 }}>{String(this.state.error)}</Text>
+          </View>
+        );
+      }
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
+function CompanyDetailScreenInner({ route }: Props) {
   const navigation = useNavigation<NavigationProp<any>>();
   const { exhibitorId, type = "exhibitor", name: paramName } = route.params;
   const displayName = paramName || "Company";
@@ -237,9 +290,9 @@ export default function CompanyDetailScreen({ route }: Props) {
     setLoadError(null);
     try {
       const company = await eventService.getCompanyDetail(EVENT_ID, type, companyPk);
-      const mapped = mapCompanyToUIData(company);
+      const mapped = mapCompanyToUIData(company ?? null);
       setCompanyData(mapped);
-      setAdminUserId(company.admin_user ?? null);
+      setAdminUserId((company as any)?.admin_user ?? null);
     } catch (err: any) {
       const msg = err instanceof ApiClientError ? err.message : err?.message || "Failed to load company";
       setLoadError(msg);
@@ -459,7 +512,7 @@ export default function CompanyDetailScreen({ route }: Props) {
                   onPress={() => offer.link && openUrl(offer.link)}
                 >
                   <Text className="text-white font-bold text-base mb-2" numberOfLines={2}>
-                    {offer.title.trim()}
+                    {(offer.title ?? "").trim() || "Offer"}
                   </Text>
                   <View className="flex-row items-center mt-auto">
                     <Text className="text-white text-sm mr-1">Redeem</Text>
@@ -583,8 +636,10 @@ export default function CompanyDetailScreen({ route }: Props) {
         <View className="px-4 pt-4 pb-4">
           <Pressable
             className="bg-neutral-900 rounded-xl py-4 items-center flex-row justify-center"
-            onPress={() => {
-              setIsRequestMeetingModalVisible(true);
+            onPress={async () => {
+              const canBook = await getCanUserBookMeetings();
+              if (canBook) setIsRequestMeetingModalVisible(true);
+              else showExpoCannotBookMeetingAlert(navigation);
             }}
           >
             <CalendarIconWhite size={20} color="#FFFFFF" />
@@ -647,6 +702,14 @@ export default function CompanyDetailScreen({ route }: Props) {
         meetingTitle={meetingRequestData?.meetingTitle}
       />
     </View>
+  );
+}
+
+export default function CompanyDetailScreen(props: Props) {
+  return (
+    <CompanyDetailErrorBoundary>
+      <CompanyDetailScreenInner {...props} />
+    </CompanyDetailErrorBoundary>
   );
 }
 

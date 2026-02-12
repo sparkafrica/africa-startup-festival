@@ -173,6 +173,42 @@ export interface RevokeTicketRequest {
 }
 
 /**
+ * Upgrade Ticket Request
+ * Backend: POST /purchase/upgrade-ticket/
+ * Required: event_id, ticket_id, new_ticket_class_id, payment_method (enum), currency.
+ */
+export interface UpgradeTicketRequest {
+  event_id: number;
+  ticket_id: number;
+  new_ticket_class_id: number;
+  /** Backend enum: e.g. "KORAPAY", "PAYAYA" */
+  payment_method: string;
+  currency: string;
+}
+
+/**
+ * Upgrade Ticket Response – backend returns payment_url and amount for redirect.
+ */
+export interface UpgradeTicketResponse {
+  payment_url: string;
+  amount: string | number;
+  /** Updated ticket if returned */
+  ticket?: Ticket;
+  [key: string]: any;
+}
+
+/** Payment method enum for upgrade-ticket (backend). Must match backend TicketUpgradeRequest.payment_method enum. */
+export const UPGRADE_PAYMENT_METHODS = [
+  { value: "PAYSTACK", label: "Paystack" },
+  { value: "KORAPAY", label: "Korapay" },
+  { value: "PAYAZA", label: "Payaza" },
+  { value: "STRIPE", label: "Stripe" },
+  { value: "INVOICE", label: "Invoice" },
+  { value: "OTHER", label: "Other" },
+  { value: "FREE", label: "Free" },
+] as const;
+
+/**
  * Allocation Request - for allocate-ticket API
  * Matches backend AllocationRequest schema
  */
@@ -280,18 +316,69 @@ export const ticketService = {
   },
 
   /**
+   * List ticket classes for an event (Event Management).
+   * Use for upgrade flow to get new_ticket_class_id for each tier.
+   *
+   * Backend Endpoint: GET /tickets/classes/?event_id={eventId}
+   * (or GET /tickets/{event_id}/classes/ if backend uses path)
+   */
+  async getTicketClasses(eventId: number): Promise<TicketClass[]> {
+    const response = await api.get<TicketClass[]>(
+      `/tickets/classes/?event_id=${eventId}`
+    );
+    if (response.status === "success" && response.data !== undefined) {
+      const data = response.data as any;
+      if (Array.isArray(data)) return data as TicketClass[];
+      if (data?.results && Array.isArray(data.results))
+        return data.results as TicketClass[];
+      if (data?.data && Array.isArray(data.data)) return data.data as TicketClass[];
+    }
+    throw new ApiClientError({
+      status: "error",
+      message: (response as any).message || "Failed to get ticket classes",
+      response_code: (response as any).response_code ?? 500,
+      data: {},
+    });
+  },
+
+  /**
+   * Get a single ticket class by ID.
+   * Backend Endpoint: GET /tickets/classes/{id}/
+   */
+  async getTicketClass(id: number): Promise<TicketClass> {
+    const response = await api.get<TicketClass>(`/tickets/classes/${id}/`);
+    if (response.status === "success" && response.data) {
+      const data = response.data as any;
+      if (data && typeof data === "object") return data as TicketClass;
+    }
+    throw new ApiClientError({
+      status: "error",
+      message: (response as any).message || "Failed to get ticket class",
+      response_code: (response as any).response_code ?? 500,
+      data: {},
+    });
+  },
+
+  /**
    * Get user's ticket for a specific event
    *
    * @param eventId - Event ID (required)
+   * @param options.bypassCache - If true, skip cache so pass type/colors stay correct after backend changes
    * @returns Promise that resolves with the user's ticket
    *
    * Backend Endpoint: GET /tickets/{event_id}/user/
    * Note: Returns a single Ticket, not an array
    */
-  async getUserTicket(eventId: number): Promise<Ticket> {
-    const cached = USER_TICKET_CACHE.get(eventId);
-    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-      return cached.ticket as Ticket;
+  async getUserTicket(
+    eventId: number,
+    options?: { bypassCache?: boolean }
+  ): Promise<Ticket> {
+    const bypassCache = options?.bypassCache === true;
+    if (!bypassCache) {
+      const cached = USER_TICKET_CACHE.get(eventId);
+      if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+        return cached.ticket as Ticket;
+      }
     }
 
     const response = await api.get<Ticket>(
@@ -540,6 +627,52 @@ export const ticketService = {
       status: "error",
       message: response.message || "Failed to update allocation",
       response_code: response.response_code,
+      data: {},
+    });
+  },
+
+  /**
+   * Upgrade ticket to a higher tier. Backend returns payment_url and amount;
+   * app should redirect user to payment_url to complete payment.
+   *
+   * @param eventId - Event ID
+   * @param ticketId - User's ticket ID (personal ticket)
+   * @param newTicketClassId - Ticket class ID (from GET /tickets/classes/)
+   * @param paymentMethod - Backend enum: "KORAPAY" | "NGN FOR TESTING" (others may be added)
+   * @param currency - e.g. "NGN", "USD"
+   * @returns UpgradeTicketResponse with payment_url and amount for redirect
+   *
+   * Backend Endpoint: POST /purchase/upgrade-ticket/
+   */
+  async upgradeTicket(
+    eventId: number,
+    ticketId: number,
+    newTicketClassId: number,
+    paymentMethod: string,
+    currency: string
+  ): Promise<UpgradeTicketResponse> {
+    const requestBody: UpgradeTicketRequest = {
+      event_id: eventId,
+      ticket_id: ticketId,
+      new_ticket_class_id: newTicketClassId,
+      payment_method: paymentMethod,
+      currency,
+    };
+    const response = await api.post<UpgradeTicketResponse>(
+      "/purchase/upgrade-ticket/",
+      requestBody
+    );
+    if (response.status === "success" && response.data) {
+      const data = response.data as any;
+      if (data && typeof data === "object") {
+        clearTicketCache();
+        return data as UpgradeTicketResponse;
+      }
+    }
+    throw new ApiClientError({
+      status: "error",
+      message: (response as any).message || "Failed to upgrade ticket",
+      response_code: (response as any).response_code ?? 500,
       data: {},
     });
   },

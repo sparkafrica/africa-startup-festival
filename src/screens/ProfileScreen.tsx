@@ -147,19 +147,8 @@ const validateLinkedIn = (
   if (!linkedIn.trim()) {
     return { valid: false, error: "LinkedIn profile is required" };
   }
-  // Allow both URLs and handles
-  const linkedInUrlPattern =
-    /^(https?:\/\/)?(www\.)?(linkedin\.com\/in\/|linkedin\.com\/pub\/)[a-zA-Z0-9-]+\/?/i;
-  const linkedInHandlePattern = /^[a-zA-Z0-9-]+$/;
-
-  if (
-    !linkedInUrlPattern.test(linkedIn.trim()) &&
-    !linkedInHandlePattern.test(linkedIn.trim())
-  ) {
-    return {
-      valid: false,
-      error: "Please enter a valid LinkedIn profile URL or handle",
-    };
+  if (linkedIn.trim().length > 500) {
+    return { valid: false, error: "LinkedIn link must be under 500 characters" };
   }
   return { valid: true };
 };
@@ -277,19 +266,15 @@ const validateInterests = (
   return { valid: true };
 };
 
+// Social links: optional and permissive — accept URLs, handles, or any text (max length only)
 const validateSocialHandle = (
   handle: string,
   platform: string
 ): { valid: boolean; error?: string } => {
-  // Social handles are optional, but if provided must be valid format
-  if (!handle.trim()) {
-    return { valid: true }; // Empty is allowed
-  }
-  // Basic validation for social media handles (alphanumeric, underscores, dots, hyphens)
-  const handlePattern = /^[a-zA-Z0-9._-]+$/;
-
-  if (!handlePattern.test(handle.trim())) {
-    return { valid: false, error: `Please enter a valid ${platform} handle` };
+  if (!handle.trim()) return { valid: true };
+  const maxLen = 500;
+  if (handle.trim().length > maxLen) {
+    return { valid: false, error: `${platform} link must be under ${maxLen} characters` };
   }
   return { valid: true };
 };
@@ -2542,41 +2527,29 @@ function CompanyProfileSection({
       errors.companyDescription = descriptionValidation.error || "";
     }
 
-    // Validate social links - at least one must be provided
+    // At least one social link is required (company presence); format is relaxed — any URL/handle accepted
     const hasAnySocialLink =
       linkedIn.trim() || facebook.trim() || instagram.trim() || xHandle.trim();
 
     if (!hasAnySocialLink) {
-      errors.socialLinks = "Please provide at least one social media handle";
+      errors.socialLinks = "Please provide at least one social link for your company";
     }
 
-    // Validate format of provided social links
     if (linkedIn.trim()) {
-      const linkedInValidation = validateSocialHandle(linkedIn, "LinkedIn");
-      if (!linkedInValidation.valid) {
-        errors.linkedIn = linkedInValidation.error || "";
-      }
+      const v = validateSocialHandle(linkedIn, "LinkedIn");
+      if (!v.valid) errors.linkedIn = v.error || "";
     }
-
     if (facebook.trim()) {
-      const facebookValidation = validateSocialHandle(facebook, "Facebook");
-      if (!facebookValidation.valid) {
-        errors.facebook = facebookValidation.error || "";
-      }
+      const v = validateSocialHandle(facebook, "Facebook");
+      if (!v.valid) errors.facebook = v.error || "";
     }
-
     if (instagram.trim()) {
-      const instagramValidation = validateSocialHandle(instagram, "Instagram");
-      if (!instagramValidation.valid) {
-        errors.instagram = instagramValidation.error || "";
-      }
+      const v = validateSocialHandle(instagram, "Instagram");
+      if (!v.valid) errors.instagram = v.error || "";
     }
-
     if (xHandle.trim()) {
-      const xValidation = validateSocialHandle(xHandle, "X/Twitter");
-      if (!xValidation.valid) {
-        errors.xHandle = xValidation.error || "";
-      }
+      const v = validateSocialHandle(xHandle, "X/Twitter");
+      if (!v.valid) errors.xHandle = v.error || "";
     }
 
     // Validate positions if recruiting is enabled

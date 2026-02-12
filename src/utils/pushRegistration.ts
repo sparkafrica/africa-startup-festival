@@ -8,7 +8,12 @@
 
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import messaging from "@react-native-firebase/messaging";
+import {
+  getMessaging,
+  getToken,
+  requestPermission,
+  AuthorizationStatus,
+} from "@react-native-firebase/messaging";
 import { Platform } from "react-native";
 import { notificationService } from "../services/notificationService";
 
@@ -42,12 +47,14 @@ export async function registerForPushNotifications(): Promise<string | null> {
     });
   }
 
+  const messaging = getMessaging();
+
   // Request permission: expo-notifications for Android, Firebase for iOS
   if (Platform.OS === "ios") {
-    const authStatus = await messaging().requestPermission();
+    const authStatus = await requestPermission(messaging);
     const granted =
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+      authStatus === AuthorizationStatus.AUTHORIZED ||
+      authStatus === AuthorizationStatus.PROVISIONAL;
     if (!granted) {
       return null;
     }
@@ -66,7 +73,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   // Get FCM token via Firebase Messaging (valid for both iOS and Android)
   let registrationId: string;
   try {
-    registrationId = await messaging().getToken();
+    registrationId = await getToken(messaging);
   } catch {
     return null;
   }

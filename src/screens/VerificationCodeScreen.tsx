@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -57,8 +58,22 @@ export default function VerificationCodeScreen() {
   const [code, setCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const hiddenInputRef = useRef<TextInput>(null);
+
+  const handlePaste = async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      const digits = (text || "").replace(/\D/g, "").slice(0, 6);
+      if (digits) {
+        setCode(digits);
+        hiddenInputRef.current?.focus();
+      }
+    } catch (_) {
+      // Fallback ignored
+    }
+  };
 
   const handleCodeChange = (value: string) => {
     // Allow only digits, max 6 characters - paste and autofill work naturally
@@ -172,19 +187,24 @@ export default function VerificationCodeScreen() {
                 <Text className="font-medium text-neutral-900">{email}</Text>
               </Text>
 
-              {/* Code Input - Tap to focus, then type or paste naturally */}
+              {/* Code Input - Tap the boxes area to focus, then type or paste. Boxes show digits. */}
               <Text className="text-xs text-neutral-500 text-center mb-2">
-                Tap the boxes to type or paste your code
+                Tap the boxes to focus, then type or paste your code
               </Text>
               <Pressable
                 onPress={() => hiddenInputRef.current?.focus()}
-                className="flex-row justify-center gap-1.5 mb-8 px-1"
-                style={{ position: "relative" }}
+                className="flex-row justify-center gap-2 mb-4 py-2 px-2"
+                style={({ pressed }) => ({
+                  borderRadius: 12,
+                  backgroundColor: isFocused ? "#F0FDF4" : pressed ? "#F5F5F5" : "transparent",
+                })}
               >
                 <TextInput
                   ref={hiddenInputRef}
                   value={code}
                   onChangeText={handleCodeChange}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
                   keyboardType="number-pad"
                   textContentType="oneTimeCode"
                   autoComplete="one-time-code"
@@ -205,17 +225,23 @@ export default function VerificationCodeScreen() {
                 {[0, 1, 2, 3, 4, 5].map((index) => (
                   <View
                     key={index}
-                    className="w-11 h-14 border rounded-xl items-center justify-center"
+                    className="w-11 h-14 border-2 rounded-xl items-center justify-center"
                     style={{
                       borderColor:
-                        digits[index] !== undefined ? "#1BB273" : "#D4D4D4",
+                        digits[index] !== undefined ? "#1BB273" : isFocused ? "#1BB273" : "#D4D4D4",
                     }}
                   >
-                    <Text className="text-xl font-bold text-neutral-900">
+                    <Text className="text-2xl font-bold text-neutral-900">
                       {digits[index] ?? ""}
                     </Text>
                   </View>
                 ))}
+              </Pressable>
+              <Pressable
+                onPress={handlePaste}
+                className="mb-8 py-2 px-4 self-center rounded-lg border border-neutral-300"
+              >
+                <Text className="text-sm font-medium text-neutral-700">Paste code</Text>
               </Pressable>
 
               {/* Submit Code Button */}

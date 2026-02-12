@@ -22,6 +22,8 @@ import ScheduleScreen from "../screens/ScheduleScreen";
 import MeetingsScreen from "../screens/MeetingsScreen";
 import ConnectionsScreen from "../screens/ConnectionsScreen";
 import ContactScreen from "../screens/ContactScreen";
+import TalentBoardScreen from "../screens/TalentBoardScreen";
+import PartnersOffersScreen from "../screens/PartnersOffersScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -176,6 +178,22 @@ export default function MainNavigator() {
       <Stack.Screen
         name="Contact"
         component={ContactScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="Talent"
+        component={TalentBoardScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="PartnersOffers"
+        component={PartnersOffersScreen}
         options={{
           headerShown: false,
           animation: "slide_from_right",

@@ -165,8 +165,9 @@ export const authService = {
    *
    * Backend Endpoint: POST /auth/token/
    *
-   * NOTE: YAML says "No response body" but description says it returns token
-   * TODO: Verify actual response structure when testing
+   * YAML: description says "Verify the OTP and return database-stored authentication token".
+   * Response schema in YAML says "No response body" but the backend does return a token (in response.data).
+   * There is no /auth/refresh in the spec — backend uses a single token; we store refresh_token only if sent.
    */
   async verifyOTP(email: string, otp: string): Promise<void> {
     const requestData: VerifyOTPRequest = { email, otp };
@@ -188,6 +189,14 @@ export const authService = {
 
       // Try different possible token locations
       const token = data?.token || data?.accessToken || data?.authToken || data;
+      const refreshToken =
+        data?.refresh_token ?? data?.refreshToken ?? null;
+      const expiresIn =
+        typeof data?.expires_in === "number"
+          ? data.expires_in
+          : typeof data?.expiresIn === "number"
+          ? data.expiresIn
+          : 3600;
 
       if (!token || typeof token !== "string") {
         throw new ApiClientError({
@@ -198,11 +207,11 @@ export const authService = {
         });
       }
 
-      // Service layer handles token storage (D2: Option C)
-      // Store token in API client for automatic use in subsequent requests
+      // Service layer handles token storage (D2: Option C). Store refresh token if backend sends it.
       await api.setTokens({
         accessToken: token,
-        expiresIn: 3600, // Default 1 hour (adjust based on backend response if available)
+        refreshToken: refreshToken && typeof refreshToken === "string" ? refreshToken : undefined,
+        expiresIn,
       });
 
       return;

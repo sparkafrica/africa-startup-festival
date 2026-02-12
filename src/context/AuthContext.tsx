@@ -82,6 +82,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Set to false to allow persistent sessions
   const FORCE_LOGIN_ON_START = false; // Change to true to force login every app start
 
+  // When API client fails to refresh token (e.g. no refresh token), clear session so user is sent to login
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setUser(null);
+      setIsAuthenticated(false);
+      AsyncStorage.multiRemove([
+        STORAGE_KEYS.USER,
+        STORAGE_KEYS.PROFILE_COMPLETE,
+        STORAGE_KEYS.ONBOARDING_COMPLETE,
+        STORAGE_KEYS.WELCOME_SEEN,
+      ]).catch(() => {});
+    };
+    api.setOnSessionExpired(handleSessionExpired);
+    return () => api.setOnSessionExpired(null);
+  }, []);
+
   const checkAuthState = useCallback(async () => {
     try {
       setIsLoading(true);

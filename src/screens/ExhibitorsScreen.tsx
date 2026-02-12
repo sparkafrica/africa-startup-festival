@@ -4,6 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { useMeetingsBadgeCount } from "../hooks";
+import { useNotifications } from "../context/NotificationsContext";
 import {
   HeaderBar,
   ExhibitorCard,
@@ -34,6 +36,8 @@ import {
 export default function ExhibitorsScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Exhibitors">>();
+  const meetingsBadgeCount = useMeetingsBadgeCount();
+  const { hasUnreadNotifications } = useNotifications();
   const [selectedFilterIds, setSelectedFilterIds] = useState<string[]>([]);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
@@ -181,6 +185,7 @@ export default function ExhibitorsScreen() {
         ),
       label: "Meetings",
       route: "Meetings",
+      badge: meetingsBadgeCount,
     },
     {
       icon: (active: boolean) =>
@@ -200,7 +205,7 @@ export default function ExhibitorsScreen() {
         onScanPress={() => navigation.navigate("ScanQR")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
-        hasUnreadNotifications={false}
+        hasUnreadNotifications={hasUnreadNotifications}
       />
 
       <ScrollView

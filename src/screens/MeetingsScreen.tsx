@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, ScrollView, RefreshControl, Text, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -31,17 +31,21 @@ import {
   HeartIcon,
   HeartIconFilled,
 } from "../components/BottomNavIcons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type {
   RootStackParamList,
   RootStackScreenProps,
 } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
+import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
+import { useNotifications } from "../context/NotificationsContext";
+import { useMeetingsBadgeCount } from "../hooks";
 import {
   meetingService,
   type Meeting as BackendMeeting,
   type VirtualMeeting,
+  type MeetingUser,
 } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
@@ -113,6 +117,9 @@ export default function MeetingsScreen({ route }: Props) {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const { user } = useAuth();
+  const meetingsBadgeCount = useMeetingsBadgeCount();
+  const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
+  const { hasUnreadNotifications } = useNotifications();
   const { toast, showToast, hideToast } = useToast();
   const [primaryTab, setPrimaryTab] = useState<PrimaryTab>("requests");
   const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>("inbound");
@@ -136,10 +143,6 @@ export default function MeetingsScreen({ route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
 
-  // Preserve optimistically cancelled meetings (requests/scheduled) across refetches.
-  // Backend may not return cancelled pending requests in list; this ref ensures they stay in Cancelled tab.
-  const recentlyCancelledRef = useRef<UIMeeting[]>([]);
-
   // Handle navigation params to set tabs when navigating from notifications
   useEffect(() => {
     if (route.params) {
@@ -152,22 +155,26 @@ export default function MeetingsScreen({ route }: Props) {
     }
   }, [route.params]);
 
-  // Derive meetingCounts and displayed meetings from allMeetingsForCounts
-  // This ensures cancelling a meeting updates the Cancelled tab immediately when switching
-  // (avoids race between optimistic update and fetchMeetings on tab switch)
+  // Helper: terminated = cancelled or rejected (declined requests + cancelled meetings)
+  const isTerminated = useCallback((m: UIMeeting) =>
+    m.status === "cancelled" || m.status === "rejected", []);
+
+  // Derive counts and filtered meetings from allMeetingsForCounts
   useEffect(() => {
     setMeetingCounts({
       requests: allMeetingsForCounts.filter((m) => m.status === "pending").length,
       scheduled: allMeetingsForCounts.filter((m) => m.status === "accepted").length,
-      cancelled: allMeetingsForCounts.filter((m) => m.status === "cancelled").length,
+      cancelled: allMeetingsForCounts.filter((m) => isTerminated(m)).length,
     });
-    const statusFilter =
-      primaryTab === "requests"
-        ? "pending"
-        : primaryTab === "scheduled"
-        ? "accepted"
-        : "cancelled";
-    let filtered = allMeetingsForCounts.filter((m) => m.status === statusFilter);
+    let filtered: UIMeeting[];
+    if (primaryTab === "requests") {
+      filtered = allMeetingsForCounts.filter((m) => m.status === "pending");
+    } else if (primaryTab === "scheduled") {
+      filtered = allMeetingsForCounts.filter((m) => m.status === "accepted");
+    } else {
+      // Cancelled tab: show both rejected (declined) and cancelled
+      filtered = allMeetingsForCounts.filter((m) => isTerminated(m));
+    }
     filtered = filtered.filter((m) =>
       secondaryTab === "inbound" ? m.isInbound : !m.isInbound
     );
@@ -181,7 +188,7 @@ export default function MeetingsScreen({ route }: Props) {
       });
     }
     setMeetings(filtered);
-  }, [allMeetingsForCounts, primaryTab, secondaryTab]);
+  }, [allMeetingsForCounts, primaryTab, secondaryTab, isTerminated]);
 
   // ============================================================================
   // UTILITY FUNCTIONS
@@ -388,53 +395,54 @@ export default function MeetingsScreen({ route }: Props) {
     virtualMeeting: VirtualMeeting,
     currentUserId: string
   ): UIMeeting => {
-    // Determine if current user is requester or requestee
-    const isRequester = virtualMeeting.requester === currentUserId;
-    const otherUser = isRequester
+    // Determine if current user is requester or requestee (normalize IDs for comparison)
+    const isRequester = String(virtualMeeting.requester) === String(currentUserId);
+    const otherUser = (isRequester
       ? virtualMeeting.requestee_info
-      : virtualMeeting.requester_info;
+      : virtualMeeting.requester_info) ?? ({} as MeetingUser);
     const otherCompany = isRequester
       ? virtualMeeting.requestee_company
       : virtualMeeting.requester_company;
 
     // Extract participant info
     const participantName =
-      `${otherUser.first_name || ""} ${otherUser.last_name || ""}`.trim() ||
-      otherUser.email;
-    const participantRole = otherUser.job_title || undefined;
+      `${otherUser?.first_name || ""} ${otherUser?.last_name || ""}`.trim() ||
+      otherUser?.email ||
+      "Unknown";
+    const participantRole = otherUser?.job_title || undefined;
     const company =
       otherCompany?.name ||
-      otherUser.organisation ||
+      otherUser?.organisation ||
       "No Company";
 
     // Extract tags (country, industry/sector)
     const tags: string[] = [];
-    if (otherUser.country) {
+    if (otherUser?.country) {
       tags.push(otherUser.country);
     }
     const sector =
       otherCompany?.company_type ||
-      otherUser.metadata?.sector ||
-      otherUser.metadata?.industry;
+      otherUser?.metadata?.sector ||
+      otherUser?.metadata?.industry;
     if (sector) {
       tags.push(sector);
     }
 
     // Extract interests
-    const interests = otherUser.metadata?.interests || [];
+    const interests = otherUser?.metadata?.interests || [];
 
     // Extract bio
-    const bio = otherUser.metadata?.bio || "";
+    const bio = otherUser?.metadata?.bio || "";
 
     // Extract LinkedIn
     const linkedInUrl =
-      otherUser.metadata?.linkedIn || otherUser.metadata?.linkedin_url;
+      otherUser?.metadata?.linkedIn || otherUser?.metadata?.linkedin_url;
     const socialLabel = linkedInUrl
       ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
       : undefined;
 
     // Extract avatar
-    const participantAvatar = otherUser.profile_pic
+    const participantAvatar = otherUser?.profile_pic
       ? { uri: otherUser.profile_pic }
       : undefined;
 
@@ -517,59 +525,61 @@ export default function MeetingsScreen({ route }: Props) {
     backendMeeting: BackendMeeting,
     currentUserId: string
   ): UIMeeting => {
-    // Determine if current user is requester or requestee
-    const isRequester = backendMeeting.requester === currentUserId;
-    const otherUser = isRequester
+    // Determine if current user is requester or requestee (normalize IDs for comparison)
+    const isRequester = String(backendMeeting.requester) === String(currentUserId);
+    const otherUser: MeetingUser = (isRequester
       ? backendMeeting.requestee_info
-      : backendMeeting.requester_info;
+      : backendMeeting.requester_info) ?? ({} as MeetingUser);
     const otherCompany = isRequester
       ? backendMeeting.requestee_company
       : backendMeeting.requester_company;
 
     // Extract participant info
     const participantName =
-      `${otherUser.first_name || ""} ${otherUser.last_name || ""}`.trim() ||
-      otherUser.email;
-    const participantRole = otherUser.job_title || undefined;
+      `${otherUser?.first_name || ""} ${otherUser?.last_name || ""}`.trim() ||
+      otherUser?.email ||
+      "Unknown";
+    const participantRole = otherUser?.job_title || undefined;
     const company =
       otherCompany?.name ||
-      otherUser.organisation ||
+      otherUser?.organisation ||
       "No Company";
 
     // Extract tags (country, industry/sector)
     const tags: string[] = [];
-    if (otherUser.country) {
+    if (otherUser?.country) {
       tags.push(otherUser.country);
     }
     const sector =
       otherCompany?.company_type ||
-      otherUser.metadata?.sector ||
-      otherUser.metadata?.industry;
+      otherUser?.metadata?.sector ||
+      otherUser?.metadata?.industry;
     if (sector) {
       tags.push(sector);
     }
 
     // Extract interests
-    const interests = otherUser.metadata?.interests || [];
+    const interests = otherUser?.metadata?.interests || [];
 
     // Extract bio
-    const bio = otherUser.metadata?.bio || "";
+    const bio = otherUser?.metadata?.bio || "";
 
     // Extract LinkedIn
     const linkedInUrl =
-      otherUser.metadata?.linkedIn || otherUser.metadata?.linkedin_url;
+      otherUser?.metadata?.linkedIn || otherUser?.metadata?.linkedin_url;
     const socialLabel = linkedInUrl
       ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
       : undefined;
 
     // Extract avatar
-    const participantAvatar = otherUser.profile_pic
+    const participantAvatar = otherUser?.profile_pic
       ? { uri: otherUser.profile_pic }
       : undefined;
 
-    // Format time
-    const startTime = formatTime(backendMeeting.slot.start_time);
-    const endTime = formatTime(backendMeeting.slot.end_time);
+    // Format time (slot may be null for some cancelled meetings)
+    const slot = backendMeeting.slot;
+    const startTime = slot?.start_time ? formatTime(slot.start_time) : "—";
+    const endTime = slot?.end_time ? formatTime(slot.end_time) : "—";
 
     // Get date and format for display
     const rawDate = getMeetingDate(backendMeeting);
@@ -609,8 +619,8 @@ export default function MeetingsScreen({ route }: Props) {
 
     // Calculate timeUntil for scheduled meetings
     const timeUntil =
-      backendMeeting.status === "accepted"
-        ? calculateTimeUntil(date, backendMeeting.slot.start_time)
+      backendMeeting.status === "accepted" && slot?.start_time
+        ? calculateTimeUntil(rawDate, slot.start_time)
         : undefined;
 
     // Determine if inbound (current user is requestee)
@@ -698,6 +708,7 @@ export default function MeetingsScreen({ route }: Props) {
         ),
       label: "Meetings",
       route: "Meetings",
+      badge: meetingsBadgeCount,
     },
     {
       icon: (active: boolean) =>
@@ -751,22 +762,9 @@ export default function MeetingsScreen({ route }: Props) {
         mapVirtualMeetingToUI(meeting, currentUserId)
       );
 
-      // Merge both types of meetings - store ALL meetings for counts
+      // Simple: API is source of truth. Whatever backend returns, we display.
       const fromApi = [...physicalUIMeetings, ...virtualUIMeetings];
-
-      // Merge with optimistically cancelled meetings (backend may not return cancelled in list)
-      // Preserve both: (1) cancelled from prev not in API, (2) recently cancelled from ref (e.g. requests)
-      setAllMeetingsForCounts((prev) => {
-        const apiIds = new Set(fromApi.map((m) => m.id));
-        const orphanedCancelled = prev.filter(
-          (m) => m.status === "cancelled" && !apiIds.has(m.id)
-        );
-        const fromRef = (recentlyCancelledRef.current || []).filter(
-          (m) => !apiIds.has(m.id) && !orphanedCancelled.some((o) => o.id === m.id)
-        );
-        recentlyCancelledRef.current = [];
-        return [...fromApi, ...orphanedCancelled, ...fromRef];
-      });
+      setAllMeetingsForCounts(fromApi);
     } catch (err: any) {
       const errorMessage =
         err instanceof ApiClientError
@@ -786,6 +784,14 @@ export default function MeetingsScreen({ route }: Props) {
   useEffect(() => {
     fetchMeetings(false);
   }, [fetchMeetings]);
+
+  // Refetch when screen gains focus so the other user sees cancelled/declined updates
+  useFocusEffect(
+    useCallback(() => {
+      refreshMeetingsBadge();
+      fetchMeetings(false);
+    }, [refreshMeetingsBadge, fetchMeetings])
+  );
 
   // ============================================================================
   // ACTION HANDLERS (Task 4)
@@ -813,24 +819,14 @@ export default function MeetingsScreen({ route }: Props) {
           );
         }
         
-        // Close modal first, then show toast, then refresh
         setIsModalVisible(false);
         setSelectedMeeting(null);
-        
-        // Show toast after modal closes
-        setTimeout(() => {
-          showToast(
-            action === "accept"
-              ? "Meeting accepted"
-              : "Meeting declined",
-            "success"
-          );
-        }, 300);
-        
-        // Refresh after toast appears
-        setTimeout(async () => {
-          await fetchMeetings(false);
-        }, 600);
+        showToast(
+          action === "accept" ? "Meeting accepted" : "Meeting declined",
+          "success"
+        );
+        await fetchMeetings(false);
+        refreshMeetingsBadge();
       } catch (err: any) {
         const message =
           err instanceof ApiClientError
@@ -841,7 +837,7 @@ export default function MeetingsScreen({ route }: Props) {
         setIsActionLoading(false);
       }
     },
-    [fetchMeetings, isActionLoading, showToast]
+    [fetchMeetings, isActionLoading, showToast, refreshMeetingsBadge]
   );
 
   const handleCancelMeeting = useCallback(
@@ -863,23 +859,8 @@ export default function MeetingsScreen({ route }: Props) {
         showToast("Meeting cancelled", "success");
         setIsModalVisible(false);
         setSelectedMeeting(null);
-        // Optimistic update: mark meeting as cancelled so it appears in Cancelled tab immediately
-        // (Backend may not return cancelled meetings—especially cancelled requests—in list endpoints)
-        const cancelledMeeting: UIMeeting = { ...meeting, status: "cancelled" as const };
-        recentlyCancelledRef.current = [cancelledMeeting];
-        setAllMeetingsForCounts((prev) => {
-          const found = prev.some((m) => m.id === meeting.id);
-          if (found) {
-            return prev.map((m) =>
-              m.id === meeting.id ? cancelledMeeting : m
-            );
-          }
-          return [...prev, cancelledMeeting];
-        });
-        // Refetch in background to sync with backend (in case it returns cancelled)
-        setTimeout(() => {
-          fetchMeetings(false);
-        }, 500);
+        await fetchMeetings(false);
+        refreshMeetingsBadge();
       } catch (err: any) {
         let message =
           err instanceof ApiClientError
@@ -893,12 +874,9 @@ export default function MeetingsScreen({ route }: Props) {
             // Close modal and refresh even on 404 (meeting already cancelled)
             setIsModalVisible(false);
             setSelectedMeeting(null);
-            setTimeout(() => {
-              showToast(message, "error");
-            }, 300);
-            setTimeout(async () => {
-              await fetchMeetings(false);
-            }, 600);
+            showToast(message, "error");
+            await fetchMeetings(false);
+            refreshMeetingsBadge();
             return; // Exit early - already handled the error
           }
         }
@@ -908,7 +886,7 @@ export default function MeetingsScreen({ route }: Props) {
         setIsActionLoading(false);
       }
     },
-    [fetchMeetings, isActionLoading, showToast]
+    [fetchMeetings, isActionLoading, showToast, refreshMeetingsBadge]
   );
 
   /**
@@ -1105,23 +1083,21 @@ export default function MeetingsScreen({ route }: Props) {
   // Counts should always be visible regardless of which secondary tab is selected
   // so users can see "3 inbound, 2 outbound" even when viewing only inbound
   const getSecondaryTabCounts = useCallback(() => {
-    // Determine status filter based on current primary tab
-    const statusFilter =
-      primaryTab === "requests"
-        ? "pending"
-        : primaryTab === "scheduled"
-        ? "accepted"
-        : "cancelled";
-
-    // Use all meetings (not filtered by secondary tab) for counts
-    const meetingsForStatus = allMeetingsForCounts.filter((m) => m.status === statusFilter);
+    let meetingsForStatus: UIMeeting[];
+    if (primaryTab === "requests") {
+      meetingsForStatus = allMeetingsForCounts.filter((m) => m.status === "pending");
+    } else if (primaryTab === "scheduled") {
+      meetingsForStatus = allMeetingsForCounts.filter((m) => m.status === "accepted");
+    } else {
+      meetingsForStatus = allMeetingsForCounts.filter((m) => isTerminated(m));
+    }
 
     // Count inbound and outbound for this status
     const inboundCount = meetingsForStatus.filter((m) => m.isInbound).length;
     const outboundCount = meetingsForStatus.filter((m) => !m.isInbound).length;
 
     return { inbound: inboundCount, outbound: outboundCount };
-  }, [primaryTab, allMeetingsForCounts]);
+  }, [primaryTab, allMeetingsForCounts, isTerminated]);
 
   const secondaryTabCounts = getSecondaryTabCounts();
 
@@ -1131,6 +1107,7 @@ export default function MeetingsScreen({ route }: Props) {
         onScanPress={() => navigation.navigate("ScanQR")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
+        hasUnreadNotifications={hasUnreadNotifications}
       />
 
       {/* Fixed Primary Tab Navigation */}
