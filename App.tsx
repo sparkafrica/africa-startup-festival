@@ -88,20 +88,20 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-    <View className="flex-1 font-sans">
-      <AuthProvider>
-        <ChecklistProvider>
-          <MeetingsBadgeProvider>
-            <NotificationsProvider>
-              <NavigationContainer>
-              <AppNavigator />
-              <StatusBar style="auto" />
-            </NavigationContainer>
-            </NotificationsProvider>
-          </MeetingsBadgeProvider>
-        </ChecklistProvider>
-      </AuthProvider>
-    </View>
+      <View className="flex-1 font-sans">
+        <AuthProvider>
+          <ChecklistProvider>
+            <MeetingsBadgeProvider>
+              <NotificationsProvider>
+                <NavigationContainer>
+                  <AppNavigator />
+                  <StatusBar style="auto" />
+                </NavigationContainer>
+              </NotificationsProvider>
+            </MeetingsBadgeProvider>
+          </ChecklistProvider>
+        </AuthProvider>
+      </View>
     </GestureHandlerRootView>
   );
 }
