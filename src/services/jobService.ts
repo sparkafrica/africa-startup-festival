@@ -2,12 +2,13 @@
  * Job Service
  *
  * Public job listings and active role links from companies.
- * Uses GET /jobs/ (X-SPARK-KEY optional per backend).
+ * Uses GET /jobs/ with X-SPARK-KEY only (no auth token) so that opening Talent Board
+ * never triggers 401 → token refresh → logout in production.
  */
 
-import { api } from "./api";
+import axios from "axios";
 import { ApiClientError } from "./api";
-import { EVENT_ID, SPARK_API_KEY } from "../config/env";
+import { ENV, EVENT_ID, SPARK_API_KEY } from "../config/env";
 
 // ============================================================================
 // TYPES (from Spark EMS.yaml - Public Job Listings)
@@ -47,20 +48,45 @@ export const jobService = {
     event_ids?: string;
     search?: string;
   }): Promise<CompanyJobs[]> {
+    const query = new URLSearchParams();
+    if (params?.company_type) query.set("company_type", params.company_type);
+    if (params?.event_ids) query.set("event_ids", params.event_ids);
+    if (params?.search) query.set("search", params.search);
+    const queryString = query.toString();
+    const url = queryString ? `/jobs/?${queryString}` : "/jobs/";
+
+    if (!SPARK_API_KEY) {
+      console.warn(
+        "[TalentBoard jobService] X-SPARK-KEY is missing. Set EXPO_PUBLIC_SPARK_API_KEY (.env) or app.json extra / EAS secret for job listings."
+      );
+    }
+    console.warn("[TalentBoard jobService] GET request (no auth – public endpoint)", {
+      url,
+      event_ids: params?.event_ids,
+      hasSparkKey: !!SPARK_API_KEY,
+    });
+
     try {
-      const query = new URLSearchParams();
-      if (params?.company_type) query.set("company_type", params.company_type);
-      if (params?.event_ids) query.set("event_ids", params.event_ids);
-      if (params?.search) query.set("search", params.search);
-      const queryString = query.toString();
-      const url = queryString ? `/jobs/?${queryString}` : "/jobs/";
+      // Use direct axios call without auth token so 401 on /jobs/ never triggers logout
+      const axiosResponse = await axios.get<any>(`${ENV.BASE_URL}${url}`, {
+        timeout: ENV.TIMEOUT,
+        headers: {
+          Accept: "application/json",
+          ...(SPARK_API_KEY ? { "X-SPARK-KEY": SPARK_API_KEY } : {}),
+        },
+      });
 
-      const headers: Record<string, string> = {};
-      if (SPARK_API_KEY) headers["X-SPARK-KEY"] = SPARK_API_KEY;
+      const data = axiosResponse?.data as any;
 
-      const response = await api.get<any>(url, headers ? { headers } : undefined);
-
-      const data = response as any;
+      console.warn("[TalentBoard jobService] GET response", {
+        isArray: Array.isArray(data),
+        hasData: !!data?.data,
+        dataIsArray: Array.isArray(data?.data),
+        hasResults: !!data?.results,
+        resultsIsArray: Array.isArray(data?.results),
+        status: data?.status,
+        dataLength: Array.isArray(data) ? data.length : (data?.data?.length ?? data?.results?.length ?? 0),
+      });
 
       if (Array.isArray(data)) {
         return data as CompanyJobs[];
@@ -74,11 +100,18 @@ export const jobService = {
 
       return [];
     } catch (error: any) {
+      const status = error?.response?.status ?? error?.response_code ?? error?.responseCode;
+      const responseData = error?.response?.data ?? error?.data;
+      console.warn("[TalentBoard jobService] GET error", {
+        message: error?.message,
+        status,
+        responseData: typeof responseData === "object" ? JSON.stringify(responseData) : responseData,
+      });
       if (error instanceof ApiClientError) throw error;
       throw new ApiClientError({
         status: "error",
-        message: error?.message || "Failed to fetch job listings",
-        response_code: error?.response_code ?? 500,
+        message: error?.response?.data?.message ?? error?.message ?? "Failed to fetch job listings",
+        response_code: status ?? 500,
         data: {},
       });
     }

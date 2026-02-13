@@ -63,7 +63,10 @@ export const CDN_BASE_URL = CDN_CONFIG[environment];
 // TODO: Consider fetching current event from backend API in the future
 export const EVENT_ID = 10;
 
-// Spark API Key for public endpoints (e.g. /jobs/). Set in .env as EXPO_PUBLIC_SPARK_API_KEY or in app.json extra.
+// Spark API Key for public endpoints (e.g. GET /jobs/). Required for Talent Board job listings.
+// Sourced from app.config.js → extra.SPARK_API_KEY (which reads EXPO_PUBLIC_SPARK_API_KEY).
+// - Dev: set EXPO_PUBLIC_SPARK_API_KEY in .env (app.config.js loads it via dotenv).
+// - Production build (EAS): set EXPO_PUBLIC_SPARK_API_KEY in EAS secrets so the build injects it; .env is not used on EAS.
 export const SPARK_API_KEY =
   (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_SPARK_API_KEY) ||
   (Constants?.expoConfig?.extra as Record<string, string> | undefined)?.SPARK_API_KEY ||

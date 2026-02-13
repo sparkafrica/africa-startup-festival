@@ -106,10 +106,21 @@ export default function TalentBoardScreen() {
     if (isRefresh) setRefreshing(true);
     else setIsLoading(true);
     setError(null);
+    console.warn("[TalentBoard] fetchJobs start", { isRefresh });
     try {
       const list = await jobService.getJobsForEvent();
-      setCompanies(list);
+      console.warn("[TalentBoard] fetchJobs success", { count: list?.length ?? 0 });
+      setCompanies(list ?? []);
     } catch (err: any) {
+      const status = err?.response?.status ?? err?.response_code ?? err?.responseCode;
+      const responseData = err?.response?.data ?? err?.data;
+      console.warn("[TalentBoard] fetchJobs error (check if 401 triggers logout)", {
+        message: err?.message,
+        status,
+        response_code: err?.response_code ?? err?.responseCode,
+        responseData: typeof responseData === "object" ? JSON.stringify(responseData) : responseData,
+        is401: status === 401 || err?.response_code === 401 || err?.responseCode === 401,
+      });
       const message =
         err instanceof ApiClientError
           ? err.message

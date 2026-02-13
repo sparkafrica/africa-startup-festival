@@ -38,15 +38,11 @@ export interface VerifyOTPRequest {
 
 /**
  * Token Response Structure
- * TODO: Verify actual response structure from backend
- * The YAML says "No response body" but description says it returns a token
- * This is a placeholder - update based on actual API response
+ * The YAML says "No response body" but description says it returns a token.
  */
 export interface AuthTokenResponse {
-  token: string; // The authentication token
-  // TODO: Add other fields based on actual response
-  // user?: User;
-  // expiresIn?: number;
+  token: string;
+  expires_in?: number;
 }
 
 /**
@@ -187,10 +183,7 @@ export const authService = {
 
       const data = response.data as any;
 
-      // Try different possible token locations
       const token = data?.token || data?.accessToken || data?.authToken || data;
-      const refreshToken =
-        data?.refresh_token ?? data?.refreshToken ?? null;
       const expiresIn =
         typeof data?.expires_in === "number"
           ? data.expires_in
@@ -207,10 +200,8 @@ export const authService = {
         });
       }
 
-      // Service layer handles token storage (D2: Option C). Store refresh token if backend sends it.
       await api.setTokens({
         accessToken: token,
-        refreshToken: refreshToken && typeof refreshToken === "string" ? refreshToken : undefined,
         expiresIn,
       });
 

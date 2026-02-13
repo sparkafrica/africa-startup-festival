@@ -3,7 +3,7 @@
  *
  * Features:
  * - Automatic token management
- * - Token refresh on expiry
+ * - 401 → clear session and log out (backend does not support refresh)
  * - Request/response interceptors
  * - Error handling with retry logic
  * - Type-safe API methods
@@ -85,7 +85,6 @@ export interface PaginatedResponse<T> {
  */
 export interface TokenResponse {
   accessToken: string;
-  refreshToken?: string;
   expiresIn: number;
 }
 
@@ -114,7 +113,6 @@ export class ApiClientError extends Error {
 
 const STORAGE_KEYS = {
   TOKEN: "@spark:token",
-  REFRESH_TOKEN: "@spark:refresh_token",
   TOKEN_EXPIRY: "@spark:token_expiry",
 } as const;
 
@@ -124,8 +122,6 @@ const STORAGE_KEYS = {
 
 class ApiClient {
   private client: AxiosInstance;
-  private isRefreshing = false;
-  private refreshSubscribers: Array<(token: string) => void> = [];
   private onSessionExpired: (() => void) | null = null;
 
   constructor() {
@@ -187,46 +183,12 @@ class ApiClient {
           _retry?: boolean;
         };
 
-        // Handle 401 Unauthorized - Token expired or invalid
+        // Handle 401 Unauthorized – backend does not support refresh; clear session and log out
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
-
-          // If already refreshing, queue this request
-          if (this.isRefreshing) {
-            return new Promise((resolve) => {
-              this.refreshSubscribers.push((token: string) => {
-                if (originalRequest.headers) {
-                  originalRequest.headers.Authorization = `Token ${token}`;
-                }
-                resolve(this.client(originalRequest));
-              });
-            });
-          }
-
-          // Start token refresh
-          this.isRefreshing = true;
-
-          try {
-            const newToken = await this.refreshAccessToken();
-
-            // Update all queued requests
-            this.refreshSubscribers.forEach((callback) => callback(newToken));
-            this.refreshSubscribers = [];
-
-            // Retry original request
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Token ${newToken}`;
-            }
-            return this.client(originalRequest);
-          } catch (refreshError) {
-            // Refresh failed - clear tokens and notify app to log user out
-            await this.clearTokens();
-            this.refreshSubscribers = [];
-            this.onSessionExpired?.();
-            return Promise.reject(refreshError);
-          } finally {
-            this.isRefreshing = false;
-          }
+          await this.clearTokens();
+          this.onSessionExpired?.();
+          return Promise.reject(this.handleError(error));
         }
 
         // Handle other errors
@@ -244,13 +206,6 @@ class ApiClient {
    */
   async setTokens(tokens: TokenResponse): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, tokens.accessToken);
-
-    if (tokens.refreshToken) {
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.REFRESH_TOKEN,
-        tokens.refreshToken
-      );
-    }
 
     // Store token expiry time
     if (tokens.expiresIn) {
@@ -270,7 +225,7 @@ class ApiClient {
   }
 
   /**
-   * Register a callback when session expires (e.g. no refresh token or refresh failed).
+   * Register a callback when session expires (e.g. 401 from backend).
    * AuthContext should set this to clear user state and redirect to login.
    */
   setOnSessionExpired(callback: (() => void) | null): void {
@@ -283,97 +238,8 @@ class ApiClient {
   async clearTokens(): Promise<void> {
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.TOKEN,
-      STORAGE_KEYS.REFRESH_TOKEN,
       STORAGE_KEYS.TOKEN_EXPIRY,
     ]);
-  }
-
-  /**
-   * Check if token is expired
-   */
-  async isTokenExpired(): Promise<boolean> {
-    const expiryTime = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRY);
-    if (!expiryTime) return true;
-
-    const expiry = parseInt(expiryTime, 10);
-    const now = Date.now();
-
-    // Consider token expired if less than 5 minutes remaining
-    return now >= expiry - 5 * 60 * 1000;
-  }
-
-  /**
-   * Refresh access token using refresh token
-   */
-  private async refreshAccessToken(): Promise<string> {
-    const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
-
-    if (!refreshToken) {
-      throw new ApiClientError({
-        status: "error",
-        message: "No refresh token available",
-        response_code: 401,
-        data: {},
-      });
-    }
-
-    try {
-      const response = await axios.post<ApiResponse<TokenResponse>>(
-        `${ENV.BASE_URL}/auth/refresh`,
-        { refreshToken },
-        {
-          // Don't use the client instance here to avoid infinite loop
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      // Backend returns: { status: "success", data: { token: "..." }, ... }
-      if (response.data.status === "success" && response.data.data) {
-        // TODO: Verify the actual token response structure from backend
-        // This is a placeholder - update based on actual /auth/token/ response
-        const tokenData = response.data.data as any;
-        const accessToken =
-          tokenData.token || tokenData.accessToken || tokenData;
-
-        if (!accessToken || typeof accessToken !== "string") {
-          throw new ApiClientError({
-            status: "error",
-            message: "Invalid token in response",
-            response_code: 500,
-            data: {},
-          });
-        }
-
-        // Update stored token
-        await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, accessToken);
-
-        // TODO: Update expiry time if backend provides it
-        // For now, tokens might not expire (backend-dependent)
-        const expiresIn = tokenData.expiresIn || 3600; // Default 1 hour
-        if (expiresIn) {
-          const expiryTime = Date.now() + expiresIn * 1000;
-          await AsyncStorage.setItem(
-            STORAGE_KEYS.TOKEN_EXPIRY,
-            expiryTime.toString()
-          );
-        }
-
-        return accessToken;
-      }
-
-      throw new ApiClientError({
-        status: "error",
-        message: "Token refresh failed",
-        response_code: response.data.response_code || 500,
-        data: {},
-      });
-    } catch (error) {
-      // If refresh fails, clear all tokens
-      await this.clearTokens();
-      throw error;
-    }
   }
 
   // ==========================================================================

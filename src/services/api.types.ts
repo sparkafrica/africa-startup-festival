@@ -28,18 +28,8 @@ export interface VerifyCodeResponse {
   user: User;
   tokens: {
     accessToken: string;
-    refreshToken?: string;
     expiresIn: number;
   };
-}
-
-export interface RefreshTokenRequest {
-  refreshToken: string;
-}
-
-export interface RefreshTokenResponse {
-  accessToken: string;
-  expiresIn: number;
 }
 
 // ============================================================================
