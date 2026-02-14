@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TextInput,
   Linking,
+  Alert,
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -37,8 +38,15 @@ function Header() {
 }
 
 function JobRow({ job }: { job: JobItem }) {
-  const openLink = () => {
-    if (job.link) Linking.openURL(job.link);
+  const openLink = async () => {
+    if (!job.link?.trim()) return;
+    try {
+      const url = job.link.trim();
+      const formatted = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+      await Linking.openURL(formatted);
+    } catch {
+      Alert.alert("Cannot Open Link", "This link could not be opened.");
+    }
   };
 
   const typeLabel = job.type === "active_role" ? "Role" : "Job";

@@ -443,7 +443,7 @@ export default function OutboundMeetingModal({
               <View style={styles.participantInfo}>
                 <Text style={styles.participantName}>{participantName}</Text>
                 <Text style={styles.participantRole}>
-                  {participantRole} • {participantCompany}
+                  {[participantRole, participantCompany].filter(Boolean).join(" • ") || "Participant"}
                 </Text>
               </View>
               <ChevronRightIcon size={20} color="#404040" />
@@ -746,11 +746,6 @@ export default function OutboundMeetingModal({
           location={location}
           participantName={participantName}
           participantCompany={participantCompany}
-          onViewCancelled={() => {
-            // TODO: Navigate to cancelled meetings view
-            setShowCancelledModal(false);
-            onCancel?.();
-          }}
         />
       </View>
     </Modal>

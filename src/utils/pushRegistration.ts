@@ -13,6 +13,8 @@ import {
   getToken,
   requestPermission,
   AuthorizationStatus,
+  registerDeviceForRemoteMessages,
+  getAPNSToken,
 } from "@react-native-firebase/messaging";
 import { Platform } from "react-native";
 import { notificationService } from "../services/notificationService";
@@ -58,6 +60,15 @@ export async function registerForPushNotifications(): Promise<string | null> {
     if (!granted) {
       return null;
     }
+    // iOS: Register with APNs BEFORE getToken. FCM requires APNs token to vend a valid FCM token.
+    // Without this, getToken may return a token that FCM rejects when backend tries to send.
+    await registerDeviceForRemoteMessages(messaging);
+    // Wait for APNs token (delivered asynchronously). Poll up to 5s.
+    for (let i = 0; i < 10; i++) {
+      const apnsToken = await getAPNSToken(messaging);
+      if (apnsToken) break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
   } else if (Platform.OS === "android") {
     const { status } = await Notifications.getPermissionsAsync();
     let finalStatus = status;
@@ -74,19 +85,39 @@ export async function registerForPushNotifications(): Promise<string | null> {
   let registrationId: string;
   try {
     registrationId = await getToken(messaging);
-  } catch {
+  } catch (err) {
+    if (__DEV__) {
+      console.warn(
+        "[push] getToken failed:",
+        err instanceof Error ? err.message : String(err)
+      );
+    }
     return null;
   }
 
   if (!registrationId || typeof registrationId !== "string") {
+    if (__DEV__) {
+      console.warn("[push] getToken returned empty or non-string:", registrationId);
+    }
     return null;
   }
 
   try {
     const deviceType = getDeviceType();
     await notificationService.registerDevice(registrationId, deviceType);
+    if (__DEV__) {
+      console.log(
+        `[push] Registered ${deviceType} device, token length: ${registrationId.length}`
+      );
+    }
     return registrationId;
-  } catch {
+  } catch (err) {
+    if (__DEV__) {
+      console.warn(
+        "[push] registerDevice failed:",
+        err instanceof Error ? err.message : String(err)
+      );
+    }
     return null;
   }
 }

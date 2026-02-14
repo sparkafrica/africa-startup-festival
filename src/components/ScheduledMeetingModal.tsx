@@ -486,7 +486,7 @@ export default function ScheduledMeetingModal({
               <View style={styles.participantInfo}>
                 <Text style={styles.participantName}>{participantName}</Text>
                 <Text style={styles.participantRole}>
-                  {participantRole} • {participantCompany}
+                  {[participantRole, participantCompany].filter(Boolean).join(" • ") || "Participant"}
                 </Text>
               </View>
               <ChevronRightIcon size={20} color="#000000" />
@@ -621,10 +621,6 @@ export default function ScheduledMeetingModal({
         startTime={startTime}
         endTime={endTime}
         location={location}
-        onViewCancelled={() => {
-          setShowCancelledModal(false);
-          onCancel?.();
-        }}
       />
 
       {/* Leave Feedback - Now uses external URL (https://forms.gle/sfCP4Y9CzEtXTQ7u9) */}

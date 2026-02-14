@@ -33,7 +33,7 @@ import { useChecklist } from "../context/ChecklistContext";
 import { useAuth } from "../context/AuthContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
-import { attendeeService, type Attendee as BackendAttendee } from "../services/attendeeService";
+import { attendeeService, type Attendee as BackendAttendee, type MatchInfo } from "../services/attendeeService";
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
@@ -75,6 +75,32 @@ import Svg, { Path, Circle } from "react-native-svg";
 
 const ATTENDEE_PAGE_SIZE = 20;
 const LOAD_MORE_THRESHOLD = 3;
+/** Minimum match_score to show attendee in Recommended tab (from match_info) */
+const RECOMMENDED_MIN_SCORE = 5;
+
+/**
+ * Parse match_info from backend (may be JSON string or object).
+ * Returns { match_score, reason } or null.
+ */
+function parseMatchInfo(raw: string | MatchInfo | null | undefined): MatchInfo | null {
+  if (raw == null) return null;
+  if (typeof raw === "object" && (raw.match_score != null || raw.reason != null)) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw) as MatchInfo;
+      return parsed && (parsed.match_score != null || parsed.reason != null) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** True if attendee has match_score >= RECOMMENDED_MIN_SCORE */
+function isRecommendedByMatchInfo(backendAttendee: BackendAttendee | undefined): boolean {
+  const info = parseMatchInfo(backendAttendee?.match_info);
+  return info != null && typeof info.match_score === "number" && info.match_score >= RECOMMENDED_MIN_SCORE;
+}
 
 // Grid Icon Component (for Card View)
 function GridIcon({
@@ -1172,9 +1198,9 @@ export default function AttendeesScreen() {
     return true;
   });
 
-  // Recommended attendees: those with match_info (non-empty)
-  const recommendedAttendees = filteredAttendees.filter(
-    (attendee) => attendee.backendData?.match_info && attendee.backendData.match_info.trim().length > 0
+  // Recommended attendees: those with match_info.match_score >= 5
+  const recommendedAttendees = filteredAttendees.filter((attendee) =>
+    isRecommendedByMatchInfo(attendee.backendData)
   );
 
   // Get displayed attendees based on active tab

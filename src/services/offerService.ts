@@ -1,10 +1,11 @@
 /**
  * Partner/Public Offers Service
  *
- * Public offers listings from partners, exhibitors, and companies.
- * Uses GET /offers/ with X-SPARK-KEY (same as jobs).
+ * - GET /offers/ (public): list for Partner Offers page. Uses X-SPARK-KEY.
+ * - GET/POST/PATCH/DELETE /company-offers/ (auth): company admin manages offers;
+ *   saving profile with Event Offers syncs here so GET /offers/ shows them.
  *
- * Backend contract: see docs/PARTNER_OFFERS_API.md for request/response shape.
+ * Backend contract: see docs/PARTNER_OFFERS_API.md and Spark EMS.yaml Offer schemas.
  */
 
 import { api } from "./api";
@@ -36,6 +37,30 @@ export interface PartnerOffer {
   image_url?: string;
   /** ISO date string if offer expires (optional) */
   valid_until?: string;
+}
+
+/** Backend Offer from GET /company-offers/ (paginated results). */
+export interface CompanyOfferItem {
+  id: number;
+  title: string;
+  link: string;
+  description?: string | null;
+  company_id?: string | number;
+  company_name?: string;
+  event?: number;
+  offer_type?: string | null;
+  is_active?: boolean;
+}
+
+/** Request body for POST /company-offers/ and PATCH /company-offers/{id}/. */
+export interface CompanyOfferCreateUpdateRequest {
+  title: string;
+  link: string;
+  company: number;
+  event: number;
+  description?: string | null;
+  offer_type?: "discount" | "promo" | "general" | null;
+  is_active?: boolean;
 }
 
 // ============================================================================
@@ -103,5 +128,100 @@ export const offerService = {
       ...params,
       event_ids: String(EVENT_ID),
     });
+  },
+
+  // --------------------------------------------------------------------------
+  // Company Offers (authenticated) – sync from profile save so GET /offers/ shows them
+  // --------------------------------------------------------------------------
+
+  /**
+   * List offers for companies the current user administers.
+   * Backend: GET /company-offers/ (paginated). Used to sync profile offers and to load form.
+   */
+  async listMyCompanyOffers(): Promise<CompanyOfferItem[]> {
+    const response = await api.get<{ count?: number; results?: CompanyOfferItem[] }>(
+      `/company-offers/?page_size=100`
+    );
+    const raw = response as any;
+    const results = raw?.results ?? raw?.data?.results ?? (Array.isArray(raw?.data) ? raw.data : null);
+    if (Array.isArray(results)) return results;
+    return [];
+  },
+
+  /**
+   * Create an offer for the user's company. Backend: POST /company-offers/.
+   */
+  async createCompanyOffer(body: CompanyOfferCreateUpdateRequest): Promise<CompanyOfferItem> {
+    const response = (await api.post<CompanyOfferItem>("/company-offers/", body)) as any;
+    const data = response?.data ?? response;
+    if (data && typeof data.id === "number") return data as CompanyOfferItem;
+    throw new ApiClientError({
+      status: "error",
+      message: "Invalid response from create offer",
+      response_code: 500,
+      data: {},
+    });
+  },
+
+  /**
+   * Update an offer. Backend: PATCH /company-offers/{id}/.
+   */
+  async updateCompanyOffer(
+    id: number,
+    body: Partial<CompanyOfferCreateUpdateRequest>
+  ): Promise<CompanyOfferItem> {
+    const response = (await api.patch<CompanyOfferItem>(`/company-offers/${id}/`, body)) as any;
+    const data = response?.data ?? response;
+    if (data && typeof data.id === "number") return data as CompanyOfferItem;
+    throw new ApiClientError({
+      status: "error",
+      message: "Invalid response from update offer",
+      response_code: 500,
+      data: {},
+    });
+  },
+
+  /**
+   * Delete (deactivate) an offer. Backend: DELETE /company-offers/{id}/.
+   */
+  async deleteCompanyOffer(id: number): Promise<void> {
+    await api.delete(`/company-offers/${id}/`);
+  },
+
+  /**
+   * Sync profile offers to backend so GET /offers/ shows them on Partner Offers page.
+   * Call after saving company profile. Creates new, updates existing (by id), deletes removed.
+   */
+  async syncCompanyOffers(
+    companyId: number,
+    eventId: number,
+    offers: Array<{ id?: string | number; title: string; link: string; color?: string }>
+  ): Promise<void> {
+    const existing = await this.listMyCompanyOffers();
+    const existingIds = new Set(existing.map((o) => o.id));
+    const ourBackendIds = new Set(
+      offers
+        .filter((o) => typeof o.id === "number" && existingIds.has(o.id as number))
+        .map((o) => o.id as number)
+    );
+
+    for (const offer of offers) {
+      const payload: CompanyOfferCreateUpdateRequest = {
+        title: offer.title.trim(),
+        link: offer.link.trim(),
+        company: companyId,
+        event: eventId,
+        offer_type: "general",
+      };
+      if (typeof offer.id === "number" && existingIds.has(offer.id)) {
+        await this.updateCompanyOffer(offer.id, payload);
+      } else {
+        await this.createCompanyOffer(payload);
+      }
+    }
+
+    for (const id of existingIds) {
+      if (!ourBackendIds.has(id)) await this.deleteCompanyOffer(id);
+    }
   },
 };

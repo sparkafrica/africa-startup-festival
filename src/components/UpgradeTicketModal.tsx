@@ -1,7 +1,7 @@
 /**
- * Upgrade Ticket Modal – two steps:
- * 1) Select new ticket tier, tap "Upgrade to [tier]"
- * 2) Select payment method from backend enum (modal step); then API is called and user is redirected to payment link.
+ * Upgrade Ticket Modal – single step for ATE2026 (Korapay only).
+ * 1) Select new ticket tier, tap "Upgrade to [tier]" → upgrade runs with Korapay and user is redirected to payment link.
+ * Other payment methods have been removed; only Korapay is used.
  */
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -17,11 +17,10 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  ticketService,
-  type TicketClass,
-  UPGRADE_PAYMENT_METHODS,
-} from "../services/ticketService";
+import { ticketService, type TicketClass } from "../services/ticketService";
+
+/** ATE2026: Korapay only. Value sent to backend as payment_method. */
+const KORAPAY_METHOD = "KORAPAY";
 import { ApiClientError } from "../services/api";
 import { getTicketBackgroundColor, getTicketGradientColors } from "../utils/ticketColors";
 import { colors, typography, spacing, borderRadius } from "../theme/theme";
@@ -83,7 +82,6 @@ export default function UpgradeTicketModal({
     { ticket_class_id: number; value: string; label: string }[]
   >([]);
   const [selectedTicketClassId, setSelectedTicketClassId] = useState<number | null>(null);
-  const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,7 +113,6 @@ export default function UpgradeTicketModal({
   useEffect(() => {
     if (visible && eventId) {
       setError(null);
-      setStep(1);
       fetchClasses();
     }
   }, [visible, eventId, fetchClasses]);
@@ -192,7 +189,7 @@ export default function UpgradeTicketModal({
         <View style={styles.sheet}>
           <View style={styles.handle} />
 
-          {step === 1 ? (
+          {(
             <>
               <Text style={styles.title}>Upgrade your ticket</Text>
               <Text style={styles.subtitle}>
@@ -282,7 +279,7 @@ export default function UpgradeTicketModal({
                 showsVerticalScrollIndicator={false}
               >
                 <Pressable
-                  onPress={() => setStep(2)}
+                  onPress={() => handleUpgrade(KORAPAY_METHOD)}
                   disabled={classesLoading || upgradeOptions.length === 0}
                   style={({ pressed }) => [
                     styles.primaryButton,
@@ -291,14 +288,19 @@ export default function UpgradeTicketModal({
                       styles.primaryButtonDisabled,
                   ]}
                 >
-                  <Text style={styles.primaryButtonText}>
-                    {upgradeOptions.length === 0
-                      ? "No options"
-                      : `Upgrade to ${selectedLabel}`}
-                  </Text>
+                  {loading ? (
+                    <ActivityIndicator size="small" color={colors.text.inverse} />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>
+                      {upgradeOptions.length === 0
+                        ? "No options"
+                        : `Upgrade to ${selectedLabel}`}
+                    </Text>
+                  )}
                 </Pressable>
                 <Pressable
                   onPress={onClose}
+                  disabled={loading}
                   style={({ pressed }) => [
                     styles.secondaryButton,
                     pressed && styles.secondaryButtonPressed,
@@ -307,49 +309,6 @@ export default function UpgradeTicketModal({
                   <Text style={styles.secondaryButtonText}>Cancel</Text>
                 </Pressable>
               </ScrollView>
-            </>
-          ) : (
-            <>
-              <View style={styles.stepHeader}>
-                <Pressable
-                  onPress={() => { setStep(1); setError(null); }}
-                  style={styles.backButton}
-                  hitSlop={10}
-                >
-                  <Text style={styles.backButtonText}>← Back</Text>
-                </Pressable>
-                <Text style={styles.stepTitle}>Select payment method</Text>
-                <Text style={styles.stepSubtitle}>
-                  You’re upgrading to {selectedLabel}. Choose how to pay.
-                </Text>
-              </View>
-              {error ? (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              ) : null}
-              {loading ? (
-                <View style={styles.loadingRow}>
-                  <ActivityIndicator size="small" color={colors.text.primary} />
-                  <Text style={styles.loadingText}>Processing…</Text>
-                </View>
-              ) : (
-                <View style={styles.paymentList}>
-                  {UPGRADE_PAYMENT_METHODS.map((pm) => (
-                    <Pressable
-                      key={pm.value}
-                      onPress={() => handleUpgrade(pm.value)}
-                      style={({ pressed }) => [
-                        styles.paymentMethodRow,
-                        pressed && styles.paymentMethodRowPressed,
-                      ]}
-                    >
-                      <Text style={styles.paymentMethodLabel}>{pm.label}</Text>
-                      <Text style={styles.paymentMethodChevron}>→</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
             </>
           )}
           <SafeAreaView edges={["bottom"]} style={styles.safeBottom} />

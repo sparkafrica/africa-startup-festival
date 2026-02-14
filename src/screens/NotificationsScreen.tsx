@@ -19,6 +19,7 @@ import { ChevronRightIcon } from "../components/MenuIcons";
 import { notificationService } from "../services/notificationService";
 import { ApiClientError } from "../services/api";
 import { mapBackendNotificationToUI, fetchNotificationDetails, type UINotification } from "../utils/notificationUtils";
+import { meetingService } from "../services/meetingService";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { useToast } from "../hooks/useToast";
@@ -149,10 +150,15 @@ export default function NotificationsScreen() {
    * Handle notification press
    */
   const handleNotificationPress = useCallback(async (notification: UINotification) => {
-    // For notifications that open modals (meeting_time_change, meeting_cancelled)
+    // For notifications that open modals
     if (
+      notification.type === "meeting_request" ||
       notification.type === "meeting_time_change" ||
-      notification.type === "meeting_cancelled"
+      notification.type === "meeting_approved" ||
+      notification.type === "meeting_cancelled" ||
+      notification.type === "meeting_request_sent" ||
+      notification.type === "connection" ||
+      notification.type === "generic"
     ) {
       // Fetch details before opening modal (lazy loading)
       setIsLoadingDetails(true);
@@ -219,23 +225,69 @@ export default function NotificationsScreen() {
   }, [markAsRead, navigation, user?.user_id]);
 
   /**
-   * Handle modal action (accept/decline) - mark as read when action is done
+   * Handle "View profile" - mark as read, close modal, navigate to Connections
+   */
+  const handleViewProfile = useCallback((notification: UINotification) => {
+    markAsRead(notification);
+    setSelectedNotification(null);
+    navigation.goBack();
+    setTimeout(() => {
+      navigation.navigate("Connections");
+    }, 100);
+  }, [markAsRead, navigation]);
+
+  /**
+   * Handle "View meeting" - mark as read, close modal, navigate to Meetings
+   */
+  const handleViewMeeting = useCallback((
+    notification: UINotification,
+    tab: "requests" | "scheduled" = "requests",
+    secondaryTab: "inbound" | "outbound" = "inbound"
+  ) => {
+    markAsRead(notification);
+    setSelectedNotification(null);
+    navigation.goBack();
+    setTimeout(() => {
+      navigation.navigate("Meetings", {
+        primaryTab: tab,
+        secondaryTab: notification.direction || secondaryTab,
+      });
+    }, 100);
+  }, [markAsRead, navigation]);
+
+  /**
+   * Handle modal action (accept/decline) - for meeting_request, calls API then marks as read
    */
   const handleModalAction = useCallback(async (
     notification: UINotification,
     action: "accept" | "decline"
   ) => {
-    // Mark as read when action button is clicked
+    // meeting_request: Call API to accept/reject (throws on error so modal avoids success toast)
+    if (notification.type === "meeting_request" && notification.meeting_id) {
+      const meetingId = parseInt(notification.meeting_id, 10);
+      if (isNaN(meetingId)) {
+        showToast("Invalid meeting. Please go to Meetings.", "error");
+        setSelectedNotification(null);
+        return;
+      }
+      try {
+        await meetingService.respondToMeeting(
+          meetingId,
+          action === "accept" ? "accept" : "reject"
+        );
+      } catch (err: any) {
+        showToast(err?.message || "Failed to respond to meeting request.", "error");
+        if (__DEV__) console.error("Meeting response error:", err);
+        throw err; // Re-throw so modal does not show success toast
+      }
+    }
+
+    // Mark as read when action is done
     await markAsRead(notification);
-    
+
     // Close modal
     setSelectedNotification(null);
-    
-    // Handle the actual action (accept/decline meeting time change)
-    // Note: Full meeting action integration will be in Task 4 (Meeting Actions)
-    // For now, the action is logged and modal closes
-    // The actual API call to accept/decline will be added when integrating meeting actions
-  }, [markAsRead]);
+  }, [markAsRead, showToast]);
 
   // Fetch notifications on mount
   useEffect(() => {
@@ -364,14 +416,29 @@ export default function NotificationsScreen() {
         )}
       </SafeAreaView>
 
-      {/* Notification Detail Modal - For meeting time change requests and cancelled meetings */}
+      {/* Notification Detail Modal */}
       <NotificationDetailModal
         visible={
           selectedNotification !== null &&
-          (selectedNotification?.type === "meeting_time_change" ||
-            selectedNotification?.type === "meeting_cancelled")
+          (selectedNotification?.type === "meeting_request" ||
+            selectedNotification?.type === "meeting_time_change" ||
+            selectedNotification?.type === "meeting_approved" ||
+            selectedNotification?.type === "meeting_cancelled" ||
+            selectedNotification?.type === "meeting_request_sent" ||
+            selectedNotification?.type === "connection" ||
+            selectedNotification?.type === "generic")
         }
-        onClose={() => setSelectedNotification(null)}
+        onClose={() => {
+          if (
+            selectedNotification?.type === "meeting_cancelled" ||
+            selectedNotification?.type === "connection" ||
+            selectedNotification?.type === "meeting_request_sent" ||
+            selectedNotification?.type === "generic"
+          ) {
+            markAsRead(selectedNotification);
+          }
+          setSelectedNotification(null);
+        }}
         notification={selectedNotification ? {
           id: selectedNotification.id,
           type: selectedNotification.type as any,
@@ -381,15 +448,28 @@ export default function NotificationsScreen() {
             role: selectedNotification.requester.role || "",
             company: selectedNotification.requester.company || "",
             avatar: selectedNotification.requester.avatar,
+            tags: selectedNotification.requester.tags,
+            interests: selectedNotification.requester.interests,
+            socialLabel: selectedNotification.requester.socialLabel,
           } : undefined,
           meetingDetails: selectedNotification.meetingDetails,
           reason: selectedNotification.reason,
           cancelledBy: selectedNotification.cancelledBy,
-          onAccept: selectedNotification.type === "meeting_time_change"
+          onAccept: selectedNotification.type === "meeting_request"
             ? () => handleModalAction(selectedNotification, "accept")
             : undefined,
-          onDecline: selectedNotification.type === "meeting_time_change"
+          onDecline: selectedNotification.type === "meeting_request"
             ? () => handleModalAction(selectedNotification, "decline")
+            : undefined,
+          onViewMeeting: selectedNotification.type === "meeting_time_change"
+            ? () => handleViewMeeting(selectedNotification, "requests", "inbound")
+            : selectedNotification.type === "meeting_approved"
+            ? () => handleViewMeeting(selectedNotification, "scheduled", "outbound")
+            : selectedNotification.type === "meeting_request_sent"
+            ? () => handleViewMeeting(selectedNotification, "requests", "outbound")
+            : undefined,
+          onViewProfile: selectedNotification.type === "connection"
+            ? () => handleViewProfile(selectedNotification)
             : undefined,
         } : null}
       />

@@ -43,6 +43,16 @@ export interface AttendeeUser {
 }
 
 /**
+ * Match info from backend (may be JSON string or object)
+ * e.g. { "match_score": 5.0, "reason": "nice dynamics" }
+ * Attendees with match_score >= 5 are shown in the Recommended tab.
+ */
+export interface MatchInfo {
+  match_score?: number;
+  reason?: string;
+}
+
+/**
  * Attendee Response
  * Response from GET /attendees/{event_id}/{attendee_type}/
  * Matches backend schema: Attendee
@@ -50,7 +60,8 @@ export interface AttendeeUser {
 export interface Attendee {
   ticket: AttendeeTicket;
   user: AttendeeUser;
-  match_info: string | null; // Used for recommendations
+  /** JSON string or object: { match_score, reason }. Score >= 5 → Recommended tab. */
+  match_info: string | MatchInfo | null;
 }
 
 /**

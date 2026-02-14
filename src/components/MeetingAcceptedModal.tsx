@@ -179,7 +179,7 @@ export default function MeetingAcceptedModal({
               <View style={styles.detailRow}>
                 <PersonProfileIcon size={18} color="#404040" />
                 <Text style={styles.detailText}>
-                  {participantName} • {participantCompany}
+                  {participantName}{participantCompany ? ` • ${participantCompany}` : ""}
                 </Text>
               </View>
 

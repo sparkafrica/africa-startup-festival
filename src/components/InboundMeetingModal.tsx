@@ -428,7 +428,7 @@ export default function InboundMeetingModal({
               <View style={styles.participantInfo}>
                 <Text style={styles.participantName}>{participantName}</Text>
                 <Text style={styles.participantRole}>
-                  {participantRole} • {participantCompany}
+                  {[participantRole, participantCompany].filter(Boolean).join(" • ") || "Participant"}
                 </Text>
               </View>
               <ChevronRightIcon size={20} color="#404040" />
@@ -721,14 +721,6 @@ export default function InboundMeetingModal({
           startTime={startTime}
           endTime={endTime}
           location={location}
-          onViewCancelled={() => {
-            // TODO: Navigate to declined meetings view
-            setShowDeclinedModal(false);
-            // Close the inbound meeting modal and call onDecline
-            onDecline?.(declineReason);
-            // Clear stored reason
-            setDeclineReason(undefined);
-          }}
         />
       </View>
     </Modal>

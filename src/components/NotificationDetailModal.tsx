@@ -25,12 +25,16 @@ interface NotificationDetailModalProps {
   notification: {
     id: string;
     type:
-      | "meeting_time_change"
-      | "meeting_approved"
-      | "connection"
-      | "reminder"
-      | "meeting_cancelled";
+      | "meeting_request" // Inbound: Accept/Decline
+      | "meeting_time_change" // Info + View meeting
+      | "meeting_approved" // Info + View meeting (scheduled)
+      | "meeting_request_sent" // Info + View meeting
+      | "meeting_cancelled" // Info + OK
+      | "connection" // Info + View profile
+      | "reminder" // Info + View meeting
+      | "generic"; // Simple info + OK
     title: string;
+    description?: string;
     requester?: {
       name: string;
       role: string;
@@ -42,7 +46,7 @@ interface NotificationDetailModalProps {
     };
     meetingDetails?: {
       title: string;
-      originalTime: string;
+      originalTime?: string;
       newTime?: string;
       location?: string;
     };
@@ -50,6 +54,8 @@ interface NotificationDetailModalProps {
     cancelledBy?: "them" | "you";
     onAccept?: () => void;
     onDecline?: () => void;
+    onViewMeeting?: () => void;
+    onViewProfile?: () => void;
   } | null;
 }
 
@@ -98,6 +104,7 @@ export default function NotificationDetailModal({
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const [showToast, setShowToast] = useState(false);
   const [toastAction, setToastAction] = useState<"accepted" | "declined">("accepted");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -149,12 +156,12 @@ export default function NotificationDetailModal({
         tension: 65,
         friction: 11,
       }).start();
-      // Reset toast when modal opens
       setShowToast(false);
+      setIsSubmitting(false);
     } else {
       translateY.setValue(SCREEN_HEIGHT);
-      // Reset toast when modal closes
       setShowToast(false);
+      setIsSubmitting(false);
     }
   }, [visible, translateY]);
 
@@ -203,11 +210,41 @@ export default function NotificationDetailModal({
               </View>
 
               {/* Intro Text */}
+              {notification.type === "meeting_request" && (
+                <View className="px-6 pb-4">
+                  <Text className="text-base text-neutral-600 leading-6">
+                    {notification.requester?.name} has requested a meeting with
+                    you. Accept or decline below.
+                  </Text>
+                </View>
+              )}
               {notification.type === "meeting_time_change" && (
                 <View className="px-6 pb-4">
                   <Text className="text-base text-neutral-600 leading-6">
-                    {notification.requester?.name} has requested to change this
-                    meeting time. Please approve or decline.
+                    The meeting request has been updated with new details.
+                  </Text>
+                </View>
+              )}
+              {notification.type === "meeting_approved" && (
+                <View className="px-6 pb-4">
+                  <Text className="text-base text-neutral-600 leading-6">
+                    Your meeting request has been accepted.
+                  </Text>
+                </View>
+              )}
+              {notification.type === "meeting_request_sent" && (
+                <View className="px-6 pb-4">
+                  <Text className="text-base text-neutral-600 leading-6">
+                    Your meeting request has been sent successfully.
+                  </Text>
+                </View>
+              )}
+              {notification.type === "connection" && (
+                <View className="px-6 pb-4">
+                  <Text className="text-base text-neutral-600 leading-6">
+                    {notification.requester?.name
+                      ? `${notification.requester.name} accepted your connection request.`
+                      : "Your connection request has been accepted."}
                   </Text>
                 </View>
               )}
@@ -220,6 +257,16 @@ export default function NotificationDetailModal({
                   </Text>
                 </View>
               )}
+              {/* Description: for generic, or fallback when no meeting/requester details */}
+              {(notification.type === "generic" ||
+                (!notification.meetingDetails && !notification.requester)) &&
+                notification.description && (
+                  <View className="px-6 pb-4">
+                    <Text className="text-base text-neutral-600 leading-6">
+                      {notification.description}
+                    </Text>
+                  </View>
+                )}
 
               {/* Meeting Details Card */}
               {notification.meetingDetails && (
@@ -239,13 +286,16 @@ export default function NotificationDetailModal({
                     >
                       {notification.meetingDetails.title}
                     </Text>
-                    {notification.type === "meeting_time_change" ? (
+                    {notification.type === "meeting_time_change" &&
+                    notification.meetingDetails.newTime ? (
                       <>
-                        <View className="mb-2">
-                          <Text className="text-sm text-neutral-500 line-through">
-                            From: {notification.meetingDetails.originalTime}
-                          </Text>
-                        </View>
+                        {notification.meetingDetails.originalTime && (
+                          <View className="mb-2">
+                            <Text className="text-sm text-neutral-500 line-through">
+                              From: {notification.meetingDetails.originalTime}
+                            </Text>
+                          </View>
+                        )}
                         <View>
                           <Text
                             className="text-sm font-medium"
@@ -255,13 +305,24 @@ export default function NotificationDetailModal({
                           </Text>
                         </View>
                       </>
+                    ) : notification.type === "meeting_time_change" ? (
+                      <View>
+                        <Text className="text-sm text-neutral-600">
+                          {notification.meetingDetails.originalTime ?? "Details updated"}
+                        </Text>
+                        <Text className="text-xs text-neutral-500 mt-1">
+                          Details have been updated.
+                        </Text>
+                      </View>
                     ) : (
                       <>
-                        <View className="mb-2">
-                          <Text className="text-sm text-neutral-600">
-                            {notification.meetingDetails.originalTime}
-                          </Text>
-                        </View>
+                        {notification.meetingDetails.originalTime && (
+                          <View className="mb-2">
+                            <Text className="text-sm text-neutral-600">
+                              {notification.meetingDetails.originalTime}
+                            </Text>
+                          </View>
+                        )}
                         {notification.meetingDetails.location && (
                           <View>
                             <Text className="text-sm text-neutral-600">
@@ -313,8 +374,7 @@ export default function NotificationDetailModal({
                           {notification.requester.name}
                         </Text>
                         <Text className="text-sm text-neutral-600 mb-2">
-                          {notification.requester.role} •{" "}
-                          {notification.requester.company}
+                          {[notification.requester.role, notification.requester.company].filter(Boolean).join(" • ") || ""}
                         </Text>
                         
                         {/* Tags (Country, Role, Sector) */}
@@ -411,7 +471,127 @@ export default function NotificationDetailModal({
               )}
 
               {/* Action Buttons */}
-              {notification.type === "meeting_cancelled" ? (
+              {notification.type === "meeting_request" &&
+              (notification.onAccept || notification.onDecline) ? (
+                <View className="px-6 flex-row gap-3">
+                  {notification.onAccept && (
+                    <Pressable
+                      onPress={async () => {
+                        if (isSubmitting) return;
+                        setIsSubmitting(true);
+                        try {
+                          await notification.onAccept?.();
+                          setToastAction("accepted");
+                          setShowToast(true);
+                          setTimeout(() => onClose(), 500);
+                        } catch {
+                          // Handler showed error toast, keep modal open
+                        } finally {
+                          setIsSubmitting(false);
+                        }
+                      }}
+                      disabled={isSubmitting}
+                      className="flex-1 bg-black rounded-2xl py-4 flex-row items-center justify-center"
+                      style={[
+                        {
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.1,
+                          shadowRadius: 4,
+                          elevation: 2,
+                        },
+                        { opacity: isSubmitting ? 0.6 : 1 },
+                      ]}
+                    >
+                      <CheckIcon size={20} color="#FFFFFF" />
+                      <Text className="text-white font-semibold text-base ml-2">
+                        Accept
+                      </Text>
+                    </Pressable>
+                  )}
+                  {notification.onDecline && (
+                    <Pressable
+                      onPress={async () => {
+                        if (isSubmitting) return;
+                        setIsSubmitting(true);
+                        try {
+                          await notification.onDecline?.();
+                          setToastAction("declined");
+                          setShowToast(true);
+                          setTimeout(() => onClose(), 500);
+                        } catch {
+                          // Handler showed error toast, keep modal open
+                        } finally {
+                          setIsSubmitting(false);
+                        }
+                      }}
+                      disabled={isSubmitting}
+                      className="flex-1 border-2 rounded-2xl py-4 flex-row items-center justify-center"
+                      style={[
+                        {
+                        borderColor: "#EF4444",
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.05,
+                        shadowRadius: 2,
+                        elevation: 1,
+                      },
+                        { opacity: isSubmitting ? 0.6 : 1 },
+                      ]}
+                    >
+                      <XIcon size={20} color="#EF4444" />
+                      <Text
+                        className="font-semibold text-base ml-2"
+                        style={{ color: "#EF4444" }}
+                      >
+                        Decline
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : notification.onViewMeeting ? (
+                <View className="px-6">
+                  <Pressable
+                    onPress={() => {
+                      notification.onViewMeeting?.();
+                      onClose();
+                    }}
+                    className="bg-black rounded-2xl py-4 flex-row items-center justify-center"
+                    style={{
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
+                  >
+                    <Text className="text-white font-semibold text-base">
+                      View meeting
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : notification.onViewProfile ? (
+                <View className="px-6">
+                  <Pressable
+                    onPress={() => {
+                      notification.onViewProfile?.();
+                      onClose();
+                    }}
+                    className="bg-black rounded-2xl py-4 flex-row items-center justify-center"
+                    style={{
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
+                  >
+                    <Text className="text-white font-semibold text-base">
+                      View profile
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
                 <View className="px-6">
                   <Pressable
                     onPress={onClose}
@@ -429,69 +609,6 @@ export default function NotificationDetailModal({
                     </Text>
                   </Pressable>
                 </View>
-              ) : (
-                (notification.onAccept || notification.onDecline) && (
-                  <View className="px-6 flex-row gap-3">
-                    {notification.onAccept && (
-                    <Pressable
-                      onPress={() => {
-                        notification.onAccept?.();
-                        // Show toast
-                        setToastAction("accepted");
-                        setShowToast(true);
-                        // Close modal after a short delay
-                        setTimeout(() => {
-                          onClose();
-                        }, 500);
-                      }}
-                      className="flex-1 bg-black rounded-2xl py-4 flex-row items-center justify-center"
-                      style={{
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.1,
-                        shadowRadius: 4,
-                        elevation: 2,
-                      }}
-                    >
-                      <CheckIcon size={20} color="#FFFFFF" />
-                      <Text className="text-white font-semibold text-base ml-2">
-                        Accept
-                      </Text>
-                    </Pressable>
-                  )}
-                  {notification.onDecline && (
-                    <Pressable
-                      onPress={() => {
-                        notification.onDecline?.();
-                        // Show toast
-                        setToastAction("declined");
-                        setShowToast(true);
-                        // Close modal after a short delay
-                        setTimeout(() => {
-                          onClose();
-                        }, 500);
-                      }}
-                      className="flex-1 border-2 rounded-2xl py-4 flex-row items-center justify-center"
-                      style={{
-                        borderColor: "#EF4444",
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.05,
-                        shadowRadius: 2,
-                        elevation: 1,
-                      }}
-                    >
-                      <XIcon size={20} color="#EF4444" />
-                      <Text
-                        className="font-semibold text-base ml-2"
-                        style={{ color: "#EF4444" }}
-                      >
-                        Decline
-                      </Text>
-                    </Pressable>
-                  )}
-                  </View>
-                )
               )}
             </ScrollView>
           </SafeAreaView>

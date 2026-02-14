@@ -34,4 +34,6 @@ export { meetingService } from "./meetingService";
 export { jobService } from "./jobService";
 export type { CompanyJobs, JobItem, JobItemType } from "./jobService";
 export { offerService } from "./offerService";
+export { boothService } from "./boothService";
+export type { Booth } from "./boothService";
 export type { PartnerOffer } from "./offerService";

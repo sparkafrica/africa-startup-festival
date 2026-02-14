@@ -28,7 +28,6 @@ interface MeetingCancelledModalProps {
   startTime: string;
   endTime: string;
   location?: string;
-  onViewCancelled?: () => void;
   modalTitle?: string; // Optional: defaults to "Meeting Cancelled"
 }
 
@@ -62,7 +61,6 @@ export default function MeetingCancelledModal({
   startTime,
   endTime,
   location,
-  onViewCancelled,
   modalTitle = "Meeting Cancelled",
 }: MeetingCancelledModalProps) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -156,7 +154,7 @@ export default function MeetingCancelledModal({
           });
         }
       },
-    })
+    }),
   ).current;
 
   return (
@@ -206,7 +204,7 @@ export default function MeetingCancelledModal({
                 <View style={styles.detailRow}>
                   <PersonProfileIcon size={18} color="#404040" />
                   <Text style={styles.detailText}>
-                    {participantName} • {participantCompany}
+                    {participantName}{participantCompany ? ` • ${participantCompany}` : ""}
                   </Text>
                 </View>
 
@@ -227,19 +225,9 @@ export default function MeetingCancelledModal({
                 )}
               </View>
 
-              {/* View Cancelled Meeting Link */}
-              <View style={styles.linkContainer}>
-                <Text style={styles.linkText}>
-                  View cancelled meeting in{" "}
-                  <Text style={styles.linkTextBlue} onPress={onViewCancelled}>
-                    here
-                  </Text>
-                </Text>
-              </View>
-
               {/* Action Button */}
               <Pressable style={styles.actionButton} onPress={onClose}>
-                <Text style={styles.actionButtonText}>Okay, nice</Text>
+                <Text style={styles.actionButtonText}>Okay</Text>
               </Pressable>
             </View>
           </SafeAreaView>
@@ -352,20 +340,6 @@ const styles = StyleSheet.create({
     color: "#404040",
     marginLeft: 8,
     flex: 1,
-  },
-  linkContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  linkText: {
-    fontSize: 14,
-    color: "#404040",
-    textAlign: "center",
-  },
-  linkTextBlue: {
-    fontSize: 14,
-    color: "#007AFF",
-    textDecorationLine: "underline",
   },
   actionButton: {
     backgroundColor: "#000000",
