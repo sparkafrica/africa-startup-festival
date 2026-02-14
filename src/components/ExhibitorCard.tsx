@@ -5,7 +5,12 @@ import {
   Pressable,
   Image,
   ImageSourcePropType,
+  StyleSheet,
 } from "react-native";
+
+// Square logo like CompanyDetailScreen so images aren't stretched (was 120×60)
+const LOGO_SIZE = 64;
+const LOGO_RADIUS = 12;
 
 interface ExhibitorCardProps {
   name?: string;
@@ -41,17 +46,13 @@ export default function ExhibitorCard({
     >
       {logo ? (
         <View
-          style={{
-            height: 60,
-            width: "100%",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          className="rounded-xl overflow-hidden"
+          style={[styles.logoWrap, { width: LOGO_SIZE, height: LOGO_SIZE, borderRadius: LOGO_RADIUS }]}
         >
           <Image
             source={imageSource}
-            style={{ width: 140, height: 60, maxWidth: "100%" }}
-            resizeMode="contain"
+            style={{ width: LOGO_SIZE, height: LOGO_SIZE, borderRadius: LOGO_RADIUS }}
+            resizeMode="cover"
           />
         </View>
       ) : (
@@ -67,3 +68,10 @@ export default function ExhibitorCard({
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  logoWrap: {
+    overflow: "hidden",
+    backgroundColor: "#f5f5f5",
+  },
+});

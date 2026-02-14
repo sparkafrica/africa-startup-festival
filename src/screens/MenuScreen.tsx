@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { Alert } from "react-native";
+import { Alert, Linking } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
@@ -31,8 +31,9 @@ export default function MenuScreen() {
           navigation.navigate("Profile");
           break;
         case "Map":
-          // TODO: Add Map route when implemented
-          console.log("Navigate to Map");
+          Linking.openURL("https://africatechnologyexpo.com/floor-plan").catch(() => {
+            Alert.alert("Cannot Open Link", "The venue map could not be opened.");
+          });
           break;
         case "Offers":
           navigation.navigate("PartnersOffers");
@@ -46,6 +47,11 @@ export default function MenuScreen() {
         case "AppGuide":
           // TODO: Add AppGuide route when implemented
           console.log("Navigate to AppGuide");
+          break;
+        case "AppSuggestions":
+          Linking.openURL("https://forms.gle/cc3W9UvfeXV1Zufu7").catch(() => {
+            Alert.alert("Cannot Open Link", "The link could not be opened.");
+          });
           break;
         default:
           console.log(`Navigate to ${route}`);

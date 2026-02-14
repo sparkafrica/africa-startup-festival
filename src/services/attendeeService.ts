@@ -43,6 +43,16 @@ export interface AttendeeUser {
 }
 
 /**
+ * Match info from backend (may be JSON string or object)
+ * e.g. { "match_score": 5.0, "reason": "nice dynamics" }
+ * Attendees with match_score >= 5 are shown in the Recommended tab.
+ */
+export interface MatchInfo {
+  match_score?: number;
+  reason?: string;
+}
+
+/**
  * Attendee Response
  * Response from GET /attendees/{event_id}/{attendee_type}/
  * Matches backend schema: Attendee
@@ -50,7 +60,8 @@ export interface AttendeeUser {
 export interface Attendee {
   ticket: AttendeeTicket;
   user: AttendeeUser;
-  match_info: string | null; // Used for recommendations
+  /** JSON string or object: { match_score, reason }. Score >= 5 → Recommended tab. */
+  match_info: string | MatchInfo | null;
 }
 
 /**
@@ -117,6 +128,20 @@ export const attendeeService = {
 
       // Backend returns PaginatedAttendeeList directly
       const data = response as any;
+
+      // Verbose log: response shape and attendee properties (for debugging match_info etc.)
+      const list = data?.results ?? data?.data?.results ?? (Array.isArray(data?.data) ? data.data : null) ?? (Array.isArray(data) ? data : null);
+      const paginationInfo = { count: data?.count ?? data?.data?.count, next: data?.next ?? data?.data?.next, previous: data?.previous ?? data?.data?.previous };
+      console.log("[Attendees API] response top-level keys:", Object.keys(data || {}));
+      console.log("[Attendees API] pagination:", paginationInfo, "list length:", Array.isArray(list) ? list.length : 0);
+      if (Array.isArray(list) && list.length > 0) {
+        const first = list[0] as any;
+        console.log("[Attendees API] first attendee keys:", Object.keys(first));
+        console.log("[Attendees API] first attendee match_info:", first?.match_info);
+        list.slice(0, 5).forEach((a: any, i: number) => {
+          console.log(`[Attendees API] attendee[${i}] match_info:`, a?.match_info, "| user_id:", a?.user?.id ?? a?.user_id);
+        });
+      }
 
       // Check if response has paginated structure (most common)
       if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {

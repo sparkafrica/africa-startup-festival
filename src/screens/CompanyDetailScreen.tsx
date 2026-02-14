@@ -434,15 +434,15 @@ function CompanyDetailScreenInner({ route }: Props) {
           {/* Company Header */}
           <View className="px-4 mb-6" style={{ marginTop: 8 }}>
           <View className="flex-row items-center mb-4">
-            {/* Logo - circular, matches mock */}
+            {/* Logo - rounded corners */}
             <View
-              className="w-16 h-16 rounded-full items-center justify-center mr-3 overflow-hidden"
+              className="w-16 h-16 rounded-xl items-center justify-center mr-3 overflow-hidden"
               style={{ backgroundColor: companyData.logoColor }}
             >
               {companyData.logo ? (
                 <Image
                   source={companyData.logo}
-                  style={{ width: 64, height: 64 }}
+                  style={{ width: 64, height: 64, borderRadius: 12 }}
                   resizeMode="cover"
                 />
               ) : (
@@ -495,33 +495,39 @@ function CompanyDetailScreenInner({ route }: Props) {
           </Text>
         </View>
 
-        {/* Event Offers Section - 2 per row, matches mock */}
+        {/* Event Offers Section - 2 per row, title up to 2 lines then truncate with … */}
         <View className="px-4 mb-6">
           <Text className="text-sm font-light text-neutral-900 mb-3">
             Event Offers
           </Text>
-          <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
-            {companyData.eventOffers.map((offer) => (
-              <View key={offer.id} style={{ width: "50%", padding: 6 }}>
-                <Pressable
-                  className="rounded-xl p-4"
-                  style={{
-                    backgroundColor: offer.color,
-                    minHeight: 120,
-                  }}
-                  onPress={() => offer.link && openUrl(offer.link)}
-                >
-                  <Text className="text-white font-bold text-base mb-2" numberOfLines={2}>
-                    {(offer.title ?? "").trim() || "Offer"}
-                  </Text>
-                  <View className="flex-row items-center mt-auto">
-                    <Text className="text-white text-sm mr-1">Redeem</Text>
-                    <ArrowUpRightIcon size={14} color="#FFFFFF" />
-                  </View>
-                </Pressable>
-              </View>
-            ))}
-          </View>
+          {companyData.eventOffers.length === 0 ? (
+            <Text className="text-sm text-neutral-500 py-2">
+              No event offers at the moment.
+            </Text>
+          ) : (
+            <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
+              {companyData.eventOffers.map((offer) => (
+                <View key={offer.id} style={{ width: "50%", padding: 6 }}>
+                  <Pressable
+                    className="rounded-xl p-4"
+                    style={{
+                      backgroundColor: offer.color,
+                      minHeight: 120,
+                    }}
+                    onPress={() => offer.link && openUrl(offer.link)}
+                  >
+                    <Text className="text-white font-bold text-base mb-2" numberOfLines={2} ellipsizeMode="tail">
+                      {(offer.title ?? "").trim() || "Offer"}
+                    </Text>
+                    <View className="flex-row items-center mt-auto">
+                      <Text className="text-white text-sm mr-1">Redeem</Text>
+                      <ArrowUpRightIcon size={14} color="#FFFFFF" />
+                    </View>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Social Links Section */}
@@ -582,7 +588,9 @@ function CompanyDetailScreenInner({ route }: Props) {
             Open Positions
           </Text>
           {companyData.openPositions.length === 0 ? (
-            <Text className="text-sm text-neutral-500">No open positions listed.</Text>
+            <Text className="text-sm text-neutral-500 py-2">
+              No open positions at the moment.
+            </Text>
           ) : (
             <View style={{ gap: 8 }}>
               {companyData.openPositions.map((position) => (

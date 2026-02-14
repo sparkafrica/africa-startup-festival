@@ -347,3 +347,17 @@ export function DoorIcon({ size = 30, color = "#404040" }: IconProps) {
     </Svg>
   );
 }
+
+export function LightbulbIcon({ size = 24, color = "#404040" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M9 21h6M12 3a6 6 0 0 1 4.5 10H7.5A6 6 0 0 1 12 3zM9.5 14v2.5a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5V14"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

@@ -1,5 +1,9 @@
 import React from "react";
-import { View, Text, Pressable, Image, ImageSourcePropType } from "react-native";
+import { View, Text, Pressable, Image, ImageSourcePropType, StyleSheet } from "react-native";
+
+// Square logo like CompanyDetailScreen so images aren't stretched (was 100×50)
+const LOGO_SIZE = 64;
+const LOGO_RADIUS = 12;
 
 interface PartnerCardProps {
   name?: string;
@@ -29,17 +33,13 @@ export default function PartnerCard({
     >
       {logo ? (
         <View
-          style={{
-            height: 50,
-            width: "100%",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          className="rounded-xl overflow-hidden"
+          style={[styles.logoWrap, { width: LOGO_SIZE, height: LOGO_SIZE, borderRadius: LOGO_RADIUS }]}
         >
           <Image
             source={logo}
-            style={{ width: 100, height: 50, maxWidth: "100%" }}
-            resizeMode="contain"
+            style={{ width: LOGO_SIZE, height: LOGO_SIZE, borderRadius: LOGO_RADIUS }}
+            resizeMode="cover"
           />
         </View>
       ) : (
@@ -56,3 +56,9 @@ export default function PartnerCard({
   );
 }
 
+const styles = StyleSheet.create({
+  logoWrap: {
+    overflow: "hidden",
+    backgroundColor: "#f5f5f5",
+  },
+});

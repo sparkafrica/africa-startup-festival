@@ -20,6 +20,7 @@ import {
   UserAvatarIcon,
   ChevronRightIcon,
   VideoIcon,
+  LightbulbIcon,
 } from "./MenuIcons";
 
 interface MenuProps {
@@ -117,6 +118,11 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
       label: "App Guide",
       icon: <VideoIcon size={20} color="#444" />,
       route: "AppGuide",
+    },
+    {
+      label: "App Suggestions",
+      icon: <LightbulbIcon size={20} color="#444" />,
+      route: "AppSuggestions",
     },
   ];
 

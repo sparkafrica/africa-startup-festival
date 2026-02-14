@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TextInput,
   Linking,
+  Alert,
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -43,8 +44,15 @@ function Header() {
 }
 
 function OfferCard({ offer }: { offer: PartnerOffer }) {
-  const openLink = () => {
-    if (offer.link) Linking.openURL(offer.link);
+  const openLink = async () => {
+    if (!offer.link?.trim()) return;
+    try {
+      const url = offer.link.trim();
+      const formatted = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+      await Linking.openURL(formatted);
+    } catch {
+      Alert.alert("Cannot Open Link", "This link could not be opened.");
+    }
   };
 
   const typeLabel = offer.offer_type

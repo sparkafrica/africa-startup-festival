@@ -106,12 +106,17 @@ export default function VerificationCodeScreen() {
       // The navigation should work since Welcome is in the same AuthNavigator stack
       navigation.navigate("Welcome");
     } catch (error) {
-      // TODO: BACKEND - Show specific error messages based on error type (invalid code, expired, rate limit)
-      Alert.alert("Error", "Invalid verification code. Please try again.");
       console.error("Error verifying code:", error);
-      // TODO: BACKEND - Clear code inputs on error for better UX
       setCode("");
-      hiddenInputRef.current?.focus();
+      // Refocus after user dismisses alert so they can type again without using Paste button
+      Alert.alert("Error", "Invalid verification code. Please try again.", [
+        {
+          text: "OK",
+          onPress: () => {
+            setTimeout(() => hiddenInputRef.current?.focus(), 50);
+          },
+        },
+      ]);
     } finally {
       setIsSubmitting(false);
     }
@@ -134,7 +139,7 @@ export default function VerificationCodeScreen() {
       // TODO: BACKEND - Handle specific error types (rate limit, email not found, etc.)
       Alert.alert(
         "Error",
-        "Failed to resend verification code. Please try again."
+        "Failed to resend verification code. Please try again.",
       );
       console.error("Error resending code:", error);
     } finally {
@@ -187,16 +192,22 @@ export default function VerificationCodeScreen() {
                 <Text className="font-medium text-neutral-900">{email}</Text>
               </Text>
 
-              {/* Code Input - Tap the boxes area to focus, then type or paste. Boxes show digits. */}
+              {/* Code Input - Tap to focus and type. */}
               <Text className="text-xs text-neutral-500 text-center mb-2">
-                Tap the boxes to focus, then type or paste your code
+                Tap the boxes to type your code
               </Text>
               <Pressable
                 onPress={() => hiddenInputRef.current?.focus()}
+                onLongPress={handlePaste}
+                delayLongPress={400}
                 className="flex-row justify-center gap-2 mb-4 py-2 px-2"
                 style={({ pressed }) => ({
                   borderRadius: 12,
-                  backgroundColor: isFocused ? "#F0FDF4" : pressed ? "#F5F5F5" : "transparent",
+                  backgroundColor: isFocused
+                    ? "#F0FDF4"
+                    : pressed
+                      ? "#F5F5F5"
+                      : "transparent",
                 })}
               >
                 <TextInput
@@ -228,7 +239,11 @@ export default function VerificationCodeScreen() {
                     className="w-11 h-14 border-2 rounded-xl items-center justify-center"
                     style={{
                       borderColor:
-                        digits[index] !== undefined ? "#1BB273" : isFocused ? "#1BB273" : "#D4D4D4",
+                        digits[index] !== undefined
+                          ? "#1BB273"
+                          : isFocused
+                            ? "#1BB273"
+                            : "#D4D4D4",
                     }}
                   >
                     <Text className="text-2xl font-bold text-neutral-900">
@@ -241,7 +256,9 @@ export default function VerificationCodeScreen() {
                 onPress={handlePaste}
                 className="mb-8 py-2 px-4 self-center rounded-lg border border-neutral-300"
               >
-                <Text className="text-sm font-medium text-neutral-700">Paste code</Text>
+                <Text className="text-sm font-medium text-neutral-700">
+                  Paste code
+                </Text>
               </Pressable>
 
               {/* Submit Code Button */}

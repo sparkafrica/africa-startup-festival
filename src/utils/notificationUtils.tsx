@@ -7,11 +7,8 @@
 import React from "react";
 import { View } from "react-native";
 import { UserNotification } from "../services/notificationService";
-import {
-  CalendarIcon,
-  ProfileIcon,
-  BellIcon,
-} from "../components/MenuIcons";
+import { CalendarIcon, ProfileIcon } from "../components/MenuIcons";
+import { BellIcon } from "../components/HeaderIcons";
 
 // ============================================================================
 // TYPES
@@ -27,6 +24,7 @@ export type NotificationType =
   | "connection"
   | "reminder"
   | "meeting_request"
+  | "meeting_request_sent"
   | "generic";
 
 /**
@@ -72,21 +70,59 @@ export interface UINotification {
 
 /**
  * Infer notification type from backend data
- * 
+ *
  * NOTE: This is a heuristic approach since backend doesn't provide a 'type' field.
  * We use multiple keyword checks and prioritize meeting_id/connection_id for accuracy.
- * 
+ *
  * Production considerations:
  * - If backend adds a 'type' field in the future, replace this function
  * - Monitor logs for cases where type can't be determined (falls back to 'generic')
  * - Consider asking backend team to standardize notification title/description formats
  */
 export function inferNotificationType(
-  notification: UserNotification
+  notification: UserNotification,
 ): NotificationType {
   const title = notification.title.toLowerCase();
   const description = notification.description.toLowerCase();
   const combined = `${title} ${description}`.toLowerCase();
+
+  // Priority 0: Keyword-based inference (works even without meeting_id)
+  // Backend titles: "Meeting Request Updated", "Meeting Cancelled", "Meeting Accepted", etc.
+  if (combined.includes("cancelled") || combined.includes("canceled") || title.includes("cancel")) {
+    return "meeting_cancelled";
+  }
+  if (
+    combined.includes("approved") ||
+    combined.includes("accepted") ||
+    title.includes("accepted") ||
+    title.includes("approved")
+  ) {
+    return "meeting_approved";
+  }
+  if (
+    combined.includes("time change") ||
+    combined.includes("reschedule") ||
+    combined.includes("updated") ||
+    combined.includes("change time") ||
+    title.includes("updated") ||
+    title.includes("reschedule")
+  ) {
+    return "meeting_time_change";
+  }
+  if (
+    combined.includes("sent to") ||
+    combined.includes("has been sent") ||
+    description.includes("has been sent")
+  ) {
+    return "meeting_request_sent";
+  }
+  if (
+    combined.includes("meeting request") ||
+    combined.includes("requested a meeting") ||
+    title.includes("meeting request")
+  ) {
+    return "meeting_request";
+  }
 
   // Priority 1: Check meeting_id (most reliable indicator)
   if (notification.meeting_id) {
@@ -100,7 +136,7 @@ export function inferNotificationType(
     ) {
       return "meeting_time_change";
     }
-    
+
     // Check for cancellation (multiple variations)
     if (
       combined.includes("cancelled") ||
@@ -110,7 +146,7 @@ export function inferNotificationType(
     ) {
       return "meeting_cancelled";
     }
-    
+
     // Check for approval/acceptance
     if (
       combined.includes("approved") ||
@@ -120,7 +156,7 @@ export function inferNotificationType(
     ) {
       return "meeting_approved";
     }
-    
+
     // Check for meeting request
     if (
       combined.includes("meeting request") ||
@@ -129,12 +165,12 @@ export function inferNotificationType(
     ) {
       return "meeting_request";
     }
-    
+
     // Check for reminder
     if (combined.includes("reminder") || title.includes("reminder")) {
       return "reminder";
     }
-    
+
     // Default for meeting notifications (most common case)
     return "meeting_approved";
   }
@@ -158,7 +194,7 @@ export function inferNotificationType(
       description: notification.description.substring(0, 50),
     });
   }
-  
+
   return "generic";
 }
 
@@ -202,6 +238,7 @@ export function getNotificationIcon(type: NotificationType): React.ReactNode {
       );
 
     case "meeting_request":
+    case "meeting_request_sent":
       return (
         <View
           className="w-12 h-12 rounded-lg items-center justify-center"
@@ -313,7 +350,7 @@ export function formatRelativeTime(timestamp: string): string {
  */
 export function mapBackendNotificationToUI(
   notification: UserNotification,
-  currentUserId?: string
+  currentUserId?: string,
 ): UINotification {
   const type = inferNotificationType(notification);
   const icon = getNotificationIcon(type);
@@ -359,19 +396,19 @@ export function mapBackendNotificationToUI(
 
 /**
  * Fetch additional details for a notification
- * 
+ *
  * PRODUCTION APPROACH: Lazy Loading (Option A)
  * - Called when user opens the notification detail modal
  * - Benefits: Faster initial load, fewer API calls, better performance
  * - Industry standard: Gmail, Slack, LinkedIn all use this approach
- * 
+ *
  * @param notification - The UI notification that needs details
  * @param currentUserId - Current user ID to determine requester vs requestee
  * @returns Promise that resolves with enriched notification data
  */
 export async function fetchNotificationDetails(
   notification: UINotification,
-  currentUserId?: string
+  currentUserId?: string,
 ): Promise<UINotification> {
   // If notification already has details, return as-is
   if (notification.requester || notification.meetingDetails) {
@@ -384,7 +421,7 @@ export async function fetchNotificationDetails(
       const { meetingService } = await import("../services/meetingService");
       const meetings = await meetingService.getMeetings();
       const meetingDetail = meetings.find(
-        (m) => m.id.toString() === notification.meeting_id
+        (m) => m.id.toString() === notification.meeting_id,
       );
 
       if (meetingDetail) {
@@ -414,18 +451,24 @@ export async function fetchNotificationDetails(
         }
 
         const interests = otherUser.metadata?.interests || [];
-        
+
         const linkedInUrl =
           otherUser.metadata?.linkedIn || otherUser.metadata?.linkedin_url;
         const socialLabel = linkedInUrl
-          ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
+          ? linkedInUrl
+              .replace("https://www.linkedin.com/in/", "")
+              .replace("/", "")
           : undefined;
 
         const requester = {
-          name: `${otherUser.first_name || ""} ${otherUser.last_name || ""}`.trim() || otherUser.email,
+          name:
+            `${otherUser.first_name || ""} ${otherUser.last_name || ""}`.trim() ||
+            otherUser.email,
           role: otherUser.job_title || undefined,
           company: otherUser.organisation || otherCompany?.name || undefined,
-          avatar: otherUser.profile_pic ? { uri: otherUser.profile_pic } : undefined,
+          avatar: otherUser.profile_pic
+            ? { uri: otherUser.profile_pic }
+            : undefined,
           tags,
           interests,
           socialLabel,
@@ -433,10 +476,11 @@ export async function fetchNotificationDetails(
 
         // Format meeting time
         const formatTime = (timeStr: string): string => {
-          const [hours, minutes] = timeStr.split(':').map(Number);
-          const period = hours >= 12 ? 'PM' : 'AM';
-          const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-          return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+          const [hours, minutes] = timeStr.split(":").map(Number);
+          const period = hours >= 12 ? "PM" : "AM";
+          const displayHours =
+            hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+          return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
         };
 
         // Extract meeting details
@@ -459,7 +503,10 @@ export async function fetchNotificationDetails(
       }
     } catch (error) {
       if (__DEV__) {
-        console.error("Error fetching meeting details for notification:", error);
+        console.error(
+          "Error fetching meeting details for notification:",
+          error,
+        );
       }
     }
   }
@@ -467,10 +514,11 @@ export async function fetchNotificationDetails(
   // Fetch connection details if connection_id exists
   if (notification.connection_id) {
     try {
-      const { connectionService } = await import("../services/connectionService");
+      const { connectionService } =
+        await import("../services/connectionService");
       const response = await connectionService.getConnections(1, 100);
       const connection = response.connections.find(
-        (c) => c.id.toString() === notification.connection_id
+        (c) => c.id.toString() === notification.connection_id,
       );
 
       if (connection) {
@@ -483,8 +531,7 @@ export async function fetchNotificationDetails(
           tags.push(connectionUser.country);
         }
         const sector =
-          connectionUser.metadata?.sector ||
-          connectionUser.metadata?.industry;
+          connectionUser.metadata?.sector || connectionUser.metadata?.industry;
         if (sector) {
           tags.push(sector);
         }
@@ -493,18 +540,25 @@ export async function fetchNotificationDetails(
         }
 
         const interests = connectionUser.metadata?.interests || [];
-        
+
         const linkedInUrl =
-          connectionUser.metadata?.linkedIn || connectionUser.metadata?.linkedin_url;
+          connectionUser.metadata?.linkedIn ||
+          connectionUser.metadata?.linkedin_url;
         const socialLabel = linkedInUrl
-          ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
+          ? linkedInUrl
+              .replace("https://www.linkedin.com/in/", "")
+              .replace("/", "")
           : undefined;
 
         const requester = {
-          name: `${connectionUser.first_name || ""} ${connectionUser.last_name || ""}`.trim() || connectionUser.email,
+          name:
+            `${connectionUser.first_name || ""} ${connectionUser.last_name || ""}`.trim() ||
+            connectionUser.email,
           role: connectionUser.job_title || undefined,
           company: connectionUser.organisation || undefined,
-          avatar: connectionUser.profile_pic ? { uri: connectionUser.profile_pic } : undefined,
+          avatar: connectionUser.profile_pic
+            ? { uri: connectionUser.profile_pic }
+            : undefined,
           tags,
           interests,
           socialLabel,
@@ -517,7 +571,10 @@ export async function fetchNotificationDetails(
       }
     } catch (error) {
       if (__DEV__) {
-        console.error("Error fetching connection details for notification:", error);
+        console.error(
+          "Error fetching connection details for notification:",
+          error,
+        );
       }
     }
   }

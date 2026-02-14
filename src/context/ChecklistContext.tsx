@@ -8,8 +8,10 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./AuthContext";
+import { authService } from "../services/authService";
 
 const CHECKLIST_STORAGE_KEY_PREFIX = "@spark:checklist_user:";
+const METADATA_CHECKLIST_KEY = "event_checklist";
 
 interface ChecklistState {
   connectAttendees: boolean;
@@ -37,6 +39,18 @@ const defaultState: ChecklistState = {
   addSessions: false,
 };
 
+function parseChecklistFromMetadata(metadata: any): ChecklistState | null {
+  if (metadata == null) return null;
+  const raw = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata); } catch { return null; } })() : metadata;
+  const checklist = raw?.[METADATA_CHECKLIST_KEY];
+  if (!checklist || typeof checklist !== "object") return null;
+  return {
+    connectAttendees: !!checklist.connectAttendees,
+    requestMeeting: !!checklist.requestMeeting,
+    addSessions: !!checklist.addSessions,
+  };
+}
+
 export function ChecklistProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const userId = user?.user_id != null ? String(user.user_id) : null;
@@ -60,9 +74,35 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
     [storageKey]
   );
 
+  // Sync checklist to backend (user profile metadata) so it survives app clear / new device
+  // PUT /auth/user/ expects metadata as a string (JSON)
+  const syncChecklistToBackend = useCallback(
+    async (state: ChecklistState) => {
+      if (!user) return;
+      const metadata = user.metadata;
+      const current = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata); } catch { return {}; } })() : { ...(metadata || {}) };
+      const nextMetadataObj = { ...current, [METADATA_CHECKLIST_KEY]: state };
+      try {
+        await authService.updateProfile({ metadata: JSON.stringify(nextMetadataObj) });
+      } catch (e) {
+        if (__DEV__) {
+          console.warn("Failed to sync checklist to backend:", e);
+        }
+      }
+    },
+    [user]
+  );
+
+  // Load: prefer backend (user.metadata.event_checklist), then AsyncStorage, then default
   useEffect(() => {
     if (!userId) {
       setChecklistCompleted(defaultState);
+      return;
+    }
+    const fromBackend = parseChecklistFromMetadata(user?.metadata);
+    if (fromBackend != null) {
+      setChecklistCompleted(fromBackend);
+      persistChecklist(fromBackend).catch(() => {});
       return;
     }
     let cancelled = false;
@@ -90,7 +130,7 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, user?.metadata, persistChecklist]);
 
   useEffect(() => {
     if (!isMountedRef.current) {
@@ -101,29 +141,38 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
   }, [checklistCompleted, persistChecklist]);
 
   const markConnectAttendeesComplete = useCallback(() => {
-    setChecklistCompleted((prev) => ({
-      ...prev,
-      connectAttendees: true,
-    }));
-  }, []);
+    setChecklistCompleted((prev) => {
+      const next = { ...prev, connectAttendees: true };
+      syncChecklistToBackend(next).catch(() => {});
+      return next;
+    });
+  }, [syncChecklistToBackend]);
 
   const markRequestMeetingComplete = useCallback(() => {
-    setChecklistCompleted((prev) => ({
-      ...prev,
-      requestMeeting: true,
-    }));
-  }, []);
+    setChecklistCompleted((prev) => {
+      const next = { ...prev, requestMeeting: true };
+      syncChecklistToBackend(next).catch(() => {});
+      return next;
+    });
+  }, [syncChecklistToBackend]);
 
   const markAddSessionsComplete = useCallback(() => {
-    setChecklistCompleted((prev) => ({
-      ...prev,
-      addSessions: true,
-    }));
-  }, []);
+    setChecklistCompleted((prev) => {
+      const next = { ...prev, addSessions: true };
+      syncChecklistToBackend(next).catch(() => {});
+      return next;
+    });
+  }, [syncChecklistToBackend]);
 
   const resetChecklist = useCallback(() => {
     setChecklistCompleted(defaultState);
-  }, []);
+    if (user) {
+      const metadata = user.metadata;
+      const current = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata); } catch { return {}; } })() : { ...(metadata || {}) };
+      const nextMetadataObj = { ...current, [METADATA_CHECKLIST_KEY]: defaultState };
+      authService.updateProfile({ metadata: JSON.stringify(nextMetadataObj) }).catch(() => {});
+    }
+  }, [user]);
 
   return (
     <ChecklistContext.Provider

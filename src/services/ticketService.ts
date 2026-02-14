@@ -198,14 +198,9 @@ export interface UpgradeTicketResponse {
 }
 
 /** Payment method enum for upgrade-ticket (backend). Must match backend TicketUpgradeRequest.payment_method enum. */
+/** ATE2026: Korapay only. Re-add others here if needed: PAYSTACK, PAYAZA, STRIPE, INVOICE, OTHER, FREE. */
 export const UPGRADE_PAYMENT_METHODS = [
-  { value: "PAYSTACK", label: "Paystack" },
   { value: "KORAPAY", label: "Korapay" },
-  { value: "PAYAZA", label: "Payaza" },
-  { value: "STRIPE", label: "Stripe" },
-  { value: "INVOICE", label: "Invoice" },
-  { value: "OTHER", label: "Other" },
-  { value: "FREE", label: "Free" },
 ] as const;
 
 /**

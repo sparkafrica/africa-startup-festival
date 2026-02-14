@@ -51,10 +51,16 @@ export default function LoginScreen() {
 
       // Navigate to verification code screen
       navigation.navigate("VerificationCode", { email });
-    } catch (error) {
+    } catch (error: any) {
+      const msg = error?.message ?? "";
+      const isNoTicket =
+        /user with this email does not exist/i.test(msg) ||
+        /does not exist/i.test(msg);
       Alert.alert(
         "Error",
-        "Failed to send verification code. Please try again."
+        isNoTicket
+          ? "You don't have a Valid ATE Ticket. Please purchase one and return to login."
+          : "Failed to send verification code. Please try again."
       );
       console.error("Error sending verification code:", error);
     } finally {

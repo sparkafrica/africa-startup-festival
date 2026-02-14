@@ -7,9 +7,10 @@ import {
   MeetingCard,
   ScheduledMeetingCard,
   ScheduledMeetingModal,
-  CancelledMeetingCard,
-  CancelledMeetingDetailModal,
-  EmptyCancelledMeetings,
+  // DEPRECATED for production: Cancelled tab components
+  // CancelledMeetingCard,
+  // CancelledMeetingDetailModal,
+  // EmptyCancelledMeetings,
   TabButton,
   SecondaryTabButton,
   ArrowDownRedIcon,
@@ -51,7 +52,8 @@ import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
 
-type PrimaryTab = "requests" | "scheduled" | "cancelled";
+type PrimaryTab = "requests" | "scheduled";
+// DEPRECATED for production: "cancelled" tab commented out - users get email notifications for cancelled meetings
 type SecondaryTab = "inbound" | "outbound";
 
 type Props = RootStackScreenProps<"Meetings">;
@@ -125,8 +127,8 @@ export default function MeetingsScreen({ route }: Props) {
   const [secondaryTab, setSecondaryTab] = useState<SecondaryTab>("inbound");
   const [selectedMeeting, setSelectedMeeting] = useState<UIMeeting | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isCancelledDetailModalVisible, setIsCancelledDetailModalVisible] =
-    useState(false);
+  // DEPRECATED: Cancelled tab modal - commented out for production build
+  // const [isCancelledDetailModalVisible, setIsCancelledDetailModalVisible] = useState(false);
   const [isParticipantModalVisible, setIsParticipantModalVisible] =
     useState(false);
   
@@ -135,7 +137,7 @@ export default function MeetingsScreen({ route }: Props) {
   const [meetingCounts, setMeetingCounts] = useState({
     requests: 0,
     scheduled: 0,
-    cancelled: 0,
+    // cancelled: 0, // DEPRECATED for production
   });
   const [allMeetingsForCounts, setAllMeetingsForCounts] = useState<UIMeeting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -147,7 +149,9 @@ export default function MeetingsScreen({ route }: Props) {
   useEffect(() => {
     if (route.params) {
       if (route.params.primaryTab) {
-        setPrimaryTab(route.params.primaryTab);
+        // DEPRECATED: Redirect "cancelled" to "requests" (cancelled tab removed for production)
+        const tab = route.params.primaryTab === "cancelled" ? "requests" : route.params.primaryTab;
+        setPrimaryTab(tab);
       }
       if (route.params.secondaryTab) {
         setSecondaryTab(route.params.secondaryTab);
@@ -155,40 +159,26 @@ export default function MeetingsScreen({ route }: Props) {
     }
   }, [route.params]);
 
-  // Helper: terminated = cancelled or rejected (declined requests + cancelled meetings)
-  const isTerminated = useCallback((m: UIMeeting) =>
-    m.status === "cancelled" || m.status === "rejected", []);
+  // DEPRECATED: isTerminated was for Cancelled tab - kept for potential future use
+  // const isTerminated = useCallback((m: UIMeeting) => m.status === "cancelled" || m.status === "rejected", []);
 
   // Derive counts and filtered meetings from allMeetingsForCounts
   useEffect(() => {
     setMeetingCounts({
       requests: allMeetingsForCounts.filter((m) => m.status === "pending").length,
       scheduled: allMeetingsForCounts.filter((m) => m.status === "accepted").length,
-      cancelled: allMeetingsForCounts.filter((m) => isTerminated(m)).length,
     });
     let filtered: UIMeeting[];
     if (primaryTab === "requests") {
       filtered = allMeetingsForCounts.filter((m) => m.status === "pending");
-    } else if (primaryTab === "scheduled") {
-      filtered = allMeetingsForCounts.filter((m) => m.status === "accepted");
     } else {
-      // Cancelled tab: show both rejected (declined) and cancelled
-      filtered = allMeetingsForCounts.filter((m) => isTerminated(m));
+      filtered = allMeetingsForCounts.filter((m) => m.status === "accepted");
     }
     filtered = filtered.filter((m) =>
       secondaryTab === "inbound" ? m.isInbound : !m.isInbound
     );
-    // Cancelled tab: latest first (by createdAt desc, else backendMeetingId desc)
-    if (primaryTab === "cancelled" && filtered.length > 1) {
-      filtered = [...filtered].sort((a, b) => {
-        const aTs = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bTs = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        if (aTs !== bTs) return bTs - aTs; // newer first
-        return b.backendMeetingId - a.backendMeetingId;
-      });
-    }
     setMeetings(filtered);
-  }, [allMeetingsForCounts, primaryTab, secondaryTab, isTerminated]);
+  }, [allMeetingsForCounts, primaryTab, secondaryTab]);
 
   // ============================================================================
   // UTILITY FUNCTIONS
@@ -413,7 +403,7 @@ export default function MeetingsScreen({ route }: Props) {
     const company =
       otherCompany?.name ||
       otherUser?.organisation ||
-      "No Company";
+      "";
 
     // Extract tags (country, industry/sector)
     const tags: string[] = [];
@@ -543,7 +533,7 @@ export default function MeetingsScreen({ route }: Props) {
     const company =
       otherCompany?.name ||
       otherUser?.organisation ||
-      "No Company";
+      "";
 
     // Extract tags (country, industry/sector)
     const tags: string[] = [];
@@ -1083,21 +1073,17 @@ export default function MeetingsScreen({ route }: Props) {
   // Counts should always be visible regardless of which secondary tab is selected
   // so users can see "3 inbound, 2 outbound" even when viewing only inbound
   const getSecondaryTabCounts = useCallback(() => {
-    let meetingsForStatus: UIMeeting[];
-    if (primaryTab === "requests") {
-      meetingsForStatus = allMeetingsForCounts.filter((m) => m.status === "pending");
-    } else if (primaryTab === "scheduled") {
-      meetingsForStatus = allMeetingsForCounts.filter((m) => m.status === "accepted");
-    } else {
-      meetingsForStatus = allMeetingsForCounts.filter((m) => isTerminated(m));
-    }
+    const meetingsForStatus =
+      primaryTab === "requests"
+        ? allMeetingsForCounts.filter((m) => m.status === "pending")
+        : allMeetingsForCounts.filter((m) => m.status === "accepted");
 
     // Count inbound and outbound for this status
     const inboundCount = meetingsForStatus.filter((m) => m.isInbound).length;
     const outboundCount = meetingsForStatus.filter((m) => !m.isInbound).length;
 
     return { inbound: inboundCount, outbound: outboundCount };
-  }, [primaryTab, allMeetingsForCounts, isTerminated]);
+  }, [primaryTab, allMeetingsForCounts]);
 
   const secondaryTabCounts = getSecondaryTabCounts();
 
@@ -1137,6 +1123,7 @@ export default function MeetingsScreen({ route }: Props) {
               setPrimaryTab("scheduled");
             }}
           />
+          {/* DEPRECATED for production: Cancelled tab - users get email notifications for cancelled meetings
           <TabButton
             label="Cancelled"
             count={tabCounts.cancelled}
@@ -1149,6 +1136,7 @@ export default function MeetingsScreen({ route }: Props) {
               setPrimaryTab("cancelled");
             }}
           />
+          */}
         </View>
       </View>
 
@@ -1206,8 +1194,6 @@ export default function MeetingsScreen({ route }: Props) {
                 <Text className="text-white font-semibold">Retry</Text>
               </Pressable>
             </View>
-          ) : meetings.length === 0 && primaryTab === "cancelled" ? (
-            <EmptyCancelledMeetings />
           ) : meetings.length === 0 ? (
             <View className="flex-1 items-center justify-center py-12 px-4">
               <Text className="text-base text-neutral-500 text-center">
@@ -1230,23 +1216,6 @@ export default function MeetingsScreen({ route }: Props) {
                   setIsParticipantModalVisible(false); // Reset participant modal
                   setSelectedMeeting(meeting);
                   setIsModalVisible(true);
-                }}
-              />
-            ))
-          ) : primaryTab === "cancelled" ? (
-            meetings.map((meeting) => (
-              <CancelledMeetingCard
-                key={meeting.id}
-                title={meeting.title}
-                participantName={meeting.participantName}
-                company={meeting.company}
-                date={meeting.date}
-                startTime={meeting.startTime}
-                endTime={meeting.endTime}
-                meetingType={meeting.meetingType || "physical"}
-                onPress={() => {
-                  setSelectedMeeting(meeting);
-                  setIsCancelledDetailModalVisible(true);
                 }}
               />
             ))
@@ -1451,7 +1420,7 @@ export default function MeetingsScreen({ route }: Props) {
         />
       )}
 
-      {/* Cancelled Meeting Detail Modal - read-only view */}
+      {/* DEPRECATED for production: Cancelled Meeting Detail Modal
       {selectedMeeting && primaryTab === "cancelled" && (
         <CancelledMeetingDetailModal
           visible={isCancelledDetailModalVisible}
@@ -1471,6 +1440,7 @@ export default function MeetingsScreen({ route }: Props) {
           description={selectedMeeting.description}
         />
       )}
+      */}
 
       {/* Toast Component */}
       <Toast

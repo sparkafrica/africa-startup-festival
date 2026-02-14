@@ -20,23 +20,16 @@ import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import { authService, type UserProfile } from "../services/authService";
 import { companyService } from "../services/companyService";
+import { offerService } from "../services/offerService";
+import { boothService } from "../services/boothService";
+import { EVENT_ID } from "../config/env";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
 import { LoadingSpinner } from "../components";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
-
-// Industry/Sector options from filter modals
-const INDUSTRY_OPTIONS = [
-  { id: "technology", label: "Technology" },
-  { id: "fintech", label: "Fintech" },
-  { id: "healthcare", label: "Healthcare" },
-  { id: "education", label: "Education" },
-  { id: "sustainability", label: "Sustainability" },
-  { id: "ecommerce", label: "E-commerce" },
-  { id: "transportation", label: "Transportation" },
-];
+import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
 
 // Country options with flags
 const COUNTRY_OPTIONS = [
@@ -145,24 +138,12 @@ const validateLinkedIn = (
   linkedIn: string
 ): { valid: boolean; error?: string } => {
   if (!linkedIn.trim()) {
-    return { valid: false, error: "LinkedIn profile is required" };
+    return { valid: false, error: "Please enter your LinkedIn profile URL or username." };
   }
   if (linkedIn.trim().length > 500) {
-    return { valid: false, error: "LinkedIn link must be under 500 characters" };
+    return { valid: false, error: "LinkedIn must be under 500 characters." };
   }
   return { valid: true };
-};
-
-// Optional LinkedIn validation (only validates format if provided)
-const validateLinkedInOptional = (
-  linkedIn: string
-): { valid: boolean; error?: string } => {
-  // If empty, it's valid (optional field)
-  if (!linkedIn.trim()) {
-    return { valid: true };
-  }
-  // If provided, validate format
-  return validateLinkedIn(linkedIn);
 };
 
 const validateBio = (bio: string): { valid: boolean; error?: string } => {
@@ -184,12 +165,8 @@ const validateWebsite = (
   if (!website.trim()) {
     return { valid: false, error: "Website is required" };
   }
-  // Allow URLs with or without protocol
-  const websitePattern =
-    /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(\/.*)?$/i;
-
-  if (!websitePattern.test(website.trim())) {
-    return { valid: false, error: "Please enter a valid website URL" };
+  if (website.trim().length > 2000) {
+    return { valid: false, error: "Website URL must be under 2000 characters" };
   }
   return { valid: true };
 };
@@ -213,10 +190,8 @@ const validateOfferLink = (link: string): { valid: boolean; error?: string } => 
   if (!link.trim()) {
     return { valid: false, error: "Offer link is required" };
   }
-  const urlPattern =
-    /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(\/.*)?$/i;
-  if (!urlPattern.test(link.trim())) {
-    return { valid: false, error: "Please enter a valid URL" };
+  if (link.trim().length > 2000) {
+    return { valid: false, error: "Offer link must be under 2000 characters" };
   }
   return { valid: true };
 };
@@ -225,10 +200,8 @@ const validateJobLink = (link: string): { valid: boolean; error?: string } => {
   if (!link.trim()) {
     return { valid: false, error: "Job link is required" };
   }
-  const urlPattern =
-    /^(https?:\/\/)?(www\.)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(\/.*)?$/i;
-  if (!urlPattern.test(link.trim())) {
-    return { valid: false, error: "Please enter a valid job application URL" };
+  if (link.trim().length > 2000) {
+    return { valid: false, error: "Job link must be under 2000 characters" };
   }
   return { valid: true };
 };
@@ -257,11 +230,11 @@ const validateCompanyDescription = (
 const validateInterests = (
   interests: string[]
 ): { valid: boolean; error?: string } => {
-  if (interests.length < 2) {
-    return { valid: false, error: "Please select at least 2 interests" };
+  if (interests.length < 3) {
+    return { valid: false, error: "Please select at least 3 interests" };
   }
-  if (interests.length > 5) {
-    return { valid: false, error: "Please select no more than 5 interests" };
+  if (interests.length > 7) {
+    return { valid: false, error: "Please select no more than 7 interests" };
   }
   return { valid: true };
 };
@@ -876,22 +849,11 @@ function PersonalProfileSection({
     COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
     COUNTRY_OPTIONS[0];
 
-  const interests = [
-    "AI/ML",
-    "SaaS",
-    "Product Strategy",
-    "E-commerce",
-    "Fintech",
-    "Developer Tools",
-    "Infrastructure",
-    "Growth Marketing",
-  ];
-
   const toggleInterest = (interest: string) => {
     if (selectedInterests.includes(interest)) {
       setSelectedInterests(selectedInterests.filter((i) => i !== interest));
     } else {
-      if (selectedInterests.length < 5) {
+      if (selectedInterests.length < 7) {
         setSelectedInterests([...selectedInterests, interest]);
       }
     }
@@ -1029,40 +991,6 @@ function PersonalProfileSection({
     try {
       let photoUpdateFailed = false;
 
-      // Handle profile picture upload or removal (best-effort; don't block profile save)
-      if (shouldRemovePhoto) {
-        setIsUploadingImage(true);
-        try {
-          await authService.removeProfilePicture();
-          setShouldRemovePhoto(false);
-        } catch (imageError: any) {
-          console.error("Error removing profile picture:", imageError);
-          showToast(
-            imageError.message || "Failed to remove profile picture.",
-            "error"
-          );
-          photoUpdateFailed = true;
-        } finally {
-          setIsUploadingImage(false);
-        }
-      } else if (selectedImageUri) {
-        setIsUploadingImage(true);
-        try {
-          await authService.uploadProfilePicture(selectedImageUri);
-          setSelectedImageUri(null);
-          setShouldRemovePhoto(false);
-        } catch (imageError: any) {
-          console.error("Error uploading profile picture:", imageError);
-          showToast(
-            imageError.message || "Failed to upload profile picture.",
-            "error"
-          );
-          photoUpdateFailed = true;
-        } finally {
-          setIsUploadingImage(false);
-        }
-      }
-
       // Split fullName into first_name and last_name
       const nameParts = fullName.trim().split(/\s+/);
       const first_name = nameParts[0] || "";
@@ -1103,8 +1031,42 @@ function PersonalProfileSection({
         profileData.metadata = metadata;
       }
 
-      // Save profile data to backend API (always run, even if photo update failed)
+      // 1) Save profile data first (PUT). 2) Upload/remove photo last (PATCH) so backend doesn't overwrite profile_pic.
       await authService.updateProfile(profileData);
+
+      // Handle profile picture upload or removal last (best-effort; don't block)
+      if (shouldRemovePhoto) {
+        setIsUploadingImage(true);
+        try {
+          await authService.removeProfilePicture();
+          setShouldRemovePhoto(false);
+        } catch (imageError: any) {
+          console.error("Error removing profile picture:", imageError);
+          showToast(
+            imageError.message || "Failed to remove profile picture.",
+            "error"
+          );
+          photoUpdateFailed = true;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      } else if (selectedImageUri) {
+        setIsUploadingImage(true);
+        try {
+          await authService.uploadProfilePicture(selectedImageUri);
+          setSelectedImageUri(null);
+          setShouldRemovePhoto(false);
+        } catch (imageError: any) {
+          console.error("Error uploading profile picture:", imageError);
+          showToast(
+            imageError.message || "Failed to upload profile picture.",
+            "error"
+          );
+          photoUpdateFailed = true;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
 
       if (photoUpdateFailed) {
         showToast("Profile saved. Photo could not be updated.", "warning");
@@ -1441,7 +1403,7 @@ function PersonalProfileSection({
               Top Interests <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500 mb-3">
-              Select 2-5 sectors you want to connect with
+              Select 3–7 interests you want to connect with
             </Text>
             {validationErrors.interests && (
               <Text className="text-red-500 text-xs mb-2">
@@ -1449,7 +1411,7 @@ function PersonalProfileSection({
               </Text>
             )}
             <View className="flex-row flex-wrap gap-2">
-              {interests.map((interest) => {
+              {TOP_INTERESTS.map((interest) => {
                 const isSelected = selectedInterests.includes(interest);
                 return (
                   <Pressable
@@ -1589,22 +1551,11 @@ function AttendeeProfileSection({
     COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
     COUNTRY_OPTIONS[0];
 
-  const interests = [
-    "AI/ML",
-    "SaaS",
-    "Product Strategy",
-    "E-commerce",
-    "Fintech",
-    "Developer Tools",
-    "Infrastructure",
-    "Growth Marketing",
-  ];
-
   const toggleInterest = (interest: string) => {
     if (selectedInterests.includes(interest)) {
       setSelectedInterests(selectedInterests.filter((i) => i !== interest));
     } else {
-      if (selectedInterests.length < 5) {
+      if (selectedInterests.length < 7) {
         setSelectedInterests([...selectedInterests, interest]);
       }
     }
@@ -1715,12 +1666,10 @@ function AttendeeProfileSection({
       errors.bio = bioValidation.error || "";
     }
 
-    // Validate LinkedIn if provided (optional for attendees)
-    if (linkedIn.trim()) {
-      const linkedInValidation = validateLinkedInOptional(linkedIn);
-      if (!linkedInValidation.valid) {
-        errors.linkedIn = linkedInValidation.error || "";
-      }
+    // LinkedIn required for all users
+    const linkedInValidation = validateLinkedIn(linkedIn);
+    if (!linkedInValidation.valid) {
+      errors.linkedIn = linkedInValidation.error || "";
     }
 
     const interestsValidation = validateInterests(selectedInterests);
@@ -1740,7 +1689,48 @@ function AttendeeProfileSection({
       if (setIsSubmitting) setIsSubmitting(true);
       let photoUpdateFailed = false;
 
-      // Handle profile picture upload or removal (best-effort; don't block profile save)
+      // Split fullName into first_name and last_name
+      const nameParts = fullName.trim().split(/\s+/);
+      const first_name = nameParts[0] || "";
+      const last_name = nameParts.slice(1).join(" ") || "";
+
+      // Get selected industry label
+      const industryLabel =
+        INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
+        "";
+
+      // Get selected country label
+      const countryLabel =
+        COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
+
+      // Build metadata object for fields that don't have direct backend fields
+      const metadata: any = {};
+      if (industryLabel) {
+        metadata.industry = industryLabel;
+      }
+      if (selectedInterests.length > 0) {
+        metadata.interests = selectedInterests;
+      }
+      metadata.linkedIn = linkedIn.trim();
+
+      // Prepare API request payload
+      const profileData: any = {
+        first_name,
+        last_name,
+        job_title: jobTitle.trim(),
+        bio: bio.trim() || null,
+        country: countryLabel,
+      };
+
+      // Only include metadata if it has content
+      if (Object.keys(metadata).length > 0) {
+        profileData.metadata = metadata;
+      }
+
+      // 1) Save profile data first (PUT). 2) Upload/remove photo last (PATCH) so backend doesn't overwrite profile_pic.
+      await authService.updateProfile(profileData);
+
+      // Handle profile picture upload or removal last (best-effort; don't block)
       if (shouldRemovePhoto) {
         setIsUploadingImage(true);
         try {
@@ -1773,50 +1763,6 @@ function AttendeeProfileSection({
           setIsUploadingImage(false);
         }
       }
-
-      // Split fullName into first_name and last_name
-      const nameParts = fullName.trim().split(/\s+/);
-      const first_name = nameParts[0] || "";
-      const last_name = nameParts.slice(1).join(" ") || "";
-
-      // Get selected industry label
-      const industryLabel =
-        INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
-        "";
-
-      // Get selected country label
-      const countryLabel =
-        COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
-
-      // Build metadata object for fields that don't have direct backend fields
-      const metadata: any = {};
-      if (industryLabel) {
-        metadata.industry = industryLabel;
-      }
-      if (selectedInterests.length > 0) {
-        metadata.interests = selectedInterests;
-      }
-      // Include LinkedIn if provided (optional for attendees)
-      if (linkedIn.trim()) {
-        metadata.linkedIn = linkedIn.trim();
-      }
-
-      // Prepare API request payload
-      const profileData: any = {
-        first_name,
-        last_name,
-        job_title: jobTitle.trim(),
-        bio: bio.trim() || null,
-        country: countryLabel,
-      };
-
-      // Only include metadata if it has content
-      if (Object.keys(metadata).length > 0) {
-        profileData.metadata = metadata;
-      }
-
-      // Save profile data to backend API (always run, even if photo update failed)
-      await authService.updateProfile(profileData);
 
       if (photoUpdateFailed) {
         showToast("Profile saved. Photo could not be updated.", "warning");
@@ -2027,7 +1973,7 @@ function AttendeeProfileSection({
             {/* LinkedIn */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                LinkedIn
+                LinkedIn <Text className="text-red-500">*</Text>
               </Text>
               <TextInput
                 className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
@@ -2042,7 +1988,7 @@ function AttendeeProfileSection({
                     setValidationErrors({ ...validationErrors, linkedIn: "" });
                   }
                 }}
-                placeholder="LinkedIn profile URL or handle (optional)"
+                placeholder="LinkedIn profile URL or username"
               />
               {validationErrors.linkedIn && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -2141,7 +2087,7 @@ function AttendeeProfileSection({
               Top Interests <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500 mb-3">
-              Select 2-5 sectors you want to connect with
+              Select 3–7 interests you want to connect with
             </Text>
             {validationErrors.interests && (
               <Text className="text-red-500 text-xs mb-2">
@@ -2149,7 +2095,7 @@ function AttendeeProfileSection({
               </Text>
             )}
             <View className="flex-row flex-wrap gap-2">
-              {interests.map((interest) => {
+              {TOP_INTERESTS.map((interest) => {
                 const isSelected = selectedInterests.includes(interest);
                 return (
                   <Pressable
@@ -2235,7 +2181,7 @@ function CompanyProfileSection({
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [offers, setOffers] = useState<
-    Array<{ id: string; title: string; color: string; link: string }>
+    Array<{ id: string | number; title: string; color: string; link: string }>
   >([]);
   const [showAddOffer, setShowAddOffer] = useState(false);
   const [newOfferTitle, setNewOfferTitle] = useState("");
@@ -2293,7 +2239,6 @@ function CompanyProfileSection({
     }
     const meta = (metadata ?? {}) as Record<string, unknown>;
     if (typeof meta.website === "string") setWebsite(meta.website);
-    if (typeof meta.boothNumber === "string") setBoothNumber(meta.boothNumber);
     const sl = meta.socialLinks as Record<string, string> | undefined;
     if (sl && typeof sl === "object") {
       if (sl.linkedin) setLinkedIn(sl.linkedin);
@@ -2307,23 +2252,53 @@ function CompanyProfileSection({
     if (typeof (meta.xHandle ?? meta.twitter) === "string") {
       setXHandle((meta.xHandle ?? meta.twitter) as string);
     }
-    if (Array.isArray(meta.offers) && meta.offers.length > 0) {
-      setOffers(
-        (
-          meta.offers as Array<{
-            id?: string;
-            title: string;
-            color?: string;
-            link?: string;
-          }>
-        ).map((o, i) => ({
-          id: (o as any).id ?? `offer-${i}`,
-          title: o.title ?? "",
-          color: o.color ?? "#4CAF50",
-          link: (o as any).link ?? "",
-        }))
-      );
-    }
+    // Load offers from GET /company-offers/ first (so Partner Offers page shows them); fallback to metadata
+    const loadOffers = async () => {
+      try {
+        const list = await offerService.listMyCompanyOffers();
+        if (list.length > 0) {
+          setOffers(
+            list.map((o) => ({
+              id: o.id as number,
+              title: o.title ?? "",
+              color: "#4CAF50",
+              link: o.link ?? "",
+            }))
+          );
+          return;
+        }
+      } catch (_) {
+        // ignore; fall back to metadata
+      }
+      if (Array.isArray(meta.offers) && meta.offers.length > 0) {
+        setOffers(
+          (
+            meta.offers as Array<{
+              id?: string | number;
+              title: string;
+              color?: string;
+              link?: string;
+            }>
+          ).map((o, i) => ({
+            id: (o as any).id ?? `offer-${i}`,
+            title: o.title ?? "",
+            color: o.color ?? "#4CAF50",
+            link: (o as any).link ?? "",
+          }))
+        );
+      }
+    };
+    loadOffers();
+    const loadBooth = async () => {
+      try {
+        const { booth_number } = await boothService.getMyBooth(EVENT_ID);
+        setBoothNumber(booth_number ?? "");
+      } catch (_) {
+        const fallback = typeof meta.boothNumber === "string" ? meta.boothNumber : "";
+        setBoothNumber(fallback);
+      }
+    };
+    loadBooth();
     if (typeof meta.isRecruiting === "boolean") setIsRecruiting(meta.isRecruiting);
     if (Array.isArray(meta.positions) && meta.positions.length > 0) {
       setPositions(
@@ -2378,7 +2353,7 @@ function CompanyProfileSection({
     });
   };
 
-  const removeOffer = (offer: { id: string }) => {
+  const removeOffer = (offer: { id: string | number }) => {
     setOffers(offers.filter((o) => o.id !== offer.id));
   };
 
@@ -2511,11 +2486,6 @@ function CompanyProfileSection({
       errors.companyName = companyNameValidation.error || "";
     }
 
-    const boothValidation = validateBoothNumber(boothNumber);
-    if (!boothValidation.valid) {
-      errors.boothNumber = boothValidation.error || "";
-    }
-
     const websiteValidation = validateWebsite(website);
     if (!websiteValidation.valid) {
       errors.website = websiteValidation.error || "";
@@ -2527,14 +2497,10 @@ function CompanyProfileSection({
       errors.companyDescription = descriptionValidation.error || "";
     }
 
-    // At least one social link is required (company presence); format is relaxed — any URL/handle accepted
-    const hasAnySocialLink =
-      linkedIn.trim() || facebook.trim() || instagram.trim() || xHandle.trim();
-
-    if (!hasAnySocialLink) {
-      errors.socialLinks = "Please provide at least one social link for your company";
+    // LinkedIn required for company; other social links optional; format relaxed
+    if (!linkedIn.trim()) {
+      errors.linkedIn = "Please enter your LinkedIn profile URL or username.";
     }
-
     if (linkedIn.trim()) {
       const v = validateSocialHandle(linkedIn, "LinkedIn");
       if (!v.valid) errors.linkedIn = v.error || "";
@@ -2642,7 +2608,6 @@ function CompanyProfileSection({
       if (xHandle.trim()) socialLinksObj.x = xHandle.trim();
 
       const metadata: any = {
-        boothNumber: boothNumber.trim() || undefined,
         website: website.trim() || undefined,
         offers: offers.length > 0 ? offers : undefined,
         positions: positions.length > 0 ? positions : undefined,
@@ -2678,6 +2643,23 @@ function CompanyProfileSection({
       });
 
       await companyService.updateCompany(companySource.id, companyData);
+
+      // Sync Event Offers to /company-offers/ so GET /offers/ (Partner Offers page) shows them
+      try {
+        await offerService.syncCompanyOffers(companySource.id, EVENT_ID, offers);
+        const list = await offerService.listMyCompanyOffers();
+        setOffers(
+          list.map((o) => ({
+            id: o.id as number,
+            title: o.title ?? "",
+            color: "#4CAF50",
+            link: o.link ?? "",
+          }))
+        );
+      } catch (syncErr: any) {
+        console.warn("Offer sync failed:", syncErr);
+        showToast("Profile saved. Offers may not appear on Partner Offers yet.", "warning");
+      }
 
       if (logoUpdateFailed) {
         showToast("Company profile saved. Logo could not be updated.", "warning");
@@ -2854,34 +2836,19 @@ function CompanyProfileSection({
               )}
             </View>
 
-            {/* Booth Number */}
+            {/* Booth Number (read-only from backend: GET /booths/{event_id}/user/) */}
             <View className="mb-4">
               <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
-                Booth Number <Text className="text-red-500">*</Text>
+                Booth Number
               </Text>
-              <TextInput
-                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
-                  validationErrors.boothNumber
-                    ? "border-red-500"
-                    : "border-neutral-300"
-                }`}
-                value={boothNumber}
-                onChangeText={(text) => {
-                  setBoothNumber(text);
-                  if (validationErrors.boothNumber) {
-                    setValidationErrors({
-                      ...validationErrors,
-                      boothNumber: "",
-                    });
-                  }
-                }}
-                placeholder="Enter booth number"
-              />
-              {validationErrors.boothNumber && (
-                <Text className="text-red-500 text-xs mt-1">
-                  {validationErrors.boothNumber}
+              <View className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
+                <Text className="text-base text-neutral-700">
+                  {boothNumber ? `Booth ${boothNumber}` : "No booth assigned"}
                 </Text>
-              )}
+                <Text className="text-xs text-neutral-500 mt-1">
+                  Assigned by event organisers
+                </Text>
+              </View>
             </View>
 
             {/* Website */}
@@ -3028,6 +2995,7 @@ function CompanyProfileSection({
                       setValidationErrors((e) => ({ ...e, newOfferTitle: "" }));
                   }}
                   placeholder="Offer title (e.g., Free Consultation)"
+                  placeholderTextColor="#9CA3AF"
                 />
                 {validationErrors.newOfferTitle && (
                   <Text className="text-red-500 text-xs mb-2">
@@ -3043,6 +3011,7 @@ function CompanyProfileSection({
                       setValidationErrors((e) => ({ ...e, newOfferLink: "" }));
                   }}
                   placeholder="Offer link (e.g., https://example.com/offer)"
+                  placeholderTextColor="#9CA3AF"
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"
@@ -3166,13 +3135,28 @@ function CompanyProfileSection({
                   <View className="w-10 items-center justify-center border border-neutral-300 p-2 rounded-full mr-3">
                     <LinkedInIcon size={22} color="#404040" />
                   </View>
-                  <TextInput
-                    className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={linkedIn}
-                    onChangeText={setLinkedIn}
-                    placeholder="LinkedIn handle"
-                    style={{ height: 42, minHeight: 42, maxHeight: 42 }}
-                  />
+                  <View className="flex-1">
+                    <Text className="text-xs font-medium text-neutral-600 mb-1">
+                      LinkedIn <Text className="text-red-500">*</Text>
+                    </Text>
+                    <TextInput
+                      className={`flex-1 bg-white border rounded-xl px-4 py-2 text-base text-black ${
+                        validationErrors.linkedIn ? "border-red-500" : "border-neutral-300"
+                      }`}
+                      value={linkedIn}
+                      onChangeText={(t) => {
+                        setLinkedIn(t);
+                        if (validationErrors.linkedIn)
+                          setValidationErrors((e) => ({ ...e, linkedIn: "" }));
+                      }}
+                      placeholder="LinkedIn profile URL or username"
+                      placeholderTextColor="#9CA3AF"
+                      style={{ height: 42, minHeight: 42, maxHeight: 42 }}
+                    />
+                    {validationErrors.linkedIn && (
+                      <Text className="text-red-500 text-xs mt-1">{validationErrors.linkedIn}</Text>
+                    )}
+                  </View>
                 </View>
               </View>
 
@@ -3248,6 +3232,7 @@ function CompanyProfileSection({
                           setValidationErrors((e) => ({ ...e, newJobRole: "" }));
                       }}
                       placeholder="Job Role"
+                      placeholderTextColor="#9CA3AF"
                     />
                     {validationErrors.newJobRole && (
                       <Text className="text-red-500 text-xs mb-2">
@@ -3263,6 +3248,7 @@ function CompanyProfileSection({
                           setValidationErrors((e) => ({ ...e, newJobLink: "" }));
                       }}
                       placeholder="Job Link (required)"
+                      placeholderTextColor="#9CA3AF"
                       autoCapitalize="none"
                       autoCorrect={false}
                       keyboardType="url"

@@ -33,10 +33,11 @@ import { useChecklist } from "../context/ChecklistContext";
 import { useAuth } from "../context/AuthContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
-import { attendeeService, type Attendee as BackendAttendee } from "../services/attendeeService";
+import { attendeeService, type Attendee as BackendAttendee, type MatchInfo } from "../services/attendeeService";
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
+import { INDUSTRY_OPTIONS, getInterestFilterOptions } from "../constants/industryAndInterests";
 import { ApiClientError } from "../services/api";
 import {
   getCanUserBookMeetings,
@@ -75,6 +76,32 @@ import Svg, { Path, Circle } from "react-native-svg";
 
 const ATTENDEE_PAGE_SIZE = 20;
 const LOAD_MORE_THRESHOLD = 3;
+/** Minimum match_score to show attendee in Recommended tab (from match_info) */
+const RECOMMENDED_MIN_SCORE = 5;
+
+/**
+ * Parse match_info from backend (may be JSON string or object).
+ * Returns { match_score, reason } or null.
+ */
+function parseMatchInfo(raw: string | MatchInfo | null | undefined): MatchInfo | null {
+  if (raw == null) return null;
+  if (typeof raw === "object" && (raw.match_score != null || raw.reason != null)) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw) as MatchInfo;
+      return parsed && (parsed.match_score != null || parsed.reason != null) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** True if attendee has match_score >= RECOMMENDED_MIN_SCORE */
+function isRecommendedByMatchInfo(backendAttendee: BackendAttendee | undefined): boolean {
+  const info = parseMatchInfo(backendAttendee?.match_info);
+  return info != null && typeof info.match_score === "number" && info.match_score >= RECOMMENDED_MIN_SCORE;
+}
 
 // Grid Icon Component (for Card View)
 function GridIcon({
@@ -779,49 +806,33 @@ export default function AttendeesScreen() {
   const bottomSheetDragY = useRef(new RNAnimated.Value(0)).current;
   const dragStartY = useRef(0);
 
-  // Filter categories matching Figma design
+  // Filter categories: Industry/Sector and Top Interests (Job Title / Role commented out for now)
   const filterCategories: FilterCategory[] = [
     {
       id: "industry",
       title: "Industry / Sector",
-      options: [
-        { id: "technology", label: "Technology" },
-        { id: "fintech", label: "Fintech" },
-        { id: "healthcare", label: "Healthcare" },
-        { id: "education", label: "Education" },
-        { id: "sustainability", label: "Sustainability" },
-        { id: "ecommerce", label: "E-commerce" },
-        { id: "transportation", label: "Transportation" },
-      ],
+      options: INDUSTRY_OPTIONS,
     },
     {
       id: "interests",
       title: "Interests",
-      options: [
-        { id: "ai-ml", label: "AI/ML" },
-        { id: "saas", label: "SaaS" },
-        { id: "product-strategy", label: "Product Strategy" },
-        { id: "ecommerce-interest", label: "E-commerce" },
-        { id: "fintech-interest", label: "Fintech" },
-        { id: "developer-tools", label: "Developer Tools" },
-        { id: "infrastructure", label: "Infrastructure" },
-        { id: "growth-marketing", label: "Growth Marketing" },
-      ],
+      options: getInterestFilterOptions(),
     },
-    {
-      id: "job-title",
-      title: "Job Title / Role",
-      options: [
-        { id: "ceo-founder", label: "CEO/Founder" },
-        { id: "cto", label: "CTO" },
-        { id: "vp-product", label: "VP Product" },
-        { id: "sales", label: "Sales" },
-        { id: "designer", label: "Designer" },
-        { id: "engineer", label: "Engineer" },
-        { id: "marketing", label: "Marketing" },
-        { id: "product-manager", label: "Product Manager" },
-      ],
-    },
+    // Job Title / Role section commented out for now
+    // {
+    //   id: "job-title",
+    //   title: "Job Title / Role",
+    //   options: [
+    //     { id: "ceo-founder", label: "CEO/Founder" },
+    //     { id: "cto", label: "CTO" },
+    //     { id: "vp-product", label: "VP Product" },
+    //     { id: "sales", label: "Sales" },
+    //     { id: "designer", label: "Designer" },
+    //     { id: "engineer", label: "Engineer" },
+    //     { id: "marketing", label: "Marketing" },
+    //     { id: "product-manager", label: "Product Manager" },
+    //   ],
+    // },
   ];
 
   const handleApplyFilters = (filterIds: string[]) => {
@@ -1172,9 +1183,9 @@ export default function AttendeesScreen() {
     return true;
   });
 
-  // Recommended attendees: those with match_info (non-empty)
-  const recommendedAttendees = filteredAttendees.filter(
-    (attendee) => attendee.backendData?.match_info && attendee.backendData.match_info.trim().length > 0
+  // Recommended attendees: those with match_info.match_score >= 5
+  const recommendedAttendees = filteredAttendees.filter((attendee) =>
+    isRecommendedByMatchInfo(attendee.backendData)
   );
 
   // Get displayed attendees based on active tab
