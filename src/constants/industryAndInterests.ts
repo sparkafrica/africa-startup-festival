@@ -67,6 +67,7 @@ export const TOP_INTERESTS: string[] = [
   "Cybersecurity",
   "Cloud",
   "Developers",
+  "Product Management",
   "Healthtech",
   "Edtech",
   "Agritech",
