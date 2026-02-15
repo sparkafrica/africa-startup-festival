@@ -18,8 +18,14 @@ export const INDUSTRY_OPTIONS: IndustryOption[] = [
   { id: "cybersecurity", label: "Cybersecurity" },
   { id: "entertainment-media", label: "Entertainment & Media" },
   { id: "ai-ml", label: "Artificial Intelligence & Machine Learning" },
-  { id: "cloud-enterprise-software", label: "Cloud Computing & Enterprise Software" },
-  { id: "telecoms-connectivity", label: "Telecommunications & Connectivity (incl. 5G)" },
+  {
+    id: "cloud-enterprise-software",
+    label: "Cloud Computing & Enterprise Software",
+  },
+  {
+    id: "telecoms-connectivity",
+    label: "Telecommunications & Connectivity (incl. 5G)",
+  },
   { id: "hardware-devices", label: "Hardware & Devices" },
   { id: "iot", label: "Internet of Things (IoT)" },
   { id: "data-analytics-big-data", label: "Data Analytics & Big Data" },
@@ -40,7 +46,10 @@ export const INDUSTRY_OPTIONS: IndustryOption[] = [
   { id: "web3-decentralized", label: "Web3 & Decentralized Tech" },
   { id: "insurtech", label: "InsurTech" },
   { id: "proptech", label: "PropTech" },
-  { id: "manufacturing-industry-4", label: "Manufacturing Tech (Industry 4.0)" },
+  {
+    id: "manufacturing-industry-4",
+    label: "Manufacturing Tech (Industry 4.0)",
+  },
   { id: "energy-tech", label: "Energy Tech" },
   { id: "deep-tech-frontier", label: "Deep Tech & Frontier Technologies" },
   { id: "others", label: "Others" },
