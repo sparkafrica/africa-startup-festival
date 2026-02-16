@@ -4663,12 +4663,13 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       // Show success toast
       showToast("Ticket scanned successfully!", "success");
 
-      // Show profile modal after scanner has fully dismissed (avoids iOS freeze when stacking modals)
+      // Show profile modal only after scanner has fully dismissed (avoids iOS freeze when stacking modals).
+      // iOS needs a longer delay: full-screen camera modal + native teardown can take 600–900ms.
       const showProfileModal = () => setScannedTicketProfileVisible(true);
+      const delayMs = Platform.OS === "ios" ? 750 : 0;
       InteractionManager.runAfterInteractions(() => {
-        if (Platform.OS === "ios") {
-          // iOS: extra delay so the full-screen scanner modal is fully gone before presenting the next modal
-          setTimeout(showProfileModal, 450);
+        if (delayMs > 0) {
+          setTimeout(showProfileModal, delayMs);
         } else {
           showProfileModal();
         }
