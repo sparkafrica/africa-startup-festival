@@ -38,6 +38,7 @@ import {
 } from "../components/BottomNavIcons";
 import { SearchIcon, ChevronRightIcon } from "../components/icons";
 import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
+import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
@@ -236,7 +237,7 @@ export default function ConnectionsScreen() {
   const { hasUnreadNotifications } = useNotifications();
   const { user } = useAuth();
   const { toast, showToast, hideToast } = useToast();
-  const { markRequestMeetingComplete } = useChecklist();
+  const { markRequestMeetingComplete, markConnectAttendeesComplete } = useChecklist();
   
   // Search state (commented out for now)
   // const [searchQuery, setSearchQuery] = useState("");
@@ -597,6 +598,7 @@ export default function ConnectionsScreen() {
       isProcessingActionRef.current = true;
       setIsProcessingAction(true);
       await connectionService.acceptConnection(connection.backendConnectionId);
+      markConnectAttendeesComplete();
       showToast("Connection accepted successfully!", "success");
       // Refresh connections list
       await fetchConnections();
@@ -641,7 +643,7 @@ export default function ConnectionsScreen() {
       isProcessingActionRef.current = false;
       setIsProcessingAction(false);
     }
-  }, [showToast, fetchConnections, closeBottomSheet]);
+  }, [showToast, fetchConnections, closeBottomSheet, markConnectAttendeesComplete]);
 
   /**
    * Handle reject connection
@@ -1238,28 +1240,20 @@ export default function ConnectionsScreen() {
                     </Pressable>
                   )}
 
-                  {/* LinkedIn button - only show if LinkedIn URL exists */}
-                  {selectedConnection.linkedInUrl && (
-                    <Pressable
-                      onPress={async () => {
-                        if (selectedConnection.linkedInUrl) {
+                  {/* LinkedIn pill - display username, open full URL */}
+                  {(() => {
+                    const linkedIn = getLinkedInDisplayInfo(selectedConnection.linkedInUrl);
+                    if (!linkedIn) return null;
+                    return (
+                      <Pressable
+                        onPress={async () => {
                           try {
-                            const url = selectedConnection.linkedInUrl;
-                            // Ensure URL has protocol
-                            const formattedUrl = url.startsWith("http://") || url.startsWith("https://")
-                              ? url
-                              : `https://${url}`;
-                            
-                            // Try to open URL directly
-                            // On iOS, canOpenURL may return false even for valid URLs if not whitelisted,
-                            // so we'll try to open directly and catch errors
-                            const supported = await Linking.canOpenURL(formattedUrl);
+                            const supported = await Linking.canOpenURL(linkedIn.url);
                             if (supported) {
-                              await Linking.openURL(formattedUrl);
+                              await Linking.openURL(linkedIn.url);
                             } else {
-                              // Still try to open - might work even if canOpenURL returns false
                               try {
-                                await Linking.openURL(formattedUrl);
+                                await Linking.openURL(linkedIn.url);
                               } catch (openError) {
                                 Alert.alert(
                                   "Cannot Open LinkedIn",
@@ -1269,25 +1263,19 @@ export default function ConnectionsScreen() {
                               }
                             }
                           } catch (error) {
-                            if (__DEV__) {
-                              console.error("Error opening LinkedIn URL:", error);
-                            }
-                            Alert.alert(
-                              "Error",
-                              "Failed to open LinkedIn profile. Please try again.",
-                              [{ text: "OK" }]
-                            );
+                            if (__DEV__) console.error("Error opening LinkedIn URL:", error);
+                            Alert.alert("Error", "Failed to open LinkedIn profile. Please try again.", [{ text: "OK" }]);
                           }
-                        }
-                      }}
-                      className="w-full flex-row items-center justify-center bg-neutral-200 rounded-xl py-3.5 px-4 mb-3"
-                    >
-                      <LinkedInIcon size={20} color="#0A66C2" />
-                      <Text className="text-base font-semibold text-neutral-700 ml-2">
-                        Connect on LinkedIn
-                      </Text>
-                    </Pressable>
-                  )}
+                        }}
+                        className="w-full flex-row items-center justify-center bg-neutral-200 rounded-xl py-3.5 px-4 mb-3"
+                      >
+                        <LinkedInIcon size={20} color="#0A66C2" />
+                        <Text className="text-base font-semibold text-neutral-700 ml-2">
+                          in {linkedIn.displayLabel}
+                        </Text>
+                      </Pressable>
+                    );
+                  })()}
 
                   {/* Show Remove Connection button for accepted connections (below LinkedIn) */}
                   {selectedConnection.status === "accepted" && (

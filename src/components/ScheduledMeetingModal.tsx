@@ -798,7 +798,7 @@ export default function ScheduledMeetingModal({
                             numberOfLines={1}
                             ellipsizeMode="tail"
                           >
-                            {participantSocialLabel.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, "").split("/")[0]}
+                            in {participantSocialLabel}
                           </Text>
                         </Pressable>
                       </View>

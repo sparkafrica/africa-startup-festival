@@ -72,6 +72,7 @@ import {
 } from "../components/BottomNavIcons";
 import { ChevronDownIcon, ListIcon, SearchIcon } from "../components/icons";
 import { LinkedInIcon } from "../components/SocialIcons";
+import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import Svg, { Path, Circle } from "react-native-svg";
 
 const ATTENDEE_PAGE_SIZE = 20;
@@ -2113,32 +2114,24 @@ export default function AttendeesScreen() {
                     </View>
                   )}
 
-                {/* LinkedIn Badge */}
-                {selectedAttendee.linkedInUrl && (
-                  <View className="mb-4">
-                    <Text className="text-base font-semibold text-neutral-900 mb-2">
-                      Social Links
-                    </Text>
-                    <Pressable
-                      onPress={async () => {
-                        if (selectedAttendee.linkedInUrl) {
+                {/* LinkedIn Badge - display label (username), open full URL */}
+                {(() => {
+                  const linkedIn = getLinkedInDisplayInfo(selectedAttendee.linkedInUrl);
+                  if (!linkedIn) return null;
+                  return (
+                    <View className="mb-4">
+                      <Text className="text-base font-semibold text-neutral-900 mb-2">
+                        Social Links
+                      </Text>
+                      <Pressable
+                        onPress={async () => {
                           try {
-                            const url = selectedAttendee.linkedInUrl;
-                            // Ensure URL has protocol
-                            const formattedUrl = url.startsWith("http://") || url.startsWith("https://")
-                              ? url
-                              : `https://${url}`;
-                            
-                            // Try to open URL directly
-                            // On iOS, canOpenURL may return false even for valid URLs if not whitelisted,
-                            // so we'll try to open directly and catch errors
-                            const supported = await Linking.canOpenURL(formattedUrl);
+                            const supported = await Linking.canOpenURL(linkedIn.url);
                             if (supported) {
-                              await Linking.openURL(formattedUrl);
+                              await Linking.openURL(linkedIn.url);
                             } else {
-                              // Still try to open - might work even if canOpenURL returns false
                               try {
-                                await Linking.openURL(formattedUrl);
+                                await Linking.openURL(linkedIn.url);
                               } catch (openError) {
                                 Alert.alert(
                                   "Cannot Open LinkedIn",
@@ -2148,29 +2141,20 @@ export default function AttendeesScreen() {
                               }
                             }
                           } catch (error) {
-                            if (__DEV__) {
-                              console.error("Error opening LinkedIn URL:", error);
-                            }
-                            Alert.alert(
-                              "Error",
-                              "Failed to open LinkedIn profile. Please try again.",
-                              [{ text: "OK" }]
-                            );
+                            if (__DEV__) console.error("Error opening LinkedIn URL:", error);
+                            Alert.alert("Error", "Failed to open LinkedIn profile. Please try again.", [{ text: "OK" }]);
                           }
-                        }
-                      }}
-                      className="flex-row items-center bg-neutral-100 rounded-full px-4 py-2.5 self-start"
-                    >
-                      <LinkedInIcon size={18} color="#0A66C2" />
-                      <Text className="text-sm font-medium text-neutral-900 ml-2">
-                        {selectedAttendee.linkedInUrl.replace(
-                          /^https?:\/\/(www\.)?linkedin\.com\/in\//i,
-                          ""
-                        )}
-                      </Text>
-                    </Pressable>
-                  </View>
-                )}
+                        }}
+                        className="flex-row items-center bg-neutral-100 rounded-full px-4 py-2.5 self-start"
+                      >
+                        <LinkedInIcon size={18} color="#0A66C2" />
+                        <Text className="text-sm font-medium text-neutral-900 ml-2">
+                          in {linkedIn.displayLabel}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                })()}
 
                 {/* Action Buttons */}
                 <View className="mt-2">

@@ -13,6 +13,9 @@ import {
   Platform,
   Keyboard,
   StyleSheet,
+  InteractionManager,
+  Linking,
+  Alert,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,6 +28,7 @@ import { StatusBar } from "expo-status-bar";
 import Svg, { Path, Rect, Circle } from "react-native-svg";
 import { ScrollView } from "react-native";
 import { CalendarIcon } from "../components/BottomNavIcons";
+import { LinkedInIcon } from "../components/SocialIcons";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
 import { ticketService, type Attendee } from "../services/ticketService";
@@ -50,6 +54,7 @@ import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
 } from "../utils/meetingRestrictions";
+import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -3136,6 +3141,45 @@ function ScannedTicketProfileModal({
                       </View>
                     </View>
                   )}
+
+                {/* Social Links - LinkedIn pill (display username, open full URL) */}
+                {(() => {
+                  const linkedInRaw = attendee.user.metadata?.linkedIn ?? attendee.user.metadata?.linkedin_url;
+                  const linkedIn = getLinkedInDisplayInfo(linkedInRaw);
+                  if (!linkedIn) return null;
+                  return (
+                    <View className="mb-6">
+                      <Text className="text-lg font-semibold text-black mb-3">
+                        Social Links
+                      </Text>
+                      <Pressable
+                        onPress={async () => {
+                          try {
+                            const supported = await Linking.canOpenURL(linkedIn.url);
+                            if (supported) {
+                              await Linking.openURL(linkedIn.url);
+                            } else {
+                              try {
+                                await Linking.openURL(linkedIn.url);
+                              } catch {
+                                Alert.alert("Cannot Open LinkedIn", "Please try opening the link in your browser.");
+                              }
+                            }
+                          } catch (error) {
+                            if (__DEV__) console.error("Error opening LinkedIn URL:", error);
+                            Alert.alert("Error", "Failed to open LinkedIn profile. Please try again.");
+                          }
+                        }}
+                        className="flex-row items-center bg-neutral-100 rounded-full px-4 py-2.5 self-start"
+                      >
+                        <LinkedInIcon size={18} color="#0A66C2" />
+                        <Text className="text-sm font-medium text-neutral-900 ml-2">
+                          in {linkedIn.displayLabel}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                })()}
               </>
             ) : (
               <View className="items-center justify-center py-8">
@@ -4619,10 +4663,16 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       // Show success toast
       showToast("Ticket scanned successfully!", "success");
 
-      // Show profile modal
-      setTimeout(() => {
-        setScannedTicketProfileVisible(true);
-      }, 300);
+      // Show profile modal after scanner has fully dismissed (avoids iOS freeze when stacking modals)
+      const showProfileModal = () => setScannedTicketProfileVisible(true);
+      InteractionManager.runAfterInteractions(() => {
+        if (Platform.OS === "ios") {
+          // iOS: extra delay so the full-screen scanner modal is fully gone before presenting the next modal
+          setTimeout(showProfileModal, 450);
+        } else {
+          showProfileModal();
+        }
+      });
     } catch (error: any) {
       // Handle different error types - show user-friendly messages based on status code only
       // Never use error.message directly to avoid showing technical details

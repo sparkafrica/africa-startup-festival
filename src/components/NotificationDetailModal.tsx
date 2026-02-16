@@ -10,6 +10,8 @@ import {
   Animated,
   Dimensions,
   StyleSheet,
+  Linking,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
@@ -30,7 +32,9 @@ interface NotificationDetailModalProps {
       | "meeting_approved" // Info + View meeting (scheduled)
       | "meeting_request_sent" // Info + View meeting
       | "meeting_cancelled" // Info + OK
-      | "connection" // Info + View profile
+      | "connection" // Legacy fallback
+      | "connection_request" // Inbound: X wants to connect → View connections
+      | "connection_accepted" // X accepted your connection → View connections
       | "reminder" // Info + View meeting
       | "generic"; // Simple info + OK
     title: string;
@@ -43,6 +47,7 @@ interface NotificationDetailModalProps {
       tags?: string[];
       interests?: string[];
       socialLabel?: string;
+      linkedInUrl?: string;
     };
     meetingDetails?: {
       title: string;
@@ -213,8 +218,9 @@ export default function NotificationDetailModal({
               {notification.type === "meeting_request" && (
                 <View className="px-6 pb-4">
                   <Text className="text-base text-neutral-600 leading-6">
-                    {notification.requester?.name} has requested a meeting with
-                    you. Accept or decline below.
+                    {notification.requester?.name
+                      ? `${notification.requester.name} has requested a meeting with you.`
+                      : "Someone has requested a meeting with you."}
                   </Text>
                 </View>
               )}
@@ -239,7 +245,17 @@ export default function NotificationDetailModal({
                   </Text>
                 </View>
               )}
-              {notification.type === "connection" && (
+              {notification.type === "connection_request" && (
+                <View className="px-6 pb-4">
+                  <Text className="text-base text-neutral-600 leading-6">
+                    {notification.requester?.name
+                      ? `${notification.requester.name} wants to connect with you.`
+                      : "Someone wants to connect with you."}
+                  </Text>
+                </View>
+              )}
+              {(notification.type === "connection" ||
+                notification.type === "connection_accepted") && (
                 <View className="px-6 pb-4">
                   <Text className="text-base text-neutral-600 leading-6">
                     {notification.requester?.name
@@ -251,9 +267,7 @@ export default function NotificationDetailModal({
               {notification.type === "meeting_cancelled" && (
                 <View className="px-6 pb-4">
                   <Text className="text-base text-neutral-600 leading-6">
-                    {notification.cancelledBy === "them"
-                      ? `${notification.requester?.name} has cancelled this meeting.`
-                      : "You have cancelled this meeting."}
+                    This meeting has been cancelled.
                   </Text>
                 </View>
               )}
@@ -409,15 +423,27 @@ export default function NotificationDetailModal({
                           </View>
                         )}
 
-                        {/* LinkedIn Badge (Pill style) */}
-                        {notification.requester.socialLabel && (
+                        {/* LinkedIn Badge (Pill) - display label, open full URL */}
+                        {notification.requester.socialLabel && notification.requester.linkedInUrl && (
                           <View className="flex-row flex-wrap" style={{ gap: 6 }}>
-                            <View className="px-3 py-1 bg-neutral-100 rounded-full flex-row items-center">
+                            <Pressable
+                              onPress={async () => {
+                                try {
+                                  await Linking.openURL(notification.requester!.linkedInUrl!);
+                                } catch {
+                                  Alert.alert(
+                                    "Cannot Open LinkedIn",
+                                    "Please try opening the link in your browser."
+                                  );
+                                }
+                              }}
+                              className="px-3 py-1 bg-neutral-100 rounded-full flex-row items-center"
+                            >
                               <LinkedInIcon size={14} color="#0A66C2" />
                               <Text className="text-xs text-neutral-700 ml-1.5 font-medium">
-                                {notification.requester.socialLabel}
+                                in {notification.requester.socialLabel}
                               </Text>
-                            </View>
+                            </Pressable>
                           </View>
                         )}
                       </View>
@@ -471,85 +497,7 @@ export default function NotificationDetailModal({
               )}
 
               {/* Action Buttons */}
-              {notification.type === "meeting_request" &&
-              (notification.onAccept || notification.onDecline) ? (
-                <View className="px-6 flex-row gap-3">
-                  {notification.onAccept && (
-                    <Pressable
-                      onPress={async () => {
-                        if (isSubmitting) return;
-                        setIsSubmitting(true);
-                        try {
-                          await notification.onAccept?.();
-                          setToastAction("accepted");
-                          setShowToast(true);
-                          setTimeout(() => onClose(), 500);
-                        } catch {
-                          // Handler showed error toast, keep modal open
-                        } finally {
-                          setIsSubmitting(false);
-                        }
-                      }}
-                      disabled={isSubmitting}
-                      className="flex-1 bg-black rounded-2xl py-4 flex-row items-center justify-center"
-                      style={[
-                        {
-                          shadowColor: "#000",
-                          shadowOffset: { width: 0, height: 2 },
-                          shadowOpacity: 0.1,
-                          shadowRadius: 4,
-                          elevation: 2,
-                        },
-                        { opacity: isSubmitting ? 0.6 : 1 },
-                      ]}
-                    >
-                      <CheckIcon size={20} color="#FFFFFF" />
-                      <Text className="text-white font-semibold text-base ml-2">
-                        Accept
-                      </Text>
-                    </Pressable>
-                  )}
-                  {notification.onDecline && (
-                    <Pressable
-                      onPress={async () => {
-                        if (isSubmitting) return;
-                        setIsSubmitting(true);
-                        try {
-                          await notification.onDecline?.();
-                          setToastAction("declined");
-                          setShowToast(true);
-                          setTimeout(() => onClose(), 500);
-                        } catch {
-                          // Handler showed error toast, keep modal open
-                        } finally {
-                          setIsSubmitting(false);
-                        }
-                      }}
-                      disabled={isSubmitting}
-                      className="flex-1 border-2 rounded-2xl py-4 flex-row items-center justify-center"
-                      style={[
-                        {
-                        borderColor: "#EF4444",
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.05,
-                        shadowRadius: 2,
-                        elevation: 1,
-                      },
-                        { opacity: isSubmitting ? 0.6 : 1 },
-                      ]}
-                    >
-                      <XIcon size={20} color="#EF4444" />
-                      <Text
-                        className="font-semibold text-base ml-2"
-                        style={{ color: "#EF4444" }}
-                      >
-                        Decline
-                      </Text>
-                    </Pressable>
-                  )}
-                </View>
-              ) : notification.onViewMeeting ? (
+              {notification.onViewMeeting ? (
                 <View className="px-6">
                   <Pressable
                     onPress={() => {
@@ -587,7 +535,11 @@ export default function NotificationDetailModal({
                     }}
                   >
                     <Text className="text-white font-semibold text-base">
-                      View profile
+                      {notification.type === "connection" ||
+                      notification.type === "connection_request" ||
+                      notification.type === "connection_accepted"
+                        ? "View connections"
+                        : "View profile"}
                     </Text>
                   </Pressable>
                 </View>

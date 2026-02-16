@@ -42,6 +42,7 @@ import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
 } from "../utils/meetingRestrictions";
+import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 
 // ============================================
 // MODAL HEIGHT CONFIGURATION
@@ -140,16 +141,18 @@ function mapCompanyToUIData(company: Company | null | undefined): CompanyUIData 
     }
   }
   if (meta.linkedin && !socialLinks.find((s) => s.id === "linkedin")) {
-    const linkedInVal = String(meta.linkedin);
-    const url = buildSocialUrl("linkedin", linkedInVal);
-    socialLinks.push({
-      id: "linkedin",
-      platform: "LinkedIn",
-      handle: linkedInVal.replace(/^https?:\/\/[^/]+/, "").replace(/^\//, "").trim() || "Profile",
-      url: url || ensureHttps(linkedInVal),
-      icon: LinkedInIcon,
-      color: "#0A66C2",
-    });
+    const linkedInVal = String(meta.linkedin).trim();
+    const linkedInInfo = getLinkedInDisplayInfo(linkedInVal);
+    if (linkedInInfo) {
+      socialLinks.push({
+        id: "linkedin",
+        platform: "LinkedIn",
+        handle: linkedInInfo.displayLabel,
+        url: linkedInInfo.url,
+        icon: LinkedInIcon,
+        color: "#0A66C2",
+      });
+    }
   }
   const membersRaw = Array.isArray(company.members) ? company.members : [];
   const teamMembers = membersRaw.map((m: any, i: number) => ({

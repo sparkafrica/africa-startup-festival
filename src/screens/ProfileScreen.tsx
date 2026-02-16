@@ -137,11 +137,19 @@ const validateCompany = (
 const validateLinkedIn = (
   linkedIn: string
 ): { valid: boolean; error?: string } => {
-  if (!linkedIn.trim()) {
-    return { valid: false, error: "Please enter your LinkedIn profile URL or username." };
+  const trimmed = linkedIn.trim();
+  if (!trimmed) {
+    return { valid: false, error: "Please enter your LinkedIn profile URL." };
   }
-  if (linkedIn.trim().length > 500) {
+  if (trimmed.length > 500) {
     return { valid: false, error: "LinkedIn must be under 500 characters." };
+  }
+  // Require full profile URL so we store the correct link; pill will show the username from the URL
+  if (!/linkedin\.com\/in\//i.test(trimmed)) {
+    return {
+      valid: false,
+      error: "Please enter your full LinkedIn profile URL (e.g. https://linkedin.com/in/yourname).",
+    };
   }
   return { valid: true };
 };
@@ -850,13 +858,13 @@ function PersonalProfileSection({
     COUNTRY_OPTIONS[0];
 
   const toggleInterest = (interest: string) => {
-    if (selectedInterests.includes(interest)) {
-      setSelectedInterests(selectedInterests.filter((i) => i !== interest));
-    } else {
-      if (selectedInterests.length < 7) {
-        setSelectedInterests([...selectedInterests, interest]);
-      }
-    }
+    setSelectedInterests((prev) =>
+      prev.includes(interest)
+        ? prev.filter((i) => i !== interest)
+        : prev.length < 7
+          ? [...prev, interest]
+          : prev
+    );
   };
 
   // Image Picker Handlers
@@ -1005,8 +1013,8 @@ function PersonalProfileSection({
       const countryLabel =
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
-      // Build metadata object for fields that don't have direct backend fields
-      const metadata: any = {};
+      // Build metadata: industry & interests are shown on attendee cards; merge with existing so we don't overwrite e.g. event_checklist
+      const metadata: any = { ...(user?.metadata || {}) };
       if (industryLabel) {
         metadata.industry = industryLabel;
       }
@@ -1026,7 +1034,6 @@ function PersonalProfileSection({
         country: countryLabel,
       };
 
-      // Only include metadata if it has content
       if (Object.keys(metadata).length > 0) {
         profileData.metadata = metadata;
       }
@@ -1304,7 +1311,7 @@ function PersonalProfileSection({
                     });
                   }
                 }}
-                placeholder="LinkedIn profile URL or handle"
+                placeholder="https://linkedin.com/in/yourprofile"
               />
               {validationErrors.linkedIn && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -1403,7 +1410,10 @@ function PersonalProfileSection({
               Top Interests <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500 mb-3">
-              Select 3–7 interests you want to connect with
+              Select 3–7 interests you want to connect with{" "}
+              <Text className="font-medium text-neutral-600">
+                ({selectedInterests.length}/7 selected)
+              </Text>
             </Text>
             {validationErrors.interests && (
               <Text className="text-red-500 text-xs mb-2">
@@ -1552,13 +1562,13 @@ function AttendeeProfileSection({
     COUNTRY_OPTIONS[0];
 
   const toggleInterest = (interest: string) => {
-    if (selectedInterests.includes(interest)) {
-      setSelectedInterests(selectedInterests.filter((i) => i !== interest));
-    } else {
-      if (selectedInterests.length < 7) {
-        setSelectedInterests([...selectedInterests, interest]);
-      }
-    }
+    setSelectedInterests((prev) =>
+      prev.includes(interest)
+        ? prev.filter((i) => i !== interest)
+        : prev.length < 7
+          ? [...prev, interest]
+          : prev
+    );
   };
 
   // Image Picker Handlers
@@ -1703,8 +1713,8 @@ function AttendeeProfileSection({
       const countryLabel =
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
-      // Build metadata object for fields that don't have direct backend fields
-      const metadata: any = {};
+      // Build metadata: industry & interests for attendee cards; merge with existing so we don't overwrite e.g. event_checklist
+      const metadata: any = { ...(user?.metadata || {}) };
       if (industryLabel) {
         metadata.industry = industryLabel;
       }
@@ -1722,7 +1732,6 @@ function AttendeeProfileSection({
         country: countryLabel,
       };
 
-      // Only include metadata if it has content
       if (Object.keys(metadata).length > 0) {
         profileData.metadata = metadata;
       }
@@ -1988,7 +1997,7 @@ function AttendeeProfileSection({
                     setValidationErrors({ ...validationErrors, linkedIn: "" });
                   }
                 }}
-                placeholder="LinkedIn profile URL or username"
+                placeholder="https://linkedin.com/in/yourprofile"
               />
               {validationErrors.linkedIn && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -2087,7 +2096,10 @@ function AttendeeProfileSection({
               Top Interests <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500 mb-3">
-              Select 3–7 interests you want to connect with
+              Select 3–7 interests you want to connect with{" "}
+              <Text className="font-medium text-neutral-600">
+                ({selectedInterests.length}/7 selected)
+              </Text>
             </Text>
             {validationErrors.interests && (
               <Text className="text-red-500 text-xs mb-2">
@@ -2497,12 +2509,11 @@ function CompanyProfileSection({
       errors.companyDescription = descriptionValidation.error || "";
     }
 
-    // LinkedIn required for company; other social links optional; format relaxed
+    // LinkedIn required for company; must be full profile URL
     if (!linkedIn.trim()) {
-      errors.linkedIn = "Please enter your LinkedIn profile URL or username.";
-    }
-    if (linkedIn.trim()) {
-      const v = validateSocialHandle(linkedIn, "LinkedIn");
+      errors.linkedIn = "Please enter your full LinkedIn profile URL.";
+    } else {
+      const v = validateLinkedIn(linkedIn);
       if (!v.valid) errors.linkedIn = v.error || "";
     }
     if (facebook.trim()) {
@@ -3149,7 +3160,7 @@ function CompanyProfileSection({
                         if (validationErrors.linkedIn)
                           setValidationErrors((e) => ({ ...e, linkedIn: "" }));
                       }}
-                      placeholder="LinkedIn profile URL or username"
+                      placeholder="https://linkedin.com/in/yourprofile"
                       placeholderTextColor="#9CA3AF"
                       style={{ height: 42, minHeight: 42, maxHeight: 42 }}
                     />

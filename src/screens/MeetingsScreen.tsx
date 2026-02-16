@@ -39,6 +39,7 @@ import type {
   RootStackScreenProps,
 } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
+import { useChecklist } from "../context/ChecklistContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { useMeetingsBadgeCount } from "../hooks";
@@ -51,6 +52,7 @@ import {
 import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
+import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 
 type PrimaryTab = "requests" | "scheduled";
 // DEPRECATED for production: "cancelled" tab commented out - users get email notifications for cancelled meetings
@@ -119,6 +121,7 @@ export default function MeetingsScreen({ route }: Props) {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const { user } = useAuth();
+  const { markRequestMeetingComplete } = useChecklist();
   const meetingsBadgeCount = useMeetingsBadgeCount();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
   const { hasUnreadNotifications } = useNotifications();
@@ -379,6 +382,57 @@ export default function MeetingsScreen({ route }: Props) {
   };
 
   /**
+   * Extract participant metadata from backend user/company.
+   * Backend may nest data differently for requester vs requestee – check all plausible locations.
+   */
+  const extractParticipantMetadata = (
+    otherUser: MeetingUser | null | undefined,
+    otherCompany: { name?: string; company_type?: string; sector?: string; industry?: string } | null | undefined
+  ) => {
+    let m = otherUser?.metadata;
+    if (typeof m === "string") {
+      try {
+        m = JSON.parse(m) as Record<string, unknown>;
+      } catch {
+        m = undefined;
+      }
+    }
+    const c = otherCompany as Record<string, unknown> | null | undefined;
+    const u = otherUser as Record<string, unknown> | null | undefined;
+
+    const tags: string[] = [];
+    if (otherUser?.country) tags.push(otherUser.country);
+
+    const sector =
+      otherCompany?.company_type ||
+      c?.company_type ||
+      c?.sector ||
+      c?.industry ||
+      m?.sector ||
+      m?.industry ||
+      m?.company_sector ||
+      undefined;
+    if (sector && typeof sector === "string") tags.push(sector);
+
+    const interestsRaw = m?.interests ?? m?.interest;
+    const interests = Array.isArray(interestsRaw)
+      ? interestsRaw.filter((i): i is string => typeof i === "string")
+      : typeof interestsRaw === "string"
+        ? [interestsRaw]
+        : [];
+
+    const bio = (m?.bio as string) || "";
+
+    const linkedInRaw =
+      m?.linkedIn ?? m?.linkedin_url ?? m?.linkedin ?? u?.linkedIn ?? u?.linkedin_url ?? u?.linkedin;
+    const linkedInInfo = getLinkedInDisplayInfo(
+      typeof linkedInRaw === "string" ? linkedInRaw : undefined
+    );
+
+    return { tags, interests, bio, linkedInUrl: linkedInInfo?.url, socialLabel: linkedInInfo?.displayLabel };
+  };
+
+  /**
    * Map backend VirtualMeeting to UI-friendly format
    */
   const mapVirtualMeetingToUI = (
@@ -405,31 +459,8 @@ export default function MeetingsScreen({ route }: Props) {
       otherUser?.organisation ||
       "";
 
-    // Extract tags (country, industry/sector)
-    const tags: string[] = [];
-    if (otherUser?.country) {
-      tags.push(otherUser.country);
-    }
-    const sector =
-      otherCompany?.company_type ||
-      otherUser?.metadata?.sector ||
-      otherUser?.metadata?.industry;
-    if (sector) {
-      tags.push(sector);
-    }
-
-    // Extract interests
-    const interests = otherUser?.metadata?.interests || [];
-
-    // Extract bio
-    const bio = otherUser?.metadata?.bio || "";
-
-    // Extract LinkedIn
-    const linkedInUrl =
-      otherUser?.metadata?.linkedIn || otherUser?.metadata?.linkedin_url;
-    const socialLabel = linkedInUrl
-      ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
-      : undefined;
+    const { tags, interests, bio, linkedInUrl, socialLabel } =
+      extractParticipantMetadata(otherUser, otherCompany);
 
     // Extract avatar
     const participantAvatar = otherUser?.profile_pic
@@ -535,31 +566,8 @@ export default function MeetingsScreen({ route }: Props) {
       otherUser?.organisation ||
       "";
 
-    // Extract tags (country, industry/sector)
-    const tags: string[] = [];
-    if (otherUser?.country) {
-      tags.push(otherUser.country);
-    }
-    const sector =
-      otherCompany?.company_type ||
-      otherUser?.metadata?.sector ||
-      otherUser?.metadata?.industry;
-    if (sector) {
-      tags.push(sector);
-    }
-
-    // Extract interests
-    const interests = otherUser?.metadata?.interests || [];
-
-    // Extract bio
-    const bio = otherUser?.metadata?.bio || "";
-
-    // Extract LinkedIn
-    const linkedInUrl =
-      otherUser?.metadata?.linkedIn || otherUser?.metadata?.linkedin_url;
-    const socialLabel = linkedInUrl
-      ? linkedInUrl.replace("https://www.linkedin.com/in/", "").replace("/", "")
-      : undefined;
+    const { tags, interests, bio, linkedInUrl, socialLabel } =
+      extractParticipantMetadata(otherUser, otherCompany);
 
     // Extract avatar
     const participantAvatar = otherUser?.profile_pic
@@ -811,6 +819,9 @@ export default function MeetingsScreen({ route }: Props) {
         
         setIsModalVisible(false);
         setSelectedMeeting(null);
+        if (action === "accept") {
+          markRequestMeetingComplete();
+        }
         showToast(
           action === "accept" ? "Meeting accepted" : "Meeting declined",
           "success"
@@ -827,7 +838,7 @@ export default function MeetingsScreen({ route }: Props) {
         setIsActionLoading(false);
       }
     },
-    [fetchMeetings, isActionLoading, showToast, refreshMeetingsBadge]
+    [fetchMeetings, isActionLoading, showToast, refreshMeetingsBadge, markRequestMeetingComplete]
   );
 
   const handleCancelMeeting = useCallback(

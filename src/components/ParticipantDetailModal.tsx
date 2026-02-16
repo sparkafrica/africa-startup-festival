@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PersonProfileIcon } from "./icons";
 import { LinkedInIcon } from "./SocialIcons";
+import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -108,51 +109,48 @@ export default function ParticipantDetailModal({
                 </View>
               )}
 
-              {/* Social Links */}
-              {socialLabel && linkedInUrl && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Social Links</Text>
-                  <Pressable
-                    style={styles.socialButton}
-                    onPress={async () => {
-                      try {
-                        // Ensure URL has protocol
-                        const formattedUrl = linkedInUrl.startsWith("http://") || linkedInUrl.startsWith("https://")
-                          ? linkedInUrl
-                          : `https://${linkedInUrl}`;
-                        
-                        // Try to open URL
-                        const supported = await Linking.canOpenURL(formattedUrl);
-                        if (supported) {
-                          await Linking.openURL(formattedUrl);
-                        } else {
-                          // Still try to open - might work even if canOpenURL returns false
-                          try {
-                            await Linking.openURL(formattedUrl);
-                          } catch (openError) {
-                            Alert.alert(
-                              "Cannot Open LinkedIn",
-                              "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
-                              [{ text: "OK" }]
-                            );
+              {/* Social Links - display label (username), open full URL */}
+              {(() => {
+                const info = getLinkedInDisplayInfo(linkedInUrl ?? socialLabel);
+                if (!info) return null;
+                return (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Social Links</Text>
+                    <Pressable
+                      style={styles.socialButton}
+                      onPress={async () => {
+                        try {
+                          const supported = await Linking.canOpenURL(info.url);
+                          if (supported) {
+                            await Linking.openURL(info.url);
+                          } else {
+                            try {
+                              await Linking.openURL(info.url);
+                            } catch (openError) {
+                              Alert.alert(
+                                "Cannot Open LinkedIn",
+                                "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
+                                [{ text: "OK" }]
+                              );
+                            }
                           }
+                        } catch (error) {
+                          Alert.alert("Error", "Failed to open LinkedIn profile");
                         }
-                      } catch (error) {
-                        Alert.alert("Error", "Failed to open LinkedIn profile");
-                      }
-                    }}
-                  >
-                    <LinkedInIcon size={18} color="#0A66C2" />
-                    <Text 
-                      style={styles.socialButtonText}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
+                      }}
                     >
-                      {socialLabel.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, "").split("/")[0]}
-                    </Text>
-                  </Pressable>
-                </View>
-              )}
+                      <LinkedInIcon size={18} color="#0A66C2" />
+                      <Text
+                        style={styles.socialButtonText}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        in {info.displayLabel}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })()}
             </ScrollView>
           </View>
           <SafeAreaView edges={["bottom"]} style={styles.bottomSafeArea} />

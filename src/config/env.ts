@@ -12,15 +12,13 @@ import Constants from "expo-constants";
 
 // Determine environment
 const getEnvironment = (): "development" | "staging" | "production" => {
-  // In development, use __DEV__ flag
+  // Local dev (Metro / __DEV__) → development (dev-api)
   if (__DEV__) {
     return "development";
   }
 
-  // In production builds, you can use Constants.expoConfig.extra.releaseChannel
-  // For now, defaulting to staging for non-dev builds
-  // TODO: Update this logic based on your build configuration
-  return "staging";
+  // Store and OTA builds → production (live API). Takes effect on next app/OTA update.
+  return "production";
 };
 
 const environment = getEnvironment();
@@ -41,7 +39,7 @@ export const API_CONFIG = {
     WS_URL: "wss://dev-api.africatechnologyexpo.com",
   },
   production: {
-    BASE_URL: "https://api.africatechnologyexpo.com", // Production server (update when production URL is available)
+    BASE_URL: "https://api.africatechnologyexpo.com", // Live production API (dev changes pushed to production)
     TIMEOUT: 30000,
     WS_URL: "wss://api.africatechnologyexpo.com",
   },

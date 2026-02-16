@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, ScrollView, Pressable, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { StatusBar } from "expo-status-bar";
@@ -19,7 +19,6 @@ import { ChevronRightIcon } from "../components/MenuIcons";
 import { notificationService } from "../services/notificationService";
 import { ApiClientError } from "../services/api";
 import { mapBackendNotificationToUI, fetchNotificationDetails, type UINotification } from "../utils/notificationUtils";
-import { meetingService } from "../services/meetingService";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { useToast } from "../hooks/useToast";
@@ -28,6 +27,8 @@ import Toast from "../components/Toast";
 export default function NotificationsScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Notifications">>();
+  const route = useRoute<RouteProp<RootStackParamList, "Notifications">>();
+  const openNotificationId = route.params?.openNotificationId;
   const { user } = useAuth();
   const { refreshUnreadCount } = useNotifications();
   const { showToast, hideToast, toast } = useToast();
@@ -158,6 +159,8 @@ export default function NotificationsScreen() {
       notification.type === "meeting_cancelled" ||
       notification.type === "meeting_request_sent" ||
       notification.type === "connection" ||
+      notification.type === "connection_request" ||
+      notification.type === "connection_accepted" ||
       notification.type === "generic"
     ) {
       // Fetch details before opening modal (lazy loading)
@@ -255,40 +258,6 @@ export default function NotificationsScreen() {
     }, 100);
   }, [markAsRead, navigation]);
 
-  /**
-   * Handle modal action (accept/decline) - for meeting_request, calls API then marks as read
-   */
-  const handleModalAction = useCallback(async (
-    notification: UINotification,
-    action: "accept" | "decline"
-  ) => {
-    // meeting_request: Call API to accept/reject (throws on error so modal avoids success toast)
-    if (notification.type === "meeting_request" && notification.meeting_id) {
-      const meetingId = parseInt(notification.meeting_id, 10);
-      if (isNaN(meetingId)) {
-        showToast("Invalid meeting. Please go to Meetings.", "error");
-        setSelectedNotification(null);
-        return;
-      }
-      try {
-        await meetingService.respondToMeeting(
-          meetingId,
-          action === "accept" ? "accept" : "reject"
-        );
-      } catch (err: any) {
-        showToast(err?.message || "Failed to respond to meeting request.", "error");
-        if (__DEV__) console.error("Meeting response error:", err);
-        throw err; // Re-throw so modal does not show success toast
-      }
-    }
-
-    // Mark as read when action is done
-    await markAsRead(notification);
-
-    // Close modal
-    setSelectedNotification(null);
-  }, [markAsRead, showToast]);
-
   // Refetch when screen gains focus (including first open, and when returning from push)
   useFocusEffect(
     useCallback(() => {
@@ -296,6 +265,18 @@ export default function NotificationsScreen() {
       refreshUnreadCount();
     }, [fetchNotifications, refreshUnreadCount])
   );
+
+  // Open specific notification when navigated from push tap (Item 7)
+  useEffect(() => {
+    if (!openNotificationId || notifications.length === 0) return;
+    const match = notifications.find(
+      (n) => n.backendNotificationId === openNotificationId,
+    );
+    if (match) {
+      handleNotificationPress(match);
+      navigation.setParams({ openNotificationId: undefined });
+    }
+  }, [openNotificationId, notifications, handleNotificationPress, navigation]);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 
@@ -429,12 +410,17 @@ export default function NotificationsScreen() {
             selectedNotification?.type === "meeting_cancelled" ||
             selectedNotification?.type === "meeting_request_sent" ||
             selectedNotification?.type === "connection" ||
+            selectedNotification?.type === "connection_request" ||
+            selectedNotification?.type === "connection_accepted" ||
             selectedNotification?.type === "generic")
         }
         onClose={() => {
           if (
             selectedNotification?.type === "meeting_cancelled" ||
+            selectedNotification?.type === "meeting_request" ||
             selectedNotification?.type === "connection" ||
+            selectedNotification?.type === "connection_request" ||
+            selectedNotification?.type === "connection_accepted" ||
             selectedNotification?.type === "meeting_request_sent" ||
             selectedNotification?.type === "generic"
           ) {
@@ -458,22 +444,29 @@ export default function NotificationsScreen() {
           meetingDetails: selectedNotification.meetingDetails,
           reason: selectedNotification.reason,
           cancelledBy: selectedNotification.cancelledBy,
-          onAccept: selectedNotification.type === "meeting_request"
-            ? () => handleModalAction(selectedNotification, "accept")
-            : undefined,
-          onDecline: selectedNotification.type === "meeting_request"
-            ? () => handleModalAction(selectedNotification, "decline")
-            : undefined,
-          onViewMeeting: selectedNotification.type === "meeting_time_change"
-            ? () => handleViewMeeting(selectedNotification, "requests", "inbound")
-            : selectedNotification.type === "meeting_approved"
-            ? () => handleViewMeeting(selectedNotification, "scheduled", "outbound")
-            : selectedNotification.type === "meeting_request_sent"
-            ? () => handleViewMeeting(selectedNotification, "requests", "outbound")
-            : undefined,
-          onViewProfile: selectedNotification.type === "connection"
-            ? () => handleViewProfile(selectedNotification)
-            : undefined,
+          onAccept: undefined,
+          onDecline: undefined,
+          onViewMeeting:
+            selectedNotification.type === "meeting_request"
+              ? () => handleViewMeeting(selectedNotification, "requests", "inbound")
+              : selectedNotification.type === "meeting_time_change"
+              ? () => handleViewMeeting(selectedNotification, "requests", "inbound")
+              : selectedNotification.type === "meeting_approved"
+              ? () =>
+                  handleViewMeeting(
+                    selectedNotification,
+                    "scheduled",
+                    selectedNotification.direction ?? "outbound"
+                  )
+              : selectedNotification.type === "meeting_request_sent"
+              ? () => handleViewMeeting(selectedNotification, "requests", "outbound")
+              : undefined,
+          onViewProfile:
+            selectedNotification.type === "connection" ||
+            selectedNotification.type === "connection_request" ||
+            selectedNotification.type === "connection_accepted"
+              ? () => handleViewProfile(selectedNotification)
+              : undefined,
         } : null}
       />
       

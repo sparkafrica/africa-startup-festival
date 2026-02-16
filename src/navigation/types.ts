@@ -15,7 +15,7 @@ export type RootStackParamList = {
   Profile: undefined;
   Search: undefined;
   Menu: undefined;
-  Notifications: undefined;
+  Notifications: { openNotificationId?: number } | undefined;
   ScanQR: { initialTab?: "My Ticket" | "Scan Ticket" } | undefined;
   Exhibitors: undefined;
   Partners: undefined;

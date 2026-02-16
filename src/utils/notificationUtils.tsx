@@ -6,6 +6,7 @@
 
 import React from "react";
 import { View } from "react-native";
+import { getLinkedInDisplayInfo } from "./linkedInUtils";
 import { UserNotification } from "../services/notificationService";
 import { CalendarIcon, ProfileIcon } from "../components/MenuIcons";
 import { BellIcon } from "../components/HeaderIcons";
@@ -22,6 +23,8 @@ export type NotificationType =
   | "meeting_approved"
   | "meeting_cancelled"
   | "connection"
+  | "connection_request"   // Inbound: A wants to connect with B
+  | "connection_accepted"  // B accepted A's connection request
   | "reminder"
   | "meeting_request"
   | "meeting_request_sent"
@@ -46,7 +49,8 @@ export interface UINotification {
     avatar?: { uri: string };
     tags?: string[];
     interests?: string[];
-    socialLabel?: string;
+    socialLabel?: string; // Display label for LinkedIn pill (e.g. username)
+    linkedInUrl?: string; // Full URL for opening profile
   };
   meetingDetails?: {
     title: string;
@@ -88,8 +92,21 @@ export function inferNotificationType(
 
   // Priority 0: Keyword-based inference (works even without meeting_id)
   // Backend titles: "Meeting Request Updated", "Meeting Cancelled", "Meeting Accepted", etc.
-  if (combined.includes("cancelled") || combined.includes("canceled") || title.includes("cancel")) {
+  if (
+    combined.includes("cancelled") ||
+    combined.includes("canceled") ||
+    title.includes("cancel")
+  ) {
     return "meeting_cancelled";
+  }
+  // Connection accepted (before meeting_approved - "accepted your connection" != meeting)
+  if (
+    (combined.includes("accepted your connection") ||
+      combined.includes("connection request accepted") ||
+      (combined.includes("accepted") && combined.includes("connection"))) &&
+    !combined.includes("meeting")
+  ) {
+    return "connection_accepted";
   }
   if (
     combined.includes("approved") ||
@@ -175,9 +192,16 @@ export function inferNotificationType(
     return "meeting_approved";
   }
 
-  // Priority 2: Check connection_id (reliable indicator)
+  // Priority 2: Check connection_id – differentiate request vs accepted
   if (notification.connection_id) {
-    return "connection";
+    if (
+      combined.includes("accepted your connection") ||
+      combined.includes("connection request accepted") ||
+      (combined.includes("accepted") && combined.includes("connection") && !combined.includes("meeting"))
+    ) {
+      return "connection_accepted";
+    }
+    return "connection_request";
   }
 
   // Priority 3: Check for reminder (even without meeting_id)
@@ -249,6 +273,8 @@ export function getNotificationIcon(type: NotificationType): React.ReactNode {
       );
 
     case "connection":
+    case "connection_request":
+    case "connection_accepted":
       return (
         <View
           className="w-12 h-12 rounded-lg items-center justify-center"
@@ -357,12 +383,11 @@ export function mapBackendNotificationToUI(
   const time = formatRelativeTime(notification.timestamp);
 
   // Determine direction for meeting notifications
-  // This is a best guess - backend doesn't provide this directly
+  // Use direction so requester → Outbound, requestee → Inbound (per item 4)
   let direction: "inbound" | "outbound" | undefined;
   if (notification.meeting_id) {
-    // Try to infer from title/description
-    const title = notification.title.toLowerCase();
     const description = notification.description.toLowerCase();
+    // You approved/accepted = you are the requestee (inbound)
     if (
       description.includes("you approved") ||
       description.includes("you accepted")
@@ -370,7 +395,10 @@ export function mapBackendNotificationToUI(
       direction = "inbound";
     } else if (
       description.includes("approved your") ||
-      description.includes("accepted your")
+      description.includes("accepted your") ||
+      // "Your meeting request has been accepted" = requester (outbound)
+      (description.includes("your") &&
+        (description.includes("accepted") || description.includes("approved")))
     ) {
       direction = "outbound";
     }
@@ -416,90 +444,129 @@ export async function fetchNotificationDetails(
   }
 
   // Fetch meeting details if meeting_id exists
+  // Search both physical and virtual meetings (Item 6: fix inbound/outbound metadata)
   if (notification.meeting_id) {
     try {
       const { meetingService } = await import("../services/meetingService");
-      const meetings = await meetingService.getMeetings();
-      const meetingDetail = meetings.find(
-        (m) => m.id.toString() === notification.meeting_id,
-      );
+      const [physicalMeetings, virtualMeetings] = await Promise.all([
+        meetingService.getMeetings(),
+        meetingService.getVirtualMeetings(),
+      ]);
 
-      if (meetingDetail) {
-        // Determine if current user is requester or requestee
-        const isRequester = meetingDetail.requester === currentUserId;
-        const otherUser = isRequester
-          ? meetingDetail.requestee_info
-          : meetingDetail.requester_info;
-        const otherCompany = isRequester
-          ? meetingDetail.requestee_company
-          : meetingDetail.requester_company;
+      const formatTime = (timeStr: string): string => {
+        const [hours, minutes] = timeStr.split(":").map(Number);
+        const period = hours >= 12 ? "PM" : "AM";
+        const displayHours =
+          hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+        return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
+      };
 
-        // Extract requester info with tags, interests, LinkedIn
+      // Build requester + meetingDetails from otherUser/otherCompany (shared logic)
+      const buildRequesterAndDetails = (
+        otherUser: { first_name?: string; last_name?: string; email: string; country?: string; job_title?: string; organisation?: string | null; profile_pic?: string | null; metadata?: any },
+        otherCompany: { name?: string; company_type?: string } | null,
+        title: string,
+        originalTime: string,
+        location?: string | null,
+      ) => {
         const tags: string[] = [];
-        if (otherUser.country) {
-          tags.push(otherUser.country);
-        }
+        if (otherUser?.country) tags.push(otherUser.country);
         const sector =
           otherCompany?.company_type ||
-          otherUser.metadata?.sector ||
-          otherUser.metadata?.industry;
-        if (sector) {
-          tags.push(sector);
-        }
-        if (otherUser.job_title) {
-          tags.push(otherUser.job_title);
-        }
+          otherUser?.metadata?.sector ||
+          otherUser?.metadata?.industry;
+        if (sector) tags.push(sector);
+        if (otherUser?.job_title) tags.push(otherUser.job_title);
 
-        const interests = otherUser.metadata?.interests || [];
-
-        const linkedInUrl =
-          otherUser.metadata?.linkedIn || otherUser.metadata?.linkedin_url;
-        const socialLabel = linkedInUrl
-          ? linkedInUrl
-              .replace("https://www.linkedin.com/in/", "")
-              .replace("/", "")
-          : undefined;
-
+        const interests = otherUser?.metadata?.interests || [];
+        // Align with MeetingsScreen: check linkedIn, linkedin_url, linkedin (Item 6)
+        const linkedInRaw =
+          otherUser?.metadata?.linkedIn ||
+          otherUser?.metadata?.linkedin_url ||
+          otherUser?.metadata?.linkedin;
+        const linkedInInfo = getLinkedInDisplayInfo(linkedInRaw);
         const requester = {
           name:
-            `${otherUser.first_name || ""} ${otherUser.last_name || ""}`.trim() ||
-            otherUser.email,
-          role: otherUser.job_title || undefined,
-          company: otherUser.organisation || otherCompany?.name || undefined,
-          avatar: otherUser.profile_pic
+            `${otherUser?.first_name || ""} ${otherUser?.last_name || ""}`.trim() ||
+            otherUser?.email ||
+            "Unknown",
+          role: otherUser?.job_title || undefined,
+          company: otherUser?.organisation || otherCompany?.name || undefined,
+          avatar: otherUser?.profile_pic
             ? { uri: otherUser.profile_pic }
             : undefined,
           tags,
           interests,
-          socialLabel,
+          socialLabel: linkedInInfo?.displayLabel,
+          linkedInUrl: linkedInInfo?.url,
         };
+        const meetingDetails = { title, originalTime, location: location || undefined };
+        return { requester, meetingDetails };
+      };
 
-        // Format meeting time
-        const formatTime = (timeStr: string): string => {
-          const [hours, minutes] = timeStr.split(":").map(Number);
-          const period = hours >= 12 ? "PM" : "AM";
-          const displayHours =
-            hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-          return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
-        };
+      const mid = notification.meeting_id;
 
-        // Extract meeting details
-        const meetingDetails = {
-          title: meetingDetail.reason,
-          originalTime: `${formatTime(meetingDetail.slot.start_time)} - ${formatTime(meetingDetail.slot.end_time)}`,
-          location: meetingDetail.location || undefined,
-        };
+      // 1) Try physical meeting first
+      const physicalMatch = physicalMeetings.find(
+        (m) => String(m.id) === mid,
+      );
+      if (physicalMatch) {
+        const isRequester = String(physicalMatch.requester) === String(currentUserId);
+        const otherUser = isRequester
+          ? physicalMatch.requestee_info
+          : physicalMatch.requester_info;
+        const otherCompany = isRequester
+          ? physicalMatch.requestee_company
+          : physicalMatch.requester_company;
+        const slot = physicalMatch.slot;
+        const originalTime = slot?.start_time && slot?.end_time
+          ? `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`
+          : "—";
+        const title =
+          physicalMatch.metadata?.title ||
+          (physicalMatch as any).title ||
+          physicalMatch.reason;
+        const { requester, meetingDetails } = buildRequesterAndDetails(
+          otherUser ?? { email: "Unknown" },
+          otherCompany,
+          title,
+          originalTime,
+          physicalMatch.location,
+        );
+        return { ...notification, requester, meetingDetails, reason: notification.description };
+      }
 
-        // For time change notifications, we'd need to check metadata or fetch update history
-        // For now, we'll use the current slot time
-        // TODO: If backend provides new_time in metadata, use that for newTime
-
-        return {
-          ...notification,
-          requester,
-          meetingDetails,
-          reason: notification.description, // Use description as reason for now
-        };
+      // 2) Try virtual meeting
+      const virtualMatch = virtualMeetings.find(
+        (m) => String(m.id) === mid,
+      );
+      if (virtualMatch) {
+        const isRequester = String(virtualMatch.requester) === String(currentUserId);
+        const otherUser = isRequester
+          ? virtualMatch.requestee_info
+          : virtualMatch.requester_info;
+        const otherCompany = isRequester
+          ? virtualMatch.requestee_company
+          : virtualMatch.requester_company;
+        const startTime = virtualMatch.scheduled_time;
+        const durationMinutes = virtualMatch.duration_minutes ?? 20;
+        const [h, min] = virtualMatch.scheduled_time.split(":").map(Number);
+        const endDate = new Date(2000, 0, 1, h, min, 0);
+        endDate.setMinutes(endDate.getMinutes() + durationMinutes);
+        const endTime = `${endDate.getHours().toString().padStart(2, "0")}:${endDate.getMinutes().toString().padStart(2, "0")}:00`;
+        const originalTime = `${formatTime(startTime)} - ${formatTime(endTime)}`;
+        const title =
+          virtualMatch.metadata?.title ||
+          (virtualMatch as any).title ||
+          virtualMatch.reason;
+        const { requester, meetingDetails } = buildRequesterAndDetails(
+          otherUser ?? { email: "Unknown" },
+          otherCompany,
+          title,
+          originalTime,
+          undefined,
+        );
+        return { ...notification, requester, meetingDetails, reason: notification.description };
       }
     } catch (error) {
       if (__DEV__) {
@@ -522,9 +589,12 @@ export async function fetchNotificationDetails(
       );
 
       if (connection) {
-        // Determine which user to show (from_user vs to_user)
-        // For now, show to_user (the person you connected with)
-        const connectionUser = connection.to_user;
+        // connection_request: A wants to connect with B → show A (from_user)
+        // connection_accepted: B accepted A's request → show B (to_user)
+        const connectionUser =
+          notification.type === "connection_request"
+            ? connection.from_user
+            : connection.to_user;
         // Extract tags, interests, LinkedIn for connection notifications
         const tags: string[] = [];
         if (connectionUser.country) {
@@ -541,14 +611,12 @@ export async function fetchNotificationDetails(
 
         const interests = connectionUser.metadata?.interests || [];
 
-        const linkedInUrl =
+        const linkedInRaw =
           connectionUser.metadata?.linkedIn ||
           connectionUser.metadata?.linkedin_url;
-        const socialLabel = linkedInUrl
-          ? linkedInUrl
-              .replace("https://www.linkedin.com/in/", "")
-              .replace("/", "")
-          : undefined;
+        const linkedInInfo = getLinkedInDisplayInfo(linkedInRaw);
+        const socialLabel = linkedInInfo?.displayLabel;
+        const linkedInUrl = linkedInInfo?.url;
 
         const requester = {
           name:
@@ -562,6 +630,7 @@ export async function fetchNotificationDetails(
           tags,
           interests,
           socialLabel,
+          linkedInUrl,
         };
 
         return {
