@@ -39,9 +39,9 @@ export const API_CONFIG = {
     WS_URL: "wss://dev-api.africatechnologyexpo.com",
   },
   production: {
-    BASE_URL: "https://api.africatechnologyexpo.com", // Live production API (dev changes pushed to production)
+    BASE_URL: "https://dev-api.africatechnologyexpo.com", // Temporarily dev – test OTA; switch back to api.africatechnologyexpo.com for live
     TIMEOUT: 30000,
-    WS_URL: "wss://api.africatechnologyexpo.com",
+    WS_URL: "wss://dev-api.africatechnologyexpo.com",
   },
 } as const;
 

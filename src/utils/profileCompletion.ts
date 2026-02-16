@@ -150,13 +150,7 @@ export function isProfileComplete(user: UserProfile, ticketQuotas?: TicketQuota[
       return false;
     }
     const companyComplete = isCompanyProfileComplete(user.company);
-    console.log("Company profile completion:", companyComplete);
-    const finalResult = personalComplete && companyComplete;
-    console.log("Final profile completion result:", finalResult, {
-      personalComplete,
-      companyComplete,
-    });
-    return finalResult;
+    return personalComplete && companyComplete;
   }
   
   // If no company required, only personal profile is needed

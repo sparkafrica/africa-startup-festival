@@ -62,6 +62,7 @@ const STORAGE_KEYS = {
   USER: "@spark:user",
   ONBOARDING_COMPLETE: "@spark:onboarding_complete",
   PROFILE_COMPLETE: "@spark:profile_complete",
+  PROFILE_JUST_SAVED: "@spark:profile_just_saved",
   WELCOME_SEEN: "@spark:welcome_seen",
   PUSH_REGISTRATION_ID: "@spark:push_registration_id",
 } as const;
@@ -390,9 +391,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Fetches fresh user profile from backend and determines completion status
    * based on field-based inference (backend doesn't track completion explicitly).
    *
-   * Called from ProfileCreatedScreen after successful profile save.
+   * Fallback: If GET /auth/user/ fails or returns incomplete data (prod API issues),
+   * and PROFILE_JUST_SAVED is set (user came from successful save), we optimistically
+   * mark complete so the user can enter the app instead of being stuck.
    */
   const completeProfile = async () => {
+    const clearJustSaved = () =>
+      AsyncStorage.removeItem(STORAGE_KEYS.PROFILE_JUST_SAVED).catch(() => {});
+
     try {
       // Fetch fresh user profile from backend (source of truth)
       const userProfile = await authService.getCurrentUser();
@@ -406,36 +412,55 @@ export function AuthProvider({ children }: AuthProviderProps) {
           "Failed to fetch ticket quotas for profile completion check:",
           error
         );
-        // Continue without ticket quotas - will fall back to checking if company exists
       }
 
-      // Prefetch user ticket for Menu
       ticketService.getUserTicket(EVENT_ID).catch(() => {});
 
-      // Update stored user with latest data
       await AsyncStorage.setItem(
         STORAGE_KEYS.USER,
         JSON.stringify(userProfile)
       );
 
-      // Map UserProfile to User and update state
       const user: User = userProfile;
       setUser(user);
 
-      // Determine profile completion from backend data (field-based inference)
-      // Pass ticket quotas to check if company profile is required for exhibitor/partner users
       const profileComplete = isProfileComplete(userProfile, ticketQuotas);
-      // Debug logging removed for production - uncomment if needed for debugging
-      // console.log("Profile completion status from backend:", profileComplete);
       setHasCompletedProfile(profileComplete);
 
-      // Once profile is completed, user is fully authenticated
       if (profileComplete) {
         setIsAuthenticated(true);
+        await clearJustSaved();
+        return;
+      }
+
+      // Backend says incomplete but user just saved successfully (PROFILE_JUST_SAVED set)
+      // Prod API may return stale/different structure – let user through
+      const justSaved = await AsyncStorage.getItem(STORAGE_KEYS.PROFILE_JUST_SAVED);
+      if (justSaved === "true") {
+        setHasCompletedProfile(true);
+        setIsAuthenticated(true);
+        await clearJustSaved();
       }
     } catch (error) {
       console.error("Error completing profile:", error);
-      // On error, don't update state - user will need to retry
+
+      // Fallback: API failed but user just saved successfully
+      const justSaved = await AsyncStorage.getItem(STORAGE_KEYS.PROFILE_JUST_SAVED);
+      if (justSaved === "true") {
+        try {
+          const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
+          if (storedUser) {
+            const user = JSON.parse(storedUser) as User;
+            setUser(user);
+          }
+          setHasCompletedProfile(true);
+          setIsAuthenticated(true);
+          await clearJustSaved();
+          return;
+        } catch (fallbackErr) {
+          console.error("Fallback complete failed:", fallbackErr);
+        }
+      }
       throw error;
     }
   };

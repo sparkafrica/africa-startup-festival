@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -1031,7 +1032,7 @@ function AttendeeProfileForm({
         showToast("Profile completed successfully!", "success");
       }
 
-      // Navigate to success screen (completeProfile will be called there)
+      await AsyncStorage.setItem("@spark:profile_just_saved", "true");
       setTimeout(() => {
         navigation.navigate("ProfileCreated");
       }, 500);
@@ -2622,6 +2623,7 @@ function CompanyProfileForm({
         showToast("Company profile completed successfully!", "success");
       }
 
+      await AsyncStorage.setItem("@spark:profile_just_saved", "true");
       setTimeout(() => {
         navigation.navigate("ProfileCreated");
       }, 500);

@@ -1,8 +1,12 @@
-import React from "react";
-import { View, Text, Pressable } from "react-native";
+import React, { useState } from "react";
+import { View, Text, Pressable, ActivityIndicator, Alert } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
-import Svg, { Circle, Path } from "react-native-svg";
+import { getProfileDebug } from "../services/authService";
+import { useToast } from "../hooks/useToast";
+import Toast from "../components/Toast";
+import Svg, { Path } from "react-native-svg";
 
 function SuccessCheckmarkIcon({ size = 120 }: { size?: number }) {
   return (
@@ -46,27 +50,53 @@ function SuccessCheckmarkIcon({ size = 120 }: { size?: number }) {
 
 export default function ProfileCreatedScreen() {
   const { completeProfile } = useAuth();
-
-  // Log when screen mounts to verify it's being shown
-  React.useEffect(() => {
-    console.log(
-      "ProfileCreatedScreen mounted - success screen should be visible"
-    );
-  }, []);
+  const { showToast, hideToast, toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleContinue = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
     try {
-      // Complete profile - this will trigger AppNavigator to automatically
-      // switch from AuthNavigator to MainNavigator on the next render
-      // No manual navigation needed - AppNavigator handles the switch
       await completeProfile();
     } catch (error) {
       console.error("Error completing profile:", error);
+      showToast(
+        "We're having trouble verifying your profile. Please try again.",
+        "error"
+      );
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleLongPressDebug = async () => {
+    const raw = await getProfileDebug();
+    let text: string;
+    if (raw) {
+      try {
+        text = JSON.stringify(JSON.parse(raw), null, 2);
+      } catch {
+        text = raw;
+      }
+    } else {
+      text = "No debug data yet. Complete profile save first.";
+    }
+    await Clipboard.setStringAsync(text);
+    const preview = text.length > 500 ? text.slice(0, 500) + "\n..." : text;
+    Alert.alert("Profile Debug (copied)", preview, [
+      { text: "OK" },
+    ]);
+    showToast("Debug info copied to clipboard", "success");
   };
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top", "bottom"]}>
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        onHide={hideToast}
+      />
       <View className="flex-1 items-center justify-center px-6">
         {/* Success Icon */}
         <View className="mb-8">
@@ -78,14 +108,21 @@ export default function ProfileCreatedScreen() {
           Profile Created Successfully!
         </Text>
 
-        {/* Continue Button */}
+        {/* Continue Button - long-press to copy profile API debug info */}
         <Pressable
           onPress={handleContinue}
-          className="bg-black rounded-full px-12 py-4 w-full max-w-sm"
+          onLongPress={handleLongPressDebug}
+          delayLongPress={800}
+          disabled={isLoading}
+          className="bg-black rounded-full px-12 py-4 w-full max-w-sm items-center justify-center min-h-[52px]"
         >
-          <Text className="text-white text-base font-semibold text-center">
-            Nice, Let's go!
-          </Text>
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text className="text-white text-base font-semibold text-center">
+              Nice, Let's go!
+            </Text>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>

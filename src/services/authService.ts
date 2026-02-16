@@ -11,8 +11,31 @@
  * - Type-safe method signatures
  */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "./api";
 import { ApiResponse, ApiClientError, TokenResponse } from "./api";
+import { ENV } from "../config/env";
+
+const PROFILE_DEBUG_KEY = "@spark:profile_debug";
+
+async function saveProfileDebug(payload: Record<string, unknown>) {
+  try {
+    await AsyncStorage.setItem(
+      PROFILE_DEBUG_KEY,
+      JSON.stringify({ ...payload, timestamp: new Date().toISOString() })
+    );
+  } catch {
+    // ignore
+  }
+}
+
+export async function getProfileDebug(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(PROFILE_DEBUG_KEY);
+  } catch {
+    return null;
+  }
+}
 
 // ============================================================================
 // REQUEST/RESPONSE TYPES
@@ -255,10 +278,30 @@ export const authService = {
    * Backend Endpoint: GET /auth/user/
    */
   async getCurrentUser(): Promise<UserProfile> {
+    const url = `${ENV.BASE_URL}/auth/user/`;
+    const token = await api.getToken();
+    const hasToken = !!token;
+
     try {
       const response = await api.get<any>("/auth/user/");
+      await saveProfileDebug({
+        endpoint: "GET /auth/user/",
+        url,
+        hasToken,
+        outcome: "success",
+        responsePreview: JSON.stringify(response).slice(0, 600),
+      });
       return toUserProfile(response);
     } catch (e: any) {
+      await saveProfileDebug({
+        endpoint: "GET /auth/user/",
+        url,
+        hasToken,
+        outcome: "error",
+        statusCode: e?.responseCode ?? e?.response_code,
+        message: e?.message,
+        dataPreview: JSON.stringify(e?.data ?? {}).slice(0, 400),
+      });
       if (e instanceof ApiClientError) throw e;
       throw new ApiClientError({
         status: "error",
@@ -278,10 +321,30 @@ export const authService = {
    * Backend Endpoint: PUT /auth/user/
    */
   async updateProfile(profileData: Partial<UserProfile>): Promise<UserProfile> {
+    const url = `${ENV.BASE_URL}/auth/user/`;
+    const token = await api.getToken();
+    const hasToken = !!token;
+
     try {
       const response = await api.put<any>("/auth/user/", profileData);
+      await saveProfileDebug({
+        endpoint: "PUT /auth/user/",
+        url,
+        hasToken,
+        outcome: "success",
+        responsePreview: JSON.stringify(response).slice(0, 600),
+      });
       return toUserProfile(response);
     } catch (e: any) {
+      await saveProfileDebug({
+        endpoint: "PUT /auth/user/",
+        url,
+        hasToken,
+        outcome: "error",
+        statusCode: e?.responseCode ?? e?.response_code,
+        message: e?.message,
+        dataPreview: JSON.stringify(e?.data ?? {}).slice(0, 400),
+      });
       if (e instanceof ApiClientError) throw e;
       throw new ApiClientError({
         status: "error",
