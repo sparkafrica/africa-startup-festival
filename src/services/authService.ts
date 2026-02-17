@@ -12,6 +12,7 @@
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { api } from "./api";
 import { ApiResponse, ApiClientError, TokenResponse } from "./api";
 import { ENV } from "../config/env";
@@ -133,7 +134,7 @@ export const authService = {
    */
   async requestOTP(
     email: string,
-    eventId?: number
+    eventId?: number,
   ): Promise<{ message: string }> {
     const requestData: RequestOTPRequest = { email };
     if (eventId) {
@@ -142,7 +143,7 @@ export const authService = {
 
     const response = await api.post<RequestOTPRequest>(
       "/auth/email/",
-      requestData
+      requestData,
     );
 
     // Backend response format: { status: "success", message: "...", response_code: 200, data: {} }
@@ -182,7 +183,7 @@ export const authService = {
 
     const response = await api.post<VerifyOTPRequest>(
       "/auth/token/",
-      requestData
+      requestData,
     );
 
     if (response.status === "success") {
@@ -200,8 +201,8 @@ export const authService = {
         typeof data?.expires_in === "number"
           ? data.expires_in
           : typeof data?.expiresIn === "number"
-          ? data.expiresIn
-          : 3600;
+            ? data.expiresIn
+            : 3600;
 
       if (!token || typeof token !== "string") {
         throw new ApiClientError({
@@ -270,7 +271,7 @@ export const authService = {
     try {
       const response = await api.get<any>("/auth/user/");
       return toUserProfile(response);
-    } catch (e: any){
+    } catch (e: any) {
       if (e instanceof ApiClientError) throw e;
       throw new ApiClientError({
         status: "error",
@@ -314,7 +315,7 @@ export const authService = {
    * Content-Type: multipart/form-data (automatically set by axios for FormData)
    */
   async uploadProfilePicture(imageUri: string): Promise<UserProfile> {
-    if (!imageUri || typeof imageUri !== 'string') {
+    if (!imageUri || typeof imageUri !== "string") {
       throw new ApiClientError({
         status: "error",
         message: "Invalid image URI",
@@ -323,17 +324,31 @@ export const authService = {
       });
     }
 
-    const formData = new FormData();
-    // Use consistent filename – avoids parsing issues on some devices/backends
-    const filename = 'profile_pic.jpg';
-    // Map HEIC/HEIF to jpeg – many backends don't accept image/heic
-    const ext = (imageUri.split('.').pop() || '').toLowerCase();
-    const mimeType = (ext === 'heic' || ext === 'heif') ? 'image/jpeg' : (ext === 'png' ? 'image/png' : 'image/jpeg');
+    // Android: content:// URIs often fail with FormData – copy to cache as file://
+    let uriToUse = imageUri;
+    if (Platform.OS === "android" && imageUri.startsWith("content://")) {
+      try {
+        const FS = require("expo-file-system");
+        const cachePath = `${FS.cacheDirectory}profile_pic_${Date.now()}.jpg`;
+        await FS.copyAsync({ from: imageUri, to: cachePath });
+        uriToUse = cachePath;
+      } catch {
+        // Fall back to original URI if copy fails or expo-file-system not installed
+      }
+    }
 
-    // React Native FormData: { uri, name, type }
-    // URI can be file://, content:// (Android), or ph:// (iOS) – pass as-is
-    formData.append('profile_pic', {
-      uri: imageUri,
+    const formData = new FormData();
+    const filename = "profile_pic.jpg";
+    const ext = (uriToUse.split(".").pop() || "").toLowerCase();
+    const mimeType =
+      ext === "heic" || ext === "heif"
+        ? "image/jpeg"
+        : ext === "png"
+          ? "image/png"
+          : "image/jpeg";
+
+    formData.append("profile_pic", {
+      uri: uriToUse,
       name: filename,
       type: mimeType,
     } as any);

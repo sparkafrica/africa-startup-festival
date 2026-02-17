@@ -130,70 +130,84 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Only restore auth state if both user and token exist
       if (storedUser && storedToken) {
         try {
-          // Fetch fresh user profile from backend to determine completion status
-          // Backend is the source of truth for profile completion
+          // Persisted completion: user already completed the flow once – let them in
+          const persistedComplete = await AsyncStorage.getItem(
+            STORAGE_KEYS.PROFILE_COMPLETE,
+          );
+          if (persistedComplete === "true") {
+            let userProfile: UserProfile;
+            try {
+              userProfile = await authService.getCurrentUser();
+              await AsyncStorage.setItem(
+                STORAGE_KEYS.USER,
+                JSON.stringify(userProfile),
+              );
+            } catch (fetchError) {
+              console.warn(
+                "Failed to fetch user profile, using stored:",
+                fetchError,
+              );
+              userProfile = JSON.parse(storedUser) as UserProfile;
+            }
+            setUser(userProfile);
+            setHasCompletedProfile(true);
+            setIsAuthenticated(true);
+            setHasCompletedOnboarding(
+              (await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE)) === "true",
+            );
+            setHasSeenWelcome(
+              (await AsyncStorage.getItem(STORAGE_KEYS.WELCOME_SEEN)) === "true",
+            );
+            ticketService.getUserTicket(EVENT_ID).catch(() => {});
+            return;
+          }
+
+          // No persisted completion – fetch user and run field-based check
           let userProfile: UserProfile;
           try {
             userProfile = await authService.getCurrentUser();
-            // Update stored user with latest data from backend
             await AsyncStorage.setItem(
               STORAGE_KEYS.USER,
-              JSON.stringify(userProfile)
+              JSON.stringify(userProfile),
             );
           } catch (fetchError) {
-            // If fetching fails (token expired, network error, etc.), use stored user as fallback
             console.warn(
               "Failed to fetch user profile from backend, using stored data:",
-              fetchError
+              fetchError,
             );
             userProfile = JSON.parse(storedUser) as UserProfile;
           }
 
-          // Map UserProfile to User (they have the same structure)
           const user: User = userProfile;
           setUser(user);
-
-          // Check if user has completed onboarding
-          const onboardingComplete = await AsyncStorage.getItem(
-            STORAGE_KEYS.ONBOARDING_COMPLETE
+          setHasCompletedOnboarding(
+            (await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE)) === "true",
           );
-          setHasCompletedOnboarding(onboardingComplete === "true");
 
-          // Fetch ticket quotas to determine if company profile is required
           let ticketQuotas: any[] = [];
           try {
             ticketQuotas = await ticketService.getUserQuotas(EVENT_ID);
           } catch (error) {
             console.warn(
               "Failed to fetch ticket quotas for profile completion check:",
-              error
+              error,
             );
-            // Continue without ticket quotas - will fall back to checking if company exists
           }
 
-          // Prefetch user ticket for Menu (reduces green→blue flash when opening Menu)
           ticketService.getUserTicket(EVENT_ID).catch(() => {});
 
-          // Determine profile completion from backend data (field-based inference)
-          // Pass ticket quotas to check if company profile is required for exhibitor/partner users
           const profileComplete = isProfileComplete(userProfile, ticketQuotas);
           setHasCompletedProfile(profileComplete);
-
-          // Check if user has seen Welcome screen
-          const welcomeSeen = await AsyncStorage.getItem(
-            STORAGE_KEYS.WELCOME_SEEN
-          );
-          setHasSeenWelcome(welcomeSeen === "true");
-
-          // Only set authenticated if profile is completed
-          // This ensures users must complete the full flow
           if (profileComplete) {
+            await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
             setIsAuthenticated(true);
           } else {
-            // User exists but profile not completed - keep authenticated false
-            // They'll need to complete profile to access main app
             setIsAuthenticated(false);
           }
+
+          setHasSeenWelcome(
+            (await AsyncStorage.getItem(STORAGE_KEYS.WELCOME_SEEN)) === "true",
+          );
         } catch (parseError) {
           console.error("Error parsing stored user:", parseError);
           // Clear corrupted data
@@ -235,11 +249,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     registerForPushNotifications()
       .then((registrationId) => {
         if (!cancelled && registrationId) {
-          AsyncStorage.setItem(STORAGE_KEYS.PUSH_REGISTRATION_ID, registrationId);
+          AsyncStorage.setItem(
+            STORAGE_KEYS.PUSH_REGISTRATION_ID,
+            registrationId,
+          );
         }
       })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated]);
 
   /**
@@ -285,7 +304,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.warn(
         "Failed to fetch ticket quotas for profile completion check:",
-        error
+        error,
       );
       // Continue without ticket quotas - will fall back to checking if company exists
     }
@@ -301,16 +320,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
 
     // Step 6: Determine profile completion from backend data (field-based inference)
-    // Pass ticket quotas to check if company profile is required for exhibitor/partner users
     const profileComplete = isProfileComplete(userProfile, ticketQuotas);
 
-    // Step 7: Update state
+    // Step 7: Update state and persist completion so app start doesn't re-gate them
     setUser(user);
     setHasCompletedProfile(profileComplete);
-
-    // Step 8: Set authenticated status based on profile completion
-    // User is fully authenticated only if profile is completed
     if (profileComplete) {
+      await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
       setIsAuthenticated(true);
     } else {
       setIsAuthenticated(false);
@@ -331,7 +347,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = async () => {
     // Unregister push device before clearing tokens (API needs auth)
     try {
-      const registrationId = await AsyncStorage.getItem(STORAGE_KEYS.PUSH_REGISTRATION_ID);
+      const registrationId = await AsyncStorage.getItem(
+        STORAGE_KEYS.PUSH_REGISTRATION_ID,
+      );
       if (registrationId) {
         await notificationService.unregisterDevice(registrationId);
       }
@@ -411,7 +429,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } catch (error) {
         console.warn(
           "Failed to fetch ticket quotas for profile completion check:",
-          error
+          error,
         );
       }
 
@@ -419,7 +437,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       await AsyncStorage.setItem(
         STORAGE_KEYS.USER,
-        JSON.stringify(userProfile)
+        JSON.stringify(userProfile),
       );
 
       const user: User = userProfile;
@@ -429,15 +447,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setHasCompletedProfile(profileComplete);
 
       if (profileComplete) {
+        await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
         setIsAuthenticated(true);
         await clearJustSaved();
         return;
       }
 
-      // Backend says incomplete but user just saved successfully (PROFILE_JUST_SAVED set)
-      // Prod API may return stale/different structure – let user through
-      const justSaved = await AsyncStorage.getItem(STORAGE_KEYS.PROFILE_JUST_SAVED);
+      // User just finished the save flow (PROFILE_JUST_SAVED) – trust it and let them in
+      const justSaved = await AsyncStorage.getItem(
+        STORAGE_KEYS.PROFILE_JUST_SAVED,
+      );
       if (justSaved === "true") {
+        await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
         setHasCompletedProfile(true);
         setIsAuthenticated(true);
         await clearJustSaved();
@@ -445,15 +466,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.error("Error completing profile:", error);
 
-      // Fallback: API failed but user just saved successfully
-      const justSaved = await AsyncStorage.getItem(STORAGE_KEYS.PROFILE_JUST_SAVED);
+      // API failed but user just saved – persist completion so they aren’t stuck
+      const justSaved = await AsyncStorage.getItem(
+        STORAGE_KEYS.PROFILE_JUST_SAVED,
+      );
       if (justSaved === "true") {
         try {
           const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
           if (storedUser) {
-            const user = JSON.parse(storedUser) as User;
-            setUser(user);
+            setUser(JSON.parse(storedUser) as User);
           }
+          await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
           setHasCompletedProfile(true);
           setIsAuthenticated(true);
           await clearJustSaved();
