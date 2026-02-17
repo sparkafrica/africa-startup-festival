@@ -1,4 +1,5 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { Attendee } from "../services/ticketService";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -17,6 +18,7 @@ export type RootStackParamList = {
   Menu: undefined;
   Notifications: { openNotificationId?: number } | undefined;
   ScanQR: { initialTab?: "My Ticket" | "Scan Ticket" } | undefined;
+  ScannedAttendee: { attendee: Attendee } | undefined;
   Exhibitors: undefined;
   Partners: undefined;
   Speakers: undefined;

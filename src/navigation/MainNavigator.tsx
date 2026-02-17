@@ -13,6 +13,7 @@ import SearchScreen from "../screens/SearchScreen";
 import MenuScreen from "../screens/MenuScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import ScanQRScreen from "../screens/ScanQRScreen";
+import ScannedAttendeeScreen from "../screens/ScannedAttendeeScreen";
 import ExhibitorsScreen from "../screens/ExhibitorsScreen";
 import CompanyDetailScreen from "../screens/CompanyDetailScreen";
 import PartnersScreen from "../screens/PartnersScreen";
@@ -103,6 +104,14 @@ export default function MainNavigator() {
         options={{
           headerShown: false,
           animation: "slide_from_left",
+        }}
+      />
+      <Stack.Screen
+        name="ScannedAttendee"
+        component={ScannedAttendeeScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
         }}
       />
       <Stack.Screen

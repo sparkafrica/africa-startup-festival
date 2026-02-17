@@ -3002,6 +3002,7 @@ function ScannedTicketProfileModal({
   ).current;
 
   useEffect(() => {
+    if (__DEV__) console.log("[ScannedProfileModal] useEffect visible/attendee", { visible, hasAttendee: !!attendee, attendeeId: attendee?.user?.id, platform: Platform.OS });
     if (visible) {
       isClosingRef.current = false;
       translateY.stopAnimation(() => {
@@ -3016,6 +3017,8 @@ function ScannedTicketProfileModal({
       isClosingRef.current = false;
     }
   }, [visible, translateY]);
+
+  if (__DEV__ && visible) console.log("[ScannedProfileModal] render visible=true", { hasAttendee: !!attendee, platform: Platform.OS });
 
   return (
     <Modal
@@ -4629,51 +4632,47 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
   // Handle QR code scanned from camera
   const handleQRCodeScanned = async (scannedData: string) => {
+    if (__DEV__) console.log("[ScanFlow] handleQRCodeScanned called", { rawLength: scannedData?.length, platform: Platform.OS });
     if (!scannedData || !scannedData.trim()) {
       showToast("Invalid QR code. Please try again.", "error");
       return;
     }
 
-    // Trim whitespace
     const trimmedData = scannedData.trim();
-
-    // Validate UUID format
     const validation = validateUUID(trimmedData);
-
     if (!validation.valid) {
+      if (__DEV__) console.log("[ScanFlow] UUID validation failed", validation.error);
       showToast(validation.error || "Invalid QR code format", "error");
       return;
     }
 
     setIsScanning(true);
+    if (__DEV__) console.log("[ScanFlow] calling API scanTicketByCode", { eventId: EVENT_ID, platform: Platform.OS });
 
     try {
-      // Call API to scan ticket by code
       const attendee = await ticketService.scanTicketByCode(
         EVENT_ID,
         trimmedData
       );
 
-      // Store the attendee data
+      if (__DEV__) console.log("[ScanFlow] API success, attendee received", { userId: attendee?.user?.id, name: attendee?.user?.first_name, platform: Platform.OS });
+
       setScannedAttendee(attendee);
-
-      // Close scanner modal on success
       setQrScannerModalVisible(false);
-
-      // Show success toast
       showToast("Ticket scanned successfully!", "success");
 
-      // Show profile modal only after scanner has fully dismissed (avoids iOS freeze when stacking modals).
-      // iOS needs a longer delay: full-screen camera modal + native teardown can take 600–900ms.
-      const showProfileModal = () => setScannedTicketProfileVisible(true);
-      const delayMs = Platform.OS === "ios" ? 750 : 0;
-      InteractionManager.runAfterInteractions(() => {
-        if (delayMs > 0) {
-          setTimeout(showProfileModal, delayMs);
-        } else {
-          showProfileModal();
-        }
-      });
+      if (Platform.OS === "ios") {
+        // iOS: navigate to full screen instead of modal (avoids native modal stacking issue)
+        if (__DEV__) console.log("[ScanFlow] iOS: navigating to ScannedAttendee screen");
+        navigation.navigate("ScannedAttendee", { attendee });
+      } else {
+        // Android: keep seamless modal flow
+        const showProfileModal = () => {
+          if (__DEV__) console.log("[ScanFlow] showProfileModal running", { platform: Platform.OS });
+          setScannedTicketProfileVisible(true);
+        };
+        InteractionManager.runAfterInteractions(() => showProfileModal());
+      }
     } catch (error: any) {
       // Handle different error types - show user-friendly messages based on status code only
       // Never use error.message directly to avoid showing technical details
