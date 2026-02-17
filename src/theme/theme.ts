@@ -167,7 +167,7 @@ export const gradients = {
   secondary: ["#D946EF", "#C026D3"],
   sunset: ["#F59E0B", "#EF4444"],
   ocean: ["#3B82F6", "#0EA5E9"],
-  sparkBlack: ["#000000", "#000000"], // Black gradient for Spark 2026 banner
+  sparkBlack: ["#000000", "#000000"], // Black gradient for Africa Technology Expo 2026 banner
   partnerGreen: ["#10B981", "#059669"], // Green gradient for Partner Offers banner
 };
 

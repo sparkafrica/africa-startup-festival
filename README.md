@@ -1,9 +1,9 @@
-# Spark Event Platform
-A modern, production-ready React Native mobile application for event management, networking, and attendee engagement. Built with Expo, TypeScript, and NativeWind for a seamless cross-platform experience.
+# Africa Technology Expo
+A modern, production-ready React Native mobile application for the Africa Technology Expo—event management, networking, and attendee engagement. Built with Expo, TypeScript, and NativeWind for a seamless cross-platform experience.
 
 ## 📱 Overview
 
-Spark is a comprehensive event platform that enables attendees to:
+Africa Technology Expo is the event app that enables attendees to:
 
 - Browse event schedules and sessions
 - Connect with other attendees, speakers, and partners
@@ -93,7 +93,7 @@ Before you begin, ensure you have the following installed:
 
    ```bash
    git clone <repository-url>
-   cd Spark
+   cd <project-directory>
    ```
 
 2. **Install dependencies**
@@ -133,7 +133,7 @@ npm run start-tunnel
 ## 📁 Project Structure
 
 ```
-Spark/
+Africa Technology Expo/
 ├── src/
 │   ├── assets/              # Images, logos, and static assets
 │   │   ├── images/          # Image files
