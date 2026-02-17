@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { navigate as navigateRef, hasHomeScreen } from "../navigation/navigationRef";
 import { useAuth } from "../context/AuthContext";
 import { authService, type UserProfile } from "../services/authService";
 import { companyService } from "../services/companyService";
@@ -681,13 +682,15 @@ function Header() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
   const handleClose = () => {
-    // Check if we can go back before attempting navigation
+    // In Main app, always navigate to Home so X works even after errors (goBack can get stuck)
+    if (hasHomeScreen()) {
+      navigateRef("Home");
+      return;
+    }
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      // If we can't go back (e.g., after profile update changes navigation state),
-      // navigate to Home screen instead
-      navigation.navigate("Home");
+      navigateRef("Home");
     }
   };
 
@@ -1038,13 +1041,11 @@ function PersonalProfileSection({
         profileData.metadata = metadata;
       }
 
-      // 1) Save profile data first (PUT). 2) Upload/remove photo last (PATCH) so backend doesn't overwrite profile_pic.
-      await authService.updateProfile(profileData);
-
-      // Handle profile picture upload or removal last (best-effort; don't block)
+      // Try PUT with profile data and optional photo (base64). Falls back to PUT + PATCH if backend doesn't accept image in PUT.
       if (shouldRemovePhoto) {
         setIsUploadingImage(true);
         try {
+          await authService.updateProfile(profileData);
           await authService.removeProfilePicture();
           setShouldRemovePhoto(false);
         } catch (imageError: any) {
@@ -1057,16 +1058,18 @@ function PersonalProfileSection({
         } finally {
           setIsUploadingImage(false);
         }
-      } else if (selectedImageUri) {
+      } else {
         setIsUploadingImage(true);
         try {
-          await authService.uploadProfilePicture(selectedImageUri);
-          setSelectedImageUri(null);
-          setShouldRemovePhoto(false);
+          await authService.updateProfile(profileData, selectedImageUri ? { imageUri: selectedImageUri } : undefined);
+          if (selectedImageUri) {
+            setSelectedImageUri(null);
+            setShouldRemovePhoto(false);
+          }
         } catch (imageError: any) {
-          console.error("Error uploading profile picture:", imageError);
+          console.error("Error saving profile or photo:", imageError);
           showToast(
-            imageError.message || "Failed to upload profile picture.",
+            imageError.message || "Failed to save profile. Please try again.",
             "error"
           );
           photoUpdateFailed = true;
@@ -1736,13 +1739,11 @@ function AttendeeProfileSection({
         profileData.metadata = metadata;
       }
 
-      // 1) Save profile data first (PUT). 2) Upload/remove photo last (PATCH) so backend doesn't overwrite profile_pic.
-      await authService.updateProfile(profileData);
-
-      // Handle profile picture upload or removal last (best-effort; don't block)
+      // Try PUT with profile data and optional photo (base64). Falls back to PUT + PATCH if backend doesn't accept image in PUT.
       if (shouldRemovePhoto) {
         setIsUploadingImage(true);
         try {
+          await authService.updateProfile(profileData);
           await authService.removeProfilePicture();
           setShouldRemovePhoto(false);
         } catch (imageError: any) {
@@ -1755,16 +1756,18 @@ function AttendeeProfileSection({
         } finally {
           setIsUploadingImage(false);
         }
-      } else if (selectedImageUri) {
+      } else {
         setIsUploadingImage(true);
         try {
-          await authService.uploadProfilePicture(selectedImageUri);
-          setSelectedImageUri(null);
-          setShouldRemovePhoto(false);
+          await authService.updateProfile(profileData, selectedImageUri ? { imageUri: selectedImageUri } : undefined);
+          if (selectedImageUri) {
+            setSelectedImageUri(null);
+            setShouldRemovePhoto(false);
+          }
         } catch (imageError: any) {
-          console.error("Error uploading profile picture:", imageError);
+          console.error("Error saving profile or photo:", imageError);
           showToast(
-            imageError.message || "Failed to upload profile picture.",
+            imageError.message || "Failed to save profile. Please try again.",
             "error"
           );
           photoUpdateFailed = true;
@@ -2565,42 +2568,6 @@ function CompanyProfileSection({
         return false;
       }
 
-      let logoUpdateFailed = false;
-
-      if (shouldRemovePhoto) {
-        setIsUploadingImage(true);
-        try {
-          setShouldRemovePhoto(false);
-          // TODO: backend support for removing company logo
-        } catch (imageError: any) {
-          showToast(
-            imageError.message || "Failed to remove company logo.",
-            "error"
-          );
-          logoUpdateFailed = true;
-        } finally {
-          setIsUploadingImage(false);
-        }
-      } else if (selectedImageUri) {
-        setIsUploadingImage(true);
-        try {
-          await companyService.uploadCompanyLogo(
-            companySource.id,
-            selectedImageUri
-          );
-          setSelectedImageUri(null);
-          setShouldRemovePhoto(false);
-        } catch (imageError: any) {
-          showToast(
-            imageError.message || "Failed to upload company logo.",
-            "error"
-          );
-          logoUpdateFailed = true;
-        } finally {
-          setIsUploadingImage(false);
-        }
-      }
-
       // Get selected industry label
       const industryLabel =
         INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
@@ -2611,7 +2578,6 @@ function CompanyProfileSection({
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
       // Build metadata object for fields that don't have direct backend fields
-      // Social links should be nested in socialLinks object for backend consistency
       const socialLinksObj: any = {};
       if (linkedIn.trim()) socialLinksObj.linkedin = linkedIn.trim();
       if (facebook.trim()) socialLinksObj.facebook = facebook.trim();
@@ -2624,20 +2590,13 @@ function CompanyProfileSection({
         positions: positions.length > 0 ? positions : undefined,
         isRecruiting,
       };
-
-      // Only include socialLinks if at least one link exists
       if (Object.keys(socialLinksObj).length > 0) {
         metadata.socialLinks = socialLinksObj;
       }
-
-      // Remove undefined values from metadata
       Object.keys(metadata).forEach((key) => {
-        if (metadata[key] === undefined) {
-          delete metadata[key];
-        }
+        if (metadata[key] === undefined) delete metadata[key];
       });
 
-      // Prepare API request payload
       const companyData: any = {
         name: companyName.trim(),
         company_sector: industryLabel,
@@ -2645,15 +2604,35 @@ function CompanyProfileSection({
         company_description: companyDescription.trim() || null,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       };
-
-      // Remove undefined values
       Object.keys(companyData).forEach((key) => {
-        if (companyData[key] === undefined) {
-          delete companyData[key];
-        }
+        if (companyData[key] === undefined) delete companyData[key];
       });
 
-      await companyService.updateCompany(companySource.id, companyData);
+      let logoUpdateFailed = false;
+      if (shouldRemovePhoto) {
+        setShouldRemovePhoto(false);
+        // TODO: backend support for removing company logo
+      }
+      setIsUploadingImage(true);
+      try {
+        await companyService.updateCompany(
+          companySource.id,
+          companyData,
+          selectedImageUri ? { imageUri: selectedImageUri } : undefined,
+        );
+        if (selectedImageUri) {
+          setSelectedImageUri(null);
+          setShouldRemovePhoto(false);
+        }
+      } catch (imageError: any) {
+        showToast(
+          imageError.message || "Failed to save company profile. Please try again.",
+          "error"
+        );
+        logoUpdateFailed = true;
+      } finally {
+        setIsUploadingImage(false);
+      }
 
       // Sync Event Offers to /company-offers/ so GET /offers/ (Partner Offers page) shows them
       try {

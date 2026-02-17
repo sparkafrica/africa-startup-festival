@@ -42,6 +42,7 @@ import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { navigate as navigateRef } from "../navigation/navigationRef";
 import type { MeetingFormData } from "../components";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
@@ -1307,7 +1308,7 @@ export default function ConnectionsScreen() {
           activeRoute="Connections"
           onNavigate={(route) => {
             if (route === "Home") {
-              navigation.navigate("Home");
+              navigateRef("Home");
             } else if (route === "Attendees") {
               navigation.navigate("Attendees");
             } else if (route === "Schedule") {

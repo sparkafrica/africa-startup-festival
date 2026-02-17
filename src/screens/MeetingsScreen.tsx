@@ -38,6 +38,7 @@ import type {
   RootStackParamList,
   RootStackScreenProps,
 } from "../navigation/types";
+import { navigate as navigateRef } from "../navigation/navigationRef";
 import { useAuth } from "../context/AuthContext";
 import { useChecklist } from "../context/ChecklistContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
@@ -1263,7 +1264,7 @@ export default function MeetingsScreen({ route }: Props) {
           activeRoute="Meetings"
           onNavigate={(route) => {
             if (route === "Home") {
-              navigation.navigate("Home");
+              navigateRef("Home");
             } else if (route === "Attendees") {
               navigation.navigate("Attendees");
             } else if (route === "Schedule") {

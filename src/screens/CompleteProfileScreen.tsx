@@ -989,13 +989,12 @@ function AttendeeProfileForm({
         profileData.metadata = metadata;
       }
 
-      // 1) Save profile data first (PUT). 2) Upload/remove photo so it persists like Manage Profile.
-      await authService.updateProfile(profileData);
-
+      // Try PUT with profile data and optional photo (base64). Falls back to PUT + PATCH if backend doesn't accept image in PUT.
       let photoUpdateFailed = false;
       if (shouldRemovePhoto) {
         setIsUploadingImage(true);
         try {
+          await authService.updateProfile(profileData);
           await authService.removeProfilePicture();
           setShouldRemovePhoto(false);
         } catch (imageError: any) {
@@ -1008,16 +1007,18 @@ function AttendeeProfileForm({
         } finally {
           setIsUploadingImage(false);
         }
-      } else if (selectedImageUri) {
+      } else {
         setIsUploadingImage(true);
         try {
-          await authService.uploadProfilePicture(selectedImageUri);
-          setSelectedImageUri(null);
-          setShouldRemovePhoto(false);
+          await authService.updateProfile(profileData, selectedImageUri ? { imageUri: selectedImageUri } : undefined);
+          if (selectedImageUri) {
+            setSelectedImageUri(null);
+            setShouldRemovePhoto(false);
+          }
         } catch (imageError: any) {
-          console.error("Error uploading profile picture:", imageError);
+          console.error("Error saving profile or photo:", imageError);
           showToast(
-            imageError.message || "Failed to upload profile picture.",
+            imageError.message || "Failed to save profile. Please try again.",
             "error"
           );
           photoUpdateFailed = true;
@@ -1096,9 +1097,9 @@ function AttendeeProfileForm({
           <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
             <View className="relative mb-4">
               <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
-                {selectedImageUri ? (
+                {(selectedImageUri || (initialProfile?.profile_pic && !shouldRemovePhoto) || (user?.profile_pic && !shouldRemovePhoto)) ? (
                   <Image
-                    source={{ uri: selectedImageUri }}
+                    source={{ uri: selectedImageUri || initialProfile?.profile_pic || user?.profile_pic || "" }}
                     className="w-full h-full"
                     resizeMode="cover"
                   />
@@ -1687,12 +1688,11 @@ function PersonalProfileForm({
         profileData.metadata = metadata;
       }
 
-      // 1) Save profile data first (PUT). 2) Upload/remove photo last (PATCH) so backend doesn't overwrite profile_pic.
-      await authService.updateProfile(profileData);
-
+      // Try PUT with profile data and optional photo (base64). Falls back to PUT + PATCH if backend doesn't accept image in PUT.
       if (shouldRemovePhoto) {
         setIsUploadingImage(true);
         try {
+          await authService.updateProfile(profileData);
           await authService.removeProfilePicture();
           setShouldRemovePhoto(false);
         } catch (imageError: any) {
@@ -1705,16 +1705,18 @@ function PersonalProfileForm({
         } finally {
           setIsUploadingImage(false);
         }
-      } else if (selectedImageUri) {
+      } else {
         setIsUploadingImage(true);
         try {
-          await authService.uploadProfilePicture(selectedImageUri);
-          setSelectedImageUri(null);
-          setShouldRemovePhoto(false);
+          await authService.updateProfile(profileData, selectedImageUri ? { imageUri: selectedImageUri } : undefined);
+          if (selectedImageUri) {
+            setSelectedImageUri(null);
+            setShouldRemovePhoto(false);
+          }
         } catch (imageError: any) {
-          console.error("Error uploading profile picture:", imageError);
+          console.error("Error saving profile or photo:", imageError);
           showToast(
-            imageError.message || "Failed to upload profile picture.",
+            imageError.message || "Failed to save profile. Please try again.",
             "error"
           );
           photoUpdateFailed = true;
@@ -1805,9 +1807,9 @@ function PersonalProfileForm({
           <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
             <View className="relative mb-4">
               <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
-                {selectedImageUri ? (
+                {(selectedImageUri || (initialProfile?.profile_pic && !shouldRemovePhoto) || (user?.profile_pic && !shouldRemovePhoto)) ? (
                   <Image
-                    source={{ uri: selectedImageUri }}
+                    source={{ uri: selectedImageUri || initialProfile?.profile_pic || user?.profile_pic || "" }}
                     className="w-full h-full"
                     resizeMode="cover"
                   />
@@ -2543,26 +2545,6 @@ function CompanyProfileForm({
 
       const companyId = userProfile.company.id;
 
-      let logoUpdateFailed = false;
-
-      if (selectedImageUri) {
-        setIsUploadingImage(true);
-        try {
-          await companyService.uploadCompanyLogo(companyId, selectedImageUri);
-          setSelectedImageUri(null);
-          setShouldRemovePhoto(false);
-        } catch (imageError: any) {
-          console.error("Error uploading company logo:", imageError);
-          showToast(
-            imageError.message || "Failed to upload company logo.",
-            "error"
-          );
-          logoUpdateFailed = true;
-        } finally {
-          setIsUploadingImage(false);
-        }
-      }
-
       // Get selected industry label (company_sector)
       const companySector =
         INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label || "";
@@ -2593,22 +2575,36 @@ function CompanyProfileForm({
       if (positions.length > 0) {
         metadata.positions = positions;
       }
-      // Note: boothNumber is read-only (comes from booth endpoint), so we don't send it
 
-      // Prepare API request payload
+      // Prepare API request payload; include logo in same request (PUT with base64) like personal profile
       const companyData: any = {
         name: companyName.trim(),
         company_sector: companySector,
         country: countryLabel,
         company_description: companyDescription.trim() || null,
       };
-
-      // Only include metadata if it has content
       if (Object.keys(metadata).length > 0) {
         companyData.metadata = metadata;
       }
 
-      await companyService.updateCompany(companyId, companyData);
+      let logoUpdateFailed = false;
+      setIsUploadingImage(true);
+      try {
+        await companyService.updateCompany(companyId, companyData, selectedImageUri ? { imageUri: selectedImageUri } : undefined);
+        if (selectedImageUri) {
+          setSelectedImageUri(null);
+          setShouldRemovePhoto(false);
+        }
+      } catch (imageError: any) {
+        console.error("Error saving company or logo:", imageError);
+        showToast(
+          imageError.message || "Failed to save company profile. Please try again.",
+          "error"
+        );
+        logoUpdateFailed = true;
+      } finally {
+        setIsUploadingImage(false);
+      }
 
       try {
         await offerService.syncCompanyOffers(companyId, EVENT_ID, offers);
@@ -2688,9 +2684,9 @@ function CompanyProfileForm({
           <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
             <View className="relative mb-4">
               <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
-                {selectedImageUri ? (
+                {(selectedImageUri || (initialProfile?.company?.logo && !shouldRemovePhoto)) ? (
                   <Image
-                    source={{ uri: selectedImageUri }}
+                    source={{ uri: selectedImageUri || initialProfile?.company?.logo || "" }}
                     className="w-full h-full"
                     resizeMode="cover"
                   />

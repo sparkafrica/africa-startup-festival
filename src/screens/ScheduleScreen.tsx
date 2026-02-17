@@ -31,6 +31,7 @@ import {
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { navigate as navigateRef } from "../navigation/navigationRef";
 import { useChecklist } from "../context/ChecklistContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
@@ -798,7 +799,7 @@ export default function ScheduleScreen() {
           activeRoute="Schedule"
           onNavigate={(route) => {
             if (route === "Home") {
-              navigation.navigate("Home");
+              navigateRef("Home");
             } else if (route === "Attendees") {
               navigation.navigate("Attendees");
             } else if (route === "Schedule") {

@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { navigate as navigateRef } from "../navigation/navigationRef";
 import { useMeetingsBadgeCount } from "../hooks";
 import { useNotifications } from "../context/NotificationsContext";
 import { eventService } from "../services/eventService";
@@ -372,7 +373,7 @@ export default function SpeakersScreen() {
           activeRoute="Home"
           onNavigate={(route) => {
             if (route === "Home") {
-              navigation.navigate("Home");
+              navigateRef("Home");
             } else if (route === "Attendees") {
               navigation.navigate("Attendees");
             } else if (route === "Schedule") {

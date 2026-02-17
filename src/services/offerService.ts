@@ -191,6 +191,7 @@ export const offerService = {
   /**
    * Sync profile offers to backend so GET /offers/ shows them on Partner Offers page.
    * Call after saving company profile. Creates new, updates existing (by id), deletes removed.
+   * Skips offers with empty link (backend validates link). Normalizes link to URL format if needed.
    */
   async syncCompanyOffers(
     companyId: number,
@@ -199,24 +200,47 @@ export const offerService = {
   ): Promise<void> {
     const existing = await this.listMyCompanyOffers();
     const existingIds = new Set(existing.map((o) => o.id));
+
+    const normalizeLink = (link: string): string => {
+      const s = link.trim();
+      if (!s) return "";
+      if (/^https?:\/\//i.test(s)) return s;
+      return `https://${s}`;
+    };
+
+    const offersToSync = offers.filter((o) => {
+      const link = normalizeLink(o.link);
+      if (!link) {
+        if (__DEV__) console.warn("Offer sync: skipping offer with empty link:", o.title);
+        return false;
+      }
+      return true;
+    });
+
     const ourBackendIds = new Set(
-      offers
+      offersToSync
         .filter((o) => typeof o.id === "number" && existingIds.has(o.id as number))
         .map((o) => o.id as number)
     );
 
-    for (const offer of offers) {
+    for (const offer of offersToSync) {
+      const link = normalizeLink(offer.link);
       const payload: CompanyOfferCreateUpdateRequest = {
         title: offer.title.trim(),
-        link: offer.link.trim(),
+        link,
         company: companyId,
         event: eventId,
         offer_type: "general",
       };
-      if (typeof offer.id === "number" && existingIds.has(offer.id)) {
-        await this.updateCompanyOffer(offer.id, payload);
-      } else {
-        await this.createCompanyOffer(payload);
+      try {
+        if (typeof offer.id === "number" && existingIds.has(offer.id)) {
+          await this.updateCompanyOffer(offer.id, payload);
+        } else {
+          await this.createCompanyOffer(payload);
+        }
+      } catch (err) {
+        if (__DEV__) console.warn("Offer sync: failed for offer", offer.title, err);
+        throw err;
       }
     }
 

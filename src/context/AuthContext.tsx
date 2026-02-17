@@ -368,11 +368,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Clear ticket cache so next user doesn't see previous user's ticket
     clearTicketCache();
 
-    // Clear all local stored data (service layer already cleared tokens)
+    // Clear session data but keep PROFILE_COMPLETE so returning users go straight to app
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.USER,
       STORAGE_KEYS.WELCOME_SEEN,
-      STORAGE_KEYS.PROFILE_COMPLETE,
+      STORAGE_KEYS.PROFILE_JUST_SAVED,
       STORAGE_KEYS.ONBOARDING_COMPLETE,
       STORAGE_KEYS.PUSH_REGISTRATION_ID,
     ]);

@@ -190,8 +190,8 @@ class ApiClient {
           originalRequest._retry = true;
           const url = originalRequest?.url ?? '';
           const isProfileEndpoint = url.includes('/auth/user/');
+          await this.clearTokens();
           if (!isProfileEndpoint) {
-            await this.clearTokens();
             this.onSessionExpired?.();
           }
           return Promise.reject(this.handleError(error));

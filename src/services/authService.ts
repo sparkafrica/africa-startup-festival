@@ -118,6 +118,26 @@ function toUserProfile(response: any): UserProfile {
   });
 }
 
+/** Read image file as base64 data URL for PUT body. Uses expo-file-system. Exported for company logo upload. */
+export async function readImageAsBase64(imageUri: string): Promise<string | null> {
+  try {
+    const FS = require("expo-file-system") as typeof import("expo-file-system");
+    let uriToUse = imageUri;
+    if (Platform.OS === "android" && imageUri.startsWith("content://")) {
+      const cachePath = `${FS.cacheDirectory}profile_pic_${Date.now()}.jpg`;
+      await FS.copyAsync({ from: imageUri, to: cachePath });
+      uriToUse = cachePath;
+    }
+    const base64 = await FS.readAsStringAsync(uriToUse, {
+      encoding: FS.EncodingType?.Base64 ?? "base64",
+    });
+    if (!base64 || typeof base64 !== "string") return null;
+    return `data:image/jpeg;base64,${base64}`;
+  } catch {
+    return null;
+  }
+}
+
 // ============================================================================
 // AUTHENTICATION SERVICE
 // ============================================================================
@@ -283,16 +303,48 @@ export const authService = {
   },
 
   /**
-   * Update authenticated user's profile duly
-   *
-   * @param profileData - Partial user profile data to update
-   * @returns Promise that resolves with updated user profile
-   *
-   * Backend Endpoint: PUT /auth/user/
+   * Update authenticated user's profile (PUT /auth/user/).
+   * Optionally include profile picture in the same request as base64 so one PUT does everything.
+   * If imageUri is provided and PUT-with-image fails, falls back to PUT without image then PATCH for image.
    */
-  async updateProfile(profileData: Partial<UserProfile>): Promise<UserProfile> {
+  async updateProfile(
+    profileData: Partial<UserProfile>,
+    options?: { imageUri?: string },
+  ): Promise<UserProfile> {
+    const imageUri = options?.imageUri;
+
+    if (imageUri) {
+      try {
+        const base64 = await readImageAsBase64(imageUri);
+        if (base64) {
+          const payload = { ...profileData, profile_pic: base64 };
+          const response = await api.put<any>("/auth/user/", payload);
+          if (__DEV__) {
+            console.log("✅ Profile data + photo saved (PUT /auth/user/)");
+          }
+          return toUserProfile(response);
+        }
+      } catch (e: any) {
+        if (__DEV__) {
+          console.warn("PUT with image failed, falling back to PUT + PATCH:", e?.message ?? e);
+        }
+        // Fallback: save data via PUT then upload photo via PATCH
+        const response = await api.put<any>("/auth/user/", profileData);
+        if (__DEV__) console.log("✅ Profile data saved (PUT /auth/user/)");
+        const profile = toUserProfile(response);
+        try {
+          return toUserProfile(await this.uploadProfilePicture(imageUri));
+        } catch {
+          return profile;
+        }
+      }
+    }
+
     try {
       const response = await api.put<any>("/auth/user/", profileData);
+      if (__DEV__) {
+        console.log("✅ Profile data saved (PUT /auth/user/)");
+      }
       return toUserProfile(response);
     } catch (e: any) {
       if (e instanceof ApiClientError) throw e;

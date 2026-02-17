@@ -29,6 +29,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { navigate as navigateRef } from "../navigation/navigationRef";
 import { useChecklist } from "../context/ChecklistContext";
 import { useAuth } from "../context/AuthContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
@@ -2217,7 +2218,7 @@ export default function AttendeesScreen() {
           activeRoute="Attendees"
           onNavigate={(route) => {
             if (route === "Home") {
-              navigation.navigate("Home");
+              navigateRef("Home");
             } else if (route === "Attendees") {
               // Already on Attendees screen
             } else if (route === "Schedule") {

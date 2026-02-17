@@ -6,7 +6,7 @@
 
 import { api } from "./api";
 import { ApiResponse, ApiClientError } from "./api";
-import { Company } from "./authService";
+import { Company, readImageAsBase64 } from "./authService";
 
 // ============================================================================
 // REQUEST/RESPONSE TYPES
@@ -37,27 +37,60 @@ export interface CompanyUpdateRequest {
 
 export const companyService = {
   /**
-   * Update company details
+   * Update company details. Optionally include logo in the same request (base64) so one PUT does everything.
+   * If imageUri is provided, tries PUT with logo first; on failure falls back to PATCH with logo, then PATCH FormData.
    *
-   * @param companyId - Company ID to update
-   * @param companyData - Partial company data to update
-   * @returns Promise that resolves with updated company data
-   *
-   * Backend Endpoint: PATCH /companies/{id}/
+   * Backend: PUT or PATCH /companies/{id}/
    */
   async updateCompany(
     companyId: number,
-    companyData: CompanyUpdateRequest
+    companyData: CompanyUpdateRequest,
+    options?: { imageUri?: string },
   ): Promise<Company> {
-    const response = await api.patch<CompanyUpdateRequest>(
-      `/companies/${companyId}/`,
-      companyData
-    );
+    const imageUri = options?.imageUri;
+    const url = `/companies/${companyId}/`;
 
-    if (response.status === "success" && response.data) {
-      return response.data as Company;
+    if (imageUri) {
+      const base64 = await readImageAsBase64(imageUri);
+      if (base64) {
+        const payload = { ...companyData, logo: base64 };
+        try {
+          const response = await api.put<CompanyUpdateRequest>(url, payload);
+          if (response.status === "success" && response.data) {
+            if (__DEV__) {
+              console.log("✅ Company data + logo saved (PUT /companies/:id/)");
+            }
+            return response.data as Company;
+          }
+        } catch (e: any) {
+          if (__DEV__) {
+            console.warn("PUT with logo failed, trying PATCH with logo:", e?.message ?? e);
+          }
+        }
+        try {
+          const response = await api.patch<CompanyUpdateRequest>(url, payload);
+          if (response.status === "success" && response.data) {
+            if (__DEV__) {
+              console.log("✅ Company data + logo saved (PATCH /companies/:id/)");
+            }
+            return response.data as Company;
+          }
+        } catch (e: any) {
+          if (__DEV__) {
+            console.warn("PATCH with logo failed, falling back to PATCH FormData:", e?.message ?? e);
+          }
+        }
+      }
+      return this._uploadCompanyLogoFormData(companyId, imageUri);
     }
 
+    const response = await api.patch<CompanyUpdateRequest>(url, companyData);
+    if (response.status === "success" && response.data) {
+      if (__DEV__) {
+        console.log("✅ Company data saved (PATCH /companies/:id/)");
+      }
+      return response.data as Company;
+    }
     throw new ApiClientError({
       status: "error",
       message: response.message || "Failed to update company",
@@ -66,60 +99,38 @@ export const companyService = {
     });
   },
 
-  /**
-   * Upload company logo
-   *
-   * @param companyId - Company ID
-   * @param imageUri - URI of the image to upload
-   * @returns Promise that resolves with updated company data
-   *
-   * Backend Endpoint: PATCH /companies/{id}/
-   * Content-Type: multipart/form-data (automatically set by axios for FormData)
-   */
-  async uploadCompanyLogo(
+  /** PATCH with FormData (fallback when PUT/PATCH with base64 logo not supported). */
+  async _uploadCompanyLogoFormData(
     companyId: number,
-    imageUri: string
+    imageUri: string,
   ): Promise<Company> {
-    console.log("🔧 uploadCompanyLogo called with:", { companyId, imageUri });
-    
-    // Create FormData for multipart/form-data upload
     const formData = new FormData();
-
-    // Extract filename from URI (fallback to 'logo.jpg' if not available)
     const filename = imageUri.split("/").pop() || "logo.jpg";
     const match = /\.(\w+)$/.exec(filename);
     const type = match ? `image/${match[1]}` : "image/jpeg";
-
-    console.log("🔧 FormData prepared:", { filename, type });
-
-    // Append the image file
-    // React Native FormData format: { uri, name, type }
     formData.append("logo", {
       uri: imageUri,
       name: filename,
       type: type,
     } as any);
 
-    console.log("🔧 Sending PATCH request to /companies/${companyId}/");
-    
-    // Use PATCH endpoint with FormData
-    // Axios automatically detects FormData and sets Content-Type to multipart/form-data with boundary
     const response = await api.patch<FormData>(
       `/companies/${companyId}/`,
-      formData
+      formData,
     );
-
-    console.log("🔧 Response received:", response.status, response.response_code);
-
     if (response.status === "success" && response.data) {
       return response.data as Company;
     }
-
     throw new ApiClientError({
       status: "error",
       message: response.message || "Failed to upload company logo",
       response_code: response.response_code,
       data: {},
     });
+  },
+
+  /** @deprecated Use updateCompany(companyId, companyData, { imageUri }) instead. Kept for backwards compatibility. */
+  async uploadCompanyLogo(companyId: number, imageUri: string): Promise<Company> {
+    return this.updateCompany(companyId, {}, { imageUri });
   },
 };
