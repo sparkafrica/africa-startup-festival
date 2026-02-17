@@ -93,6 +93,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         STORAGE_KEYS.PROFILE_COMPLETE,
         STORAGE_KEYS.ONBOARDING_COMPLETE,
         STORAGE_KEYS.WELCOME_SEEN,
+        STORAGE_KEYS.PROFILE_JUST_SAVED,
       ]).catch(() => {});
     };
     api.setOnSessionExpired(handleSessionExpired);

@@ -18,17 +18,6 @@ import { ENV } from "../config/env";
 
 const PROFILE_DEBUG_KEY = "@spark:profile_debug";
 
-async function saveProfileDebug(payload: Record<string, unknown>) {
-  try {
-    await AsyncStorage.setItem(
-      PROFILE_DEBUG_KEY,
-      JSON.stringify({ ...payload, timestamp: new Date().toISOString() })
-    );
-  } catch {
-    // ignore
-  }
-}
-
 export async function getProfileDebug(): Promise<string | null> {
   try {
     return await AsyncStorage.getItem(PROFILE_DEBUG_KEY);
@@ -278,30 +267,10 @@ export const authService = {
    * Backend Endpoint: GET /auth/user/
    */
   async getCurrentUser(): Promise<UserProfile> {
-    const url = `${ENV.BASE_URL}/auth/user/`;
-    const token = await api.getToken();
-    const hasToken = !!token;
-
     try {
       const response = await api.get<any>("/auth/user/");
-      await saveProfileDebug({
-        endpoint: "GET /auth/user/",
-        url,
-        hasToken,
-        outcome: "success",
-        responsePreview: JSON.stringify(response).slice(0, 600),
-      });
       return toUserProfile(response);
-    } catch (e: any) {
-      await saveProfileDebug({
-        endpoint: "GET /auth/user/",
-        url,
-        hasToken,
-        outcome: "error",
-        statusCode: e?.responseCode ?? e?.response_code,
-        message: e?.message,
-        dataPreview: JSON.stringify(e?.data ?? {}).slice(0, 400),
-      });
+    } catch (e: any){
       if (e instanceof ApiClientError) throw e;
       throw new ApiClientError({
         status: "error",
@@ -313,7 +282,7 @@ export const authService = {
   },
 
   /**
-   * Update authenticated user's profile
+   * Update authenticated user's profile duly
    *
    * @param profileData - Partial user profile data to update
    * @returns Promise that resolves with updated user profile
@@ -321,30 +290,10 @@ export const authService = {
    * Backend Endpoint: PUT /auth/user/
    */
   async updateProfile(profileData: Partial<UserProfile>): Promise<UserProfile> {
-    const url = `${ENV.BASE_URL}/auth/user/`;
-    const token = await api.getToken();
-    const hasToken = !!token;
-
     try {
       const response = await api.put<any>("/auth/user/", profileData);
-      await saveProfileDebug({
-        endpoint: "PUT /auth/user/",
-        url,
-        hasToken,
-        outcome: "success",
-        responsePreview: JSON.stringify(response).slice(0, 600),
-      });
       return toUserProfile(response);
     } catch (e: any) {
-      await saveProfileDebug({
-        endpoint: "PUT /auth/user/",
-        url,
-        hasToken,
-        outcome: "error",
-        statusCode: e?.responseCode ?? e?.response_code,
-        message: e?.message,
-        dataPreview: JSON.stringify(e?.data ?? {}).slice(0, 400),
-      });
       if (e instanceof ApiClientError) throw e;
       throw new ApiClientError({
         status: "error",
@@ -365,20 +314,28 @@ export const authService = {
    * Content-Type: multipart/form-data (automatically set by axios for FormData)
    */
   async uploadProfilePicture(imageUri: string): Promise<UserProfile> {
-    // Create FormData for multipart/form-data upload
-    const formData = new FormData();
-    
-    // Extract filename from URI (fallback to 'photo.jpg' if not available)
-    const filename = imageUri.split('/').pop() || 'photo.jpg';
-    const match = /\.(\w+)$/.exec(filename);
-    const type = match ? `image/${match[1]}` : 'image/jpeg';
+    if (!imageUri || typeof imageUri !== 'string') {
+      throw new ApiClientError({
+        status: "error",
+        message: "Invalid image URI",
+        response_code: 400,
+        data: {},
+      });
+    }
 
-    // Append the image file
-    // React Native FormData format: { uri, name, type }
+    const formData = new FormData();
+    // Use consistent filename – avoids parsing issues on some devices/backends
+    const filename = 'profile_pic.jpg';
+    // Map HEIC/HEIF to jpeg – many backends don't accept image/heic
+    const ext = (imageUri.split('.').pop() || '').toLowerCase();
+    const mimeType = (ext === 'heic' || ext === 'heif') ? 'image/jpeg' : (ext === 'png' ? 'image/png' : 'image/jpeg');
+
+    // React Native FormData: { uri, name, type }
+    // URI can be file://, content:// (Android), or ph:// (iOS) – pass as-is
     formData.append('profile_pic', {
       uri: imageUri,
       name: filename,
-      type: type,
+      type: mimeType,
     } as any);
 
     // Use PATCH endpoint with FormData

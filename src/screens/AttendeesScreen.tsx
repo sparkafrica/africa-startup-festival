@@ -749,9 +749,7 @@ export default function AttendeesScreen() {
   const { markConnectAttendeesComplete, markRequestMeetingComplete } =
     useChecklist();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"Recommended" | "All">(
-    "Recommended"
-  );
+  const [activeTab, setActiveTab] = useState<"Recommended" | "All">("All");
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [showViewDropdown, setShowViewDropdown] = useState(false);
   const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(

@@ -4969,12 +4969,16 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           onClose={handleRevokedConfirmationClose}
           onConfirm={handleRevokedConfirmationClose}
         />
-        <QRScannerModal
-          visible={qrScannerModalVisible}
-          onClose={() => setQrScannerModalVisible(false)}
-          onScan={handleQRCodeScanned}
-          isProcessing={isScanning}
-        />
+        {/* Only mount scanner when open so iOS never has two Modals in tree (scanner + profile).
+            When closed we unmount it; then profile modal can present without a stuck/invisible scanner blocking touches. */}
+        {qrScannerModalVisible && (
+          <QRScannerModal
+            visible={true}
+            onClose={() => setQrScannerModalVisible(false)}
+            onScan={handleQRCodeScanned}
+            isProcessing={isScanning}
+          />
+        )}
         <ScannedTicketProfileModal
           visible={scannedTicketProfileVisible}
           onClose={() => {

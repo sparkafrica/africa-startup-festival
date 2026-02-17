@@ -184,10 +184,16 @@ class ApiClient {
         };
 
         // Handle 401 Unauthorized – backend does not support refresh; clear session and log out
+        // Exception: /auth/user/ profile endpoints – don't log out on 401 so save flow can show
+        // "Profile saved but photo could not be updated" instead of forcing full re-login
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
-          await this.clearTokens();
-          this.onSessionExpired?.();
+          const url = originalRequest?.url ?? '';
+          const isProfileEndpoint = url.includes('/auth/user/');
+          if (!isProfileEndpoint) {
+            await this.clearTokens();
+            this.onSessionExpired?.();
+          }
           return Promise.reject(this.handleError(error));
         }
 

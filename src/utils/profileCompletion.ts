@@ -74,9 +74,22 @@ function isCompanyProfileComplete(company: Company | null | undefined): boolean 
   // Backend can store social links in two formats:
   // 1. Nested in socialLinks object: metadata.socialLinks.linkedin
   // 2. Root level (legacy): metadata.linkedIn, metadata.instagram, etc.
+  // Backend may return metadata as JSON string – parse like user.metadata
   let hasSocialLinks = false;
-  if (company.metadata && typeof company.metadata === 'object') {
-    const metadata = company.metadata as any;
+  let metadataObj: any = null;
+  if (company.metadata) {
+    if (typeof company.metadata === 'string') {
+      try {
+        metadataObj = JSON.parse(company.metadata);
+      } catch {
+        metadataObj = null;
+      }
+    } else if (typeof company.metadata === 'object') {
+      metadataObj = company.metadata;
+    }
+  }
+  if (metadataObj && typeof metadataObj === 'object') {
+    const metadata = metadataObj as any;
     const socialLinks = metadata.socialLinks;
     
     // Check nested socialLinks object first
