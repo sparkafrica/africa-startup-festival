@@ -335,13 +335,21 @@ export default function ConnectionsScreen() {
   };
 
   /**
-   * Fetch connections from backend
+   * Fetch connections from backend.
+   * We need the current user id to pick the correct "other" user in each connection
+   * (from_user vs to_user). Without it we can show the wrong profile (e.g. only "Nigeria"
+   * for new users whose own profile is minimal until they save).
    */
   const fetchConnections = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       const response = await connectionService.getConnections(1, 50);
+      const currentUserId = user?.user_id != null ? String(user.user_id) : null;
+      if (!currentUserId) {
+        setConnections([]);
+        return;
+      }
       const mappedConnections = response.connections.map(mapBackendConnectionToUI);
       setConnections(mappedConnections);
     } catch (err: any) {
@@ -366,6 +374,14 @@ export default function ConnectionsScreen() {
       fetchConnections();
     }, [fetchConnections, refreshMeetingsBadge])
   );
+
+  // Refetch when current user becomes available (e.g. auth restore from storage).
+  // Avoids showing wrong/missing connection details for new users until profile is loaded.
+  useEffect(() => {
+    if (user?.user_id) {
+      fetchConnections();
+    }
+  }, [user?.user_id, fetchConnections]);
 
   // Filter connections based on search query (commented out for now)
   // const filteredConnections = connections.filter((connection) => {

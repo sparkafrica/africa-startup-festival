@@ -55,7 +55,6 @@ import {
   showExpoCannotBookMeetingAlert,
 } from "../utils/meetingRestrictions";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
-import * as Clipboard from "expo-clipboard";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -3802,7 +3801,6 @@ function MyTicketView({
   tickets,
   loading,
   error,
-  errorDetails,
   onViewQR,
   onTransfer,
   onUpgrade,
@@ -3813,7 +3811,6 @@ function MyTicketView({
   tickets: Ticket[];
   loading?: boolean;
   error?: string | null;
-  errorDetails?: { endpoint: string; code?: number; message?: string } | null;
   onViewQR: (
     title: string,
     ticketNumber: string,
@@ -3884,30 +3881,9 @@ function MyTicketView({
   }
 
   if (error) {
-    const debugText = errorDetails
-      ? `endpoint=${errorDetails.endpoint} code=${errorDetails.code ?? "?"} msg=${errorDetails.message ?? ""}`
-      : "";
-    const handleCopy = async () => {
-      if (debugText) {
-        await Clipboard.setStringAsync(debugText);
-      }
-    };
     return (
       <View className="flex-1 items-center justify-center py-20 px-4">
         <Text className="text-base text-red-600 text-center mb-4">{error}</Text>
-        {errorDetails && (
-          <>
-            <Text className="text-xs text-neutral-500 text-center mb-2 font-mono">
-              {debugText}
-            </Text>
-            <Pressable
-              onPress={handleCopy}
-              className="mt-2 px-4 py-2 bg-neutral-200 rounded-lg"
-            >
-              <Text className="text-sm text-neutral-700">Copy error details</Text>
-            </Pressable>
-          </>
-        )}
       </View>
     );
   }
@@ -4213,23 +4189,14 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
-  const [ticketsErrorDetails, setTicketsErrorDetails] = useState<{
-    endpoint: string;
-    code?: number;
-    message?: string;
-  } | null>(null);
   const [isAllocating, setIsAllocating] = useState(false);
 
   // Fetch tickets: personal + quotas (Available) + allocations (Assigned)
   const fetchTickets = React.useCallback(async () => {
     setTicketsLoading(true);
     setTicketsError(null);
-    setTicketsErrorDetails(null);
 
     const allTickets: Ticket[] = [];
-    const DEBUG_PREFIX = "[Tickets:fetch]";
-
-    console.warn(`${DEBUG_PREFIX} Starting for EVENT_ID=${EVENT_ID}`);
 
     // Step 1: Personal ticket (bypassCache so pass type/colors stay correct after backend change)
     try {
@@ -4253,24 +4220,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         backendTicketId: backendTicket.id,
         ticketType: userType,
       });
-      console.warn(
-        `${DEBUG_PREFIX} getUserTicket OK id=${backendTicket.id} type=${userType}`
-      );
     } catch (error: any) {
       const responseCode =
         error?.responseCode || error?.response_code || error?.statusCode;
-      const msg = error?.message ?? String(error);
-      console.warn(
-        `${DEBUG_PREFIX} getUserTicket FAIL code=${responseCode} message=${msg}`,
-        error
-      );
       if (responseCode !== 404) {
         setTicketsError("Failed to load tickets. Please try again.");
-        setTicketsErrorDetails({
-          endpoint: "getUserTicket",
-          code: responseCode,
-          message: msg,
-        });
       }
     }
 
@@ -4319,17 +4273,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           allocationStatus: alloc.status,
         });
       }
-      console.warn(
-        `${DEBUG_PREFIX} getUserAllocations OK count=${allocations.length}`
-      );
     } catch (error: any) {
-      const responseCode =
-        error?.responseCode || error?.response_code || error?.statusCode;
-      const msg = error?.message ?? String(error);
-      console.warn(
-        `${DEBUG_PREFIX} getUserAllocations FAIL code=${responseCode} message=${msg}`,
-        error
-      );
       console.error("Error fetching allocations:", error);
     }
 
@@ -4363,27 +4307,12 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           availableCount: remaining,
         });
       }
-      console.warn(`${DEBUG_PREFIX} getUserQuotas OK count=${quotas.length}`);
     } catch (error: any) {
-      const responseCode =
-        error?.responseCode || error?.response_code || error?.statusCode;
-      const msg = error?.message ?? String(error);
-      console.warn(
-        `${DEBUG_PREFIX} getUserQuotas FAIL code=${responseCode} message=${msg}`,
-        error
-      );
       console.error("Error fetching quotas:", error);
       if (allTickets.length === 0) {
         setTicketsError("Failed to load tickets. Please try again.");
-        setTicketsErrorDetails({
-          endpoint: "getUserQuotas",
-          code: responseCode,
-          message: msg,
-        });
       }
     }
-
-    console.warn(`${DEBUG_PREFIX} Done totalTickets=${allTickets.length}`);
 
     setTickets(allTickets);
     setTicketsLoading(false);
@@ -4885,7 +4814,6 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
             tickets={tickets}
             loading={ticketsLoading}
             error={ticketsError}
-            errorDetails={ticketsErrorDetails}
             onViewQR={handleViewQR}
             onTransfer={handleTransfer}
             onUpgrade={(ticket) => {

@@ -1610,12 +1610,37 @@ export default function AttendeesScreen() {
       />
 
       <View className="flex-1">
-        {/* Tabs: Recommended and All attendees */}
+        {/* Tabs: All attendees (left, default) and Recommended (right) */}
         <View className="px-4 pt-4 pb-3">
           <View className="flex-row border border-neutral-200 rounded-2xl bg-neutral-100">
             <Pressable
-              onPress={() => setActiveTab("Recommended")}
+              onPress={() => setActiveTab("All")}
               className={`flex-1 py-3 px-4 rounded-2xl mr-2 ${
+                activeTab === "All" ? "bg-white" : "bg-neutral-100"
+              }`}
+              style={
+                activeTab === "All"
+                  ? {
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 2,
+                      elevation: 1,
+                    }
+                  : undefined
+              }
+            >
+              <Text
+                className={`text-sm font-semibold text-center ${
+                  activeTab === "All" ? "text-neutral-900" : "text-neutral-400"
+                }`}
+              >
+                All attendees
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setActiveTab("Recommended")}
+              className={`flex-1 py-3 px-4 rounded-2xl ${
                 activeTab === "Recommended" ? "bg-white" : "bg-neutral-100"
               }`}
               style={
@@ -1638,31 +1663,6 @@ export default function AttendeesScreen() {
                 }`}
               >
                 Recommended
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setActiveTab("All")}
-              className={`flex-1 py-3 px-4 rounded-2xl ${
-                activeTab === "All" ? "bg-white" : "bg-neutral-100"
-              }`}
-              style={
-                activeTab === "All"
-                  ? {
-                      shadowColor: "#000",
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: 0.05,
-                      shadowRadius: 2,
-                      elevation: 1,
-                    }
-                  : undefined
-              }
-            >
-              <Text
-                className={`text-sm font-semibold text-center ${
-                  activeTab === "All" ? "text-neutral-900" : "text-neutral-400"
-                }`}
-              >
-                All attendees
               </Text>
             </Pressable>
           </View>

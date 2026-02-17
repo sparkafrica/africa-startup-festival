@@ -41,6 +41,7 @@ import {
   showExpoCannotBookMeetingAlert,
 } from "../utils/meetingRestrictions";
 import { ApiClientError } from "../services/api";
+import Toast from "../components/Toast";
 
 function ConnectIcon({
   size = 24,
@@ -109,7 +110,7 @@ export default function ScannedAttendeeScreen() {
   const { attendee: routeAttendee } = route.params ?? {};
   const { user } = useAuth();
   const { markRequestMeetingComplete } = useChecklist();
-  const { showToast } = useToast();
+  const { toast, showToast, hideToast } = useToast();
 
   const insets = useSafeAreaInsets();
   const [requestMeetingModalVisible, setRequestMeetingModalVisible] =
@@ -391,6 +392,14 @@ export default function ScannedAttendeeScreen() {
         onClose={() => setRequestMeetingModalVisible(false)}
         onSubmit={handleMeetingSubmit}
         attendeeName={attendeeName}
+      />
+
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        duration={toast.duration}
+        onHide={hideToast}
       />
     </SafeAreaView>
   );
