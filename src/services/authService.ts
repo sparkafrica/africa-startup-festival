@@ -12,7 +12,6 @@
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Platform } from "react-native";
 import { api } from "./api";
 import { ApiResponse, ApiClientError, TokenResponse } from "./api";
 import { ENV } from "../config/env";
@@ -118,24 +117,29 @@ function toUserProfile(response: any): UserProfile {
   });
 }
 
-/** Read image file as base64 data URL for PUT body. Uses expo-file-system. Exported for company logo upload. */
+/** Read image as base64 data URL for PUT body (profile_pic, company logo). Uses fetch only; no native file module. */
 export async function readImageAsBase64(imageUri: string): Promise<string | null> {
   try {
-    const FS = require("expo-file-system") as typeof import("expo-file-system");
-    let uriToUse = imageUri;
-    if (Platform.OS === "android" && imageUri.startsWith("content://")) {
-      const cachePath = `${FS.cacheDirectory}profile_pic_${Date.now()}.jpg`;
-      await FS.copyAsync({ from: imageUri, to: cachePath });
-      uriToUse = cachePath;
-    }
-    const base64 = await FS.readAsStringAsync(uriToUse, {
-      encoding: FS.EncodingType?.Base64 ?? "base64",
-    });
-    if (!base64 || typeof base64 !== "string") return null;
+    const response = await fetch(imageUri, { method: "GET" });
+    if (!response.ok) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = arrayBufferToBase64(arrayBuffer);
+    if (!base64) return null;
     return `data:image/jpeg;base64,${base64}`;
   } catch {
     return null;
   }
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 8192;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode.apply(null, [...chunk]);
+  }
+  return btoa(binary);
 }
 
 // ============================================================================
@@ -376,22 +380,9 @@ export const authService = {
       });
     }
 
-    // Android: content:// URIs often fail with FormData – copy to cache as file://
-    let uriToUse = imageUri;
-    if (Platform.OS === "android" && imageUri.startsWith("content://")) {
-      try {
-        const FS = require("expo-file-system");
-        const cachePath = `${FS.cacheDirectory}profile_pic_${Date.now()}.jpg`;
-        await FS.copyAsync({ from: imageUri, to: cachePath });
-        uriToUse = cachePath;
-      } catch {
-        // Fall back to original URI if copy fails or expo-file-system not installed
-      }
-    }
-
     const formData = new FormData();
     const filename = "profile_pic.jpg";
-    const ext = (uriToUse.split(".").pop() || "").toLowerCase();
+    const ext = (imageUri.split(".").pop() || "").toLowerCase();
     const mimeType =
       ext === "heic" || ext === "heif"
         ? "image/jpeg"
@@ -400,7 +391,7 @@ export const authService = {
           : "image/jpeg";
 
     formData.append("profile_pic", {
-      uri: uriToUse,
+      uri: imageUri,
       name: filename,
       type: mimeType,
     } as any);

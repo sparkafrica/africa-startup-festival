@@ -359,7 +359,7 @@ export default function SpeakersScreen() {
           ) : (
             <View className="py-20 items-center">
               <Text className="text-gray-500 text-center">
-                No speakers available.
+                Speakers are not yet live, kindly check back.
               </Text>
             </View>
           )}

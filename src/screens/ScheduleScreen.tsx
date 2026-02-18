@@ -658,7 +658,7 @@ export default function ScheduleScreen() {
           ) : events.length === 0 ? (
             <View className="flex-1 items-center justify-center py-20">
               <Text className="text-gray-500 text-center">
-                No events scheduled for this stage.
+                Schedule is not yet live, kindly check back.
               </Text>
             </View>
           ) : (

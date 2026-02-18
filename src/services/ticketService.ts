@@ -314,12 +314,11 @@ export const ticketService = {
    * List ticket classes for an event (Event Management).
    * Use for upgrade flow to get new_ticket_class_id for each tier.
    *
-   * Backend Endpoint: GET /tickets/classes/?event_id={eventId}
-   * (or GET /tickets/{event_id}/classes/ if backend uses path)
+   * Backend Endpoint: GET /tickets/classes/?event={eventId}
    */
   async getTicketClasses(eventId: number): Promise<TicketClass[]> {
     const response = await api.get<TicketClass[]>(
-      `/tickets/classes/?event_id=${eventId}`
+      `/tickets/classes/?event=${eventId}`
     );
     if (response.status === "success" && response.data !== undefined) {
       const data = response.data as any;

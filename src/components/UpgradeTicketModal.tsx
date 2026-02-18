@@ -41,6 +41,7 @@ function tierSortKey(nameOrType?: string): number {
 /**
  * Filter ticket classes to upgrade targets only (Oasis, Delegate, Chairperson),
  * then keep only tiers strictly above the user's current tier (no same-tier or downgrade).
+ * Deduplicates by tier label so production APIs that return duplicate classes don't show repeated options.
  * - Expo (0) → Oasis, Delegate, Chairperson
  * - Oasis (1) → Delegate, Chairperson
  * - Delegate (2) → Chairperson only
@@ -51,12 +52,20 @@ function filterAndSortUpgradeClasses(
   currentTierLabel: string
 ): TicketClass[] {
   const userTierKey = tierSortKey(currentTierLabel);
-  return classes
+  const filtered = classes
     .filter((c) => {
       const tierKey = tierSortKey(c.name || c.user_type);
       return tierKey > 0 && tierKey > userTierKey;
     })
     .sort((a, b) => tierSortKey(a.name || a.user_type) - tierSortKey(b.name || b.user_type));
+  // Deduplicate by tier label (production backend may return multiple classes per tier name)
+  const seen = new Set<string>();
+  return filtered.filter((c) => {
+    const label = (c.name || c.user_type || "").toLowerCase();
+    if (seen.has(label)) return false;
+    seen.add(label);
+    return true;
+  });
 }
 
 export interface UpgradeTicketModalProps {
