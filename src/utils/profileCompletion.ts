@@ -12,12 +12,12 @@ import { TicketQuota } from "../services/ticketService";
  * Check if personal profile fields are complete
  */
 function isPersonalProfileComplete(user: UserProfile): boolean {
-  // Required fields for personal profile
-  const hasFirstName = user.first_name && user.first_name.trim().length >= 2;
-  const hasLastName = user.last_name && user.last_name.trim().length >= 2;
-  const hasJobTitle = user.job_title && user.job_title.trim().length >= 2;
-  const hasBio = user.bio && user.bio.trim().length >= 10;
-  const hasCountry = user.country && user.country.trim().length > 0;
+  // Required fields for personal profile (coerce to boolean for strict return type)
+  const hasFirstName = !!(user.first_name && user.first_name.trim().length >= 2);
+  const hasLastName = !!(user.last_name && user.last_name.trim().length >= 2);
+  const hasJobTitle = !!(user.job_title && user.job_title.trim().length >= 2);
+  const hasBio = !!(user.bio && user.bio.trim().length >= 10);
+  const hasCountry = !!(user.country && user.country.trim().length > 0);
 
   // Check if interests exist in metadata (required: at least 2)
   let hasInterests = false;
@@ -73,13 +73,14 @@ function isCompanyProfileComplete(
     return false;
   }
 
-  // Core company fields – backend may use company_description or description
-  const hasName = company.name && company.name.trim().length >= 2;
-  const hasSector =
-    company.company_sector && company.company_sector.trim().length > 0;
-  const hasCountry = company.country && company.country.trim().length > 0;
+  // Core company fields – backend may use company_description or description (coerce to boolean for strict return type)
+  const hasName = !!(company.name && company.name.trim().length >= 2);
+  const hasSector = !!(
+    company.company_sector && company.company_sector.trim().length > 0
+  );
+  const hasCountry = !!(company.country && company.country.trim().length > 0);
   const desc =
-    company.company_description ?? (company as any).description ?? "";
+    company.company_description ?? company.description ?? "";
   const hasDescription = typeof desc === "string" && desc.trim().length >= 10;
 
   // At least one of: description OR social links (backends vary; don't require both)

@@ -72,6 +72,7 @@ export interface Company {
   phone?: string;
   company_sector?: string;
   company_description?: string;
+  description?: string; // alternate field name some backends use
   logo?: string | null;
   group_photo?: string | null;
   metadata?: any;

@@ -447,22 +447,6 @@ export default function NotificationDetailModal({
                           </View>
                         )}
                       </View>
-                      <View className="w-6 h-6 items-center justify-center">
-                        <Svg
-                          width={16}
-                          height={16}
-                          viewBox="0 0 20 20"
-                          fill="none"
-                        >
-                          <Path
-                            d="M7.5 15L12.5 10L7.5 5"
-                            stroke="#404040"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </Svg>
-                      </View>
                     </View>
                   </View>
                 </View>

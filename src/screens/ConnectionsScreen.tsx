@@ -1288,7 +1288,7 @@ export default function ConnectionsScreen() {
                       >
                         <LinkedInIcon size={20} color="#0A66C2" />
                         <Text className="text-base font-semibold text-neutral-700 ml-2">
-                          in {linkedIn.displayLabel}
+                          {linkedIn.displayLabel}
                         </Text>
                       </Pressable>
                     );

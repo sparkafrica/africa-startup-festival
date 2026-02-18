@@ -15,7 +15,6 @@ import {
   OffersIcon,
 } from "../components/MenuIcons";
 import { BellIcon } from "../components/HeaderIcons";
-import { ChevronRightIcon } from "../components/MenuIcons";
 import { notificationService } from "../services/notificationService";
 import { ApiClientError } from "../services/api";
 import { mapBackendNotificationToUI, fetchNotificationDetails, type UINotification } from "../utils/notificationUtils";

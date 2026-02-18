@@ -673,7 +673,7 @@ export default function OutboundMeetingModal({
                               numberOfLines={1}
                               ellipsizeMode="tail"
                             >
-                              in {participantSocialLabel}
+                              {participantSocialLabel}
                             </Text>
                           </Pressable>
                         </View>

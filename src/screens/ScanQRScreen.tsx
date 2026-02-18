@@ -3178,7 +3178,7 @@ function ScannedTicketProfileModal({
                       >
                         <LinkedInIcon size={18} color="#0A66C2" />
                         <Text className="text-sm font-medium text-neutral-900 ml-2">
-                          in {linkedIn.displayLabel}
+                          {linkedIn.displayLabel}
                         </Text>
                       </Pressable>
                     </View>

@@ -145,7 +145,7 @@ export default function ParticipantDetailModal({
                         numberOfLines={1}
                         ellipsizeMode="tail"
                       >
-                        in {info.displayLabel}
+                        {info.displayLabel}
                       </Text>
                     </Pressable>
                   </View>
