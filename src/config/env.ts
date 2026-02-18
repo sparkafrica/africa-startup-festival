@@ -61,13 +61,20 @@ export const CDN_BASE_URL = CDN_CONFIG[environment];
 // TODO: Consider fetching current event from backend API in the future
 export const EVENT_ID = 10;
 
-// Spark API Key for public endpoints (e.g. GET /jobs/). Required for Talent Board job listings.
-// Sourced from app.config.js → extra.SPARK_API_KEY (which reads EXPO_PUBLIC_SPARK_API_KEY).
-// - Dev: set EXPO_PUBLIC_SPARK_API_KEY in .env (app.config.js loads it via dotenv).
-// - Production build (EAS): set EXPO_PUBLIC_SPARK_API_KEY in EAS secrets so the build injects it; .env is not used on EAS.
+// Spark API Key for public endpoints (e.g. GET /jobs/, partner offers). Required for Talent Board and partner offers.
+// - Dev: set EXPO_PUBLIC_SPARK_API_KEY in .env (app.config.js loads it; .env is not shipped).
+// - Production: EAS secret at build time (extra.SPARK_API_KEY), or fallback below so OTA can deliver the key.
+//   (.env and OTA do not mix: OTA only updates JS; the key must be in the bundle for production to get it.)
+const EXTRA_SPARK_KEY = (Constants?.expoConfig?.extra as Record<string, string> | undefined)?.SPARK_API_KEY ?? "";
+const ENV_SPARK_KEY = typeof process !== "undefined" ? process.env?.EXPO_PUBLIC_SPARK_API_KEY ?? "" : "";
+
+/** Production API key when extra/env are empty. OTA delivers this so production build uses prod key; dev keeps using .env. */
+const PRODUCTION_SPARK_API_KEY = "fbc8ba2ab4b7f7a2159f4e38043d2c0a";
+
 export const SPARK_API_KEY =
-  (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_SPARK_API_KEY) ||
-  (Constants?.expoConfig?.extra as Record<string, string> | undefined)?.SPARK_API_KEY ||
+  ENV_SPARK_KEY ||
+  EXTRA_SPARK_KEY ||
+  (environment === "production" ? PRODUCTION_SPARK_API_KEY : "") ||
   "";
 
 // Upgrade ticket: backend requires new_ticket_class_id (per tier), payment_method, currency.

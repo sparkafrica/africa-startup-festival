@@ -55,16 +55,11 @@ export const jobService = {
     const queryString = query.toString();
     const url = queryString ? `/jobs/?${queryString}` : "/jobs/";
 
-    if (!SPARK_API_KEY) {
+    if (__DEV__ && !SPARK_API_KEY) {
       console.warn(
-        "[TalentBoard jobService] X-SPARK-KEY is missing. Set EXPO_PUBLIC_SPARK_API_KEY (.env) or app.json extra / EAS secret for job listings."
+        "[TalentBoard jobService] X-SPARK-KEY is missing. Set EXPO_PUBLIC_SPARK_API_KEY (.env) or app.json extra / EAS secret for job listings.",
       );
     }
-    console.warn("[TalentBoard jobService] GET request (no auth – public endpoint)", {
-      url,
-      event_ids: params?.event_ids,
-      hasSparkKey: !!SPARK_API_KEY,
-    });
 
     try {
       // Use direct axios call without auth token so 401 on /jobs/ never triggers logout
@@ -78,16 +73,6 @@ export const jobService = {
 
       const data = axiosResponse?.data as any;
 
-      console.warn("[TalentBoard jobService] GET response", {
-        isArray: Array.isArray(data),
-        hasData: !!data?.data,
-        dataIsArray: Array.isArray(data?.data),
-        hasResults: !!data?.results,
-        resultsIsArray: Array.isArray(data?.results),
-        status: data?.status,
-        dataLength: Array.isArray(data) ? data.length : (data?.data?.length ?? data?.results?.length ?? 0),
-      });
-
       if (Array.isArray(data)) {
         return data as CompanyJobs[];
       }
@@ -100,17 +85,26 @@ export const jobService = {
 
       return [];
     } catch (error: any) {
-      const status = error?.response?.status ?? error?.response_code ?? error?.responseCode;
+      const status =
+        error?.response?.status ?? error?.response_code ?? error?.responseCode;
       const responseData = error?.response?.data ?? error?.data;
-      console.warn("[TalentBoard jobService] GET error", {
-        message: error?.message,
-        status,
-        responseData: typeof responseData === "object" ? JSON.stringify(responseData) : responseData,
-      });
+      if (__DEV__) {
+        console.warn("[TalentBoard jobService] GET error", {
+          message: error?.message,
+          status,
+          responseData:
+            typeof responseData === "object"
+              ? JSON.stringify(responseData)
+              : responseData,
+        });
+      }
       if (error instanceof ApiClientError) throw error;
       throw new ApiClientError({
         status: "error",
-        message: error?.response?.data?.message ?? error?.message ?? "Failed to fetch job listings",
+        message:
+          error?.response?.data?.message ??
+          error?.message ??
+          "Failed to fetch job listings",
         response_code: status ?? 500,
         data: {},
       });
@@ -120,7 +114,10 @@ export const jobService = {
   /**
    * Get jobs for the current event (convenience).
    */
-  async getJobsForEvent(params?: { company_type?: string; search?: string }): Promise<CompanyJobs[]> {
+  async getJobsForEvent(params?: {
+    company_type?: string;
+    search?: string;
+  }): Promise<CompanyJobs[]> {
     return this.getJobs({
       ...params,
       event_ids: String(EVENT_ID),

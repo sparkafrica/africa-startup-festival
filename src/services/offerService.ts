@@ -94,7 +94,10 @@ export const offerService = {
       const headers: Record<string, string> = {};
       if (SPARK_API_KEY) headers["X-SPARK-KEY"] = SPARK_API_KEY;
 
-      const response = await api.get<any>(url, headers ? { headers } : undefined);
+      const response = await api.get<any>(
+        url,
+        headers ? { headers } : undefined,
+      );
 
       const data = response as any;
 
@@ -123,7 +126,10 @@ export const offerService = {
   /**
    * Get offers for the current event (convenience).
    */
-  async getOffersForEvent(params?: { company_type?: string; search?: string }): Promise<PartnerOffer[]> {
+  async getOffersForEvent(params?: {
+    company_type?: string;
+    search?: string;
+  }): Promise<PartnerOffer[]> {
     return this.getOffers({
       ...params,
       event_ids: String(EVENT_ID),
@@ -139,11 +145,15 @@ export const offerService = {
    * Backend: GET /company-offers/ (paginated). Used to sync profile offers and to load form.
    */
   async listMyCompanyOffers(): Promise<CompanyOfferItem[]> {
-    const response = await api.get<{ count?: number; results?: CompanyOfferItem[] }>(
-      `/company-offers/?page_size=100`
-    );
+    const response = await api.get<{
+      count?: number;
+      results?: CompanyOfferItem[];
+    }>(`/company-offers/?page_size=100`);
     const raw = response as any;
-    const results = raw?.results ?? raw?.data?.results ?? (Array.isArray(raw?.data) ? raw.data : null);
+    const results =
+      raw?.results ??
+      raw?.data?.results ??
+      (Array.isArray(raw?.data) ? raw.data : null);
     if (Array.isArray(results)) return results;
     return [];
   },
@@ -151,8 +161,13 @@ export const offerService = {
   /**
    * Create an offer for the user's company. Backend: POST /company-offers/.
    */
-  async createCompanyOffer(body: CompanyOfferCreateUpdateRequest): Promise<CompanyOfferItem> {
-    const response = (await api.post<CompanyOfferItem>("/company-offers/", body)) as any;
+  async createCompanyOffer(
+    body: CompanyOfferCreateUpdateRequest,
+  ): Promise<CompanyOfferItem> {
+    const response = (await api.post<CompanyOfferItem>(
+      "/company-offers/",
+      body,
+    )) as any;
     const data = response?.data ?? response;
     if (data && typeof data.id === "number") return data as CompanyOfferItem;
     throw new ApiClientError({
@@ -168,9 +183,12 @@ export const offerService = {
    */
   async updateCompanyOffer(
     id: number,
-    body: Partial<CompanyOfferCreateUpdateRequest>
+    body: Partial<CompanyOfferCreateUpdateRequest>,
   ): Promise<CompanyOfferItem> {
-    const response = (await api.patch<CompanyOfferItem>(`/company-offers/${id}/`, body)) as any;
+    const response = (await api.patch<CompanyOfferItem>(
+      `/company-offers/${id}/`,
+      body,
+    )) as any;
     const data = response?.data ?? response;
     if (data && typeof data.id === "number") return data as CompanyOfferItem;
     throw new ApiClientError({
@@ -196,7 +214,12 @@ export const offerService = {
   async syncCompanyOffers(
     companyId: number,
     eventId: number,
-    offers: Array<{ id?: string | number; title: string; link: string; color?: string }>
+    offers: Array<{
+      id?: string | number;
+      title: string;
+      link: string;
+      color?: string;
+    }>,
   ): Promise<void> {
     const existing = await this.listMyCompanyOffers();
     const existingIds = new Set(existing.map((o) => o.id));
@@ -211,7 +234,8 @@ export const offerService = {
     const offersToSync = offers.filter((o) => {
       const link = normalizeLink(o.link);
       if (!link) {
-        if (__DEV__) console.warn("Offer sync: skipping offer with empty link:", o.title);
+        if (__DEV__)
+          console.warn("Offer sync: skipping offer with empty link:", o.title);
         return false;
       }
       return true;
@@ -219,8 +243,10 @@ export const offerService = {
 
     const ourBackendIds = new Set(
       offersToSync
-        .filter((o) => typeof o.id === "number" && existingIds.has(o.id as number))
-        .map((o) => o.id as number)
+        .filter(
+          (o) => typeof o.id === "number" && existingIds.has(o.id as number),
+        )
+        .map((o) => o.id as number),
     );
 
     for (const offer of offersToSync) {
@@ -239,7 +265,8 @@ export const offerService = {
           await this.createCompanyOffer(payload);
         }
       } catch (err) {
-        if (__DEV__) console.warn("Offer sync: failed for offer", offer.title, err);
+        if (__DEV__)
+          console.warn("Offer sync: failed for offer", offer.title, err);
         throw err;
       }
     }
