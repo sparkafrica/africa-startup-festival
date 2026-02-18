@@ -12,6 +12,7 @@ export interface IndustryOption {
 
 /** Industry/Sector options for dropdown and filters. */
 export const INDUSTRY_OPTIONS: IndustryOption[] = [
+  { id: "technology", label: "Technology" },
   { id: "legal-legal-tech", label: "Legal & Legal-tech" },
   { id: "payments-digital-banking", label: "Payments & Digital Banking" },
   { id: "blockchain-cryptocurrency", label: "Blockchain & Cryptocurrency" },

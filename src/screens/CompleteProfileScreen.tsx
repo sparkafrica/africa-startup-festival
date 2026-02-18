@@ -12,6 +12,7 @@ import {
   Alert,
   Switch,
   Image,
+  Dimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -35,51 +36,7 @@ import { LoadingSpinner } from "../components";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
 import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
-
-// TODO: BACKEND INTEGRATION - Fetch country options from backend
-// API Endpoint: GET /api/metadata/countries
-// Response: { countries: { id: string, label: string, flag: string, code: string }[] }
-// TODO: BACKEND - Cache country options in state management
-// TODO: BACKEND - Handle loading and error states
-// Country options with flags
-const COUNTRY_OPTIONS = [
-  { id: "nigeria", label: "Nigeria", flag: "🇳🇬" },
-  { id: "ghana", label: "Ghana", flag: "🇬🇭" },
-  { id: "kenya", label: "Kenya", flag: "🇰🇪" },
-  { id: "south-africa", label: "South Africa", flag: "🇿🇦" },
-  { id: "egypt", label: "Egypt", flag: "🇪🇬" },
-  { id: "tanzania", label: "Tanzania", flag: "🇹🇿" },
-  { id: "uganda", label: "Uganda", flag: "🇺🇬" },
-  { id: "ethiopia", label: "Ethiopia", flag: "🇪🇹" },
-  { id: "morocco", label: "Morocco", flag: "🇲🇦" },
-  { id: "algeria", label: "Algeria", flag: "🇩🇿" },
-  { id: "tunisia", label: "Tunisia", flag: "🇹🇳" },
-  { id: "rwanda", label: "Rwanda", flag: "🇷🇼" },
-  { id: "senegal", label: "Senegal", flag: "🇸🇳" },
-  { id: "ivory-coast", label: "Ivory Coast", flag: "🇨🇮" },
-  { id: "cameroon", label: "Cameroon", flag: "🇨🇲" },
-  { id: "zimbabwe", label: "Zimbabwe", flag: "🇿🇼" },
-  { id: "angola", label: "Angola", flag: "🇦🇴" },
-  { id: "mozambique", label: "Mozambique", flag: "🇲🇿" },
-  { id: "zambia", label: "Zambia", flag: "🇿🇲" },
-  { id: "malawi", label: "Malawi", flag: "🇲🇼" },
-  { id: "united-states", label: "United States", flag: "🇺🇸" },
-  { id: "united-kingdom", label: "United Kingdom", flag: "🇬🇧" },
-  { id: "canada", label: "Canada", flag: "🇨🇦" },
-  { id: "france", label: "France", flag: "🇫🇷" },
-  { id: "germany", label: "Germany", flag: "🇩🇪" },
-  { id: "italy", label: "Italy", flag: "🇮🇹" },
-  { id: "spain", label: "Spain", flag: "🇪🇸" },
-  { id: "netherlands", label: "Netherlands", flag: "🇳🇱" },
-  { id: "australia", label: "Australia", flag: "🇦🇺" },
-  { id: "china", label: "China", flag: "🇨🇳" },
-  { id: "india", label: "India", flag: "🇮🇳" },
-  { id: "japan", label: "Japan", flag: "🇯🇵" },
-  { id: "brazil", label: "Brazil", flag: "🇧🇷" },
-  { id: "mexico", label: "Mexico", flag: "🇲🇽" },
-  { id: "united-arab-emirates", label: "United Arab Emirates", flag: "🇦🇪" },
-  { id: "saudi-arabia", label: "Saudi Arabia", flag: "🇸🇦" },
-];
+import { COUNTRY_OPTIONS } from "../constants/countries";
 
 // Offer colors
 const OFFER_COLORS = [
@@ -589,6 +546,22 @@ function CountryDropdownModal({
   selectedCountry: string;
   onSelect: (countryId: string) => void;
 }) {
+  const [countrySearch, setCountrySearch] = useState("");
+  const searchLower = countrySearch.trim().toLowerCase();
+  const filteredCountries = searchLower
+    ? COUNTRY_OPTIONS.filter(
+        (o) =>
+          o.label.toLowerCase().includes(searchLower) ||
+          o.id.includes(searchLower)
+      )
+    : COUNTRY_OPTIONS;
+
+  useEffect(() => {
+    if (visible) setCountrySearch("");
+  }, [visible]);
+
+  const sheetHeight = Dimensions.get("window").height * 0.7;
+
   return (
     <Modal
       visible={visible}
@@ -598,38 +571,62 @@ function CountryDropdownModal({
     >
       <Pressable className="flex-1 bg-black/50" onPress={onClose}>
         <Pressable
-          className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[70%]"
           onPress={(e) => e.stopPropagation()}
           style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: sheetHeight,
+            backgroundColor: "#fff",
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
             shadowColor: "#000",
             shadowOffset: { width: 0, height: -2 },
             shadowOpacity: 0.1,
             shadowRadius: 8,
             elevation: 10,
+            overflow: "hidden",
           }}
         >
-          <View className="items-center pt-2 pb-2">
-            <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
-          </View>
-
-          <View className="px-6 pb-6">
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-[24px] font-bold text-black">
-                Select Country
-              </Text>
-              <Pressable
-                onPress={onClose}
-                className="w-8 h-8 items-center justify-center"
-              >
-                <CloseIcon size={20} color="#000000" />
-              </Pressable>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
+          >
+            <View className="items-center pt-2 pb-2">
+              <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
             </View>
 
-            <ScrollView
-              showsVerticalScrollIndicator={true}
-              className="max-h-[400px]"
-            >
-              {COUNTRY_OPTIONS.map((option) => {
+            <View className="px-6 pb-6 flex-1" style={{ minHeight: 200 }}>
+              <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-[24px] font-bold text-black">
+                  Select Country
+                </Text>
+                <Pressable
+                  onPress={onClose}
+                  className="w-8 h-8 items-center justify-center"
+                >
+                  <CloseIcon size={20} color="#000000" />
+                </Pressable>
+              </View>
+
+              <TextInput
+                placeholder="Search country..."
+                value={countrySearch}
+                onChangeText={setCountrySearch}
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900 mb-4"
+                placeholderTextColor="#737373"
+              />
+
+              <ScrollView
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                style={{ flex: 1, minHeight: 120 }}
+                contentContainerStyle={{ paddingBottom: 24 }}
+              >
+              {filteredCountries.map((option) => {
                 const isSelected = selectedCountry === option.id;
                 return (
                   <Pressable
@@ -655,8 +652,9 @@ function CountryDropdownModal({
                   </Pressable>
                 );
               })}
-            </ScrollView>
-          </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
         </Pressable>
       </Pressable>
     </Modal>
