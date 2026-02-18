@@ -802,14 +802,15 @@ function QRCodeModal({
               </View>
             </View>
 
-            <View className="bg-orange-50 rounded-xl p-4 border border-orange-200 mb-6">
+            <View className="bg-orange-50 rounded-xl p-4 border border-orange-200 mb-8">
               <Text className="text-sm text-black leading-5">
                 Show this QR code at check-in or when connecting with other
                 attendees.
               </Text>
             </View>
 
-            <View className="flex-row gap-3 mb-3">
+            {/* TODO: Add download and share buttons */}
+            {/* <View className="flex-row gap-3 mb-3">
               <Pressable
                 onPress={() => console.log("Download QR Code")}
                 className="flex-1 flex-row items-center justify-center bg-neutral-100 rounded-xl py-3.5 px-4 border border-neutral-300"
@@ -828,7 +829,7 @@ function QRCodeModal({
                   Share
                 </Text>
               </Pressable>
-            </View>
+            </View> */}
 
             {/* Transfer button - only shown if transfer is allowed */}
             {canTransfer && (
@@ -845,7 +846,7 @@ function QRCodeModal({
                     );
                   }, 300);
                 }}
-                className="w-full items-center justify-center bg-white rounded-xl py-3.5 px-4 border border-red-500 mb-4"
+                className="w-full items-center justify-center bg-white rounded-xl py-3.5 px-4 border border-red-500 mb-8"
               >
                 <Text className="text-sm font-medium text-red-500">
                   Transfer This Ticket
