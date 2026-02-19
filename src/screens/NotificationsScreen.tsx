@@ -257,6 +257,18 @@ export default function NotificationsScreen() {
     }, 100);
   }, [markAsRead, navigation]);
 
+  /**
+   * Handle "View allocation" - mark as read, close modal, navigate to My tickets (ScanQR)
+   */
+  const handleViewAllocation = useCallback((notification: UINotification) => {
+    markAsRead(notification);
+    setSelectedNotification(null);
+    navigation.goBack();
+    setTimeout(() => {
+      navigation.navigate("ScanQR", { initialTab: "My Ticket" });
+    }, 100);
+  }, [markAsRead, navigation]);
+
   // Refetch when screen gains focus (including first open, and when returning from push)
   useFocusEffect(
     useCallback(() => {
@@ -411,6 +423,8 @@ export default function NotificationsScreen() {
             selectedNotification?.type === "connection" ||
             selectedNotification?.type === "connection_request" ||
             selectedNotification?.type === "connection_accepted" ||
+            selectedNotification?.type === "ticket_allocation_accepted" ||
+            selectedNotification?.type === "ticket_allocation_declined" ||
             selectedNotification?.type === "generic")
         }
         onClose={() => {
@@ -421,6 +435,8 @@ export default function NotificationsScreen() {
             selectedNotification?.type === "connection_request" ||
             selectedNotification?.type === "connection_accepted" ||
             selectedNotification?.type === "meeting_request_sent" ||
+            selectedNotification?.type === "ticket_allocation_accepted" ||
+            selectedNotification?.type === "ticket_allocation_declined" ||
             selectedNotification?.type === "generic"
           ) {
             markAsRead(selectedNotification);
@@ -445,6 +461,11 @@ export default function NotificationsScreen() {
           cancelledBy: selectedNotification.cancelledBy,
           onAccept: undefined,
           onDecline: undefined,
+          onViewAllocation:
+            selectedNotification.type === "ticket_allocation_accepted" ||
+            selectedNotification.type === "ticket_allocation_declined"
+              ? () => handleViewAllocation(selectedNotification)
+              : undefined,
           onViewMeeting:
             selectedNotification.type === "meeting_request"
               ? () => handleViewMeeting(selectedNotification, "requests", "inbound")

@@ -8,7 +8,7 @@ import React from "react";
 import { View } from "react-native";
 import { getLinkedInDisplayInfo } from "./linkedInUtils";
 import { UserNotification } from "../services/notificationService";
-import { CalendarIcon, ProfileIcon } from "../components/MenuIcons";
+import { CalendarIcon, ProfileIcon, TicketsIcon } from "../components/MenuIcons";
 import { BellIcon } from "../components/HeaderIcons";
 
 // ============================================================================
@@ -25,6 +25,8 @@ export type NotificationType =
   | "connection"
   | "connection_request"   // Inbound: A wants to connect with B
   | "connection_accepted"  // B accepted A's connection request
+  | "ticket_allocation_accepted"
+  | "ticket_allocation_declined"
   | "reminder"
   | "meeting_request"
   | "meeting_request_sent"
@@ -98,6 +100,24 @@ export function inferNotificationType(
     title.includes("cancel")
   ) {
     return "meeting_cancelled";
+  }
+  // Ticket allocation accepted/declined (before meeting_approved)
+  if (
+    combined.includes("ticket allocation") ||
+    (combined.includes("allocation") && combined.includes("ticket"))
+  ) {
+    if (
+      combined.includes("declined") ||
+      combined.includes("rejected")
+    ) {
+      return "ticket_allocation_declined";
+    }
+    if (
+      combined.includes("accepted") ||
+      combined.includes("approved")
+    ) {
+      return "ticket_allocation_accepted";
+    }
   }
   // Connection accepted (before meeting_approved - "accepted your connection" != meeting)
   if (
@@ -281,6 +301,26 @@ export function getNotificationIcon(type: NotificationType): React.ReactNode {
           style={{ backgroundColor: "#EDF2FB" }}
         >
           <ProfileIcon size={24} color="#2762C7" />
+        </View>
+      );
+
+    case "ticket_allocation_accepted":
+      return (
+        <View
+          className="w-12 h-12 rounded-lg items-center justify-center"
+          style={{ backgroundColor: "#F0FDF4" }}
+        >
+          <TicketsIcon size={24} color="#1BB273" />
+        </View>
+      );
+
+    case "ticket_allocation_declined":
+      return (
+        <View
+          className="w-12 h-12 rounded-lg items-center justify-center"
+          style={{ backgroundColor: "#FEF2F2" }}
+        >
+          <TicketsIcon size={24} color="#EF4444" />
         </View>
       );
 

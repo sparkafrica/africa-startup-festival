@@ -35,6 +35,8 @@ interface NotificationDetailModalProps {
       | "connection" // Legacy fallback
       | "connection_request" // Inbound: X wants to connect → View connections
       | "connection_accepted" // X accepted your connection → View connections
+      | "ticket_allocation_accepted" // Info + View allocation → My tickets
+      | "ticket_allocation_declined" // Info + View allocation → My tickets
       | "reminder" // Info + View meeting
       | "generic"; // Simple info + OK
     title: string;
@@ -60,6 +62,7 @@ interface NotificationDetailModalProps {
     onAccept?: () => void;
     onDecline?: () => void;
     onViewMeeting?: () => void;
+    onViewAllocation?: () => void;
     onViewProfile?: () => void;
   } | null;
 }
@@ -235,6 +238,16 @@ export default function NotificationDetailModal({
                 <View className="px-6 pb-4">
                   <Text className="text-base text-neutral-600 leading-6">
                     Your meeting request has been accepted.
+                  </Text>
+                </View>
+              )}
+              {(notification.type === "ticket_allocation_accepted" ||
+                notification.type === "ticket_allocation_declined") && (
+                <View className="px-6 pb-4">
+                  <Text className="text-base text-neutral-600 leading-6">
+                    {notification.type === "ticket_allocation_accepted"
+                      ? "Your ticket allocation has been accepted."
+                      : "Your ticket allocation has been declined."}
                   </Text>
                 </View>
               )}
@@ -481,7 +494,28 @@ export default function NotificationDetailModal({
               )}
 
               {/* Action Buttons */}
-              {notification.onViewMeeting ? (
+              {notification.onViewAllocation ? (
+                <View className="px-6">
+                  <Pressable
+                    onPress={() => {
+                      notification.onViewAllocation?.();
+                      onClose();
+                    }}
+                    className="bg-black rounded-2xl py-4 flex-row items-center justify-center"
+                    style={{
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
+                  >
+                    <Text className="text-white font-semibold text-base">
+                      View allocation
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : notification.onViewMeeting ? (
                 <View className="px-6">
                   <Pressable
                     onPress={() => {
