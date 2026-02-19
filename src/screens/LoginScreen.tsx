@@ -75,11 +75,20 @@ export default function LoginScreen() {
     Alert.alert("Get Ticket", "This will open the ticket purchase page");
   };
 
-  const handleContactUs = () => {
-    // TODO: BACKEND INTEGRATION - Navigate to contact page or open support
-    // TODO: BACKEND - Consider opening ContactScreen or external support URL
-    // TODO: BACKEND - Track analytics for support requests
-    Alert.alert("Contact Us", "This will open the contact/support page");
+  const CONTACT_EMAIL = "contact@africatechnologyexpo.com";
+
+  const handleContactUs = async () => {
+    const url = `mailto:${CONTACT_EMAIL}`;
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Contact support", `Email: ${CONTACT_EMAIL}`);
+      }
+    } catch {
+      Alert.alert("Contact support", `Email: ${CONTACT_EMAIL}`);
+    }
   };
 
   return (
