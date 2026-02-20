@@ -76,7 +76,8 @@ import { LinkedInIcon } from "../components/SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import Svg, { Path, Circle } from "react-native-svg";
 
-const ATTENDEE_PAGE_SIZE = 20;
+/** Page size per API request when loading all attendees (one "load entire event" run). */
+const ATTENDEE_PAGE_SIZE = 100;
 const LOAD_MORE_THRESHOLD = 3;
 /** Minimum match_score to show attendee in Recommended tab (from match_info) */
 const RECOMMENDED_MIN_SCORE = 5;
@@ -973,7 +974,8 @@ export default function AttendeesScreen() {
   };
 
   /**
-   * Fetch attendees from backend and connections for status
+   * Fetch all attendees for the event (load entire event – all pages in one run).
+   * Used for All attendees list view so the full list is available without "load more".
    */
   const fetchAttendees = useCallback(async () => {
     setIsLoading(true);
@@ -981,22 +983,15 @@ export default function AttendeesScreen() {
     try {
       const currentUserId = user?.user_id;
 
-      const [attendeesRes, connectionsRes] = await Promise.all([
-        attendeeService.getEventAttendees(EVENT_ID, "all", {
-          page: 1,
-          page_size: ATTENDEE_PAGE_SIZE,
-          ordering: "-id",
-        }),
-        currentUserId
-          ? connectionService.getConnections(1, 100).catch(() => ({
-              connections: [] as any[],
-              pagination: { count: 0, next: null, previous: null },
-            }))
-          : Promise.resolve({
-              connections: [] as any[],
-              pagination: { count: 0, next: null, previous: null },
-            }),
-      ]);
+      const connectionsRes = await (currentUserId
+        ? connectionService.getConnections(1, 100).catch(() => ({
+            connections: [] as any[],
+            pagination: { count: 0, next: null, previous: null },
+          }))
+        : Promise.resolve({
+            connections: [] as any[],
+            pagination: { count: 0, next: null, previous: null },
+          }));
 
       const connectionStatusMap = new Map<string, "pending" | "accepted">();
       if (currentUserId && connectionsRes.connections.length > 0) {
@@ -1012,15 +1007,29 @@ export default function AttendeesScreen() {
       }
       connectionStatusMapRef.current = connectionStatusMap;
 
-      const mappedAttendees = attendeesRes.attendees.map((a) => {
-        const ui = mapBackendAttendeeToUI(a);
-        const status = connectionStatusMap.get(String(ui.id)) ?? null;
-        return { ...ui, connectionStatus: status };
-      });
+      const allMapped: Attendee[] = [];
+      let page = 1;
+      let hasNext = true;
 
-      setAllAttendeesBackend(mappedAttendees);
-      setAttendeePage(1);
-      setHasMoreAttendees(!!attendeesRes.pagination?.next);
+      while (hasNext) {
+        const res = await attendeeService.getEventAttendees(EVENT_ID, "all", {
+          page,
+          page_size: ATTENDEE_PAGE_SIZE,
+          ordering: "-id",
+        });
+        const mapped = res.attendees.map((a) => {
+          const ui = mapBackendAttendeeToUI(a);
+          const status = connectionStatusMap.get(String(ui.id)) ?? null;
+          return { ...ui, connectionStatus: status };
+        });
+        allMapped.push(...mapped);
+        hasNext = !!res.pagination?.next;
+        page += 1;
+      }
+
+      setAllAttendeesBackend(allMapped);
+      setAttendeePage(page - 1);
+      setHasMoreAttendees(false);
     } catch (err: any) {
       const errorMessage =
         err instanceof ApiClientError
@@ -1892,15 +1901,6 @@ export default function AttendeesScreen() {
                     tintColor="#1BB273"
                     colors={["#1BB273"]}
                   />
-                }
-                onEndReached={loadMoreAttendees}
-                onEndReachedThreshold={0.4}
-                ListFooterComponent={
-                  loadingMore ? (
-                    <View className="py-4 items-center">
-                      <LoadingSpinner size="small" />
-                    </View>
-                  ) : null
                 }
                 ListEmptyComponent={
                   <View className="items-center justify-center py-12">
