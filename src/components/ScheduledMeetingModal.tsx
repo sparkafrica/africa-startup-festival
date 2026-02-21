@@ -19,6 +19,7 @@ import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
 import {
   LocationPinIcon,
+  TableIcon,
   PersonProfileIcon,
   ChevronRightIcon,
   SpeechBubbleIcon,
@@ -81,6 +82,8 @@ export interface ScheduledMeetingModalProps {
   startTime: string;
   endTime: string;
   location?: string;
+  /** If set, shown as a separate row under location so table number is hard to miss */
+  tableNumber?: string;
   meetingLink?: string;
   meetingType: "physical" | "virtual";
   participantName: string;
@@ -120,6 +123,7 @@ export default function ScheduledMeetingModal({
   startTime,
   endTime,
   location,
+  tableNumber: tableNumberProp,
   meetingLink,
   meetingType,
   participantName,
@@ -463,6 +467,13 @@ export default function ScheduledMeetingModal({
                 <Text style={styles.infoText}>{location}</Text>
               </View>
             )}
+            {/* Table number as its own row so it's not missed */}
+            {meetingType === "physical" && tableNumberProp && (
+              <View style={styles.infoRow}>
+                <TableIcon size={18} color="#404040" />
+                <Text style={styles.infoText}>{tableNumberProp}</Text>
+              </View>
+            )}
 
             {/* Participant Card */}
             <TouchableOpacity
@@ -578,10 +589,9 @@ export default function ScheduledMeetingModal({
             title,
             meetingType,
             tableNumber:
-              meetingType === "physical" && location
-                ? location.startsWith("Table ")
-                  ? location
-                  : `Table ${location}`
+              meetingType === "physical" && (tableNumberProp || location)
+                ? tableNumberProp ||
+                  (location?.startsWith("Table ") ? location : location ? `Table ${location}` : undefined)
                 : undefined,
             meetingLink: meetingType === "virtual" ? meetingLink : undefined,
             time: `${startTime} - ${endTime}`,

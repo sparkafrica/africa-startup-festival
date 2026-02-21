@@ -138,6 +138,10 @@ export default function ScannedAttendeeScreen() {
     markRequestMeetingComplete();
     showToast("Meeting request sent successfully!", "success");
     setRequestMeetingModalVisible(false);
+    navigation.replace("Meetings", {
+      primaryTab: "requests",
+      secondaryTab: "outbound",
+    });
   };
 
   const handleConnect = async () => {
@@ -150,6 +154,7 @@ export default function ScannedAttendeeScreen() {
     try {
       await connectionService.createConnection(user.user_id, attendee.user.id);
       showToast("Connection request sent successfully!", "success");
+      navigation.replace("Connections");
     } catch (error: any) {
       const code =
         error?.responseCode ?? error?.response_code ?? error?.statusCode;
@@ -159,6 +164,7 @@ export default function ScannedAttendeeScreen() {
         msg.includes("already exists");
       if ((code === 400 || code === 409) && isAlreadyExists) {
         showToast("Connection request already exists.", "success");
+        navigation.replace("Connections");
       } else {
         const errMsg =
           error instanceof ApiClientError

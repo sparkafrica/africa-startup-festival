@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
-import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
+import { LocationPinIcon, TableIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
 import { LinkedInIcon } from "./SocialIcons";
 import MeetingAcceptedModal from "./MeetingAcceptedModal";
@@ -77,6 +77,8 @@ export interface InboundMeetingModalProps {
   startTime: string;
   endTime: string;
   location?: string;
+  /** If set, shown as a separate row under location with table icon */
+  tableNumber?: string;
   meetingType?: "physical" | "virtual";
   meetingLink?: string;
   participantName: string;
@@ -106,6 +108,7 @@ export default function InboundMeetingModal({
   startTime,
   endTime,
   location,
+  tableNumber: tableNumberProp,
   meetingType = "physical",
   meetingLink,
   participantName,
@@ -400,10 +403,26 @@ export default function InboundMeetingModal({
                 </Text>
               </View>
             ) : (
-              <View style={styles.infoRow}>
-                <LocationPinIcon size={18} color="#404040" />
-                <Text style={styles.infoText}>{location || "TBD"}</Text>
-              </View>
+              <>
+                {location && (
+                  <View style={styles.infoRow}>
+                    <LocationPinIcon size={18} color="#404040" />
+                    <Text style={styles.infoText}>{location}</Text>
+                  </View>
+                )}
+                {tableNumberProp && (
+                  <View style={styles.infoRow}>
+                    <TableIcon size={18} color="#404040" />
+                    <Text style={styles.infoText}>{tableNumberProp}</Text>
+                  </View>
+                )}
+                {!location && !tableNumberProp && (
+                  <View style={styles.infoRow}>
+                    <LocationPinIcon size={18} color="#404040" />
+                    <Text style={styles.infoText}>TBD</Text>
+                  </View>
+                )}
+              </>
             )}
 
             {/* Participant Card */}

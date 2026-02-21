@@ -80,7 +80,8 @@ interface UIMeeting {
   date: string; // YYYY-MM-DD
   startTime: string; // "10:00 AM"
   endTime: string; // "10:20 AM"
-  location?: string; // "Table T-15" or meeting link for virtual
+  location?: string; // Venue/address (physical); table shown separately when present)
+  tableNumber?: string; // e.g. "Table 2" – shown as own row in detail modal
   meetingType?: "physical" | "virtual";
   meetingLink?: string; // For virtual meetings
   status: "pending" | "accepted" | "rejected" | "cancelled";
@@ -541,6 +542,49 @@ export default function MeetingsScreen({ route }: Props) {
   };
 
   /**
+   * Parse backend location string and optional metadata.tableNumber into display location and table row.
+   * Backend may send: (1) location only e.g. "Venue, City, Table 2", (2) metadata.tableNumber only, or (3) both.
+   */
+  const parseLocationAndTable = (
+    backendLocation?: string,
+    metadataTableNumber?: string
+  ): { location?: string; tableNumber?: string } => {
+    const normalizeTable = (t: string) =>
+      /^table\s+/i.test(t.trim()) ? t.trim() : `Table ${t.trim()}`;
+    const tableFromMeta =
+      metadataTableNumber != null && String(metadataTableNumber).trim()
+        ? normalizeTable(String(metadataTableNumber))
+        : undefined;
+
+    if (!backendLocation || !backendLocation.trim()) {
+      return {
+        location: undefined,
+        tableNumber: tableFromMeta,
+      };
+    }
+
+    const trimmed = backendLocation.trim();
+    const trailingTableMatch = trimmed.match(/,?\s*Table\s+(.+)\s*$/i);
+    if (trailingTableMatch) {
+      const tableLabel = normalizeTable(trailingTableMatch[1].trim());
+      const locationOnly = trimmed
+        .replace(/,?\s*Table\s+.+$/i, "")
+        .trim()
+        .replace(/^,\s*|,\s*$/g, "")
+        .trim();
+      return {
+        location: locationOnly || undefined,
+        tableNumber: tableFromMeta || tableLabel,
+      };
+    }
+
+    return {
+      location: trimmed,
+      tableNumber: tableFromMeta,
+    };
+  };
+
+  /**
    * Map backend Meeting to UI-friendly format
    */
   const mapBackendMeetingToUI = (
@@ -599,9 +643,12 @@ export default function MeetingsScreen({ route }: Props) {
       (!!metadataMeetingLink && metadataMeetingType !== "physical") ||
       locationLooksLikeLink;
     const meetingType: "physical" | "virtual" = isVirtual ? "virtual" : "physical";
-    const location = isVirtual
+    // Physical: split venue (location) and table (tableNumber) when backend sends combined or metadata
+    const rawLocation = isVirtual
       ? undefined
-      : backendMeeting.location || backendMeeting.metadata?.tableNumber;
+      : backendMeeting.location || undefined;
+    const metaTable = backendMeeting.metadata?.tableNumber;
+    const { location, tableNumber } = parseLocationAndTable(rawLocation, metaTable);
     const meetingLink = isVirtual
       ? metadataMeetingLink ||
         (locationLooksLikeLink ? backendMeeting.location : undefined) ||
@@ -649,6 +696,7 @@ export default function MeetingsScreen({ route }: Props) {
       startTime,
       endTime,
       location,
+      tableNumber,
       meetingType: meetingType as "physical" | "virtual",
       meetingLink,
       status: backendMeeting.status,
@@ -1019,11 +1067,15 @@ export default function MeetingsScreen({ route }: Props) {
 
           // Build complete metadata object - backend requires all metadata fields to be sent together
           // This matches the structure used when creating meetings (see ConnectionsScreen)
-          // Get table number from location if it exists
-          const tableNumber = updateData.tableNumber || 
-            (meeting.location?.startsWith("Table ") 
-              ? meeting.location.replace("Table ", "") 
-              : meeting.location);
+          // Prefer explicit tableNumber from edit form, then meeting.tableNumber, then parse from location
+          const tableNumber =
+            updateData.tableNumber ||
+            meeting.tableNumber ||
+            (meeting.location?.startsWith("Table ")
+              ? meeting.location
+              : meeting.location
+                ? `Table ${meeting.location}`
+                : undefined);
           
           updateRequest.metadata = {
             title: updateData.title,
@@ -1040,7 +1092,11 @@ export default function MeetingsScreen({ route }: Props) {
               return parsedDate;
             })(),
             selectedTime: updateData.time, // Keep original time format "8:00 AM - 8:20 AM"
-            ...(tableNumber && { tableNumber: tableNumber }),
+            ...(tableNumber && {
+              tableNumber: tableNumber.startsWith("Table ")
+                ? tableNumber.replace(/^Table\s+/i, "").trim()
+                : tableNumber,
+            }),
           };
 
           // For physical meetings, if date changed, we need to find a slot on that date
@@ -1224,6 +1280,8 @@ export default function MeetingsScreen({ route }: Props) {
                 endTime={meeting.endTime}
                 meetingType={meeting.meetingType || "physical"}
                 timeUntil={meeting.timeUntil || "Soon"}
+                location={meeting.location}
+                tableNumber={meeting.tableNumber}
                 onPress={() => {
                   setIsParticipantModalVisible(false); // Reset participant modal
                   setSelectedMeeting(meeting);
@@ -1242,6 +1300,7 @@ export default function MeetingsScreen({ route }: Props) {
                 startTime={meeting.startTime}
                 endTime={meeting.endTime}
                 location={meeting.location}
+                tableNumber={meeting.tableNumber}
                 meetingType={meeting.meetingType || "physical"}
                 meetingLink={meeting.meetingLink}
                 status={meeting.status === "pending" ? "pending" : meeting.status === "accepted" ? "approved" : "cancelled"}
@@ -1296,6 +1355,7 @@ export default function MeetingsScreen({ route }: Props) {
             startTime={selectedMeeting.startTime}
             endTime={selectedMeeting.endTime}
             location={selectedMeeting.location}
+            tableNumber={selectedMeeting.tableNumber}
             meetingType={selectedMeeting.meetingType || "physical"}
             meetingLink={selectedMeeting.meetingLink}
             participantName={selectedMeeting.participantName}
@@ -1335,7 +1395,8 @@ export default function MeetingsScreen({ route }: Props) {
             date={selectedMeeting.date}
             startTime={selectedMeeting.startTime}
             endTime={selectedMeeting.endTime}
-            location={selectedMeeting.location || "TBD"}
+            location={selectedMeeting.location ?? "TBD"}
+            tableNumber={selectedMeeting.tableNumber}
             meetingType={selectedMeeting.meetingType}
             meetingLink={selectedMeeting.meetingLink}
             participantName={selectedMeeting.participantName}
@@ -1382,6 +1443,7 @@ export default function MeetingsScreen({ route }: Props) {
           startTime={selectedMeeting.startTime}
           endTime={selectedMeeting.endTime}
           location={selectedMeeting.location}
+          tableNumber={selectedMeeting.tableNumber}
           meetingLink={selectedMeeting.meetingLink}
           meetingType={selectedMeeting.meetingType || "physical"}
           participantName={selectedMeeting.participantName}

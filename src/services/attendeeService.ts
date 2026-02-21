@@ -43,12 +43,13 @@ export interface AttendeeUser {
 }
 
 /**
- * Match info from backend (may be JSON string or object)
- * e.g. { "match_score": 5.0, "reason": "nice dynamics" }
- * Attendees with match_score >= 5 are shown in the Recommended tab.
+ * Match info from backend (may be JSON string or object).
+ * Backend AI match returns score 1–10 and optional reason.
+ * e.g. { "match_score": 8, "reason": "Strong overlap in Fintech and SaaS" }
+ * App shows attendees with match_score >= 8 in the Recommended tab.
  */
 export interface MatchInfo {
-  match_score?: number;
+  match_score?: number; // 1–10 from backend
   reason?: string;
 }
 
@@ -60,7 +61,7 @@ export interface MatchInfo {
 export interface Attendee {
   ticket: AttendeeTicket;
   user: AttendeeUser;
-  /** JSON string or object: { match_score, reason }. Score >= 5 → Recommended tab. */
+  /** JSON string or object: { match_score (1–10), reason }. Score >= 8 → Recommended tab. */
   match_info: string | MatchInfo | null;
 }
 

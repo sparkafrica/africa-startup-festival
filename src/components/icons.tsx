@@ -415,6 +415,30 @@ export function LocationPinIcon({
   );
 }
 
+/** Icon for table number row in meeting detail (physical meetings). */
+export function TableIcon({
+  size = 20,
+  color = "#404040",
+  className = "",
+}: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect
+        x="2"
+        y="8"
+        width="20"
+        height="10"
+        rx="1"
+        stroke={color}
+        strokeWidth="2"
+      />
+      <Path d="M6 8V6" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <Path d="M18 8V6" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <Path d="M12 8V6" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function SpeechBubbleIcon({
   size = 20,
   color = "#404040",

@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
 import StatusTag from "./StatusTag";
-import { PersonProfileIcon, ClockIcon, LocationPinIcon } from "./icons";
+import { PersonProfileIcon, ClockIcon, LocationPinIcon, TableIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
 
 export interface MeetingCardProps {
@@ -12,6 +12,8 @@ export interface MeetingCardProps {
   startTime: string;
   endTime: string;
   location?: string;
+  /** If set, shown as own row with table icon (physical meetings) */
+  tableNumber?: string;
   meetingType?: "physical" | "virtual";
   meetingLink?: string;
   status: "pending" | "approved" | "cancelled";
@@ -28,6 +30,7 @@ export default function MeetingCard({
   startTime,
   endTime,
   location,
+  tableNumber,
   meetingType = "physical",
   meetingLink,
   status,
@@ -84,10 +87,26 @@ export default function MeetingCard({
           </Text>
         </View>
       ) : (
-        <View className="flex-row items-center mb-3">
-          <LocationPinIcon size={16} color="#404040" />
-          <Text className="text-sm text-black ml-2">{displayLocation}</Text>
-        </View>
+        <>
+          {location && (
+            <View className={`flex-row items-center ${tableNumber ? "mb-2" : "mb-3"}`}>
+              <LocationPinIcon size={16} color="#404040" />
+              <Text className="text-sm text-black ml-2">{location}</Text>
+            </View>
+          )}
+          {tableNumber && (
+            <View className="flex-row items-center mb-3">
+              <TableIcon size={16} color="#404040" />
+              <Text className="text-sm text-black ml-2">{tableNumber}</Text>
+            </View>
+          )}
+          {!location && !tableNumber && (
+            <View className="flex-row items-center mb-3">
+              <LocationPinIcon size={16} color="#404040" />
+              <Text className="text-sm text-black ml-2">{displayLocation}</Text>
+            </View>
+          )}
+        </>
       )}
 
       {/* Approval Status Message */}

@@ -20,7 +20,11 @@ import {
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import type { RootStackScreenProps } from "../navigation/types";
@@ -590,10 +594,10 @@ function TicketCard({
                     transferred.
                   </Text>
                 </View>
-              ) : eventId === 10 && totalTickets === 1 ? (
-                // For ATE (event_id = 10), single ticket users CAN transfer (no warning)
-                null
-              ) : totalTickets === 1 ? (
+              ) : eventId === 10 &&
+                totalTickets ===
+                  1 ? // For ATE (event_id = 10), single ticket users CAN transfer (no warning)
+              null : totalTickets === 1 ? (
                 // For other events, single ticket users CANNOT transfer
                 <View>
                   <Text className="text-xs font-medium text-orange-800 mb-1">
@@ -630,7 +634,9 @@ function TicketCard({
         >
           <EditIcon size={16} color="#404040" />
           <Text className="text-sm font-medium text-black ml-2">
-            {allocationStatus === "accepted" ? "View Assignment" : "Edit Assignment"}
+            {allocationStatus === "accepted"
+              ? "View Assignment"
+              : "Edit Assignment"}
           </Text>
         </Pressable>
       )}
@@ -685,7 +691,7 @@ function QRCodeModal({
     ticketNumber: string,
     assignedTo: string,
     backgroundColor?: string,
-    isUnassigned?: boolean
+    isUnassigned?: boolean,
   ) => void;
 }) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -728,7 +734,7 @@ function QRCodeModal({
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -842,7 +848,7 @@ function QRCodeModal({
                       ticketNumber,
                       assignedTo,
                       "#000000",
-                      false
+                      false,
                     );
                   }, 300);
                 }}
@@ -867,10 +873,10 @@ function QRCodeModal({
                       transferred.
                     </Text>
                   </View>
-                ) : eventId === 10 && totalTickets === 1 ? (
-                  // For ATE (event_id = 10), single ticket users CAN transfer (no warning)
-                  null
-                ) : totalTickets === 1 ? (
+                ) : eventId === 10 &&
+                  totalTickets ===
+                    1 ? // For ATE (event_id = 10), single ticket users CAN transfer (no warning)
+                null : totalTickets === 1 ? (
                   // For other events, single ticket users CANNOT transfer
                   <View>
                     <Text className="text-xs font-medium text-orange-800 mb-1">
@@ -971,7 +977,7 @@ function AssigningTicketsModal({
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -1022,7 +1028,9 @@ function AssigningTicketsModal({
             contentContainerStyle={{ paddingBottom: 24 }}
           >
             {availableTickets.map((ticket, index) => {
-              const gradientColors = getTicketGradientColors(ticket.ticketType ?? "expo");
+              const gradientColors = getTicketGradientColors(
+                ticket.ticketType ?? "expo",
+              );
               const cardClassName = "rounded-2xl p-5 relative overflow-hidden";
               return (
                 <Pressable
@@ -1138,7 +1146,7 @@ function RecipientDetailsModal({
   const [countryCode, setCountryCode] = useState("+234");
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState(
-    COUNTRIES.find((c) => c.code === "+234") || COUNTRIES[2]
+    COUNTRIES.find((c) => c.code === "+234") || COUNTRIES[2],
   );
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const translateY = useRef(new Animated.Value(0)).current;
@@ -1197,7 +1205,7 @@ function RecipientDetailsModal({
         }
         offset.current = 0;
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -1229,14 +1237,14 @@ function RecipientDetailsModal({
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
       (e) => {
         setKeyboardHeight(e.endCoordinates.height);
-      }
+      },
     );
 
     const keyboardWillHide = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
       () => {
         setKeyboardHeight(0);
-      }
+      },
     );
 
     return () => {
@@ -1534,7 +1542,9 @@ function RecipientDetailsModal({
               {isSubmitting ? (
                 <LoadingSpinner size="small" color="#FFFFFF" />
               ) : (
-                <Text className="text-base font-medium text-white">Transfer</Text>
+                <Text className="text-base font-medium text-white">
+                  Transfer
+                </Text>
               )}
             </Pressable>
 
@@ -1643,7 +1653,7 @@ function TicketTransferConfirmationModal({
         }
         offset.current = 0;
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -1822,7 +1832,7 @@ function UpdateAssignmentDetailsModal({
   const [countryCode, setCountryCode] = useState(initialCountryCode);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState(
-    COUNTRIES.find((c) => c.code === initialCountryCode) || COUNTRIES[2]
+    COUNTRIES.find((c) => c.code === initialCountryCode) || COUNTRIES[2],
   );
 
   useEffect(() => {
@@ -1891,7 +1901,7 @@ function UpdateAssignmentDetailsModal({
         }
         offset.current = 0;
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -2184,7 +2194,7 @@ function RevokeTicketAccessModal({
         }
         offset.current = 0;
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -2316,10 +2326,15 @@ function RevokeTicketAccessModal({
 
               <Pressable
                 onPress={handleConfirm}
-                disabled={!isConfirmed || reason.trim().length === 0 || isLoading}
+                disabled={
+                  !isConfirmed || reason.trim().length === 0 || isLoading
+                }
                 className="w-full items-center justify-center rounded-xl py-4 px-4 mb-3 bg-red-50 border border-red-500"
                 style={{
-                  opacity: isConfirmed && reason.trim().length > 0 && !isLoading ? 1 : 0.5,
+                  opacity:
+                    isConfirmed && reason.trim().length > 0 && !isLoading
+                      ? 1
+                      : 0.5,
                 }}
               >
                 <Text className="text-base font-medium text-red-500">
@@ -2400,7 +2415,7 @@ function TicketReassignedConfirmationModal({
         }
         offset.current = 0;
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -2551,7 +2566,7 @@ function TicketRevokedConfirmationModal({
         }
         offset.current = 0;
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -2672,7 +2687,7 @@ function QRScannerModal({
   const [scanned, setScanned] = useState(false);
   const sheetHeight = useRef(new Animated.Value(180)).current; // Base height for Close button only
   const translateYPermission = useRef(
-    new Animated.Value(SCREEN_HEIGHT)
+    new Animated.Value(SCREEN_HEIGHT),
   ).current; // For permission modals
   const isProcessingRef = useRef(false);
 
@@ -2731,7 +2746,7 @@ function QRScannerModal({
           onClose();
         }
       },
-    })
+    }),
   ).current;
 
   const handleBarCodeScanned = ({ data }: { data: string }) => {
@@ -2999,11 +3014,17 @@ function ScannedTicketProfileModal({
         }
         offset.current = 0;
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
-    if (__DEV__) console.log("[ScannedProfileModal] useEffect visible/attendee", { visible, hasAttendee: !!attendee, attendeeId: attendee?.user?.id, platform: Platform.OS });
+    if (__DEV__)
+      console.log("[ScannedProfileModal] useEffect visible/attendee", {
+        visible,
+        hasAttendee: !!attendee,
+        attendeeId: attendee?.user?.id,
+        platform: Platform.OS,
+      });
     if (visible) {
       isClosingRef.current = false;
       translateY.stopAnimation(() => {
@@ -3019,7 +3040,11 @@ function ScannedTicketProfileModal({
     }
   }, [visible, translateY]);
 
-  if (__DEV__ && visible) console.log("[ScannedProfileModal] render visible=true", { hasAttendee: !!attendee, platform: Platform.OS });
+  if (__DEV__ && visible)
+    console.log("[ScannedProfileModal] render visible=true", {
+      hasAttendee: !!attendee,
+      platform: Platform.OS,
+    });
 
   return (
     <Modal
@@ -3028,7 +3053,10 @@ function ScannedTicketProfileModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <View className="flex-1" style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}>
+      <View
+        className="flex-1"
+        style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
+      >
         <Pressable className="flex-1" onPress={onClose} />
         <Animated.View
           className="bg-white rounded-t-3xl"
@@ -3140,7 +3168,7 @@ function ScannedTicketProfileModal({
                                 {interest}
                               </Text>
                             </View>
-                          )
+                          ),
                         )}
                       </View>
                     </View>
@@ -3148,7 +3176,9 @@ function ScannedTicketProfileModal({
 
                 {/* Social Links - LinkedIn pill (display username, open full URL) */}
                 {(() => {
-                  const linkedInRaw = attendee.user.metadata?.linkedIn ?? attendee.user.metadata?.linkedin_url;
+                  const linkedInRaw =
+                    attendee.user.metadata?.linkedIn ??
+                    attendee.user.metadata?.linkedin_url;
                   const linkedIn = getLinkedInDisplayInfo(linkedInRaw);
                   if (!linkedIn) return null;
                   return (
@@ -3159,19 +3189,31 @@ function ScannedTicketProfileModal({
                       <Pressable
                         onPress={async () => {
                           try {
-                            const supported = await Linking.canOpenURL(linkedIn.url);
+                            const supported = await Linking.canOpenURL(
+                              linkedIn.url,
+                            );
                             if (supported) {
                               await Linking.openURL(linkedIn.url);
                             } else {
                               try {
                                 await Linking.openURL(linkedIn.url);
                               } catch {
-                                Alert.alert("Cannot Open LinkedIn", "Please try opening the link in your browser.");
+                                Alert.alert(
+                                  "Cannot Open LinkedIn",
+                                  "Please try opening the link in your browser.",
+                                );
                               }
                             }
                           } catch (error) {
-                            if (__DEV__) console.error("Error opening LinkedIn URL:", error);
-                            Alert.alert("Error", "Failed to open LinkedIn profile. Please try again.");
+                            if (__DEV__)
+                              console.error(
+                                "Error opening LinkedIn URL:",
+                                error,
+                              );
+                            Alert.alert(
+                              "Error",
+                              "Failed to open LinkedIn profile. Please try again.",
+                            );
                           }
                         }}
                         className="flex-row items-center bg-neutral-100 rounded-full px-4 py-2.5 self-start"
@@ -3303,7 +3345,7 @@ function EditAssignedTicketModal({
         }
         offset.current = 0;
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -3455,8 +3497,9 @@ function EditAssignedTicketModal({
                   </Text>
                 </Pressable>
                 <Text className="text-xs text-neutral-400 text-center mb-4">
-                  Revoking will return this ticket to "Available" status. Do this
-                  before the assignee accepts if you need to change details.
+                  Revoking will return this ticket to "Available" status. Do
+                  this before the assignee accepts if you need to change
+                  details.
                 </Text>
               </>
             )}
@@ -3534,7 +3577,7 @@ function TransferTicketModal({
         }
         offset.current = 0;
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -3700,7 +3743,10 @@ interface Ticket {
 
 // Helper function to check if user is exhibitor/partner admin
 function isExhibitorPartnerAdmin(
-  user: { user_id: string; company?: { admin_user?: string | null } | null } | null
+  user: {
+    user_id: string;
+    company?: { admin_user?: string | null } | null;
+  } | null,
 ): boolean {
   if (!user || !user.company) {
     return false;
@@ -3724,18 +3770,23 @@ function isATEEvent(eventId: number): boolean {
 // Returns object with canTransfer flag and optional reason
 function canTransferPersonalTicket(
   eventId: number,
-  user: { user_id: string; company?: { admin_user?: string | null } | null } | null,
-  tickets: Ticket[]
+  user: {
+    user_id: string;
+    company?: { admin_user?: string | null } | null;
+  } | null,
+  tickets: Ticket[],
 ): { canTransfer: boolean; reason?: string; isAdminBlocked?: boolean } {
   // For ATE (event_id = 10)
   if (isATEEvent(eventId)) {
     // Rule 1: Block only when user is company admin AND their pass/company is exhibitor or partner
     // (Chairperson/delegate/etc with admin_user still set can transfer — backend may not have cleared admin)
     const personalTicket = tickets.find((t) => t.isPersonal);
-    const personalType = personalTicket?.ticketType ?? personalTicket?.title ?? "";
+    const personalType =
+      personalTicket?.ticketType ?? personalTicket?.title ?? "";
     const companyType = (user as any)?.company?.company_type ?? "";
     const isExhibitorOrPartner =
-      isExhibitorOrPartnerType(personalType) || isExhibitorOrPartnerType(companyType);
+      isExhibitorOrPartnerType(personalType) ||
+      isExhibitorOrPartnerType(companyType);
 
     if (isExhibitorPartnerAdmin(user) && isExhibitorOrPartner) {
       return {
@@ -3750,11 +3801,11 @@ function canTransferPersonalTicket(
     // - Multiple tickets: Must have assigned all others first
     const totalTickets = tickets.length;
     const availableToAssign = tickets.filter(
-      (t) => !t.isPersonal && t.isUnassigned
+      (t) => !t.isPersonal && t.isUnassigned,
     );
     const availableSlots = availableToAssign.reduce(
       (sum, t) => sum + (t.availableCount ?? 1),
-      0
+      0,
     );
 
     if (totalTickets === 1) {
@@ -3774,17 +3825,18 @@ function canTransferPersonalTicket(
   // Default behavior for other events (current logic)
   const totalTickets = tickets.length;
   const availableToAssign = tickets.filter(
-    (t) => !t.isPersonal && t.isUnassigned
+    (t) => !t.isPersonal && t.isUnassigned,
   );
   const availableSlots = availableToAssign.reduce(
     (sum, t) => sum + (t.availableCount ?? 1),
-    0
+    0,
   );
 
   if (totalTickets <= 1) {
     return {
       canTransfer: false,
-      reason: "You only have one ticket. Transferring it would remove your access.",
+      reason:
+        "You only have one ticket. Transferring it would remove your access.",
     };
   }
 
@@ -3817,7 +3869,7 @@ function MyTicketView({
     ticketNumber: string,
     canTransfer: boolean,
     totalTickets: number,
-    availableToAssignCount: number
+    availableToAssignCount: number,
   ) => void;
   onTransfer: (
     title: string,
@@ -3825,7 +3877,7 @@ function MyTicketView({
     assignedTo: string,
     backgroundColor?: string,
     isUnassigned?: boolean,
-    ticket?: Ticket
+    ticket?: Ticket,
   ) => void;
   onUpgrade?: (ticket: Ticket) => void;
   onEditAssignment: (
@@ -3837,18 +3889,21 @@ function MyTicketView({
     assigneePhone?: string,
     assignedDate?: string,
     allocationId?: number | null,
-    allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled"
+    allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled",
   ) => void;
-  user: { user_id: string; company?: { admin_user?: string | null } | null } | null;
+  user: {
+    user_id: string;
+    company?: { admin_user?: string | null } | null;
+  } | null;
   eventId: number;
 }) {
   // Calculate ticket counts
   const personalTickets = tickets.filter((t) => t.isPersonal);
   const availableToAssignTickets = tickets.filter(
-    (t) => !t.isPersonal && t.isUnassigned
+    (t) => !t.isPersonal && t.isUnassigned,
   );
   const assignedOtherTickets = tickets.filter(
-    (t) => !t.isPersonal && !t.isUnassigned
+    (t) => !t.isPersonal && !t.isUnassigned,
   );
 
   // Use helper function to determine if personal ticket can be transferred
@@ -3860,14 +3915,14 @@ function MyTicketView({
   // Get tickets by category (order per Figma: My Ticket, Assigned, Available)
   const myPersonalTickets = tickets.filter((t) => t.isPersonal);
   const assignedTickets = tickets.filter(
-    (t) => !t.isPersonal && !t.isUnassigned
+    (t) => !t.isPersonal && !t.isUnassigned,
   );
   const unassignedTickets = tickets.filter(
-    (t) => !t.isPersonal && t.isUnassigned
+    (t) => !t.isPersonal && t.isUnassigned,
   );
   const availableToAssignSlots = unassignedTickets.reduce(
     (sum, t) => sum + (t.availableCount ?? 1),
-    0
+    0,
   );
 
   if (loading) {
@@ -3945,7 +4000,7 @@ function MyTicketView({
                     ticket.ticketNumber,
                     canTransfer,
                     totalTickets,
-                    availableToAssignSlots
+                    availableToAssignSlots,
                   )
                 }
                 onTransfer={() =>
@@ -3955,14 +4010,12 @@ function MyTicketView({
                         ticket.ticketNumber,
                         ticket.assignedTo || "",
                         ticket.backgroundColor,
-                        false
+                        false,
                       )
                     : undefined
                 }
                 onUpgrade={
-                  upgradeable && onUpgrade
-                    ? () => onUpgrade(ticket)
-                    : undefined
+                  upgradeable && onUpgrade ? () => onUpgrade(ticket) : undefined
                 }
               />
             </View>
@@ -3997,7 +4050,8 @@ function MyTicketView({
                   allocationStatus={ticket.allocationStatus}
                   onEditAssignment={() => {
                     const allocId =
-                      typeof ticket.id === "string" && ticket.id.startsWith("alloc-")
+                      typeof ticket.id === "string" &&
+                      ticket.id.startsWith("alloc-")
                         ? parseInt(ticket.id.replace("alloc-", ""), 10)
                         : null;
                     onEditAssignment(
@@ -4009,7 +4063,7 @@ function MyTicketView({
                       ticket.assigneePhone,
                       ticket.assignedDate,
                       Number.isNaN(allocId) ? null : allocId,
-                      ticket.allocationStatus
+                      ticket.allocationStatus,
                     );
                   }}
                 />
@@ -4053,7 +4107,7 @@ function MyTicketView({
                             "",
                             ticket.backgroundColor,
                             true,
-                            ticket
+                            ticket,
                           )
                       : undefined
                   }
@@ -4102,7 +4156,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const { user } = useAuth();
   const initialTab = route.params?.initialTab || "Scan Ticket";
   const [activeTab, setActiveTab] = useState<"My Ticket" | "Scan Ticket">(
-    initialTab
+    initialTab,
   );
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [qrModalData, setQrModalData] = useState<{
@@ -4287,8 +4341,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         // Skip if no ticket_class (required for allocation)
         if (!ticketClass || ticketClassId == null) continue;
         const remaining =
-          quota.remaining_quota ??
-          (quota.quota - (quota.allocated_tickets ?? 0));
+          quota.remaining_quota ?? quota.quota - (quota.allocated_tickets ?? 0);
         const userType =
           ticketClass?.name ??
           ticketClass?.user_type ??
@@ -4323,7 +4376,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   useFocusEffect(
     React.useCallback(() => {
       fetchTickets();
-    }, [fetchTickets])
+    }, [fetchTickets]),
   );
 
   // Update tab when route params change
@@ -4338,11 +4391,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     const transferResult = canTransferPersonalTicket(EVENT_ID, user, tickets);
     const totalTickets = tickets.length;
     const availableToAssignTickets = tickets.filter(
-      (t) => !t.isPersonal && t.isUnassigned
+      (t) => !t.isPersonal && t.isUnassigned,
     );
     const availableToAssignSlots = availableToAssignTickets.reduce(
       (sum, t) => sum + (t.availableCount ?? 1),
-      0
+      0,
     );
     return {
       totalTickets,
@@ -4356,7 +4409,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     ticketNumber: string,
     canTransfer: boolean,
     totalTickets: number,
-    availableToAssignCount: number
+    availableToAssignCount: number,
   ) => {
     const ticket = tickets.find((t) => t.ticketNumber === ticketNumber);
     // Compute transfer result to get isAdminBlocked
@@ -4380,7 +4433,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     assignedTo: string,
     backgroundColor?: string,
     isUnassigned?: boolean,
-    ticket?: Ticket
+    ticket?: Ticket,
   ) => {
     setTransferModalData({
       title,
@@ -4432,13 +4485,16 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         const result = await ticketService.allocateTicket(
           EVENT_ID,
           transferModalData.ticketClassId,
-          recipientData
+          recipientData,
         );
         // Log response for debugging - backend returns first_name, last_name (no recipient_ prefix)
         const alloc = Array.isArray(result) ? result[0] : result;
         const fullName =
           alloc &&
-          [alloc.first_name ?? alloc.recipient_first_name, alloc.last_name ?? alloc.recipient_last_name]
+          [
+            alloc.first_name ?? alloc.recipient_first_name,
+            alloc.last_name ?? alloc.recipient_last_name,
+          ]
             .filter(Boolean)
             .join(" ")
             .trim();
@@ -4460,7 +4516,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       } catch (error: any) {
         showToast(
           error?.message || "Failed to allocate ticket. Please try again.",
-          "error"
+          "error",
         );
       } finally {
         setIsAllocating(false);
@@ -4521,7 +4577,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     assigneePhone?: string,
     assignedDate?: string,
     allocationId?: number | null,
-    allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled"
+    allocationStatus?: "pending" | "accepted" | "rejected" | "cancelled",
   ) => {
     setEditAssignedTicketData({
       title,
@@ -4582,7 +4638,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     // Only allocate-ticket and cancel-allocation exist. Show friendly message.
     showToast(
       "Update assignment is not yet supported by the backend. Cancel and re-allocate instead.",
-      "error"
+      "error",
     );
     setUpdateAssignmentModalVisible(false);
     setTimeout(() => setEditAssignedTicketModalVisible(true), 300);
@@ -4603,13 +4659,12 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     } catch (error: any) {
       const msg = error?.message || error?.data?.message || "";
       const isAcceptedAllocation =
-        typeof msg === "string" &&
-        msg.toLowerCase().includes("pending");
+        typeof msg === "string" && msg.toLowerCase().includes("pending");
       showToast(
         isAcceptedAllocation
           ? "This ticket has already been accepted. Only pending allocations can be revoked."
           : msg || "Failed to revoke access. Please try again.",
-        "error"
+        "error",
       );
     } finally {
       setIsRevokingAccess(false);
@@ -4633,7 +4688,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
   // Handle QR code scanned from camera
   const handleQRCodeScanned = async (scannedData: string) => {
-    if (__DEV__) console.log("[ScanFlow] handleQRCodeScanned called", { rawLength: scannedData?.length, platform: Platform.OS });
+    if (__DEV__)
+      console.log("[ScanFlow] handleQRCodeScanned called", {
+        rawLength: scannedData?.length,
+        platform: Platform.OS,
+      });
     if (!scannedData || !scannedData.trim()) {
       showToast("Invalid QR code. Please try again.", "error");
       return;
@@ -4642,21 +4701,31 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     const trimmedData = scannedData.trim();
     const validation = validateUUID(trimmedData);
     if (!validation.valid) {
-      if (__DEV__) console.log("[ScanFlow] UUID validation failed", validation.error);
+      if (__DEV__)
+        console.log("[ScanFlow] UUID validation failed", validation.error);
       showToast(validation.error || "Invalid QR code format", "error");
       return;
     }
 
     setIsScanning(true);
-    if (__DEV__) console.log("[ScanFlow] calling API scanTicketByCode", { eventId: EVENT_ID, platform: Platform.OS });
+    if (__DEV__)
+      console.log("[ScanFlow] calling API scanTicketByCode", {
+        eventId: EVENT_ID,
+        platform: Platform.OS,
+      });
 
     try {
       const attendee = await ticketService.scanTicketByCode(
         EVENT_ID,
-        trimmedData
+        trimmedData,
       );
 
-      if (__DEV__) console.log("[ScanFlow] API success, attendee received", { userId: attendee?.user?.id, name: attendee?.user?.first_name, platform: Platform.OS });
+      if (__DEV__)
+        console.log("[ScanFlow] API success, attendee received", {
+          userId: attendee?.user?.id,
+          name: attendee?.user?.first_name,
+          platform: Platform.OS,
+        });
 
       setScannedAttendee(attendee);
       setQrScannerModalVisible(false);
@@ -4664,12 +4733,16 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
       if (Platform.OS === "ios") {
         // iOS: navigate to full screen instead of modal (avoids native modal stacking issue)
-        if (__DEV__) console.log("[ScanFlow] iOS: navigating to ScannedAttendee screen");
+        if (__DEV__)
+          console.log("[ScanFlow] iOS: navigating to ScannedAttendee screen");
         navigation.navigate("ScannedAttendee", { attendee });
       } else {
         // Android: keep seamless modal flow
         const showProfileModal = () => {
-          if (__DEV__) console.log("[ScanFlow] showProfileModal running", { platform: Platform.OS });
+          if (__DEV__)
+            console.log("[ScanFlow] showProfileModal running", {
+              platform: Platform.OS,
+            });
           setScannedTicketProfileVisible(true);
         };
         InteractionManager.runAfterInteractions(() => showProfileModal());
@@ -4718,11 +4791,17 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       await meetingService.submitMeetingRequestFromForm(
         EVENT_ID,
         formData,
-        String(scannedAttendee.user.id)
+        String(scannedAttendee.user.id),
       );
       markRequestMeetingComplete();
       showToast("Meeting request sent successfully!", "success");
       setRequestMeetingModalVisible(false);
+      setScannedTicketProfileVisible(false);
+      setScannedAttendee(null);
+      navigation.navigate("Meetings", {
+        primaryTab: "requests",
+        secondaryTab: "outbound",
+      });
     } catch (e: any) {
       const msg =
         e instanceof ApiClientError
@@ -4756,33 +4835,42 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     try {
       await connectionService.createConnection(
         currentUser.user_id,
-        scannedAttendee.user.id
+        scannedAttendee.user.id,
       );
       showToast("Connection request sent successfully!", "success");
+      setScannedTicketProfileVisible(false);
+      setScannedAttendee(null);
+      navigation.navigate("Connections");
     } catch (error: any) {
       const responseCode =
         error?.responseCode || error?.response_code || error?.statusCode;
       const errorMessageText = error?.message || "";
-      
+
       // Check if error message contains "Connection already exists"
       // Backend returns 400 with this message, but connection might have been created
-      const isAlreadyExists = 
+      const isAlreadyExists =
         errorMessageText.toLowerCase().includes("connection already exists") ||
         errorMessageText.toLowerCase().includes("already exists");
 
       let errorMessage = "Failed to send connection request. Please try again.";
       let isSuccessCase = false;
-      
+
       // Handle specific error codes and messages
       if (responseCode === 400 && isAlreadyExists) {
         // Connection already exists - treat as success since connection was likely created
         errorMessage = "Connection request already exists.";
         isSuccessCase = true;
         showToast(errorMessage, "success");
+        setScannedTicketProfileVisible(false);
+        setScannedAttendee(null);
+        navigation.navigate("Connections");
       } else if (responseCode === 409) {
         errorMessage = "Connection request already exists.";
         isSuccessCase = true;
         showToast(errorMessage, "success");
+        setScannedTicketProfileVisible(false);
+        setScannedAttendee(null);
+        navigation.navigate("Connections");
       } else if (responseCode === 400) {
         errorMessage = "Invalid connection request.";
         showToast(errorMessage, "error");
@@ -4792,7 +4880,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       } else {
         showToast(errorMessage, "error");
       }
-      
+
       // Only log actual errors, not "already exists" cases (which are success scenarios)
       if (__DEV__ && !isSuccessCase) {
         console.error("Error creating connection:", error);

@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
-import { LocationPinIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
+import { LocationPinIcon, TableIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
 import { LinkedInIcon } from "./SocialIcons";
 import EditMeetingModal, { EditMeetingModalProps } from "./EditMeetingModal";
@@ -72,6 +72,8 @@ export interface OutboundMeetingModalProps {
   startTime: string;
   endTime: string;
   location: string;
+  /** If set, shown as a separate row under location with table icon */
+  tableNumber?: string;
   meetingType?: "physical" | "virtual";
   meetingLink?: string;
   participantName: string;
@@ -110,6 +112,7 @@ export default function OutboundMeetingModal({
   startTime,
   endTime,
   location,
+  tableNumber: tableNumberProp,
   meetingType,
   meetingLink,
   participantName,
@@ -150,11 +153,12 @@ export default function OutboundMeetingModal({
       : undefined;
   const resolvedTableNumber =
     resolvedMeetingType === "physical"
-      ? location
-        ? location.startsWith("Table ")
-          ? location
-          : `Table ${location}`
-        : ""
+      ? tableNumberProp ||
+        (location
+          ? location.startsWith("Table ")
+            ? location
+            : `Table ${location}`
+          : "")
       : undefined;
 
   const handleLayout = (event: any) => {
@@ -415,10 +419,26 @@ export default function OutboundMeetingModal({
                 </Text>
               </View>
             ) : (
-              <View style={styles.infoRow}>
-                <LocationPinIcon size={18} color="#404040" />
-                <Text style={styles.infoText}>{location || "TBD"}</Text>
-              </View>
+              <>
+                {location && (
+                  <View style={styles.infoRow}>
+                    <LocationPinIcon size={18} color="#404040" />
+                    <Text style={styles.infoText}>{location}</Text>
+                  </View>
+                )}
+                {tableNumberProp && (
+                  <View style={styles.infoRow}>
+                    <TableIcon size={18} color="#404040" />
+                    <Text style={styles.infoText}>{tableNumberProp}</Text>
+                  </View>
+                )}
+                {!location && !tableNumberProp && (
+                  <View style={styles.infoRow}>
+                    <LocationPinIcon size={18} color="#404040" />
+                    <Text style={styles.infoText}>TBD</Text>
+                  </View>
+                )}
+              </>
             )}
 
             {/* Participant Card */}

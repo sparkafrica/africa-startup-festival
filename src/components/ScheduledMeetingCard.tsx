@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
-import { PersonProfileIcon, ClockIcon } from "./icons";
+import { PersonProfileIcon, ClockIcon, LocationPinIcon, TableIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
 
 export interface ScheduledMeetingCardProps {
@@ -12,6 +12,8 @@ export interface ScheduledMeetingCardProps {
   endTime: string;
   meetingType: "physical" | "virtual";
   timeUntil: string; // e.g., "In 3hrs"
+  location?: string;
+  tableNumber?: string;
   onPress?: () => void;
 }
 
@@ -24,6 +26,8 @@ export default function ScheduledMeetingCard({
   endTime,
   meetingType,
   timeUntil,
+  location,
+  tableNumber,
   onPress,
 }: ScheduledMeetingCardProps) {
   return (
@@ -72,12 +76,32 @@ export default function ScheduledMeetingCard({
       </View>
 
       {/* Meeting Type */}
-      <View className="flex-row items-center">
+      <View className="flex-row items-center mb-2">
         <VideoIcon size={16} color="#404040" />
         <Text className="text-sm text-black ml-2">
           {meetingType === "virtual" ? "Virtual Meeting" : "Physical Meeting"}
         </Text>
       </View>
+
+      {/* Location + Table (physical only) */}
+      {meetingType === "physical" && (location || tableNumber) && (
+        <>
+          {location && (
+            <View className="flex-row items-center mb-2">
+              <LocationPinIcon size={16} color="#404040" />
+              <Text className="text-sm text-black ml-2" numberOfLines={1}>
+                {location}
+              </Text>
+            </View>
+          )}
+          {tableNumber && (
+            <View className="flex-row items-center">
+              <TableIcon size={16} color="#404040" />
+              <Text className="text-sm text-black ml-2">{tableNumber}</Text>
+            </View>
+          )}
+        </>
+      )}
     </Pressable>
   );
 }

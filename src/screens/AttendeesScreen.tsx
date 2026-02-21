@@ -79,11 +79,12 @@ import Svg, { Path, Circle } from "react-native-svg";
 /** Page size per API request when loading all attendees (one "load entire event" run). */
 const ATTENDEE_PAGE_SIZE = 100;
 const LOAD_MORE_THRESHOLD = 3;
-/** Minimum match_score to show attendee in Recommended tab (from match_info) */
-const RECOMMENDED_MIN_SCORE = 5;
+/** Minimum match_score (1–10) to show attendee in Recommended tab. Backend returns score 1–10 via match_info. */
+const RECOMMENDED_MIN_SCORE = 8;
 
 /**
  * Parse match_info from backend (may be JSON string or object).
+ * Backend: AI match returns { match_score: number (1–10), reason?: string }.
  * Returns { match_score, reason } or null.
  */
 function parseMatchInfo(raw: string | MatchInfo | null | undefined): MatchInfo | null {
@@ -100,7 +101,7 @@ function parseMatchInfo(raw: string | MatchInfo | null | undefined): MatchInfo |
   return null;
 }
 
-/** True if attendee has match_score >= RECOMMENDED_MIN_SCORE */
+/** True if attendee has match_score >= 8 (backend uses 1–10 scale for AI match). */
 function isRecommendedByMatchInfo(backendAttendee: BackendAttendee | undefined): boolean {
   const info = parseMatchInfo(backendAttendee?.match_info);
   return info != null && typeof info.match_score === "number" && info.match_score >= RECOMMENDED_MIN_SCORE;
