@@ -15,6 +15,7 @@ import { EVENT_ID } from "../config/env";
 /**
  * Meeting Slot
  * Matches backend schema: MeetingSlot
+ * Backend should include date (YYYY-MM-DD) per slot so we can filter by selected date.
  */
 export interface MeetingSlot {
   id: number;
@@ -23,6 +24,8 @@ export interface MeetingSlot {
   end_time: string; // Format: time (HH:MM:SS)
   table_number: number;
   is_available: boolean;
+  /** Slot date (YYYY-MM-DD). Required for correct date filtering (each day has its own slots). */
+  date?: string;
 }
 
 /**
@@ -260,6 +263,7 @@ export const meetingService = {
    * @param eventId - The ID of the event
    * @param page - Page number (optional, default: 1)
    * @param pageSize - Number of results per page (optional)
+   * @param date - Optional date (YYYY-MM-DD) to return only slots for that day
    * @returns Promise that resolves with paginated meeting slots
    *
    * Backend Endpoint: GET /events/{event_id}/meeting-slots/
@@ -267,7 +271,8 @@ export const meetingService = {
   async getMeetingSlots(
     eventId: number,
     page: number = 1,
-    pageSize?: number
+    pageSize?: number,
+    date?: string
   ): Promise<{ slots: MeetingSlot[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {
@@ -275,6 +280,9 @@ export const meetingService = {
       };
       if (pageSize) {
         params.page_size = pageSize.toString();
+      }
+      if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        params.date = date;
       }
 
       const queryString = new URLSearchParams(params).toString();
@@ -284,6 +292,20 @@ export const meetingService = {
 
       const data = response as any;
 
+      // Normalize slot so we have date in YYYY-MM-DD (backend may send date, slot_date, or start_date)
+      const normalizeSlot = (raw: any): MeetingSlot => {
+        const slot = raw as MeetingSlot;
+        if (!slot.date && (raw.slot_date != null || raw.start_date != null)) {
+          const d = raw.slot_date ?? raw.start_date;
+          slot.date = typeof d === "string" ? d.slice(0, 10) : undefined;
+        } else if (slot.date && slot.date.length > 10) {
+          slot.date = slot.date.slice(0, 10);
+        }
+        return slot;
+      };
+      const normalizeSlots = (arr: any[]): MeetingSlot[] =>
+        Array.isArray(arr) ? arr.map(normalizeSlot) : [];
+
       // Check if response has the PaginatedMeetingSlotList structure (direct)
       if (
         data &&
@@ -292,7 +314,7 @@ export const meetingService = {
         Array.isArray(data.results)
       ) {
         return {
-          slots: data.results as MeetingSlot[],
+          slots: normalizeSlots(data.results),
           pagination: {
             count: data.count || 0,
             next: data.next || null,
@@ -308,7 +330,7 @@ export const meetingService = {
         // Check if data.data is directly an array (ApiResponse with array data)
         if (Array.isArray(responseData)) {
           return {
-            slots: responseData as MeetingSlot[],
+            slots: normalizeSlots(responseData),
             pagination: {
               count: responseData.length,
               next: null,
@@ -325,7 +347,7 @@ export const meetingService = {
           Array.isArray(responseData.results)
         ) {
           return {
-            slots: responseData.results as MeetingSlot[],
+            slots: normalizeSlots(responseData.results),
             pagination: {
               count: responseData.count || 0,
               next: responseData.next || null,
@@ -338,7 +360,7 @@ export const meetingService = {
       // Check if data is directly an array
       if (Array.isArray(data)) {
         return {
-          slots: data as MeetingSlot[],
+          slots: normalizeSlots(data),
           pagination: {
             count: data.length,
             next: null,

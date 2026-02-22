@@ -232,33 +232,75 @@ export default function EditMeetingModal({
     }
   }, [visible, initialData]);
 
-  // Match initial time to timeKey once slots are loaded
+  // Match initial time to timeKey once slots are loaded (only consider slots for the meeting's date)
   useEffect(() => {
     if (visible && initialData && meetingSlots.length > 0 && !selectedTimeKey) {
       const initialTime = initialData.time;
-      if (initialTime) {
-        // Find the matching timeKey for the initial time
-        // initialTime format: "10:00 AM - 10:20 AM"
-        // We need to find a slot with matching start_time and end_time
-        const matchingSlot = meetingSlots.find((slot) => {
-          const slotLabel = `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`;
-          return slotLabel === initialTime;
-        });
-        
-        if (matchingSlot) {
-          const timeKey = `${matchingSlot.start_time}-${matchingSlot.end_time}`;
-          setSelectedTimeKey(timeKey);
-          if (meetingType === "virtual") {
-            setSelectedSlotId(matchingSlot.id);
-          }
+      const initialDate = initialData.date;
+      if (!initialTime) return;
+      const targetDate = ((): string | null => {
+        if (!initialDate) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(initialDate)) return initialDate;
+        const match = initialDate.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(\w+),\s+(\d{4})/i);
+        if (match) {
+          const [, day, monthName, year] = match;
+          const monthMap: { [key: string]: string } = {
+            january: "01", february: "02", march: "03", april: "04", may: "05", june: "06",
+            july: "07", august: "08", september: "09", october: "10", november: "11", december: "12",
+          };
+          const month = monthMap[monthName?.toLowerCase() ?? ""];
+          if (month) return `${year}-${month}-${(day ?? "").padStart(2, "0")}`;
+        }
+        return null;
+      })();
+      const slotsForThisDate = targetDate
+        ? meetingSlots.filter((slot) => slot.date?.slice(0, 10) === targetDate)
+        : meetingSlots;
+      const matchingSlot = slotsForThisDate.find((slot) => {
+        const slotLabel = `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`;
+        return slotLabel === initialTime;
+      });
+      if (matchingSlot) {
+        const timeKey = `${matchingSlot.start_time}-${matchingSlot.end_time}`;
+        setSelectedTimeKey(timeKey);
+        if (meetingType === "virtual") {
+          setSelectedSlotId(matchingSlot.id);
         }
       }
     }
   }, [visible, initialData, meetingSlots, selectedTimeKey, meetingType]);
 
-  // Generate time options from available slots
+  // Normalize meeting date to YYYY-MM-DD (initialData.date may be "26th June, 2026" or "2026-06-26")
+  const meetingDateNorm = (): string | null => {
+    const d = initialData?.date;
+    if (!d) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    const match = d.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(\w+),\s+(\d{4})/i);
+    if (match) {
+      const [, day, monthName, year] = match;
+      const monthMap: { [key: string]: string } = {
+        january: "01", february: "02", march: "03", april: "04", may: "05", june: "06",
+        july: "07", august: "08", september: "09", october: "10", november: "11", december: "12",
+      };
+      const month = monthMap[monthName?.toLowerCase() ?? ""];
+      if (month) return `${year}-${month}-${(day ?? "").padStart(2, "0")}`;
+    }
+    return null;
+  };
+
+  const slotDateNorm = (slot: MeetingSlot): string | null =>
+    slot.date ? slot.date.slice(0, 10) : null;
+
+  // Only show slots for the meeting's date (each day has its own slots)
+  const slotsForDate = ((): MeetingSlot[] => {
+    const targetDate = meetingDateNorm();
+    if (!targetDate) return meetingSlots;
+    return meetingSlots.filter((slot) => slotDateNorm(slot) === targetDate);
+  })();
+
+  // Generate time options from available slots (for this date only)
   const uniqueTimeSlots = new Map<string, { slot: MeetingSlot; label: string }>();
-  meetingSlots.forEach((slot: MeetingSlot) => {
+  slotsForDate.forEach((slot: MeetingSlot) => {
     const timeKey = `${slot.start_time}-${slot.end_time}`;
     if (!uniqueTimeSlots.has(timeKey)) {
       uniqueTimeSlots.set(timeKey, {
@@ -275,10 +317,11 @@ export default function EditMeetingModal({
     slotId: data.slot.id,
   }));
 
-  // Get tables for selected time
+  // Get tables for selected time (sorted by table_number for consistent UX)
   const availableTables = selectedTimeKey
-    ? meetingSlots
+    ? slotsForDate
         .filter((slot: MeetingSlot) => `${slot.start_time}-${slot.end_time}` === selectedTimeKey)
+        .sort((a: MeetingSlot, b: MeetingSlot) => a.table_number - b.table_number)
         .map((slot: MeetingSlot) => ({
           id: slot.id.toString(),
           label: `Table ${slot.table_number}`,

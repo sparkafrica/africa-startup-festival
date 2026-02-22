@@ -353,12 +353,17 @@ export default function RequestMeetingModal({
     { id: "2", label: "27th June, 2026", value: "2026-06-27" },
   ];
 
-  // Get slots for selected date (or all slots if no date selected yet)
+  // Normalize slot date to YYYY-MM-DD for comparison (backend may send date or datetime)
+  const slotDateNorm = (slot: MeetingSlot): string | null =>
+    slot.date ? slot.date.slice(0, 10) : null;
+
+  // Get slots for selected date only (so we don't mix 26th and 27th — each day has its own slots)
   const getAvailableSlotsForDate = (): MeetingSlot[] => {
-    // Since we're hardcoding dates and backend slots don't include date info,
-    // return all slots regardless of date selection
-    // In production, you would filter slots by the selected date value
-    return meetingSlots;
+    if (!selectedDateValue) return meetingSlots;
+    return meetingSlots.filter((slot) => {
+      const d = slotDateNorm(slot);
+      return d === selectedDateValue;
+    });
   };
 
   // Get slots for the selected date
@@ -387,9 +392,11 @@ export default function RequestMeetingModal({
 
   // Get all tables for selected time slot (multiple slots can have same time but different tables)
   // Use selectedTimeKey (e.g., "09:30:00-09:50:00") to match slots, not selectedTime (display label)
+  // Sort by table_number so list shows Table 1, 2, 3... instead of API order
   const availableTables = selectedTimeKey
     ? slotsForDate
         .filter((slot: MeetingSlot) => `${slot.start_time}-${slot.end_time}` === selectedTimeKey)
+        .sort((a: MeetingSlot, b: MeetingSlot) => a.table_number - b.table_number)
         .map((slot: MeetingSlot) => ({
           id: slot.id.toString(),
           label: `Table ${slot.table_number}`,
