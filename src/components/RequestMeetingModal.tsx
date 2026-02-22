@@ -24,6 +24,7 @@ import {
 import LoadingSpinner from "./LoadingSpinner";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
+import { getCanUserBookMeetings } from "../utils/meetingRestrictions";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -38,6 +39,8 @@ interface RequestMeetingModalProps {
   onClose: () => void;
   /** Can be sync or async. Modal awaits and only closes on success. On throw, stays open. */
   onSubmit: (data: MeetingFormData) => void | Promise<void>;
+  /** When provided, modal enforces Expo pass: if user cannot book meetings, closes and calls this (e.g. show upgrade alert). */
+  onExpoBlocked?: () => void;
   attendeeName?: string;
   eventId?: number; // Allow override, defaults to EVENT_ID
 }
@@ -59,6 +62,7 @@ export default function RequestMeetingModal({
   visible,
   onClose,
   onSubmit,
+  onExpoBlocked,
   attendeeName,
   eventId = EVENT_ID,
 }: RequestMeetingModalProps) {
@@ -142,6 +146,22 @@ export default function RequestMeetingModal({
   ).current;
 
   // Fetch meeting slots when modal opens
+  // Strict Expo pass enforcement: when modal opens, re-verify user can book meetings; if not, close and notify.
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    getCanUserBookMeetings().then((canBook) => {
+      if (cancelled) return;
+      if (!canBook) {
+        onClose();
+        onExpoBlocked?.();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, onExpoBlocked, onClose]);
+
   useEffect(() => {
     if (visible) {
       // Smooth entrance animation

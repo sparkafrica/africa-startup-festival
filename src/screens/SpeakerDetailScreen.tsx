@@ -475,6 +475,7 @@ export default function SpeakerDetailScreen({ route }: Props) {
       <RequestMeetingModal
         visible={isRequestMeetingModalVisible}
         onClose={() => setIsRequestMeetingModalVisible(false)}
+        onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
         onSubmit={async (data: MeetingFormData) => {
           if (!speakerData) {
             Alert.alert("Error", "Speaker data not loaded.");

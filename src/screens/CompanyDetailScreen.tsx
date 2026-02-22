@@ -666,6 +666,7 @@ function CompanyDetailScreenInner({ route }: Props) {
       <RequestMeetingModal
         visible={isRequestMeetingModalVisible}
         onClose={() => setIsRequestMeetingModalVisible(false)}
+        onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
         onSubmit={async (data: MeetingFormData) => {
           // Backend: meeting request goes to the admin of the company.
           if (!adminUserId) {

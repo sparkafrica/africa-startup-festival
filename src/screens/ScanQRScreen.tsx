@@ -5082,6 +5082,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           visible={requestMeetingModalVisible}
           onClose={() => setRequestMeetingModalVisible(false)}
           onSubmit={handleMeetingRequestSubmit}
+          onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
           attendeeName={
             scannedAttendee
               ? `${scannedAttendee.user.first_name} ${scannedAttendee.user.last_name}`.trim()

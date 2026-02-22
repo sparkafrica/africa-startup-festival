@@ -397,6 +397,7 @@ export default function ScannedAttendeeScreen() {
         visible={requestMeetingModalVisible}
         onClose={() => setRequestMeetingModalVisible(false)}
         onSubmit={handleMeetingSubmit}
+        onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
         attendeeName={attendeeName}
       />
 

@@ -2242,6 +2242,7 @@ export default function AttendeesScreen() {
           setIsRequestMeetingModalVisible(false);
           setMeetingAttendee(null);
         }}
+        onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
         onSubmit={async (data: MeetingFormData) => {
           if (!meetingAttendee) {
             showToast("No attendee selected", "error");

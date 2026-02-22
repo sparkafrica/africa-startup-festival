@@ -1347,6 +1347,7 @@ export default function ConnectionsScreen() {
             setMeetingConnection(null);
           }
         }}
+        onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
         onSubmit={handleMeetingRequestSubmit}
         attendeeName={meetingConnection?.name}
         eventId={EVENT_ID}

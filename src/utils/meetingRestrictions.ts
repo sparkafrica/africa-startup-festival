@@ -14,13 +14,28 @@ const EXPO_BLOCK_MESSAGE =
   "You cannot book meetings with an Expo Pass. Please upgrade your ticket to book meetings.";
 
 /**
+ * Resolve ticket type the same way as Menu and My Ticket (single source of truth).
+ * Order: type.name → type.user_type → ticket_class.name → ticket_class.user_type.
+ */
+function getTicketTypeForRestrictions(ticket: { type?: { name?: string; user_type?: string }; ticket_class?: { name?: string; user_type?: string } } | null): string {
+  if (!ticket) return "";
+  return (
+    ticket.type?.name ??
+    ticket.type?.user_type ??
+    ticket.ticket_class?.name ??
+    ticket.ticket_class?.user_type ??
+    ""
+  );
+}
+
+/**
  * Returns true if the current user can book meetings (not an Expo pass).
- * Fetches user ticket; returns false for Expo / attendee / general.
+ * Uses fresh ticket (bypassCache) so we match Menu badge and My Ticket; on error, blocks to be safe.
  */
 export async function getCanUserBookMeetings(): Promise<boolean> {
   try {
-    const ticket = await ticketService.getUserTicket(EVENT_ID);
-    const type = ticket?.type?.user_type ?? ticket?.type?.name ?? "";
+    const ticket = await ticketService.getUserTicket(EVENT_ID, { bypassCache: true });
+    const type = getTicketTypeForRestrictions(ticket ?? null);
     return !isExpoPass(type);
   } catch {
     return false; // on error, block to be safe
