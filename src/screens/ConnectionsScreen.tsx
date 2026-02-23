@@ -258,6 +258,11 @@ export default function ConnectionsScreen() {
   const isProcessingActionRef = useRef(false);
   const [isSubmittingMeeting, setIsSubmittingMeeting] = useState(false);
 
+  // Fresh connection detail fetched when opening sheet (so metadata is up-to-date without other user re-saving)
+  const [connectionDetail, setConnectionDetail] = useState<Connection | null>(null);
+  const [connectionDetailLoading, setConnectionDetailLoading] = useState(false);
+  const detailFetchConnectionIdRef = useRef<number | null>(null);
+
   // Bottom sheet animation values
   const bottomSheetTranslateY = useRef(new Animated.Value(0)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -265,7 +270,8 @@ export default function ConnectionsScreen() {
   const dragStartY = useRef(0);
 
   /**
-   * Map backend Connection to UI-friendly Connection
+   * Map backend Connection to UI-friendly Connection.
+   * Backend may send metadata as a JSON string (per schema); we parse it so interests, bio, industry, etc. work.
    */
   const mapBackendConnectionToUI = (
     backendConnection: BackendConnection
@@ -283,15 +289,28 @@ export default function ConnectionsScreen() {
         ? otherUser.id.toString()
         : "";
 
+    // Backend schema types metadata as string (JSON); normalize to object so we can read interests, bio, industry, etc.
+    const rawMeta = otherUser?.metadata;
+    const metadata =
+      typeof rawMeta === "string"
+        ? (() => {
+            try {
+              return rawMeta ? JSON.parse(rawMeta) : {};
+            } catch {
+              return {};
+            }
+          })()
+        : (typeof rawMeta === "object" && rawMeta !== null ? rawMeta : {});
+
     // Extract interests from metadata
-    const interests = otherUser.metadata?.interests || [];
+    const interests = metadata.interests || [];
     const interestsArray = Array.isArray(interests) ? interests : [];
 
     // Extract bio from metadata
-    const bio = otherUser.metadata?.bio || "";
+    const bio = metadata.bio || "";
 
     // Extract LinkedIn URL from metadata
-    const linkedInUrl = otherUser.metadata?.linkedIn || otherUser.metadata?.linkedin_url || undefined;
+    const linkedInUrl = metadata.linkedIn || metadata.linkedin_url || undefined;
 
     // Build tags - show country and industry/sector (not interests, to avoid duplication)
     const tags: ConnectionTag[] = [];
@@ -299,10 +318,10 @@ export default function ConnectionsScreen() {
       tags.push({ label: otherUser.country, borderColor: "#90EE90" });
     }
     // Check for sector/industry in company object or metadata
-    const sector = 
+    const sector =
       (otherUser as any).company?.company_sector ||
-      otherUser.metadata?.sector ||
-      otherUser.metadata?.industry ||
+      metadata.sector ||
+      metadata.industry ||
       undefined;
     if (sector) {
       tags.push({ label: sector, borderColor: "#ADD8E6" });
@@ -310,10 +329,10 @@ export default function ConnectionsScreen() {
     // Note: Interests are displayed separately in the Interests section, not as tags
 
     // Extract company name - check company.name first (like participant cards), then fall back to organisation
-    const companyName = 
-      (otherUser as any).company?.name || 
+    const companyName =
+      (otherUser as any).company?.name ||
       (otherUser as any).company?.company_name ||
-      otherUser.organisation || 
+      otherUser.organisation ||
       undefined;
 
     return {
@@ -832,14 +851,40 @@ export default function ConnectionsScreen() {
     }
   }, [showBottomSheet, selectedConnection]);
 
-  // Open bottom sheet with animation
-  const openBottomSheet = (connection: Connection) => {
-    setSelectedConnection(connection);
-    setShowBottomSheet(true);
-  };
+  // Open bottom sheet with animation; fetch fresh connection so other user's metadata (country, industry, interests) is current
+  const openBottomSheet = useCallback(
+    (connection: Connection) => {
+      setSelectedConnection(connection);
+      setConnectionDetail(null);
+      setConnectionDetailLoading(true);
+      setShowBottomSheet(true);
+      const connectionId = connection.backendConnectionId;
+      detailFetchConnectionIdRef.current = connectionId;
+
+      connectionService
+        .getConnectionById(connectionId)
+        .then((backendConn) => {
+          if (!backendConn) {
+            setConnectionDetailLoading(false);
+            return;
+          }
+          const mapped = mapBackendConnectionToUI(backendConn);
+          setConnectionDetail((prev) => {
+            if (detailFetchConnectionIdRef.current === connectionId) return mapped;
+            return prev;
+          });
+          setConnectionDetailLoading(false);
+        })
+        .catch(() => {
+          setConnectionDetailLoading(false);
+        });
+    },
+    [user?.user_id]
+  );
 
   // Close bottom sheet with animation
   const closeBottomSheet = () => {
+    detailFetchConnectionIdRef.current = null;
     Animated.parallel([
       Animated.spring(bottomSheetTranslateY, {
         toValue: 1000,
@@ -855,6 +900,7 @@ export default function ConnectionsScreen() {
     ]).start(() => {
       setShowBottomSheet(false);
       setSelectedConnection(null);
+      setConnectionDetail(null);
     });
   };
 
@@ -997,7 +1043,9 @@ export default function ConnectionsScreen() {
       </View>
 
       {/* Connection Detail Bottom Sheet */}
-      {showBottomSheet && selectedConnection && (
+      {showBottomSheet && selectedConnection && (() => {
+        const displayConnection = connectionDetail ?? selectedConnection;
+        return (
         <View
           style={{
             position: "absolute",
@@ -1080,9 +1128,9 @@ export default function ConnectionsScreen() {
                 {/* Profile Header */}
                 <View className="flex-row items-start mb-4">
                   <View className="w-16 h-16 rounded-full bg-neutral-100 items-center justify-center mr-4 flex-shrink-0 overflow-hidden">
-                    {selectedConnection.avatar && typeof selectedConnection.avatar === "string" ? (
+                    {(displayConnection.avatar && typeof displayConnection.avatar === "string") ? (
                       <Image
-                        source={{ uri: selectedConnection.avatar }}
+                        source={{ uri: displayConnection.avatar }}
                         className="w-full h-full"
                         resizeMode="cover"
                       />
@@ -1092,21 +1140,26 @@ export default function ConnectionsScreen() {
                   </View>
                   <View className="flex-1">
                     <Text className="text-2xl font-bold text-neutral-900 mb-1">
-                      {selectedConnection.name}
+                      {displayConnection.name}
                     </Text>
                     <Text className="text-base text-neutral-500 mb-3">
-                      {selectedConnection.title && selectedConnection.company
-                        ? `${selectedConnection.title} · ${selectedConnection.company}`
-                        : selectedConnection.title ||
-                          selectedConnection.company ||
+                      {displayConnection.title && displayConnection.company
+                        ? `${displayConnection.title} · ${displayConnection.company}`
+                        : displayConnection.title ||
+                          displayConnection.company ||
                           ""}
                     </Text>
-
+                    {connectionDetailLoading && !connectionDetail ? (
+                      <View className="flex-row items-center mt-1">
+                        <LoadingSpinner size="small" />
+                        <Text className="text-sm text-neutral-500 ml-2">Loading profile…</Text>
+                      </View>
+                    ) : null}
                     {/* Tags */}
-                    {selectedConnection.tags &&
-                      selectedConnection.tags.length > 0 && (
+                    {displayConnection.tags &&
+                      displayConnection.tags.length > 0 && (
                         <View className="flex-row flex-wrap">
-                          {selectedConnection.tags.map((tag, index) => (
+                          {displayConnection.tags.map((tag, index) => (
                             <View
                               key={index}
                               className="bg-white border rounded-full px-3 py-1.5 mr-2 mb-2"
@@ -1126,21 +1179,21 @@ export default function ConnectionsScreen() {
                 </View>
 
                 {/* About Section */}
-                {selectedConnection.about && (
+                {displayConnection.about && (
                   <Text className="text-[15px] text-neutral-700 mb-5 leading-6">
-                    {selectedConnection.about}
+                    {displayConnection.about}
                   </Text>
                 )}
 
                 {/* Interests Section */}
-                {selectedConnection.interests &&
-                  selectedConnection.interests.length > 0 && (
+                {displayConnection.interests &&
+                  displayConnection.interests.length > 0 && (
                     <View className="mb-5">
                       <Text className="text-lg font-bold text-neutral-900 mb-3">
                         Interests
                       </Text>
                       <View className="flex-row flex-wrap">
-                        {selectedConnection.interests.map((interest, index) => (
+                        {displayConnection.interests.map((interest, index) => (
                           <View
                             key={index}
                             className="bg-white border border-neutral-300 rounded-full px-3 py-1.5 mr-2 mb-2"
@@ -1316,7 +1369,8 @@ export default function ConnectionsScreen() {
             </Pressable>
           </Animated.View>
         </View>
-      )}
+      );
+      })()}
 
       <SafeAreaView edges={["bottom"]}>
         <BottomNavigation

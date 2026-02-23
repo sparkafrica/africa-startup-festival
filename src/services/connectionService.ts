@@ -154,6 +154,31 @@ export const connectionService = {
   },
 
   /**
+   * Get a single connection by ID (fresh from backend for up-to-date other user profile).
+   *
+   * @param connectionId - Backend connection ID
+   * @returns Promise that resolves with the connection, or null if 404/not found
+   *
+   * Backend Endpoint: GET /connections/{id}/
+   */
+  async getConnectionById(connectionId: number): Promise<Connection | null> {
+    try {
+      const response = await api.get<any>(`/connections/${connectionId}/`);
+      const data = response as any;
+      const raw = data?.data ?? data;
+      if (raw && typeof raw === "object" && (raw.from_user || raw.to_user)) {
+        return raw as Connection;
+      }
+      return null;
+    } catch (error: any) {
+      if (error?.responseCode === 404 || error?.response_code === 404) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  /**
    * Create a connection request
    *
    * @param fromUserId - The ID of the current user (sender)
