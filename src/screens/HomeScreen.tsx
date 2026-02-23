@@ -46,14 +46,6 @@ export default function HomeScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const [checklistExpanded, setChecklistExpanded] = useState(true);
 
-  // Scroll to top whenever Home gains focus (e.g. tapping Home from another tab)
-  useFocusEffect(
-    useCallback(() => {
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-      refreshMeetingsBadge(); // Keep badge count fresh so it shows on Home (e.g. for assignee)
-    }, [refreshMeetingsBadge])
-  );
-
   // Get checklist state and methods from context
   const {
     isConnectAttendeesComplete,
@@ -82,27 +74,34 @@ export default function HomeScreen() {
   // Refresh state
   const [refreshing, setRefreshing] = useState(false);
 
-  // Auto-collapse checklist when all items are completed (only once)
-  useEffect(() => {
-    const allCompleted =
-      isConnectAttendeesComplete &&
-      isRequestMeetingComplete &&
-      isAddSessionsComplete;
+  // "All completed" = only visible tasks (Connect + Request meeting). addSessions ignored until re-enabled.
+  const allVisibleTasksComplete =
+    isConnectAttendeesComplete && isRequestMeetingComplete;
 
-    if (allCompleted && checklistExpanded && !hasAutoCollapsed) {
-      // Small delay for better UX
+  // Auto-collapse checklist when all visible items are completed (once per session)
+  useEffect(() => {
+    if (allVisibleTasksComplete && checklistExpanded && !hasAutoCollapsed) {
       setTimeout(() => {
         setChecklistExpanded(false);
         setHasAutoCollapsed(true);
       }, 500);
     }
   }, [
-    isConnectAttendeesComplete,
-    isRequestMeetingComplete,
-    isAddSessionsComplete,
+    allVisibleTasksComplete,
     checklistExpanded,
     hasAutoCollapsed,
   ]);
+
+  // On Home focus: scroll to top, refresh badge, and if all tasks done keep checklist closed
+  useFocusEffect(
+    useCallback(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      refreshMeetingsBadge();
+      if (allVisibleTasksComplete) {
+        setChecklistExpanded(false);
+      }
+    }, [refreshMeetingsBadge, allVisibleTasksComplete])
+  );
 
   // Fetch featured speakers
   const fetchFeaturedSpeakers = async () => {

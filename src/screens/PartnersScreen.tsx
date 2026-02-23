@@ -70,20 +70,6 @@ export default function PartnersScreen() {
         { id: "growth-marketing", label: "Growth Marketing" },
       ],
     },
-    {
-      id: "job-title",
-      title: "Job Title / Role",
-      options: [
-        { id: "ceo-founder", label: "CEO/Founder" },
-        { id: "cto", label: "CTO" },
-        { id: "vp-product", label: "VP Product" },
-        { id: "sales", label: "Sales" },
-        { id: "designer", label: "Designer" },
-        { id: "engineer", label: "Engineer" },
-        { id: "marketing", label: "Marketing" },
-        { id: "product-manager", label: "Product Manager" },
-      ],
-    },
   ];
 
   const handleApplyFilters = (filterIds: string[]) => {
