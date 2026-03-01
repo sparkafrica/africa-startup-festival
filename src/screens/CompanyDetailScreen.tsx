@@ -15,7 +15,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackScreenProps } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
 import {
@@ -248,7 +247,7 @@ class CompanyDetailErrorBoundary extends Component<
 }
 
 function CompanyDetailScreenInner({ route }: Props) {
-  const navigation = useNavigation<NavigationProp<any>>();
+  const navigation = useNavigation<Props["navigation"]>();
   const { exhibitorId, type = "exhibitor", name: paramName } = route.params;
   const displayName = paramName || "Company";
   const { markRequestMeetingComplete } = useChecklist();
@@ -418,14 +417,14 @@ function CompanyDetailScreenInner({ route }: Props) {
             scrollOffset.current = event.nativeEvent.contentOffset.y;
           }}
         >
-          {/* Back Button */}
-          <View className="flex-row items-center px-4 pt-2 pb-4">
+          {/* Back Button - extra top padding so it's not cramped under the handle on all mobile screens */}
+          <View className="flex-row items-center px-4 pt-5 pb-4">
             <Pressable
               onPress={() => navigation.goBack()}
-              className="mr-3 flex-row items-center"
-              hitSlop={10}
+              className="mr-3 flex-row items-center p-1"
+              hitSlop={12}
             >
-              <ChevronLeftIcon size={24} color="#404040" />
+              <ChevronLeftIcon size={28} color="#404040" />
             </Pressable>
             {isLoading && (
               <View className="flex-1 items-end">
