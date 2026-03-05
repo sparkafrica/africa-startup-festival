@@ -45,8 +45,7 @@ export default function MenuScreen() {
           navigation.navigate("Contact");
           break;
         case "AppGuide":
-          // TODO: Add AppGuide route when implemented
-          console.log("Navigate to AppGuide");
+          navigation.navigate("AppGuide");
           break;
         case "AppSuggestions":
           Linking.openURL("https://forms.gle/cc3W9UvfeXV1Zufu7").catch(() => {

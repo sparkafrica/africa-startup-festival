@@ -25,6 +25,7 @@ import ConnectionsScreen from "../screens/ConnectionsScreen";
 import ContactScreen from "../screens/ContactScreen";
 import TalentBoardScreen from "../screens/TalentBoardScreen";
 import PartnersOffersScreen from "../screens/PartnersOffersScreen";
+import AppGuideScreen from "../screens/AppGuideScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -203,6 +204,14 @@ export default function MainNavigator() {
       <Stack.Screen
         name="PartnersOffers"
         component={PartnersOffersScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="AppGuide"
+        component={AppGuideScreen}
         options={{
           headerShown: false,
           animation: "slide_from_right",

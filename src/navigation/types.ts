@@ -35,6 +35,7 @@ export type RootStackParamList = {
   Contact: undefined;
   Talent: undefined;
   PartnersOffers: undefined;
+  AppGuide: undefined;
   ApiTest: undefined; // Temporary test screen - remove before production
 };
 
