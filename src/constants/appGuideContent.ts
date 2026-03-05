@@ -97,7 +97,7 @@ To transfer:
 3. Tap Transfer Ticket
 4. Enter recipient details
 5. Confirm
-⚠ Important:
+⚠️ Important:
 * Transfers are irreversible.
 * Once transferred, you permanently lose access to the event.
 The recipient must accept the allocation before activation.

@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   diagonalWrap: {
     position: "absolute",
     transform: [{ rotate: "-25deg" }],
-    opacity: 0.06,
+    opacity: 0.09,
   },
   patternGrid: {
     flexDirection: "row",
