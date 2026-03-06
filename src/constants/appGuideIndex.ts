@@ -381,3 +381,27 @@ export function searchGuide(
   results.sort((a, b) => a.section - b.section);
   return results;
 }
+
+/**
+ * Browse-by-topic: map each chip label to the primary FAQ section (1–21)
+ * so chips jump to the numbered section that is *about* that topic, not the
+ * first place the word appears in the guide.
+ */
+export const TOPIC_TO_PRIMARY_SECTION: Record<string, number> = {
+  tickets: 5,           // How do I view my tickets?
+  login: 2,             // How do I log in to the app?
+  profile: 4,           // What information is required on my profile?
+  "assign ticket": 6,   // How do I assign a ticket from my quota?
+  "transfer ticket": 7, // How do I transfer my personal ticket?
+  meetings: 10,         // How do meetings work?
+  scan: 14,             // How does QR code scanning work?
+  connections: 9,       // How do connections work?
+  attendees: 8,         // How does networking work?
+};
+
+/** Get the primary FAQ section id for a topic chip (1–21), or null. */
+export function getTopicPrimarySection(topic: string): number | null {
+  const key = topic.trim().toLowerCase();
+  const section = TOPIC_TO_PRIMARY_SECTION[key];
+  return section != null ? section : null;
+}

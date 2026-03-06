@@ -15,7 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { RootStackScreenProps } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
 import { APP_GUIDE_CONTENT } from "../constants/appGuideContent";
-import { searchGuide } from "../constants/appGuideIndex";
+import { searchGuide, getTopicPrimarySection } from "../constants/appGuideIndex";
 
 const WATERMARK_IMG = require("../assets/images/Africa Tech Expo watermark.png");
 
@@ -210,8 +210,8 @@ export default function AppGuideScreen() {
 
   const handleKeywordPress = useCallback(
     (kw: string) => {
-      const results = searchGuide(kw);
-      if (results.length > 0) scrollToSection(results[0].section);
+      const section = getTopicPrimarySection(kw);
+      if (section != null) scrollToSection(section);
     },
     [scrollToSection]
   );
@@ -253,7 +253,13 @@ export default function AppGuideScreen() {
             )}
           </View>
           {searchQuery.trim() && searchResults.length > 0 && (
-            <View style={styles.searchResults}>
+            <ScrollView
+              style={styles.searchResultsScroll}
+              contentContainerStyle={styles.searchResultsScrollContent}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={true}
+            >
               {searchResults.map((r) => (
                 <Pressable
                   key={r.section}
@@ -268,7 +274,7 @@ export default function AppGuideScreen() {
                   <Text style={styles.resultSection}>§ {r.section}</Text>
                 </Pressable>
               ))}
-            </View>
+            </ScrollView>
           )}
           {searchQuery.trim() && searchResults.length === 0 && (
             <View style={styles.noResults}>
@@ -457,12 +463,16 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     fontWeight: "500",
   },
-  searchResults: {
+  searchResultsScroll: {
     marginTop: 8,
+    maxHeight: 280,
     backgroundColor: "#fff",
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#E5E7EB",
+  },
+  searchResultsScrollContent: {
+    paddingBottom: 8,
   },
   resultRow: {
     flexDirection: "row",
