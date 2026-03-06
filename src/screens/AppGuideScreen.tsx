@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,12 +7,15 @@ import {
   StyleSheet,
   useWindowDimensions,
   Image,
+  TextInput,
+  LayoutChangeEvent,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { RootStackScreenProps } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
 import { APP_GUIDE_CONTENT } from "../constants/appGuideContent";
+import { searchGuide } from "../constants/appGuideIndex";
 
 const WATERMARK_IMG = require("../assets/images/Africa Tech Expo watermark.png");
 
@@ -32,12 +35,51 @@ function getLineType(line: string, index: number): LineType {
   return "body";
 }
 
-function GuideContent() {
+function getSectionNumber(line: string): number | null {
+  const m = line.trim().match(/^(\d+)\.\s+/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/** Popular keywords for quick access */
+const POPULAR_KEYWORDS = [
+  "tickets",
+  "login",
+  "profile",
+  "assign ticket",
+  "transfer ticket",
+  "meetings",
+  "scan",
+  "connections",
+  "attendees",
+];
+
+function GuideContent({
+  onSectionLayout,
+}: {
+  onSectionLayout: (section: number, y: number) => void;
+}) {
   const lines = APP_GUIDE_CONTENT.split("\n");
+
   return (
     <View style={styles.contentBlock}>
       {lines.map((line, i) => {
         const type = getLineType(line, i);
+        const sectionNum = type === "sectionHeading" ? getSectionNumber(line) : null;
+
+        if (type === "sectionHeading" && sectionNum) {
+          return (
+            <View
+              key={i}
+              onLayout={(e: LayoutChangeEvent) =>
+                onSectionLayout(sectionNum, e.nativeEvent.layout.y)
+              }
+              collapsable={false}
+            >
+              <Text style={styles.sectionHeading}>{line.trim()}</Text>
+            </View>
+          );
+        }
+
         if (type === "empty") return <View key={i} style={styles.spacer} />;
         if (type === "divider") return <View key={i} style={styles.divider} />;
         if (type === "mainTitle")
@@ -49,12 +91,6 @@ function GuideContent() {
         if (type === "subTitle")
           return (
             <Text key={i} style={styles.subTitle}>
-              {line.trim()}
-            </Text>
-          );
-        if (type === "sectionHeading")
-          return (
-            <Text key={i} style={styles.sectionHeading}>
               {line.trim()}
             </Text>
           );
@@ -120,6 +156,65 @@ function FadedWatermarkPattern() {
 
 export default function AppGuideScreen() {
   const navigation = useNavigation<Props["navigation"]>();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const sectionOffsetsRef = useRef<Record<number, number>>({});
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<{ section: number; title: string }[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSectionLayout = useCallback((section: number, y: number) => {
+    sectionOffsetsRef.current[section] = y;
+  }, []);
+
+  const scrollToSection = useCallback((section: number) => {
+    const offset = sectionOffsetsRef.current[section];
+    if (offset != null && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({
+        y: Math.max(0, 20 + offset - 16),
+        animated: true,
+      });
+    }
+  }, []);
+
+  const runSearch = useCallback((q: string) => {
+    setSearchResults(q ? searchGuide(q) : []);
+  }, []);
+
+  const handleSearchChange = useCallback(
+    (text: string) => {
+      setSearchQuery(text);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        runSearch(text.trim());
+        debounceRef.current = null;
+      }, 300);
+    },
+    [runSearch]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery("");
+    setSearchResults([]);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+  }, []);
+
+  const handleKeywordPress = useCallback(
+    (kw: string) => {
+      const results = searchGuide(kw);
+      if (results.length > 0) scrollToSection(results[0].section);
+    },
+    [scrollToSection]
+  );
 
   return (
     <View style={styles.container}>
@@ -136,12 +231,86 @@ export default function AppGuideScreen() {
           <Text style={styles.title}>App Guide</Text>
           <View style={styles.backPlaceholder} />
         </View>
+
+        <View style={styles.searchSection}>
+          <View style={styles.searchInputWrap}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search the guide..."
+              placeholderTextColor="rgba(0,0,0,0.4)"
+              value={searchQuery}
+              onChangeText={handleSearchChange}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable
+                onPress={handleClearSearch}
+                style={styles.clearButton}
+                hitSlop={8}
+              >
+                <Text style={styles.clearButtonText}>✕</Text>
+              </Pressable>
+            )}
+          </View>
+          {searchQuery.trim() && searchResults.length > 0 && (
+            <View style={styles.searchResults}>
+              {searchResults.map((r) => (
+                <Pressable
+                  key={r.section}
+                  style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
+                  onPress={() => {
+                    scrollToSection(r.section);
+                    setSearchQuery("");
+                    setSearchResults([]);
+                  }}
+                >
+                  <Text style={styles.resultTitle}>{r.title}</Text>
+                  <Text style={styles.resultSection}>§ {r.section}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+          {searchQuery.trim() && searchResults.length === 0 && (
+            <View style={styles.noResults}>
+              <Text style={styles.noResultsTitle}>No results found</Text>
+              <Text style={styles.noResultsText}>
+                Try another keyword or visit our support center.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.contactSupportButton,
+                  pressed && styles.contactSupportButtonPressed,
+                ]}
+                onPress={() => navigation.navigate("Contact")}
+              >
+                <Text style={styles.contactSupportButtonText}>
+                  Contact Support Center
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          <Text style={styles.browseLabel}>Browse by topic</Text>
+          <View style={styles.chipRow}>
+            {POPULAR_KEYWORDS.map((kw) => (
+              <Pressable
+                key={kw}
+                style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
+                onPress={() => handleKeywordPress(kw)}
+              >
+                <Text style={styles.chipText}>{kw}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         <ScrollView
+          ref={scrollViewRef}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={true}
         >
-          <GuideContent />
+          <GuideContent onSectionLayout={handleSectionLayout} />
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -256,5 +425,124 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 40,
+  },
+  searchSection: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  searchInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+  },
+  searchInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingRight: 36,
+    fontSize: 15,
+    color: "#111827",
+  },
+  clearButton: {
+    position: "absolute",
+    right: 8,
+    padding: 4,
+  },
+  clearButtonText: {
+    fontSize: 16,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  searchResults: {
+    marginTop: 8,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  resultRowPressed: {
+    backgroundColor: "#F3F4F6",
+  },
+  resultTitle: {
+    flex: 1,
+    fontSize: 14,
+    color: "#111827",
+  },
+  resultSection: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginLeft: 8,
+  },
+  noResults: {
+    marginTop: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  noResultsTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  noResultsText: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 12,
+  },
+  contactSupportButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#111827",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  contactSupportButtonPressed: {
+    backgroundColor: "#374151",
+  },
+  contactSupportButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  browseLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6B7280",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  chip: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  chipPressed: {
+    backgroundColor: "#E5E7EB",
+  },
+  chipText: {
+    fontSize: 13,
+    color: "#374151",
+    fontWeight: "500",
   },
 });
