@@ -18,7 +18,7 @@ export interface MeetingCardProps {
   meetingLink?: string;
   status: "pending" | "approved" | "cancelled";
   approvalMessage?: string;
-  expiresIn?: number; // hours
+  expiresIn?: string; // e.g. "2h", "45m", "Expired"
   onPress?: () => void;
 }
 
@@ -114,7 +114,10 @@ export default function MeetingCard({
         <View className="bg-orange-50 rounded-lg px-3 py-2.5">
           <Text className="text-sm text-black">
             {approvalMessage}
-            {expiresIn !== undefined && ` Expires in ${expiresIn} hours.`}
+            {expiresIn !== undefined &&
+              (expiresIn === "Expired"
+                ? " Expired."
+                : ` Expires in ${expiresIn}.`)}
           </Text>
         </View>
       )}

@@ -86,7 +86,7 @@ interface UIMeeting {
   meetingLink?: string; // For virtual meetings
   status: "pending" | "accepted" | "rejected" | "cancelled";
   approvalMessage?: string;
-  expiresIn?: number; // hours until expiration (for pending)
+  expiresIn?: string; // e.g. "2h", "45m", "Expired" — computed at render for live countdown
   timeUntil?: string; // "In 3hrs", "Tomorrow" (for scheduled)
   description: string; // reason from backend
   createdAt?: string; // ISO date-time for sorting (e.g. cancelled: latest first)
@@ -149,6 +149,15 @@ export default function MeetingsScreen({ route }: Props) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [countdownTick, setCountdownTick] = useState(0);
+
+  // Live countdown: re-render every 1 min when there are pending meetings
+  useEffect(() => {
+    const hasPending = meetings.some((m) => m.status === "pending");
+    if (!hasPending) return;
+    const id = setInterval(() => setCountdownTick((t) => t + 1), 60000);
+    return () => clearInterval(id);
+  }, [meetings]);
 
   // Handle navigation params to set tabs when navigating from notifications
   useEffect(() => {
@@ -318,15 +327,23 @@ export default function MeetingsScreen({ route }: Props) {
   };
 
   /**
-   * Calculate hours until expiration for pending meetings
-   * Assuming meetings expire 48 hours after creation
+   * Format remaining time until meeting request expires (24h after created_at).
+   * Returns compact one-liner: "2h", "1h 30m", "45m", or "Expired".
    */
-  const calculateExpiresIn = (createdAt?: string): number => {
-    if (!createdAt) return 24; // Default 24 hours
-    const created = new Date(createdAt);
-    const now = new Date();
-    const hoursDiff = (created.getTime() + 48 * 60 * 60 * 1000 - now.getTime()) / (1000 * 60 * 60);
-    return Math.max(0, Math.ceil(hoursDiff));
+  const formatExpiresIn = (createdAt?: string): string => {
+    if (!createdAt) return "24h"; // Fallback
+    const expiryMs = new Date(createdAt).getTime() + 24 * 60 * 60 * 1000;
+    const remainingMs = expiryMs - Date.now();
+    if (remainingMs <= 0) return "Expired";
+
+    const totalMins = Math.floor(remainingMs / (1000 * 60));
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+
+    if (hours >= 1) {
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    }
+    return `${mins}m`;
   };
 
   /**
@@ -491,11 +508,7 @@ export default function MeetingsScreen({ route }: Props) {
     // Note: Backend may also have top-level title field, but we prioritize metadata.title
     const title = virtualMeeting.metadata?.title || (virtualMeeting as any).title || virtualMeeting.reason;
 
-    // Calculate expiresIn for pending meetings
-    const expiresIn =
-      virtualMeeting.status === "pending"
-        ? calculateExpiresIn(virtualMeeting.created_at)
-        : undefined;
+    // expiresIn is computed at render time for live countdown (see formatExpiresIn)
 
     // Calculate timeUntil for scheduled meetings
     const timeUntil =
@@ -534,7 +547,6 @@ export default function MeetingsScreen({ route }: Props) {
             ? "Waiting for their approval."
             : "You have a pending request."
           : undefined,
-      expiresIn,
       timeUntil,
       description: virtualMeeting.reason,
       createdAt: virtualMeeting.created_at,
@@ -657,11 +669,7 @@ export default function MeetingsScreen({ route }: Props) {
           : undefined)
       : undefined;
 
-    // Calculate expiresIn for pending meetings
-    const expiresIn =
-      backendMeeting.status === "pending"
-        ? calculateExpiresIn(backendMeeting.created_at)
-        : undefined;
+    // expiresIn is computed at render time for live countdown (see formatExpiresIn)
 
     // Calculate timeUntil for scheduled meetings
     const timeUntil =
@@ -706,7 +714,6 @@ export default function MeetingsScreen({ route }: Props) {
             ? "Waiting for their approval."
             : "You have a pending request."
           : undefined,
-      expiresIn,
       timeUntil,
       description: backendMeeting.reason, // Keep reason as description
       createdAt: backendMeeting.created_at,
@@ -1305,7 +1312,11 @@ export default function MeetingsScreen({ route }: Props) {
                 meetingLink={meeting.meetingLink}
                 status={meeting.status === "pending" ? "pending" : meeting.status === "accepted" ? "approved" : "cancelled"}
                 approvalMessage={meeting.approvalMessage}
-                expiresIn={meeting.expiresIn}
+                expiresIn={
+                  meeting.status === "pending"
+                    ? formatExpiresIn(meeting.createdAt)
+                    : undefined
+                }
                 onPress={() => {
                   setIsParticipantModalVisible(false); // Reset participant modal
                   setSelectedMeeting(meeting);
@@ -1362,7 +1373,11 @@ export default function MeetingsScreen({ route }: Props) {
             participantRole={selectedMeeting.participantRole || "Participant"}
             participantCompany={selectedMeeting.company}
             description={selectedMeeting.description}
-            expiresIn={selectedMeeting.expiresIn}
+            expiresIn={
+              selectedMeeting.status === "pending"
+                ? formatExpiresIn(selectedMeeting.createdAt)
+                : undefined
+            }
             onParticipantPress={() => {
               setIsParticipantModalVisible(true);
             }}
@@ -1403,7 +1418,11 @@ export default function MeetingsScreen({ route }: Props) {
             participantRole={selectedMeeting.participantRole || "Participant"}
             participantCompany={selectedMeeting.company}
             description={selectedMeeting.description}
-            expiresIn={selectedMeeting.expiresIn}
+            expiresIn={
+              selectedMeeting.status === "pending"
+                ? formatExpiresIn(selectedMeeting.createdAt)
+                : undefined
+            }
             onParticipantPress={() => {
               setIsParticipantModalVisible(true);
             }}

@@ -85,7 +85,7 @@ export interface InboundMeetingModalProps {
   participantRole: string;
   participantCompany: string;
   description?: string;
-  expiresIn?: number; // hours
+  expiresIn?: string; // e.g. "2h", "45m", "Expired"
   onParticipantPress?: () => void;
   onAccept?: () => void;
   onDecline?: (reason?: string) => void;
@@ -465,7 +465,10 @@ export default function InboundMeetingModal({
             {expiresIn !== undefined && (
               <View style={styles.approvalMessage}>
                 <Text style={styles.approvalText}>
-                  Waiting for your approval. Expires in {expiresIn} hours.
+                  Waiting for your approval.{" "}
+                  {expiresIn === "Expired"
+                    ? "Expired."
+                    : `Expires in ${expiresIn}.`}
                 </Text>
               </View>
             )}
