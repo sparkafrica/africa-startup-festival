@@ -271,7 +271,7 @@ export default function AppGuideScreen() {
                   }}
                 >
                   <Text style={styles.resultTitle}>{r.title}</Text>
-                  <Text style={styles.resultSection}>§ {r.section}</Text>
+                  <Text style={styles.resultSection}>• {r.section}</Text>
                 </Pressable>
               ))}
             </ScrollView>
