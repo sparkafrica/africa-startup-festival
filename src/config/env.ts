@@ -29,19 +29,19 @@ export const API_CONFIG = {
     // BASE_URL: "https://api.sparkafrica.co",
     //  Development server
     // TIMEOUT: 30000,
-    BASE_URL: "https://dev-api.africatechnologyexpo.com", // Development server
+    BASE_URL: "https://dev-api.sparkafrica.co/", // Development server
     TIMEOUT: 30000, // 30 seconds
-    WS_URL: "wss://dev-api.africatechnologyexpo.com",
+    WS_URL: "wss://dev-api.sparkafrica.co/",
   },
   staging: {
-    BASE_URL: "https://dev-api.africatechnologyexpo.com", // Staging server (update when staging URL is available)
+    BASE_URL: "https://dev-api.sparkafrica.co/", // Staging server (update when staging URL is available)
     TIMEOUT: 30000,
-    WS_URL: "wss://dev-api.africatechnologyexpo.com",
+    WS_URL: "wss://dev-api.sparkafrica.co/",
   },
   production: {
-    BASE_URL: "https://api.sparkafrica.co", // Temporarily dev – test OTA; switch back to api.africatechnologyexpo.com for live(Finally got changed)
+    BASE_URL: "https://api.sparkafrica.co", // Production server
     TIMEOUT: 30000,
-    WS_URL: "wss://api.sparkafrica.co",
+    WS_URL: "wss://api.sparkafrica.co", // Production WebSocket URL
   },
 } as const;
 
