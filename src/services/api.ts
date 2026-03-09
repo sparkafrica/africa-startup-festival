@@ -267,13 +267,13 @@ class ApiClient {
 
       if (code === "ECONNABORTED" || code === "ETIMEDOUT") {
         message =
-          "Request timed out. Try a smaller image or check your connection.";
+          "The request took too long, Check your connection and try again.";
       } else if (code === "ERR_NETWORK") {
         message =
           "Network error. Please check your internet connection.";
       } else {
         message =
-          "Request failed. Please check your connection and try again.";
+          "Request failed. Please check your internet connection and try again.";
       }
 
       if (__DEV__) {

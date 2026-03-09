@@ -12,10 +12,13 @@ import {
   EventViewModal,
   LeaveFeedbackModal,
   FeedbackSentModal,
-  ParticipantDetailModal,
+  ScheduleSuccessToast,
+  SpeakerDetailModal,
+  TabButton,
   type FilterCategory,
   type Speaker,
 } from "../components";
+import Toast from "../components/Toast";
 import {
   HomeIcon,
   HomeIconFilled,
@@ -36,9 +39,10 @@ import { useChecklist } from "../context/ChecklistContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { useMeetingsBadgeCount } from "../hooks";
-import { eventService, type EventSchedule } from "../services/eventService";
+import { eventService, type EventSchedule, type PersonalSchedule } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
+import { useToast } from "../hooks/useToast";
 
 // ============================================================================
 // EXTERNAL LINKS INTEGRATION POINTS - ScheduleScreen
@@ -79,12 +83,14 @@ export default function ScheduleScreen() {
   const meetingsBadgeCount = useMeetingsBadgeCount();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
   const { hasUnreadNotifications } = useNotifications();
+  const [scheduleView, setScheduleView] = React.useState<"all" | "my">("all");
   const [selectedStage, setSelectedStage] =
     React.useState<string>("main-stage");
   const [isFilterModalVisible, setIsFilterModalVisible] = React.useState(false);
   const [selectedFilters, setSelectedFilters] = React.useState<string[]>([]);
   interface EventData {
     id: string;
+    eventScheduleId: number; // Backend schedule id for addEventToSchedule
     title: string;
     stage: string;
     day: string;
@@ -93,6 +99,7 @@ export default function ScheduleScreen() {
     sponsoredBy?: { name: string; color: "blue" | "purple" };
     speakers?: Speaker[];
     description?: string;
+    personalScheduleId?: number; // For My Schedule tab: backend personal schedule id (remove from schedule)
   }
 
   const [selectedEvent, setSelectedEvent] = React.useState<EventData | null>(
@@ -104,15 +111,21 @@ export default function ScheduleScreen() {
     React.useState(false);
   const [isFeedbackSentModalVisible, setIsFeedbackSentModalVisible] =
     React.useState(false);
-  const [selectedSpeaker, setSelectedSpeaker] = React.useState<Speaker | null>(
-    null
-  );
-  const [isSpeakerDetailVisible, setIsSpeakerDetailVisible] =
-    React.useState(false);
+  const [selectedSpeakerId, setSelectedSpeakerId] = React.useState<string | null>(null);
+  const [selectedSpeakerName, setSelectedSpeakerName] = React.useState<string | undefined>();
+  const [speakerModalVisible, setSpeakerModalVisible] = React.useState(false);
+
+  // Add to schedule success toast
+  const [scheduleToastVisible, setScheduleToastVisible] = React.useState(false);
+  const [scheduleToastTitle, setScheduleToastTitle] = React.useState("");
+
+  const { toast, showToast, hideToast } = useToast();
 
   // State for API data
   const [events, setEvents] = React.useState<EventData[]>([]);
+  const [mySchedules, setMySchedules] = React.useState<EventData[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [myScheduleLoading, setMyScheduleLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   // Speaker cache: Map of speaker ID -> full speaker object
@@ -195,11 +208,23 @@ export default function ScheduleScreen() {
     // Extract sponsoredBy from metadata if available
     const sponsoredBy = schedule.metadata?.sponsoredBy || eventObj?.metadata?.sponsoredBy;
 
-    // Extract speakers - schedule.speakers is an array of speaker IDs
+    // Extract speakers - may be array or JSON string from personal-schedules
+    const rawSpeakers = (schedule as any).speakers;
+    let parsed: unknown[] = [];
+    if (typeof rawSpeakers === "string") {
+      try {
+        parsed = JSON.parse(rawSpeakers || "[]");
+      } catch {
+        parsed = [];
+      }
+    } else {
+      parsed = Array.isArray(rawSpeakers) ? rawSpeakers : (rawSpeakers ? [rawSpeakers] : []);
+    }
     let speakers: Speaker[] = [];
-    if (schedule.speakers && Array.isArray(schedule.speakers)) {
+    const arr = Array.isArray(parsed) ? parsed : [];
+    if (arr.length > 0) {
       // Map speaker IDs to full speaker objects using the cache
-      speakers = schedule.speakers
+      speakers = arr
         .map((speakerId: number | any) => {
           // Check if it's already a full speaker object (fallback)
           if (speakerId && typeof speakerId === "object" && speakerId.name) {
@@ -231,6 +256,7 @@ export default function ScheduleScreen() {
 
     return {
       id: `schedule-${schedule.id}`,
+      eventScheduleId: schedule.id,
       title: schedule.name,
       stage: stage,
       day: formatDay(startDate),
@@ -312,10 +338,55 @@ export default function ScheduleScreen() {
     fetchEventSchedules();
   }, [fetchEventSchedules]);
 
+  const refreshMyScheduleRef = React.useRef<(() => void) | null>(null);
+
+  const fetchMySchedules = React.useCallback(async () => {
+    try {
+      setMyScheduleLoading(true);
+      await fetchAndCacheSpeakers(); // Populate speaker cache for mapping
+      const response = await eventService.getPersonalSchedules(EVENT_ID);
+      if (__DEV__ && response?.schedules) {
+        response.schedules.forEach((ps: PersonalSchedule, i: number) => {
+          const es = ps.event_schedule;
+          const raw = es && typeof es === "object" ? (es as any).speakers : undefined;
+          console.log(`[personal-schedules] schedule[${i}] event_schedule.speakers raw:`, raw, `(typeof: ${typeof raw})`);
+        });
+      }
+      const mapped = response.schedules
+        .filter((ps: PersonalSchedule) => ps.event_schedule && typeof ps.event_schedule === "object")
+        .map((ps: PersonalSchedule) => {
+          const eventData = mapEventScheduleToEventData(ps.event_schedule as EventSchedule);
+          return { ...eventData, personalScheduleId: ps.id };
+        });
+      setMySchedules(mapped);
+    } catch (err: any) {
+      setMySchedules([]);
+    } finally {
+      setMyScheduleLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    refreshMyScheduleRef.current = fetchMySchedules;
+    return () => {
+      refreshMyScheduleRef.current = null;
+    };
+  }, [fetchMySchedules]);
+
   useFocusEffect(
     useCallback(() => {
       refreshMeetingsBadge();
-    }, [refreshMeetingsBadge])
+      fetchMySchedules(); // Always fetch so we have addedScheduleIds for Schedule tab
+    }, [refreshMeetingsBadge, fetchMySchedules])
+  );
+
+  React.useEffect(() => {
+    if (scheduleView === "my") fetchMySchedules();
+  }, [scheduleView, fetchMySchedules]);
+
+  const addedScheduleIds = React.useMemo(
+    () => new Set(mySchedules.map((m) => m.eventScheduleId)),
+    [mySchedules]
   );
 
   // MOCK DATA - Commented out, using backend API now
@@ -473,24 +544,38 @@ export default function ScheduleScreen() {
   }, [selectedStage]);
   */
 
-  const handleAskQuestion = async (event?: EventData) => {
+  const handleRemoveFromSchedule = async (event?: EventData) => {
+    if (!event?.personalScheduleId) return;
     try {
-      // Use event-specific question URL if available in metadata, otherwise use default
-      const questionUrl = event?.description?.includes("question") 
-        ? event.description 
-        : QUESTION_FORM_URL;
-      
-      const canOpen = await Linking.canOpenURL(questionUrl);
-      if (canOpen) {
-        await Linking.openURL(questionUrl);
-      } else {
-        Alert.alert("Error", "Cannot open the question form URL");
+      await eventService.removeEventFromSchedule(event.personalScheduleId);
+      showToast("Removed from schedule", "success");
+      await fetchMySchedules();
+      if (selectedEvent?.personalScheduleId === event.personalScheduleId) {
+        setIsEventViewModalVisible(false);
+        setSelectedEvent(null);
       }
-    } catch (error) {
-      if (__DEV__) {
-        console.error("Error opening question form URL:", error);
-      }
-      Alert.alert("Error", "Failed to open question form");
+    } catch (err: any) {
+      const msg =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to remove from schedule. Please try again.";
+      showToast(msg, "error");
+    }
+  };
+
+  const handleAddToSchedule = async (event?: EventData) => {
+    if (!event?.eventScheduleId) return;
+    try {
+      await eventService.addEventToSchedule(event.eventScheduleId);
+      setScheduleToastTitle(event.title);
+      setScheduleToastVisible(true);
+      refreshMyScheduleRef.current?.();
+    } catch (err: any) {
+      const msg =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to add to schedule. Please try again.";
+      showToast(msg, "error");
     }
   };
 
@@ -603,26 +688,41 @@ export default function ScheduleScreen() {
         {/* Time Zone Alert Banner */}
         <TimeZoneAlertBanner />
 
-        {/* Filter Controls */}
-        <View className="flex-row items-center justify-center mb-4 px-4 pt-4 gap-3">
-          <DropdownButton
-            label="Main Stage"
-            icon="list"
-            options={stageOptions}
-            selectedValue={selectedStage}
-            onSelect={(value) => {
-              setSelectedStage(value);
-              // Refetch events when stage changes (handled by useEffect)
-            }}
-            width="65%"
+        {/* Schedule / My Schedule segment */}
+        <View className="flex-row mx-4 mb-2 p-1 bg-neutral-100 rounded-lg">
+          <TabButton
+            label="Schedule"
+            isActive={scheduleView === "all"}
+            onPress={() => setScheduleView("all")}
           />
-          <DropdownButton
-            label="Filter"
-            icon="filter"
-            onPress={() => setIsFilterModalVisible(true)}
-            width="30%"
+          <TabButton
+            label="My Schedule"
+            isActive={scheduleView === "my"}
+            onPress={() => setScheduleView("my")}
           />
         </View>
+
+        {/* Filter Controls - Schedule tab only */}
+        {scheduleView === "all" && (
+          <View className="flex-row items-center justify-center mb-4 px-4 pt-2 gap-3">
+            <DropdownButton
+              label="Main Stage"
+              icon="list"
+              options={stageOptions}
+              selectedValue={selectedStage}
+              onSelect={(value) => {
+                setSelectedStage(value);
+              }}
+              width="65%"
+            />
+            <DropdownButton
+              label="Filter"
+              icon="filter"
+              onPress={() => setIsFilterModalVisible(true)}
+              width="30%"
+            />
+          </View>
+        )}
       </View>
 
       {/* Scrollable Event Cards */}
@@ -632,39 +732,86 @@ export default function ScheduleScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
+            refreshing={false}
+            onRefresh={
+              scheduleView === "all"
+                ? onRefresh
+                : () => fetchMySchedules()
+            }
             tintColor="#1BB273"
             colors={["#1BB273"]}
           />
         }
       >
         <View className="px-4">
-          {isLoading ? (
+          {scheduleView === "all" ? (
+            isLoading ? (
+              <View className="flex-1 items-center justify-center py-20">
+                <LoadingSpinner size="large" />
+                <Text className="text-gray-500 mt-4">Loading events...</Text>
+              </View>
+            ) : error ? (
+              <View className="flex-1 items-center justify-center py-20 px-4">
+                <Text className="text-red-600 text-center mb-4">{error}</Text>
+                <Pressable
+                  onPress={fetchEventSchedules}
+                  className="bg-black rounded-md px-6 py-3"
+                >
+                  <Text className="text-white font-medium">Retry</Text>
+                </Pressable>
+              </View>
+            ) : events.length === 0 ? (
+              <View className="flex-1 items-center justify-center py-20">
+                <Text className="text-gray-500 text-center">
+                  Schedule is not yet live, kindly check back.
+                </Text>
+              </View>
+            ) : (
+              events.map((event) => (
+                <Pressable
+                  key={event?.id || `event-${Math.random()}`}
+                  onPress={() => {
+                    if (event) {
+                      setSelectedEvent(event);
+                      setIsEventViewModalVisible(true);
+                    }
+                  }}
+                  style={({ pressed }) => ({
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <EventCard
+                    title={event?.title || ""}
+                    stage={event?.stage || ""}
+                    day={event?.day || ""}
+                    startTime={event?.startTime || ""}
+                    endTime={event?.endTime || ""}
+                    sponsoredBy={event?.sponsoredBy}
+                    onAddToSchedule={() => handleAddToSchedule(event)}
+                    onLeaveFeedback={() => handleLeaveFeedback(event)}
+                    isInMySchedule={addedScheduleIds.has(event?.eventScheduleId ?? 0)}
+                  />
+                </Pressable>
+              ))
+            )
+          ) : myScheduleLoading ? (
             <View className="flex-1 items-center justify-center py-20">
               <LoadingSpinner size="large" />
-              <Text className="text-gray-500 mt-4">Loading events...</Text>
+              <Text className="text-gray-500 mt-4">Loading your schedule...</Text>
             </View>
-          ) : error ? (
+          ) : mySchedules.length === 0 ? (
             <View className="flex-1 items-center justify-center py-20 px-4">
-              <Text className="text-red-600 text-center mb-4">{error}</Text>
-              <Pressable
-                onPress={fetchEventSchedules}
-                className="bg-black rounded-md px-6 py-3"
-              >
-                <Text className="text-white font-medium">Retry</Text>
-              </Pressable>
-            </View>
-          ) : events.length === 0 ? (
-            <View className="flex-1 items-center justify-center py-20">
-              <Text className="text-gray-500 text-center">
-                Schedule is not yet live, kindly check back.
+              <Text className="text-gray-500 text-center text-base mb-2">
+                No sessions in your schedule
+              </Text>
+              <Text className="text-neutral-400 text-center text-sm">
+                Tap "Add to schedule" on the Schedule tab to add sessions.
               </Text>
             </View>
           ) : (
-            events.map((event) => (
+            mySchedules.map((event) => (
               <Pressable
-                key={event?.id || `event-${Math.random()}`}
+                key={event?.id || `my-${event?.personalScheduleId ?? Math.random()}`}
                 onPress={() => {
                   if (event) {
                     setSelectedEvent(event);
@@ -682,7 +829,7 @@ export default function ScheduleScreen() {
                   startTime={event?.startTime || ""}
                   endTime={event?.endTime || ""}
                   sponsoredBy={event?.sponsoredBy}
-                  onAskQuestion={() => handleAskQuestion(event)}
+                  onRemoveFromSchedule={() => handleRemoveFromSchedule(event)}
                   onLeaveFeedback={() => handleLeaveFeedback(event)}
                 />
               </Pressable>
@@ -704,13 +851,10 @@ export default function ScheduleScreen() {
 
       {selectedEvent && (
         <EventViewModal
-          visible={isEventViewModalVisible && !isSpeakerDetailVisible}
+          visible={isEventViewModalVisible}
           onClose={() => {
             setIsEventViewModalVisible(false);
             setSelectedEvent(null);
-            // Clear speaker state when closing event modal
-            setSelectedSpeaker(null);
-            setIsSpeakerDetailVisible(false);
           }}
           title={selectedEvent?.title || ""}
           startTime={selectedEvent?.startTime || ""}
@@ -720,19 +864,33 @@ export default function ScheduleScreen() {
           speakers={(selectedEvent?.speakers || []).map((speaker: Speaker) => {
             return {
               ...speaker,
-              onPress: () => {
-                if (speaker) {
-                  // Hide event modal first, then show speaker modal
+                  onPress: () => {
+                if (speaker?.id) {
                   setIsEventViewModalVisible(false);
-                  // Set speaker and show modal
-                  setSelectedSpeaker(speaker);
-                  setIsSpeakerDetailVisible(true);
+                  setSelectedEvent(null);
+                  setSelectedSpeakerId(String(speaker.id));
+                  setSelectedSpeakerName(speaker.name);
+                  setSpeakerModalVisible(true);
                 }
               },
             };
           })}
           description={selectedEvent?.description}
-          onAskQuestion={() => handleAskQuestion(selectedEvent)}
+          onAddToSchedule={
+            selectedEvent?.personalScheduleId ||
+            (selectedEvent && addedScheduleIds.has(selectedEvent.eventScheduleId))
+              ? undefined
+              : () => handleAddToSchedule(selectedEvent)
+          }
+          onRemoveFromSchedule={
+            selectedEvent?.personalScheduleId
+              ? () => handleRemoveFromSchedule(selectedEvent)
+              : undefined
+          }
+          isInMySchedule={
+            !!selectedEvent?.personalScheduleId ||
+            (!!selectedEvent && addedScheduleIds.has(selectedEvent.eventScheduleId))
+          }
           onLeaveFeedback={() => {
             handleLeaveFeedback(selectedEvent);
             setIsEventViewModalVisible(false);
@@ -761,36 +919,28 @@ export default function ScheduleScreen() {
         meetingTitle={selectedEvent?.title}
       />
 
-      <ParticipantDetailModal
-        visible={isSpeakerDetailVisible && !!selectedSpeaker}
+      <SpeakerDetailModal
+        visible={speakerModalVisible && !!selectedSpeakerId}
         onClose={() => {
-          setIsSpeakerDetailVisible(false);
-          setSelectedSpeaker(null);
-          // Restore event modal if event is still selected
-          if (selectedEvent) {
-            setIsEventViewModalVisible(true);
-          }
+          setSpeakerModalVisible(false);
+          setSelectedSpeakerId(null);
+          setSelectedSpeakerName(undefined);
         }}
-        name={selectedSpeaker?.name || ""}
-        role={(() => {
-          // Parse affiliation to extract role (e.g., "VC Partner · TechVentures Inc" -> "VC Partner")
-          const affiliation = selectedSpeaker?.affiliation || "";
-          const parts = affiliation.split("·");
-          const role = parts[0]?.trim() || "";
-          return role;
-        })()}
-        company={(() => {
-          // Parse affiliation to extract company (e.g., "VC Partner · TechVentures Inc" -> "TechVentures Inc")
-          const affiliation = selectedSpeaker?.affiliation || "";
-          const parts = affiliation.split("·");
-          const company = parts.length > 1 ? parts[1]?.trim() : "";
-          return company;
-        })()}
-        bio={selectedSpeaker?.bio}
-        interests={selectedSpeaker?.interests}
-        tags={selectedSpeaker?.tags}
-        socialLabel={selectedSpeaker?.socialLabel}
-        linkedInUrl={selectedSpeaker?.socialLabel}
+        speakerId={selectedSpeakerId || ""}
+        name={selectedSpeakerName}
+      />
+
+      <ScheduleSuccessToast
+        visible={scheduleToastVisible}
+        onHide={() => setScheduleToastVisible(false)}
+        eventTitle={scheduleToastTitle}
+      />
+
+      <Toast
+        message={toast.message}
+        visible={toast.visible}
+        type={toast.type}
+        onHide={hideToast}
       />
 
       <SafeAreaView edges={["bottom"]}>

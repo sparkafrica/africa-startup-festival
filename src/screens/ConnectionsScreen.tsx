@@ -1025,7 +1025,7 @@ export default function ConnectionsScreen() {
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
-                refreshing={isLoading}
+                refreshing={false}
                 onRefresh={fetchConnections}
                 tintColor="#1BB273"
                 colors={["#1BB273"]}

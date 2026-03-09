@@ -43,8 +43,10 @@ export interface EventViewModalProps {
   };
   speakers?: Speaker[];
   description?: string;
-  onAskQuestion?: () => void;
+  onAddToSchedule?: () => void;
   onLeaveFeedback?: () => void;
+  onRemoveFromSchedule?: () => void; // For My Schedule tab
+  isInMySchedule?: boolean;
 }
 
 export default function EventViewModal({
@@ -57,8 +59,10 @@ export default function EventViewModal({
   sponsoredBy,
   speakers = [],
   description,
-  onAskQuestion,
+  onAddToSchedule,
   onLeaveFeedback,
+  onRemoveFromSchedule,
+  isInMySchedule,
 }: EventViewModalProps) {
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const isAnimating = useRef(false);
@@ -266,13 +270,24 @@ export default function EventViewModal({
 
           {/* Action Buttons */}
           <SafeAreaView edges={["bottom"]} style={styles.actionsContainer}>
-            <Pressable style={styles.addButton} onPress={onAskQuestion}>
-              <CalendarIconWhite size={20} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Ask a question</Text>
-            </Pressable>
+            {onRemoveFromSchedule ? (
+              <Pressable style={styles.removeButton} onPress={onRemoveFromSchedule}>
+                <Text style={styles.removeButtonText}>Remove from schedule</Text>
+              </Pressable>
+            ) : isInMySchedule ? (
+              <View style={styles.addedButton}>
+                <CalendarIconWhite size={20} color="#737373" />
+                <Text style={styles.addedButtonText}>Added</Text>
+              </View>
+            ) : (
+              <Pressable style={styles.addButton} onPress={onAddToSchedule}>
+                <CalendarIconWhite size={20} color="#FFFFFF" />
+                <Text style={styles.addButtonText}>Add to schedule</Text>
+              </Pressable>
+            )}
             <Pressable style={styles.feedbackButton} onPress={onLeaveFeedback}>
               <SpeechBubbleIcon size={20} color="#000000" />
-              <Text style={styles.feedbackButtonText}>Leave Feedback</Text>
+              <Text style={styles.feedbackButtonText}>Leave a Feedback</Text>
             </Pressable>
           </SafeAreaView>
         </Animated.View>
@@ -432,6 +447,37 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  removeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: "#EF4444",
+  },
+  removeButtonText: {
+    color: "#EF4444",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  addedButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginBottom: 12,
+  },
+  addedButtonText: {
+    color: "#737373",
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 8,

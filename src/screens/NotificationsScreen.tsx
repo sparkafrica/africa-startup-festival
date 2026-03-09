@@ -370,7 +370,7 @@ export default function NotificationsScreen() {
             contentContainerStyle={{ paddingBottom: 20 }}
             refreshControl={
               <RefreshControl
-                refreshing={isRefreshing}
+                refreshing={false}
                 onRefresh={() => fetchNotifications(1, true)}
                 tintColor="#1BB273"
                 colors={["#1BB273"]}

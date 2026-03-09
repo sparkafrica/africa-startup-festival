@@ -12,8 +12,10 @@ export interface EventCardProps {
     name: string;
     color: "blue" | "purple";
   };
-  onAskQuestion?: () => void;
+  onAddToSchedule?: () => void;
   onLeaveFeedback?: () => void;
+  onRemoveFromSchedule?: () => void; // For My Schedule tab
+  isInMySchedule?: boolean; // Show "Added" when true
 }
 
 export default function EventCard({
@@ -23,8 +25,10 @@ export default function EventCard({
   startTime,
   endTime,
   sponsoredBy,
-  onAskQuestion,
+  onAddToSchedule,
   onLeaveFeedback,
+  onRemoveFromSchedule,
+  isInMySchedule,
 }: EventCardProps) {
   const sponsorColors = {
     blue: {
@@ -63,18 +67,32 @@ export default function EventCard({
       </Text>
 
       <View className="flex-row items-center gap-3">
-        <Pressable
-          onPress={onAskQuestion}
-          className="flex-row items-center bg-black rounded-md px-4 py-2.5"
-        >
-          <CalendarIconWhite size={16} color="#FFFFFF" />
-          <Text className="text-white font-medium text-sm ml-2">
-            Ask a question
-          </Text>
-        </Pressable>
+        {onRemoveFromSchedule ? (
+          <Pressable
+            onPress={onRemoveFromSchedule}
+            className="flex-row items-center rounded-md px-4 py-2.5 border border-red-500"
+          >
+            <Text className="text-red-500 font-medium text-sm">Remove from schedule</Text>
+          </Pressable>
+        ) : isInMySchedule ? (
+          <View className="flex-row items-center bg-neutral-200 rounded-md px-4 py-2.5">
+            <CalendarIconWhite size={16} color="#737373" />
+            <Text className="text-neutral-500 font-medium text-sm ml-2">Added</Text>
+          </View>
+        ) : (
+          <Pressable
+            onPress={onAddToSchedule}
+            className="flex-row items-center bg-black rounded-md px-4 py-2.5"
+          >
+            <CalendarIconWhite size={16} color="#FFFFFF" />
+            <Text className="text-white font-medium text-sm ml-2">
+              Add to schedule
+            </Text>
+          </Pressable>
+        )}
 
         <Pressable onPress={onLeaveFeedback} className="px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-md">
-          <Text className="text-gray-800 text-sm">Leave feedback</Text>
+          <Text className="text-gray-800 text-sm">Leave a Feedback</Text>
         </Pressable>
       </View>
     </View>

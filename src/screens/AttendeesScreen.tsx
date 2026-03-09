@@ -1897,7 +1897,7 @@ export default function AttendeesScreen() {
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                   <RefreshControl
-                    refreshing={refreshing}
+                    refreshing={false}
                     onRefresh={onRefresh}
                     tintColor="#1BB273"
                     colors={["#1BB273"]}

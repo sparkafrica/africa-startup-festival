@@ -333,6 +333,7 @@ export default function MeetingsScreen({ route }: Props) {
   const formatExpiresIn = (createdAt?: string): string => {
     if (!createdAt) return "24h"; // Fallback
     const expiryMs = new Date(createdAt).getTime() + 24 * 60 * 60 * 1000;
+    if (!Number.isFinite(expiryMs)) return "24h"; // Invalid date guard
     const remainingMs = expiryMs - Date.now();
     if (remainingMs <= 0) return "Expired";
 
@@ -1242,7 +1243,7 @@ export default function MeetingsScreen({ route }: Props) {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefreshing}
+            refreshing={false}
             onRefresh={() => fetchMeetings(true)}
             tintColor="#1BB273"
             colors={["#1BB273"]}

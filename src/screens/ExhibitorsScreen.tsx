@@ -200,7 +200,7 @@ export default function ExhibitorsScreen() {
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => fetchExhibitors(true)} tintColor="#1BB273" colors={["#1BB273"]} />
+          <RefreshControl refreshing={false} onRefresh={() => fetchExhibitors(true)} tintColor="#1BB273" colors={["#1BB273"]} />
         }
       >
         {/* Screen Title Section */}

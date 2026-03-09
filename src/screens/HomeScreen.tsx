@@ -21,6 +21,7 @@ import {
   LoadingSpinner,
   PartnerCard,
   SpeakerCard,
+  SpeakerDetailModal,
   BottomNavigation,
 } from "../components";
 import EventChecklist from "../components/EventChecklist";
@@ -70,6 +71,10 @@ export default function HomeScreen() {
   const [featuredPartners, setFeaturedPartners] = useState<any[]>([]);
   const [partnersLoading, setPartnersLoading] = useState(true);
   const [partnersError, setPartnersError] = useState<string | null>(null);
+
+  // Speaker detail modal
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState<string | null>(null);
+  const [speakerModalVisible, setSpeakerModalVisible] = useState(false);
 
   // Refresh state
   const [refreshing, setRefreshing] = useState(false);
@@ -296,10 +301,10 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={false}
             onRefresh={onRefresh}
-            tintColor="#000000"
-            colors={["#000000"]}
+            tintColor="#1BB273"
+            colors={["#1BB273"]}
           />
         }
       >
@@ -377,7 +382,7 @@ export default function HomeScreen() {
           >
             {exhibitorsLoading ? (
               <View className="py-8 items-center">
-                <LoadingSpinner size="large" color="#000000" />
+                <LoadingSpinner size="large" />
                 <Text className="text-gray-500 mt-2">Loading exhibitors...</Text>
               </View>
             ) : exhibitorsError ? (
@@ -450,7 +455,7 @@ export default function HomeScreen() {
           >
             {partnersLoading ? (
               <View className="py-8 items-center">
-                <LoadingSpinner size="large" color="#000000" />
+                <LoadingSpinner size="large" />
                 <Text className="text-gray-500 mt-2">Loading partners...</Text>
               </View>
             ) : partnersError ? (
@@ -523,7 +528,7 @@ export default function HomeScreen() {
           >
             {speakersLoading ? (
               <View className="py-8 items-center">
-                <LoadingSpinner size="large" color="#000000" />
+                <LoadingSpinner size="large" />
                 <Text className="text-gray-500 mt-2">Loading speakers...</Text>
               </View>
             ) : speakersError ? (
@@ -548,12 +553,10 @@ export default function HomeScreen() {
                           avatar={speaker.profile_pic ? { uri: speaker.profile_pic } : undefined}
                           avatarColor={avatarColor}
                           variant="horizontal"
-                          onPress={() =>
-                            navigation.navigate("SpeakerDetail", {
-                              speakerId: speaker.id.toString(),
-                              name: speaker.full_name || "Speaker",
-                            })
-                          }
+                          onPress={() => {
+                            setSelectedSpeakerId(speaker.id.toString());
+                            setSpeakerModalVisible(true);
+                          }}
                         />
                       </View>
                     );
@@ -586,6 +589,16 @@ export default function HomeScreen() {
           </Card>
         </View>
       </ScrollView>
+
+      <SpeakerDetailModal
+        visible={speakerModalVisible && !!selectedSpeakerId}
+        onClose={() => {
+          setSpeakerModalVisible(false);
+          setSelectedSpeakerId(null);
+        }}
+        speakerId={selectedSpeakerId || ""}
+        name={featuredSpeakers.find((s) => s.id.toString() === selectedSpeakerId)?.full_name}
+      />
 
       {/* Bottom Navigation */}
       <SafeAreaView edges={["bottom"]}>

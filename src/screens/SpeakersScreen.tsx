@@ -13,6 +13,7 @@ import { ApiClientError } from "../services/api";
 import {
   HeaderBar,
   SpeakerCard,
+  SpeakerDetailModal,
   BottomNavigation,
   FilterTag,
   FilterModal,
@@ -41,6 +42,10 @@ export default function SpeakersScreen() {
   const { hasUnreadNotifications } = useNotifications();
   const [selectedFilterIds, setSelectedFilterIds] = useState<string[]>([]);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+
+  // Speaker detail modal
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState<string | null>(null);
+  const [speakerModalVisible, setSpeakerModalVisible] = useState(false);
 
   // State for speakers data
   const [speakers, setSpeakers] = useState<any[]>([]);
@@ -346,12 +351,10 @@ export default function SpeakersScreen() {
                     avatar={speaker.avatar}
                     avatarColor={speaker.avatarColor}
                     variant="vertical"
-                    onPress={() =>
-                      navigation.navigate("SpeakerDetail", {
-                        speakerId: speaker.id,
-                        name: speaker.name,
-                      })
-                    }
+                    onPress={() => {
+                      setSelectedSpeakerId(speaker.id);
+                      setSpeakerModalVisible(true);
+                    }}
                   />
                 </View>
               ))}
@@ -365,6 +368,16 @@ export default function SpeakersScreen() {
           )}
         </View>
       </ScrollView>
+
+      <SpeakerDetailModal
+        visible={speakerModalVisible && !!selectedSpeakerId}
+        onClose={() => {
+          setSpeakerModalVisible(false);
+          setSelectedSpeakerId(null);
+        }}
+        speakerId={selectedSpeakerId || ""}
+        name={speakers.find((s) => s.id === selectedSpeakerId)?.name}
+      />
 
       {/* Bottom Navigation */}
       <SafeAreaView edges={["bottom"]}>

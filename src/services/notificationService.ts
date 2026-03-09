@@ -81,23 +81,6 @@ export const notificationService = {
 
       const data = response as any;
 
-      if (__DEV__) {
-        console.log("🔔 Raw notifications response:", {
-          hasData: !!data,
-          dataType: typeof data,
-          keys: data ? Object.keys(data) : [],
-          hasResults: data?.results !== undefined,
-          hasDataResults: data?.data?.results !== undefined,
-          resultsLength: data?.results?.length || data?.data?.results?.length || data?.data?.length || 0,
-          status: data?.status,
-          message: data?.message,
-          response_code: data?.response_code,
-          dataIsArray: Array.isArray(data?.data),
-          dataLength: Array.isArray(data?.data) ? data.data.length : 'N/A',
-          fullResponsePreview: JSON.stringify(data, null, 2).substring(0, 500),
-        });
-      }
-
       // Check if response has the PaginatedUserNotificationList structure (direct)
       if (
         data &&
@@ -105,9 +88,6 @@ export const notificationService = {
         "results" in data &&
         Array.isArray(data.results)
       ) {
-        if (__DEV__) {
-          console.log("✅ Found direct PaginatedUserNotificationList structure");
-        }
         return {
           notifications: data.results as UserNotification[],
           pagination: {
@@ -124,9 +104,6 @@ export const notificationService = {
         
         // Check if data.data is directly an array (ApiResponse with array data)
         if (Array.isArray(responseData)) {
-          if (__DEV__) {
-            console.log("✅ Found array directly in data.data (ApiResponse format)");
-          }
           return {
             notifications: responseData as UserNotification[],
             pagination: {
@@ -144,9 +121,6 @@ export const notificationService = {
           "results" in responseData &&
           Array.isArray(responseData.results)
         ) {
-          if (__DEV__) {
-            console.log("✅ Found ApiResponse wrapped PaginatedUserNotificationList structure");
-          }
           return {
             notifications: responseData.results as UserNotification[],
             pagination: {
@@ -160,9 +134,6 @@ export const notificationService = {
 
       // Check if data is directly an array
       if (Array.isArray(data)) {
-        if (__DEV__) {
-          console.log("✅ Found array directly in response");
-        }
         return {
           notifications: data as UserNotification[],
           pagination: {
@@ -174,9 +145,6 @@ export const notificationService = {
       }
 
       // Fallback: return empty array
-      if (__DEV__) {
-        console.warn("⚠️ Could not parse notifications response, returning empty array");
-      }
       return {
         notifications: [],
         pagination: {

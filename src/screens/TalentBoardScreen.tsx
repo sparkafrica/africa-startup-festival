@@ -212,9 +212,10 @@ export default function TalentBoardScreen() {
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
-                refreshing={refreshing}
+                refreshing={false}
                 onRefresh={onRefresh}
-                tintColor={colors.text.primary}
+                tintColor="#1BB273"
+                colors={["#1BB273"]}
               />
             }
           >

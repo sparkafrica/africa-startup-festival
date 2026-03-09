@@ -18,7 +18,6 @@ import ExhibitorsScreen from "../screens/ExhibitorsScreen";
 import CompanyDetailScreen from "../screens/CompanyDetailScreen";
 import PartnersScreen from "../screens/PartnersScreen";
 import SpeakersScreen from "../screens/SpeakersScreen";
-import SpeakerDetailScreen from "../screens/SpeakerDetailScreen";
 import ScheduleScreen from "../screens/ScheduleScreen";
 import MeetingsScreen from "../screens/MeetingsScreen";
 import ConnectionsScreen from "../screens/ConnectionsScreen";
@@ -146,16 +145,6 @@ export default function MainNavigator() {
         options={{
           headerShown: false,
           animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="SpeakerDetail"
-        component={SpeakerDetailScreen}
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_bottom",
-          contentStyle: { backgroundColor: "transparent" },
         }}
       />
       <Stack.Screen
