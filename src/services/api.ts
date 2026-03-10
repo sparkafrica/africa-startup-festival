@@ -17,6 +17,7 @@ import axios, {
   InternalAxiosRequestConfig,
 } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Sentry from "@sentry/react-native";
 import { ENV } from "../config/env";
 
 // ============================================================================
@@ -163,7 +164,12 @@ class ApiClient {
           delete config.headers['Content-Type'];
         }
 
-        // Request logged only in development if needed for debugging
+        // Breadcrumb for Sentry (no request/response bodies or tokens)
+        Sentry.addBreadcrumb({
+          category: "api",
+          message: `${config.method?.toUpperCase() ?? "GET"} ${config.url ?? ""}`,
+          level: "info",
+        });
 
         return config;
       },
@@ -194,11 +200,28 @@ class ApiClient {
           if (!isProfileEndpoint) {
             this.onSessionExpired?.();
           }
-          return Promise.reject(this.handleError(error));
+          const handledError = this.handleError(error);
+          Sentry.addBreadcrumb({
+            category: "api",
+            message: `API Error: ${url}`,
+            data: { status: 401, message: handledError.message },
+            level: "error",
+          });
+          return Promise.reject(handledError);
         }
 
         // Handle other errors
-        return Promise.reject(this.handleError(error));
+        const handledError = this.handleError(error);
+        Sentry.addBreadcrumb({
+          category: "api",
+          message: `API Error: ${originalRequest?.url ?? "unknown"}`,
+          data: {
+            status: error.response?.status,
+            message: handledError.message,
+          },
+          level: "error",
+        });
+        return Promise.reject(handledError);
       }
     );
   }

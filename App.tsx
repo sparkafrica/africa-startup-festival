@@ -1,8 +1,17 @@
 import "react-native-gesture-handler";
 import "./global.d.ts";
+import { initSentry } from "./src/utils/sentry";
+import * as Sentry from "@sentry/react-native";
 import React from "react";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
+import { Text, View, Pressable, Image } from "react-native";
+import * as Updates from "expo-updates";
+import { NavigationContainer } from "@react-navigation/native";
+import { navigationRef } from "./src/navigation/navigationRef";
+import { useFonts } from "expo-font";
+
+initSentry();
 
 // Show notifications when app is in foreground
 Notifications.setNotificationHandler({
@@ -13,10 +22,6 @@ Notifications.setNotificationHandler({
     shouldSetBadge: true,
   }),
 });
-import { NavigationContainer } from "@react-navigation/native";
-import { navigationRef } from "./src/navigation/navigationRef";
-import { useFonts } from "expo-font";
-import { Text, View, Image } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider } from "./src/context/AuthContext";
 import { ChecklistProvider } from "./src/context/ChecklistContext";
@@ -88,7 +93,26 @@ export default function App() {
   (Text as any).defaultProps = (Text as any).defaultProps || {};
   (Text as any).defaultProps.style = { fontFamily: "InterDisplay-Regular" };
 
+  function ErrorFallback() {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#FFF" }}>
+        <Text style={{ fontSize: 16, textAlign: "center", marginBottom: 16, color: "#171717" }}>
+          Something went wrong. Please restart the app.
+        </Text>
+        {!__DEV__ && typeof Updates?.reloadAsync === "function" && (
+          <Pressable
+            onPress={() => Updates.reloadAsync()}
+            style={{ backgroundColor: "#000", paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 }}
+          >
+            <Text style={{ color: "#FFF", fontWeight: "600" }}>Reload</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
+
   return (
+    <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View className="flex-1 font-sans">
         <AuthProvider>
@@ -106,5 +130,6 @@ export default function App() {
         </AuthProvider>
       </View>
     </GestureHandlerRootView>
+    </Sentry.ErrorBoundary>
   );
 }

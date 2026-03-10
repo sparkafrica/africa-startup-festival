@@ -17,6 +17,7 @@ import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import { LoadingSpinner } from "../components";
+import { logError } from "../utils/logError";
 
 // Logo import
 const logoImage = require("../assets/images/logo.png");
@@ -56,13 +57,19 @@ export default function LoginScreen() {
       const isNoTicket =
         /user with this email does not exist/i.test(msg) ||
         /does not exist/i.test(msg);
-      Alert.alert(
-        "Error",
-        isNoTicket
-          ? "You don't have a Valid ATE Ticket. Please purchase one and return to login."
-          : "Failed to send verification code. Please try again."
-      );
-      console.error("Error sending verification code:", error);
+      if (isNoTicket) {
+        logError(error, { screen: "Login", email, reason: "no_ticket" });
+        Alert.alert(
+          "Error",
+          "You don't have a Valid ATE Ticket. Please purchase one and return to login."
+        );
+      } else {
+        logError(error, { screen: "Login", email });
+        Alert.alert("Error", "Failed to send verification code. Please try again.", [
+          { text: "OK", style: "cancel" },
+          { text: "Retry", onPress: () => handleSendCode() },
+        ]);
+      }
     } finally {
       setIsSubmitting(false);
     }

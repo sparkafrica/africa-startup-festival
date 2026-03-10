@@ -25,6 +25,9 @@
     "production": {
       "distribution": "store",
       "channel": "production",
+      "env": {
+        "SENTRY_AUTH_TOKEN": "@SENTRY_AUTH_TOKEN"
+      },
       "android": {
         "buildType": "app-bundle"
       },

@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import * as Updates from "expo-updates";
 import type { RootStackParamList } from "./types";
 
 // Main App Screens
@@ -29,6 +30,22 @@ import AppGuideScreen from "../screens/AppGuideScreen";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function MainNavigator() {
+  // Check for OTA updates only after user is authenticated (avoids overlap with login/verification flow)
+  useEffect(() => {
+    if (__DEV__) return;
+    const runUpdateCheck = async () => {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+        }
+      } catch {
+        // Silently ignore update check failures
+      }
+    };
+    runUpdateCheck();
+  }, []);
+
   return (
     <Stack.Navigator
       initialRouteName="Home"
