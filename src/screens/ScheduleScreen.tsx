@@ -150,6 +150,15 @@ export default function ScheduleScreen() {
   const QUESTION_FORM_URL = "https://example.com/ask-question"; // TODO: Replace with backend URL
   const FEEDBACK_FORM_URL = "https://example.com/leave-feedback"; // TODO: Replace with backend URL
 
+  const stageMapping: Record<string, string> = {
+    "main-stage": "Main Stage",
+    "enterprise-stage": "Enterprise Stage",
+  };
+  const dayFilterToEventDay: Record<string, string> = {
+    "26th June, 2026": "Day 1",
+    "27th June, 2026": "Day 2",
+  };
+
   /**
    * Fetch all speakers for the event and cache them
    */
@@ -282,14 +291,6 @@ export default function ScheduleScreen() {
       // Build filters based on selected stage and filters
       const filters: { search?: string; ordering?: string } = {};
       
-      // Map UI stage values to backend venue values for filtering
-      const stageMapping: Record<string, string> = {
-        "main-stage": "Main Stage",
-        "enterprise-stage": "Enterprise Stage",
-        "future-stage": "Future Stage",
-        "mentor-hours": "Mentor Hours",
-        "city-circle": "City Circle",
-      };
       const selectedVenue = stageMapping[selectedStage] || "Main Stage";
 
       // First, fetch and cache all speakers for the event
@@ -388,6 +389,21 @@ export default function ScheduleScreen() {
     () => new Set(mySchedules.map((m) => m.eventScheduleId)),
     [mySchedules]
   );
+
+  // Filter My Schedule by stage and day (same controls as Schedule tab)
+  const filteredMySchedules = React.useMemo(() => {
+    const venue = stageMapping[selectedStage] || "Main Stage";
+    let list = mySchedules.filter((event) => event.stage === venue);
+    if (selectedFilters.length > 0) {
+      const allowedDays = new Set(
+        selectedFilters.map((id) => dayFilterToEventDay[id]).filter(Boolean)
+      );
+      if (allowedDays.size > 0) {
+        list = list.filter((event) => event.day && allowedDays.has(event.day));
+      }
+    }
+    return list;
+  }, [mySchedules, selectedStage, selectedFilters]);
 
   // MOCK DATA - Commented out, using backend API now
   /*
@@ -603,9 +619,9 @@ export default function ScheduleScreen() {
   const stageOptions = [
     { label: "Main Stage", value: "main-stage" },
     { label: "Enterprise Stage", value: "enterprise-stage" },
-    { label: "Future Stage", value: "future-stage" },
-    { label: "Mentor Hours", value: "mentor-hours" },
-    { label: "City Circle", value: "city-circle" },
+    // { label: "Future Stage", value: "future-stage" },
+    // { label: "Mentor Hours", value: "mentor-hours" },
+    // { label: "City Circle", value: "city-circle" },
   ];
 
   const filterCategories: FilterCategory[] = [
@@ -702,27 +718,25 @@ export default function ScheduleScreen() {
           />
         </View>
 
-        {/* Filter Controls - Schedule tab only */}
-        {scheduleView === "all" && (
-          <View className="flex-row items-center justify-center mb-4 px-4 pt-2 gap-3">
-            <DropdownButton
-              label="Main Stage"
-              icon="list"
-              options={stageOptions}
-              selectedValue={selectedStage}
-              onSelect={(value) => {
-                setSelectedStage(value);
-              }}
-              width="65%"
-            />
-            <DropdownButton
-              label="Filter"
-              icon="filter"
-              onPress={() => setIsFilterModalVisible(true)}
-              width="30%"
-            />
-          </View>
-        )}
+        {/* Filter Controls - Stage dropdown + Filter for both Schedule and My Schedule */}
+        <View className="flex-row items-center justify-center mb-4 px-4 pt-2 gap-3">
+          <DropdownButton
+            label={stageOptions.find((o) => o.value === selectedStage)?.label ?? "Stage"}
+            icon="list"
+            options={stageOptions}
+            selectedValue={selectedStage}
+            onSelect={(value) => {
+              setSelectedStage(value);
+            }}
+            width="65%"
+          />
+          <DropdownButton
+            label="Filter"
+            icon="filter"
+            onPress={() => setIsFilterModalVisible(true)}
+            width="30%"
+          />
+        </View>
       </View>
 
       {/* Scrollable Event Cards */}
@@ -808,8 +822,17 @@ export default function ScheduleScreen() {
                 Tap "Add to schedule" on the Schedule tab to add sessions.
               </Text>
             </View>
+          ) : filteredMySchedules.length === 0 ? (
+            <View className="flex-1 items-center justify-center py-20 px-4">
+              <Text className="text-gray-500 text-center text-base mb-2">
+                No sessions match the selected stage or filters
+              </Text>
+              <Text className="text-neutral-400 text-center text-sm">
+                Try changing the stage or filter above.
+              </Text>
+            </View>
           ) : (
-            mySchedules.map((event) => (
+            filteredMySchedules.map((event) => (
               <Pressable
                 key={event?.id || `my-${event?.personalScheduleId ?? Math.random()}`}
                 onPress={() => {
