@@ -19,7 +19,7 @@ import {
   CloseIcon,
   UserAvatarIcon,
   ChevronRightIcon,
-  VideoIcon,
+  HelpIcon,
   LightbulbIcon,
 } from "./MenuIcons";
 
@@ -116,7 +116,7 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
     },
     {
       label: "App Guide",
-      icon: <VideoIcon size={20} color="#444" />,
+      icon: <HelpIcon size={20} color="#444" />,
       route: "AppGuide",
     },
     {

@@ -121,11 +121,13 @@ const validateLinkedIn = (
   if (trimmed.length > 500) {
     return { valid: false, error: "LinkedIn must be under 500 characters." };
   }
-  // Require full profile URL so we store the correct link; pill will show the username from the URL
-  if (!/linkedin\.com\/in\//i.test(trimmed)) {
+  // Basic acceptor: any URL (http(s)://) or anything that looks like LinkedIn (contains "linkedin")
+  const looksLikeUrl =
+    /^https?:\/\/\S+/i.test(trimmed) || trimmed.includes("linkedin");
+  if (!looksLikeUrl) {
     return {
       valid: false,
-      error: "Please enter your full LinkedIn profile URL (e.g. https://linkedin.com/in/yourname).",
+      error: "Please enter a valid LinkedIn profile URL (e.g. https://linkedin.com/in/yourname).",
     };
   }
   return { valid: true };

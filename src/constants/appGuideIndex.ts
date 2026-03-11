@@ -1,7 +1,14 @@
 /**
  * FAQ index for App Guide search.
- * Search matches against: question + keywords + answer
+ * Search matches against: question + keywords + answer.
+ *
+ * TL;DR improvements: stemming (transferring → transfer), stopwords (ignore "of", "my"),
+ * keyword-index expansion, single-word matches, and reuse of appGuideKeywords so natural
+ * queries like "transferring of ticket" find the transfer-ticket FAQ and reduce support load.
  */
+import { tokenizeAndStem } from "../utils/searchStemmer";
+import { KEYWORD_TO_SECTIONS } from "./appGuideKeywords";
+
 export interface FAQEntry {
   id: number;
   question: string;
@@ -349,30 +356,64 @@ function normalizeForSearch(text: string): string {
     .trim();
 }
 
-/** Search FAQ index: matches question + keywords + answer. Supports fuzzy matching. */
+/**
+ * Search FAQ index with stemming, stopwords, and keyword-index expansion.
+ * - Stems: "transferring" / "transferred" match "transfer".
+ * - Stopwords: "transferring of ticket" matches like "transferring ticket".
+ * - Single word: "transferring" alone matches FAQs containing stem "transfer".
+ * - Keyword index: phrases from appGuideKeywords boost matches (e.g. "transfer ticket").
+ */
 export function searchGuide(
   query: string
 ): { section: number; title: string }[] {
   const q = normalizeForSearch(query);
   if (!q) return [];
 
-  const results: { section: number; title: string }[] = [];
   const seen = new Set<number>();
-  const queryWords = q.split(/\s+/).filter((w) => w.length > 0);
+  const results: { section: number; title: string }[] = [];
 
+  // Query stems (stopwords removed) for stem-based and expansion matching
+  const queryStems = tokenizeAndStem(q, { removeStopwords: true });
+
+  // 1) First-pass: keyword index — any keyword whose stem set overlaps query stems,
+  //    or that contains/is contained by the raw query, adds its sections
+  for (const [keyword, sectionIds] of Object.entries(KEYWORD_TO_SECTIONS)) {
+    const kwNorm = normalizeForSearch(keyword);
+    const kwStems = tokenizeAndStem(kwNorm, { removeStopwords: true });
+    const overlap =
+      kwNorm.includes(q) ||
+      q.includes(kwNorm) ||
+      (queryStems.length > 0 && queryStems.some((qs) => kwStems.includes(qs)));
+    if (overlap) {
+      for (const id of sectionIds) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          const entry = FAQ_INDEX.find((e) => e.id === id);
+          results.push({ section: id, title: entry?.question ?? "" });
+        }
+      }
+    }
+  }
+
+  // 2) Second-pass: FAQ text — full phrase match or every query stem in searchable stems
   for (const entry of FAQ_INDEX) {
+    if (seen.has(entry.id)) continue;
     const searchableText =
       normalizeForSearch(entry.question) +
       " " +
       entry.keywords.map(normalizeForSearch).join(" ") +
       " " +
       normalizeForSearch(entry.answer);
+    const searchableStems = new Set(
+      tokenizeAndStem(searchableText, { removeStopwords: true })
+    );
 
-    const matches =
-      searchableText.includes(q) ||
-      queryWords.every((word) => searchableText.includes(word));
+    const fullPhraseMatch = searchableText.includes(q);
+    const allStemsMatch =
+      queryStems.length > 0 &&
+      queryStems.every((s) => searchableStems.has(s));
 
-    if (matches && !seen.has(entry.id)) {
+    if (fullPhraseMatch || allStemsMatch) {
       seen.add(entry.id);
       results.push({ section: entry.id, title: entry.question });
     }

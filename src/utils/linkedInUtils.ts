@@ -3,9 +3,8 @@
  * - Backend/metadata stores the user's full profile URL (or username).
  * - Pills show a short display label (username) for clarity.
  * - Opening the pill always uses the full URL.
+ * - Supports any LinkedIn URL shape (linkedin.com, linkedin.co.uk, etc.) for username extraction.
  */
-
-const LINKEDIN_IN_PREFIX = /^https?:\/\/(www\.)?linkedin\.com\/in\//i;
 
 export interface LinkedInDisplayInfo {
   /** Full URL to use when opening (Linking.openURL). */
@@ -33,11 +32,11 @@ export function getLinkedInDisplayInfo(
   const lower = raw.toLowerCase();
   const hasProtocol = lower.startsWith("http://") || lower.startsWith("https://");
 
-  if (hasProtocol || lower.includes("linkedin.com")) {
-    // Full URL or partial URL
+  if (hasProtocol || lower.includes("linkedin")) {
+    // Full URL or partial URL (linkedin.com, linkedin.co.uk, uk.linkedin.com, etc.)
     url = raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`;
     url = url.replace(/\?.*$/, "").replace(/\/+$/, "");
-    const match = url.match(/linkedin\.com\/in\/([^/?]+)/i);
+    const match = url.match(/linkedin[^/]*\/in\/([^/?]+)/i);
     displayLabel = match ? match[1].trim() : "Profile";
   } else {
     // Username only
