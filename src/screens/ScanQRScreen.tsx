@@ -59,6 +59,7 @@ import {
   showExpoCannotBookMeetingAlert,
 } from "../utils/meetingRestrictions";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
+import { logError } from "../utils/logError";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -4514,10 +4515,18 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         await fetchTickets();
         setTimeout(() => setConfirmationModalVisible(true), 300);
       } catch (error: any) {
-        showToast(
-          error?.message || "Failed to allocate ticket. Please try again.",
-          "error",
-        );
+        logError(error, {
+          screen: "ScanQR",
+          action: "allocateTicket",
+          recipientEmail: data?.email,
+          eventId: EVENT_ID,
+          ticketClassId: transferModalData.ticketClassId,
+          message: error?.message,
+        });
+        setIsAllocating(false);
+        const message =
+          error?.message || "Failed to allocate ticket. Please try again.";
+        showToast(message, "error");
       } finally {
         setIsAllocating(false);
       }

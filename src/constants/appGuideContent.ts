@@ -74,7 +74,7 @@ If you have multiple tickets under your allocation:
 3. Enter recipient name, email, and phone number
 4. Confirm assignment
 The recipient must accept the allocation before the ticket becomes active.
-⚠️Important.
+⚠️ Important.
 * Revoking an assigned ticket is only possible before the recipient accepts the invitation.
 * You can't revoke/edit an already assigned ticket that has been accepted. Only if the recipient hasn't accepted the ticket then you can revoke the assignment.
 
