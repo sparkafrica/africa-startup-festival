@@ -19,7 +19,7 @@ import type {
 } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import { LoadingSpinner } from "../components";
-import { logError } from "../utils/logError";
+import { logError, ERROR_TAGS } from "../utils/logError";
 import Svg, { Path, Rect } from "react-native-svg";
 
 // Email Icon Component
@@ -137,7 +137,11 @@ export default function VerificationCodeScreen() {
       setCode("");
       hiddenInputRef.current?.focus();
     } catch (error) {
-      logError(error, { screen: "VerificationCode", email, action: "resend" });
+      logError(
+        error,
+        { screen: "VerificationCode", email, action: "resend" },
+        { error_type: ERROR_TAGS.VALIDATION }
+      );
       Alert.alert(
         "Error",
         "Failed to resend verification code. Please try again.",

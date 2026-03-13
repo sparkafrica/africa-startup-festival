@@ -17,7 +17,7 @@ import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import { LoadingSpinner } from "../components";
-import { logError } from "../utils/logError";
+import { logError, ERROR_TAGS } from "../utils/logError";
 
 // Logo import
 const logoImage = require("../assets/images/logo.png");
@@ -58,7 +58,11 @@ export default function LoginScreen() {
         /user with this email does not exist/i.test(msg) ||
         /does not exist/i.test(msg);
       if (isNoTicket) {
-        logError(error, { screen: "Login", email, reason: "no_ticket" });
+        logError(
+          error,
+          { screen: "Login", email, reason: "no_ticket" },
+          { error_type: ERROR_TAGS.VALIDATION }
+        );
         Alert.alert(
           "Error",
           "You don't have a Valid ATE Ticket. Please purchase one and return to login."
