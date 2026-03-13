@@ -4526,7 +4526,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         setIsAllocating(false);
         const message =
           error?.message || "Failed to allocate ticket. Please try again.";
-        showToast(message, "error");
+        setRecipientModalVisible(false);
+        setTimeout(() => showToast(message, "error"), 100);
       } finally {
         setIsAllocating(false);
       }
@@ -5102,6 +5103,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           message={toast.message}
           visible={toast.visible}
           type={toast.type}
+          duration={toast.duration}
           onHide={hideToast}
         />
       </SafeAreaView>
