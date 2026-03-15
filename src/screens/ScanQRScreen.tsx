@@ -4154,7 +4154,7 @@ const formatTicketCodeForDisplay = (uuid: string): string => {
 export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const initialTab = route.params?.initialTab || "Scan Ticket";
   const [activeTab, setActiveTab] = useState<"My Ticket" | "Scan Ticket">(
     initialTab,
@@ -4371,6 +4371,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
     setTickets(allTickets);
     setTicketsLoading(false);
+    return allTickets;
   }, []);
 
   // Fetch on mount and when screen gains focus (e.g. returning from another tab)
@@ -4538,17 +4539,48 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       return;
     }
 
-    // Transfer existing ticket: TODO - use ticketService.transferTicket when ticketId available
-    setRecipientData({
-      firstName: data.firstName,
-      lastName: data.lastName,
-      fullName: data.fullName,
-      email: data.email,
-      phoneNumber: data.phoneNumber,
-      countryCode: data.countryCode || "",
-    });
-    setRecipientModalVisible(false);
-    setTimeout(() => setConfirmationModalVisible(true), 300);
+    // Personal ticket transfer: POST /tickets/transfer/initiate/ (transfer is immediate)
+    setIsAllocating(true);
+    try {
+      await ticketService.transferTicketInitiate(EVENT_ID, recipientData);
+      setRecipientData({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        fullName: data.fullName,
+        email: data.email,
+        phoneNumber: data.phoneNumber,
+        countryCode: data.countryCode || "",
+      });
+      setRecipientModalVisible(false);
+      const updatedTickets = await fetchTickets();
+      const hasPersonalTicket = updatedTickets.some((t) => t.isPersonal);
+      if (!hasPersonalTicket) {
+        setConfirmationModalVisible(false);
+        setRecipientData(null);
+        await logout();
+      } else {
+        setTimeout(() => setConfirmationModalVisible(true), 300);
+      }
+    } catch (error: any) {
+      logError(
+        error,
+        {
+          screen: "ScanQR",
+          action: "transferTicketInitiate",
+          recipientEmail: data?.email,
+          eventId: EVENT_ID,
+          message: error?.message,
+        },
+        { error_type: ERROR_TAGS.VALIDATION }
+      );
+      setIsAllocating(false);
+      const message =
+        error?.message || "Failed to transfer ticket. Please try again.";
+      setRecipientModalVisible(false);
+      setTimeout(() => showToast(message, "error"), 100);
+    } finally {
+      setIsAllocating(false);
+    }
   };
 
   const handleBackToHome = () => {

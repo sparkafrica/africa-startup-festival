@@ -159,6 +159,28 @@ export interface TransferTicketRequest {
 }
 
 /**
+ * Transfer initiate request – POST /tickets/transfer/initiate/
+ * Backend: transfer current user's personal ticket for the event to the recipient.
+ */
+export interface TicketTransferInitiateRequest {
+  event_id: number;
+  recipient_email: string;
+  recipient_first_name?: string;
+  recipient_last_name?: string;
+}
+
+/**
+ * Transfer ticket initiate request – POST /tickets/transfer/initiate/
+ * Backend uses auth user's personal ticket for the given event_id.
+ */
+export interface TicketTransferInitiateRequest {
+  event_id: number;
+  recipient_email: string;
+  recipient_first_name?: string;
+  recipient_last_name?: string;
+}
+
+/**
  * Assign Ticket Request
  */
 export interface AssignTicketRequest {
@@ -488,6 +510,47 @@ export const ticketService = {
       response_code: response.response_code,
       data: {},
     });
+  },
+
+  /**
+   * Initiate transfer of current user's personal ticket to a recipient.
+   * Backend determines the ticket from auth + event_id.
+   *
+   * Backend Endpoint: POST /tickets/transfer/initiate/
+   */
+  async transferTicketInitiate(
+    eventId: number,
+    recipientData: TicketRecipient
+  ): Promise<void> {
+    const firstName =
+      recipientData.firstName?.trim() ||
+      (recipientData.fullName || "").trim().split(/\s+/)[0] ||
+      "";
+    const lastName =
+      recipientData.lastName?.trim() ||
+      (recipientData.fullName || "").trim().split(/\s+/).slice(1).join(" ") ||
+      firstName;
+
+    const requestBody: TicketTransferInitiateRequest = {
+      event_id: eventId,
+      recipient_email: recipientData.email.trim(),
+      recipient_first_name: firstName || undefined,
+      recipient_last_name: lastName || undefined,
+    };
+
+    const response = await api.post<TicketTransferInitiateRequest>(
+      "/tickets/transfer/initiate/",
+      requestBody
+    );
+
+    if (response.status !== "success") {
+      throw new ApiClientError({
+        status: "error",
+        message: (response as any).message || "Failed to transfer ticket",
+        response_code: (response as any).response_code ?? 400,
+        data: {},
+      });
+    }
   },
 
   /**
