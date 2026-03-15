@@ -53,6 +53,9 @@ export const INDUSTRY_OPTIONS: IndustryOption[] = [
   },
   { id: "energy-tech", label: "Energy Tech" },
   { id: "deep-tech-frontier", label: "Deep Tech & Frontier Technologies" },
+  { id: "hr-human-resources", label: "HR (Human Resources)" },
+  { id: "professional Services", label: "Professional Services" },
+  { id: "consultancy", label: "Consultancy" },
   { id: "others", label: "Others" },
 ];
 
@@ -80,6 +83,9 @@ export const TOP_INTERESTS: string[] = [
   "Talent",
   "Legal",
   "Robotics",
+  "HR (Human Resources)",
+  "Professional Services)",
+  "Consultancy",
 ];
 
 /** For filter modal: interests as { id, label }. id is slug for matching. */

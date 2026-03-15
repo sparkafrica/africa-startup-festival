@@ -37,6 +37,12 @@ import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
 import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
+import {
+  COMPANY_SIZE_OPTIONS,
+  COMPANY_TYPE_OPTIONS,
+  PURCHASING_INFLUENCE_OPTIONS,
+  type SelectOption,
+} from "../constants/companyProfileOptions";
 
 // Offer colors
 const OFFER_COLORS = [
@@ -537,6 +543,98 @@ function IndustryDropdownModal({
   );
 }
 
+function SelectOptionModal({
+  visible,
+  onClose,
+  title,
+  options,
+  selectedId,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  options: SelectOption[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable className="flex-1 bg-black/50" onPress={onClose}>
+        <Pressable
+          className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[70%]"
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 10,
+          }}
+        >
+          <View className="items-center pt-2 pb-2">
+            <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
+          </View>
+          <View className="px-6 pb-6">
+            <View className="flex-row items-start justify-between gap-4 mb-4">
+              <View className="flex-1 min-w-0 pr-1">
+                <Text
+                  className="text-[22px] font-semibold text-black"
+                  numberOfLines={3}
+                >
+                  {title}
+                </Text>
+              </View>
+              <Pressable
+                onPress={onClose}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                className="w-10 h-10 items-center justify-center "
+              >
+                <CloseIcon size={20} color="#000000" />
+              </Pressable>
+            </View>
+            <ScrollView
+              showsVerticalScrollIndicator={true}
+              className="max-h-[400px]"
+            >
+              {options.map((option) => {
+                const isSelected = selectedId === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => {
+                      onSelect(option.id);
+                      onClose();
+                    }}
+                    className={`py-4 px-4 rounded-xl mb-2 ${
+                      isSelected ? "bg-neutral-200" : "bg-white"
+                    }`}
+                  >
+                    <Text
+                      className={`text-base ${
+                        isSelected
+                          ? "font-semibold text-black"
+                          : "font-medium text-neutral-700"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function CountryDropdownModal({
   visible,
   onClose,
@@ -761,6 +859,12 @@ function AttendeeProfileForm({
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [companySize, setCompanySize] = useState("");
+  const [companyType, setCompanyType] = useState("");
+  const [purchasingInfluence, setPurchasingInfluence] = useState("");
+  const [showCompanySizeModal, setShowCompanySizeModal] = useState(false);
+  const [showCompanyTypeModal, setShowCompanyTypeModal] = useState(false);
+  const [showPurchasingModal, setShowPurchasingModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
@@ -805,6 +909,27 @@ function AttendeeProfileForm({
     }
     const li = meta.linkedIn ?? meta.linkedin_url;
     if (typeof li === "string") setLinkedIn(li);
+    const sizeVal = meta.company_size;
+    if (typeof sizeVal === "string") {
+      const opt = COMPANY_SIZE_OPTIONS.find(
+        (o) => o.id === sizeVal || o.label === sizeVal
+      );
+      if (opt) setCompanySize(opt.id);
+    }
+    const typeVal = meta.company_type;
+    if (typeof typeVal === "string") {
+      const opt = COMPANY_TYPE_OPTIONS.find(
+        (o) => o.id === typeVal || o.label === typeVal
+      );
+      if (opt) setCompanyType(opt.id);
+    }
+    const purchVal = meta.purchasing_influence;
+    if (typeof purchVal === "string") {
+      const opt = PURCHASING_INFLUENCE_OPTIONS.find(
+        (o) => o.id === purchVal || o.label === purchVal
+      );
+      if (opt) setPurchasingInfluence(opt.id);
+    }
     const companyName = (source as UserProfile).company?.name;
     if (companyName) setCompany(companyName);
   }, [source]);
@@ -815,6 +940,12 @@ function AttendeeProfileForm({
   const selectedCountryData =
     COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
     COUNTRY_OPTIONS[0];
+  const selectedCompanySizeLabel =
+    COMPANY_SIZE_OPTIONS.find((o) => o.id === companySize)?.label ?? "Select one";
+  const selectedCompanyTypeLabel =
+    COMPANY_TYPE_OPTIONS.find((o) => o.id === companyType)?.label ?? "Select one";
+  const selectedPurchasingInfluenceLabel =
+    PURCHASING_INFLUENCE_OPTIONS.find((o) => o.id === purchasingInfluence)?.label ?? "Select one";
 
   const toggleInterest = (interest: string) => {
     setSelectedInterests((prev) =>
@@ -965,7 +1096,7 @@ function AttendeeProfileForm({
       const countryLabel =
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
-      // Build metadata: industry & interests are shown on attendee cards; merge with existing so we don't overwrite e.g. event_checklist
+      // Build metadata: industry & interests are shown on attendee cards; company fields for internal use only
       const metadata: any = { ...(user?.metadata || {}) };
       metadata.linkedIn = linkedIn.trim();
       if (industryLabel) {
@@ -973,6 +1104,19 @@ function AttendeeProfileForm({
       }
       if (selectedInterests.length > 0) {
         metadata.interests = selectedInterests;
+      }
+      if (companySize) {
+        metadata.company_size =
+          COMPANY_SIZE_OPTIONS.find((o) => o.id === companySize)?.label ?? companySize;
+      }
+      if (companyType) {
+        metadata.company_type =
+          COMPANY_TYPE_OPTIONS.find((o) => o.id === companyType)?.label ?? companyType;
+      }
+      if (purchasingInfluence) {
+        metadata.purchasing_influence =
+          PURCHASING_INFLUENCE_OPTIONS.find((o) => o.id === purchasingInfluence)?.label ??
+          purchasingInfluence;
       }
       // Note: company field is not sent to backend (company association is separate)
 
@@ -1293,6 +1437,72 @@ function AttendeeProfileForm({
               </Pressable>
             </View>
 
+            {/* Company size (metadata only) */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                What is the size of your company?
+              </Text>
+              <Pressable
+                onPress={() => setShowCompanySizeModal(true)}
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+              >
+                <View className="flex-1 min-w-0">
+                  <Text
+                    className="text-base text-neutral-900"
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {selectedCompanySizeLabel}
+                  </Text>
+                </View>
+                <ChevronDownIcon size={20} color="#404040" />
+              </Pressable>
+            </View>
+
+            {/* Company type (metadata only) */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                Which option best describes you or your company?
+              </Text>
+              <Pressable
+                onPress={() => setShowCompanyTypeModal(true)}
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+              >
+                <View className="flex-1 min-w-0">
+                  <Text
+                    className="text-base text-neutral-900"
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {selectedCompanyTypeLabel}
+                  </Text>
+                </View>
+                <ChevronDownIcon size={20} color="#404040" />
+              </Pressable>
+            </View>
+
+            {/* Purchasing influence (metadata only) */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                How involved are you in purchasing decisions at your company?
+              </Text>
+              <Pressable
+                onPress={() => setShowPurchasingModal(true)}
+                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+              >
+                <View className="flex-1 min-w-0">
+                  <Text
+                    className="text-base text-neutral-900"
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {selectedPurchasingInfluenceLabel}
+                  </Text>
+                </View>
+                <ChevronDownIcon size={20} color="#404040" />
+              </Pressable>
+            </View>
+
             {/* Bio */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
@@ -1435,6 +1645,30 @@ function AttendeeProfileForm({
         onClose={() => setShowCountryModal(false)}
         selectedCountry={selectedCountry}
         onSelect={setSelectedCountry}
+      />
+      <SelectOptionModal
+        title="What is the size of your company?"
+        options={COMPANY_SIZE_OPTIONS}
+        selectedId={companySize}
+        onSelect={(id) => setCompanySize(id)}
+        onClose={() => setShowCompanySizeModal(false)}
+        visible={showCompanySizeModal}
+      />
+      <SelectOptionModal
+        title="Which option best describes you or your company?"
+        options={COMPANY_TYPE_OPTIONS}
+        selectedId={companyType}
+        onSelect={(id) => setCompanyType(id)}
+        onClose={() => setShowCompanyTypeModal(false)}
+        visible={showCompanyTypeModal}
+      />
+      <SelectOptionModal
+        title="How involved are you in purchasing decisions at your company?"
+        options={PURCHASING_INFLUENCE_OPTIONS}
+        selectedId={purchasingInfluence}
+        onSelect={(id) => setPurchasingInfluence(id)}
+        onClose={() => setShowPurchasingModal(false)}
+        visible={showPurchasingModal}
       />
     </KeyboardAvoidingView>
   );
