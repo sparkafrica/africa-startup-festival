@@ -169,7 +169,7 @@ export default function ConversationScreen() {
             <ChevronLeftIcon size={24} color="#404040" />
           </Pressable>
           <Text
-            className="flex-1 text-lg font-semibold text-neutral-900"
+            className="flex-1 text-[20px] font-semibold text-neutral-900"
             numberOfLines={1}
           >
             {otherPartyName || "Chat"}

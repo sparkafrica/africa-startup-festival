@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
@@ -30,6 +30,11 @@ import { companyService } from "../services/companyService";
 import { offerService } from "../services/offerService";
 import { boothService } from "../services/boothService";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
+import {
+  hasRequiredImage,
+  REQUIRED_PROFILE_PHOTO_MESSAGE,
+  REQUIRED_COMPANY_LOGO_MESSAGE,
+} from "../utils/profilePhotoValidation";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
 import { LoadingSpinner } from "../components";
@@ -947,6 +952,12 @@ function AttendeeProfileForm({
   const selectedPurchasingInfluenceLabel =
     PURCHASING_INFLUENCE_OPTIONS.find((o) => o.id === purchasingInfluence)?.label ?? "Select one";
 
+  const profilePhotoReady = hasRequiredImage({
+    selectedUri: selectedImageUri,
+    existingUrl: initialProfile?.profile_pic ?? user?.profile_pic,
+    shouldRemove: shouldRemovePhoto,
+  });
+
   const toggleInterest = (interest: string) => {
     setSelectedInterests((prev) =>
       prev.includes(interest)
@@ -983,6 +994,9 @@ function AttendeeProfileForm({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false);
+        if (validationErrors.profilePhoto) {
+          setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
+        }
       }
     } catch (error) {
       console.error("Error taking photo:", error);
@@ -1016,6 +1030,9 @@ function AttendeeProfileForm({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false);
+        if (validationErrors.profilePhoto) {
+          setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
+        }
       }
     } catch (error) {
       console.error("Error choosing photo:", error);
@@ -1070,6 +1087,16 @@ function AttendeeProfileForm({
     const interestsValidation = validateInterests(selectedInterests);
     if (!interestsValidation.valid) {
       errors.interests = interestsValidation.error || "";
+    }
+
+    // Photo: primary guard is disabled Complete button (profilePhotoReady). This block is fallback if submit runs.
+    const profilePhotoOk = hasRequiredImage({
+      selectedUri: selectedImageUri,
+      existingUrl: initialProfile?.profile_pic ?? user?.profile_pic,
+      shouldRemove: shouldRemovePhoto,
+    });
+    if (!profilePhotoOk) {
+      errors.profilePhoto = REQUIRED_PROFILE_PHOTO_MESSAGE;
     }
 
     // If there are validation errors, show them
@@ -1238,7 +1265,13 @@ function AttendeeProfileForm({
           </View>
 
           {/* Profile Photo Upload Section */}
-          <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
+          <View
+            className={`rounded-2xl border bg-neutral-50 mb-6 p-6 items-center ${
+              validationErrors.profilePhoto
+                ? "border-red-500"
+                : "border-neutral-200"
+            }`}
+          >
             <View className="relative mb-4">
               <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
                 {(selectedImageUri || (initialProfile?.profile_pic && !shouldRemovePhoto) || (user?.profile_pic && !shouldRemovePhoto)) ? (
@@ -1280,11 +1313,16 @@ function AttendeeProfileForm({
               </Pressable>
             </View>
             <Text className="text-sm font-medium text-neutral-900 mb-1">
-              Upload a photo of yourself
+              Upload a photo of yourself <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500">
               Recommended: 400x400px minimum
             </Text>
+            {validationErrors.profilePhoto ? (
+              <Text className="text-red-500 text-xs mt-2 text-center px-1">
+                {validationErrors.profilePhoto}
+              </Text>
+            ) : null}
           </View>
 
           {/* Form Fields */}
@@ -1611,14 +1649,21 @@ function AttendeeProfileForm({
       >
         <Pressable
           onPress={handleCompleteProfile}
-          disabled={isSubmitting || selectedInterests.length < 3}
+          disabled={
+            isSubmitting ||
+            selectedInterests.length < 3 ||
+            !profilePhotoReady
+          }
           className={`rounded-xl py-4 items-center justify-center ${
-            selectedInterests.length >= 3 && !isSubmitting
+            selectedInterests.length >= 3 && profilePhotoReady && !isSubmitting
               ? "bg-black"
               : "bg-neutral-300"
           }`}
           style={{
-            opacity: selectedInterests.length >= 3 && !isSubmitting ? 1 : 0.6,
+            opacity:
+              selectedInterests.length >= 3 && profilePhotoReady && !isSubmitting
+                ? 1
+                : 0.6,
           }}
         >
           <Text className="text-white text-base font-semibold">
@@ -1750,6 +1795,12 @@ function PersonalProfileForm({
     COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
     COUNTRY_OPTIONS[0];
 
+  const profilePhotoReady = hasRequiredImage({
+    selectedUri: selectedImageUri,
+    existingUrl: initialProfile?.profile_pic ?? user?.profile_pic,
+    shouldRemove: shouldRemovePhoto,
+  });
+
   const toggleInterest = (interest: string) => {
     setSelectedInterests((prev) =>
       prev.includes(interest)
@@ -1786,6 +1837,9 @@ function PersonalProfileForm({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false);
+        if (validationErrors.profilePhoto) {
+          setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
+        }
       }
     } catch (error) {
       console.error("Error taking photo:", error);
@@ -1819,6 +1873,9 @@ function PersonalProfileForm({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false);
+        if (validationErrors.profilePhoto) {
+          setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
+        }
       }
     } catch (error) {
       console.error("Error choosing photo:", error);
@@ -1872,6 +1929,15 @@ function PersonalProfileForm({
     const interestsValidation = validateInterests(selectedInterests);
     if (!interestsValidation.valid) {
       errors.interests = interestsValidation.error || "";
+    }
+
+    const profilePhotoOk = hasRequiredImage({
+      selectedUri: selectedImageUri,
+      existingUrl: initialProfile?.profile_pic ?? user?.profile_pic,
+      shouldRemove: shouldRemovePhoto,
+    });
+    if (!profilePhotoOk) {
+      errors.profilePhoto = REQUIRED_PROFILE_PHOTO_MESSAGE;
     }
 
     // If there are validation errors, show them
@@ -2038,7 +2104,13 @@ function PersonalProfileForm({
           </View>
 
           {/* Profile Photo Upload Section */}
-          <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
+          <View
+            className={`rounded-2xl border bg-neutral-50 mb-6 p-6 items-center ${
+              validationErrors.profilePhoto
+                ? "border-red-500"
+                : "border-neutral-200"
+            }`}
+          >
             <View className="relative mb-4">
               <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
                 {(selectedImageUri || (initialProfile?.profile_pic && !shouldRemovePhoto) || (user?.profile_pic && !shouldRemovePhoto)) ? (
@@ -2080,11 +2152,16 @@ function PersonalProfileForm({
               </Pressable>
             </View>
             <Text className="text-sm font-medium text-neutral-900 mb-1">
-              Upload a photo of yourself
+              Upload a photo of yourself <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500">
               Recommended: 400x400px minimum
             </Text>
+            {validationErrors.profilePhoto ? (
+              <Text className="text-red-500 text-xs mt-2 text-center px-1">
+                {validationErrors.profilePhoto}
+              </Text>
+            ) : null}
           </View>
 
           {/* Form Fields */}
@@ -2345,12 +2422,12 @@ function PersonalProfileForm({
       >
         <Pressable
           onPress={handleNext}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !profilePhotoReady}
           className={`rounded-xl py-4 items-center justify-center ${
-            !isSubmitting ? "bg-black" : "bg-neutral-300"
+            profilePhotoReady && !isSubmitting ? "bg-black" : "bg-neutral-300"
           }`}
           style={{
-            opacity: !isSubmitting ? 1 : 0.6,
+            opacity: profilePhotoReady && !isSubmitting ? 1 : 0.6,
           }}
         >
           <Text className="text-white text-base font-semibold">Next</Text>
@@ -2430,6 +2507,8 @@ function CompanyProfileForm({
   const [positionErrors, setPositionErrors] = useState<Record<string, string>>(
     {}
   );
+  /** True after user taps Remove on logo; cleared after successful save. Used to call clearCompanyLogo before uploading replacement. */
+  const removedCompanyLogoPendingReplaceRef = useRef(false);
 
   useEffect(() => {
     const c = initialProfile?.company;
@@ -2539,6 +2618,12 @@ function CompanyProfileForm({
     COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
     COUNTRY_OPTIONS[0];
 
+  const companyLogoReady = hasRequiredImage({
+    selectedUri: selectedImageUri,
+    existingUrl: initialProfile?.company?.logo,
+    shouldRemove: shouldRemovePhoto,
+  });
+
   const handleAddOffer = () => {
     const titleValidation = validateOfferTitle(newOfferTitle);
     const linkValidation = validateOfferLink(newOfferLink);
@@ -2635,6 +2720,9 @@ function CompanyProfileForm({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false);
+        if (validationErrors.companyLogo) {
+          setValidationErrors((prev) => ({ ...prev, companyLogo: "" }));
+        }
       }
     } catch (error) {
       console.error("Error taking photo:", error);
@@ -2668,6 +2756,9 @@ function CompanyProfileForm({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false);
+        if (validationErrors.companyLogo) {
+          setValidationErrors((prev) => ({ ...prev, companyLogo: "" }));
+        }
       }
     } catch (error) {
       console.error("Error choosing photo:", error);
@@ -2680,6 +2771,7 @@ function CompanyProfileForm({
       setShowProfileModal(false);
       setSelectedImageUri(null);
       setShouldRemovePhoto(true);
+      removedCompanyLogoPendingReplaceRef.current = true;
     } catch (error) {
       console.error("Error removing photo:", error);
       showToast("Failed to remove photo. Please try again.", "error");
@@ -2759,6 +2851,15 @@ function CompanyProfileForm({
       }
     });
 
+    const companyLogoOk = hasRequiredImage({
+      selectedUri: selectedImageUri,
+      existingUrl: initialProfile?.company?.logo,
+      shouldRemove: shouldRemovePhoto,
+    });
+    if (!companyLogoOk) {
+      errors.companyLogo = REQUIRED_COMPANY_LOGO_MESSAGE;
+    }
+
     // If there are validation errors, show them
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
@@ -2824,10 +2925,31 @@ function CompanyProfileForm({
       let logoUpdateFailed = false;
       setIsUploadingImage(true);
       try {
-        await companyService.updateCompany(companyId, companyData, selectedImageUri ? { imageUri: selectedImageUri } : undefined);
+        const replacingAfterRemove =
+          removedCompanyLogoPendingReplaceRef.current &&
+          Boolean(selectedImageUri?.trim());
+        if (replacingAfterRemove) {
+          try {
+            await companyService.clearCompanyLogo(companyId);
+          } catch (clearErr: any) {
+            if (__DEV__) {
+              console.warn(
+                "clearCompanyLogo failed (upload may still replace):",
+                clearErr?.message ?? clearErr
+              );
+            }
+          }
+        }
+
+        await companyService.updateCompany(
+          companyId,
+          companyData,
+          selectedImageUri ? { imageUri: selectedImageUri } : undefined
+        );
         if (selectedImageUri) {
           setSelectedImageUri(null);
           setShouldRemovePhoto(false);
+          removedCompanyLogoPendingReplaceRef.current = false;
         }
       } catch (imageError: any) {
         console.error("Error saving company or logo:", imageError);
@@ -2915,7 +3037,13 @@ function CompanyProfileForm({
           </View>
 
           {/* Company Logo Upload Section */}
-          <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-6 items-center">
+          <View
+            className={`rounded-2xl border bg-neutral-50 mb-6 p-6 items-center ${
+              validationErrors.companyLogo
+                ? "border-red-500"
+                : "border-neutral-200"
+            }`}
+          >
             <View className="relative mb-4">
               <View className="w-32 h-32 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
                 {(selectedImageUri || (initialProfile?.company?.logo && !shouldRemovePhoto)) ? (
@@ -2957,11 +3085,16 @@ function CompanyProfileForm({
               </Pressable>
             </View>
             <Text className="text-sm font-medium text-neutral-900 mb-1">
-              Upload a logo of company
+              Upload a logo of company <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-xs text-neutral-500">
               Recommended: 400x400px minimum
             </Text>
+            {validationErrors.companyLogo ? (
+              <Text className="text-red-500 text-xs mt-2 text-center px-1">
+                {validationErrors.companyLogo}
+              </Text>
+            ) : null}
           </View>
 
           {/* Company Information Fields */}
@@ -3524,12 +3657,12 @@ function CompanyProfileForm({
       >
         <Pressable
           onPress={handleDone}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !companyLogoReady}
           className={`rounded-xl py-4 items-center justify-center ${
-            !isSubmitting ? "bg-black" : "bg-neutral-300"
+            companyLogoReady && !isSubmitting ? "bg-black" : "bg-neutral-300"
           }`}
           style={{
-            opacity: !isSubmitting ? 1 : 0.6,
+            opacity: companyLogoReady && !isSubmitting ? 1 : 0.6,
           }}
         >
           <Text className="text-white text-base font-semibold">Done</Text>

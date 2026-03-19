@@ -133,4 +133,49 @@ export const companyService = {
   async uploadCompanyLogo(companyId: number, imageUri: string): Promise<Company> {
     return this.updateCompany(companyId, {}, { imageUri });
   },
+
+  /**
+   * Remove the company logo on the server (`logo: null`).
+   * Call when the admin removed the logo in the UI and is uploading a replacement in the same flow,
+   * or if the backend allows clearing (client still enforces mandatory logo before save).
+   */
+  async clearCompanyLogo(companyId: number): Promise<Company> {
+    const url = `/companies/${companyId}/`;
+    const payload: CompanyUpdateRequest = { logo: null };
+
+    try {
+      const response = await api.patch<CompanyUpdateRequest>(url, payload);
+      if (response.status === "success" && response.data) {
+        if (__DEV__) {
+          console.log("✅ Company logo cleared (PATCH /companies/:id/ logo null)");
+        }
+        return response.data as Company;
+      }
+    } catch (e: any) {
+      if (__DEV__) {
+        console.warn("PATCH logo null failed, trying PUT:", e?.message ?? e);
+      }
+    }
+
+    try {
+      const response = await api.put<CompanyUpdateRequest>(url, payload);
+      if (response.status === "success" && response.data) {
+        if (__DEV__) {
+          console.log("✅ Company logo cleared (PUT /companies/:id/ logo null)");
+        }
+        return response.data as Company;
+      }
+    } catch (e2: any) {
+      if (__DEV__) {
+        console.warn("PUT logo null failed:", e2?.message ?? e2);
+      }
+    }
+
+    throw new ApiClientError({
+      status: "error",
+      message: "Failed to clear company logo",
+      response_code: 0,
+      data: {},
+    });
+  },
 };

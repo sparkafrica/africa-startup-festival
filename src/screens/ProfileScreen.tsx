@@ -26,6 +26,11 @@ import { offerService } from "../services/offerService";
 import { boothService } from "../services/boothService";
 import { EVENT_ID } from "../config/env";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
+import {
+  hasRequiredImage,
+  REQUIRED_PROFILE_PHOTO_MESSAGE,
+  REQUIRED_COMPANY_LOGO_MESSAGE,
+} from "../utils/profilePhotoValidation";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
 import { LoadingSpinner } from "../components";
@@ -784,12 +789,15 @@ function PersonalProfileSection({
   saveTrigger,
   onRefresh,
   refreshing,
+  onProfilePhotoRequirementMet,
 }: {
   initialProfile?: UserProfile | null;
   onSave?: () => void;
   saveTrigger?: number;
   onRefresh?: () => void;
   refreshing?: boolean;
+  /** Report whether mandatory profile photo requirement is satisfied (for Save CTA disabled state). */
+  onProfilePhotoRequirementMet?: (met: boolean) => void;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
@@ -817,6 +825,16 @@ function PersonalProfileSection({
   const displayImageUri = shouldRemovePhoto
     ? null
     : selectedImageUri || currentProfilePic;
+
+  const profilePhotoReady = hasRequiredImage({
+    selectedUri: selectedImageUri,
+    existingUrl: currentProfilePic,
+    shouldRemove: shouldRemovePhoto,
+  });
+
+  React.useEffect(() => {
+    onProfilePhotoRequirementMet?.(profilePhotoReady);
+  }, [profilePhotoReady, onProfilePhotoRequirementMet]);
 
   React.useEffect(() => {
     if (!source) return;
@@ -899,6 +917,9 @@ function PersonalProfileSection({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false); // Clear removal flag if user selects new image
+        if (validationErrors.profilePhoto) {
+          setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
+        }
       }
     } catch (error) {
       console.error("Error taking photo:", error);
@@ -932,6 +953,9 @@ function PersonalProfileSection({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false); // Clear removal flag if user selects new image
+        if (validationErrors.profilePhoto) {
+          setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
+        }
       }
     } catch (error) {
       console.error("Error choosing photo:", error);
@@ -992,6 +1016,16 @@ function PersonalProfileSection({
     const interestsValidation = validateInterests(selectedInterests);
     if (!interestsValidation.valid) {
       errors.interests = interestsValidation.error || "";
+    }
+
+    if (
+      !hasRequiredImage({
+        selectedUri: selectedImageUri,
+        existingUrl: currentProfilePic,
+        shouldRemove: shouldRemovePhoto,
+      })
+    ) {
+      errors.profilePhoto = REQUIRED_PROFILE_PHOTO_MESSAGE;
     }
 
     // If there are validation errors, show them
@@ -1150,7 +1184,13 @@ function PersonalProfileSection({
       >
         <View className="px-4">
           {/* Profile Picture and Name Section */}
-          <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-2">
+          <View
+            className={`rounded-2xl border bg-neutral-50 mb-6 p-2 ${
+              validationErrors.profilePhoto
+                ? "border-red-500"
+                : "border-neutral-200"
+            }`}
+          >
             <View className="flex-row items-center mb-4">
               <View className="relative">
                 <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
@@ -1203,6 +1243,14 @@ function PersonalProfileSection({
                 </Text>
               </View>
             </View>
+            <Text className="text-xs text-neutral-600 mb-1 px-1">
+              Profile photo <Text className="text-red-500">*</Text>
+            </Text>
+            {validationErrors.profilePhoto ? (
+              <Text className="text-red-500 text-xs mb-2 px-1">
+                {validationErrors.profilePhoto}
+              </Text>
+            ) : null}
 
             {/* Email Warning */}
             <View
@@ -1492,6 +1540,7 @@ function AttendeeProfileSection({
   setIsSubmitting,
   onRefresh,
   refreshing,
+  onProfilePhotoRequirementMet,
 }: {
   initialProfile?: UserProfile | null;
   onSave?: () => void;
@@ -1500,6 +1549,7 @@ function AttendeeProfileSection({
   setIsSubmitting?: (value: boolean) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
+  onProfilePhotoRequirementMet?: (met: boolean) => void;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
@@ -1526,6 +1576,16 @@ function AttendeeProfileSection({
   const displayImageUri = shouldRemovePhoto
     ? null
     : selectedImageUri || currentProfilePic;
+
+  const profilePhotoReady = hasRequiredImage({
+    selectedUri: selectedImageUri,
+    existingUrl: currentProfilePic,
+    shouldRemove: shouldRemovePhoto,
+  });
+
+  React.useEffect(() => {
+    onProfilePhotoRequirementMet?.(profilePhotoReady);
+  }, [profilePhotoReady, onProfilePhotoRequirementMet]);
 
   React.useEffect(() => {
     if (!source) return;
@@ -1603,6 +1663,9 @@ function AttendeeProfileSection({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false);
+        if (validationErrors.profilePhoto) {
+          setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
+        }
       }
     } catch (error) {
       console.error("Error taking photo:", error);
@@ -1636,6 +1699,9 @@ function AttendeeProfileSection({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false);
+        if (validationErrors.profilePhoto) {
+          setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
+        }
       }
     } catch (error) {
       console.error("Error choosing photo:", error);
@@ -1691,6 +1757,16 @@ function AttendeeProfileSection({
     const interestsValidation = validateInterests(selectedInterests);
     if (!interestsValidation.valid) {
       errors.interests = interestsValidation.error || "";
+    }
+
+    if (
+      !hasRequiredImage({
+        selectedUri: selectedImageUri,
+        existingUrl: currentProfilePic,
+        shouldRemove: shouldRemovePhoto,
+      })
+    ) {
+      errors.profilePhoto = REQUIRED_PROFILE_PHOTO_MESSAGE;
     }
 
     // If there are validation errors, show them
@@ -1852,7 +1928,13 @@ function AttendeeProfileSection({
       >
         <View className="px-4">
           {/* Profile Picture and Name Section */}
-          <View className="rounded-2xl border border-neutral-200 bg-neutral-50 mb-6 p-2">
+          <View
+            className={`rounded-2xl border bg-neutral-50 mb-6 p-2 ${
+              validationErrors.profilePhoto
+                ? "border-red-500"
+                : "border-neutral-200"
+            }`}
+          >
             <View className="flex-row items-center mb-4">
               <View className="relative">
                 <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
@@ -1905,6 +1987,14 @@ function AttendeeProfileSection({
                 </Text>
               </View>
             </View>
+            <Text className="text-xs text-neutral-600 mb-1 px-1">
+              Profile photo <Text className="text-red-500">*</Text>
+            </Text>
+            {validationErrors.profilePhoto ? (
+              <Text className="text-red-500 text-xs mb-2 px-1">
+                {validationErrors.profilePhoto}
+              </Text>
+            ) : null}
 
             {/* Email Warning */}
             <View
@@ -2178,6 +2268,7 @@ function CompanyProfileSection({
   setIsSubmitting,
   onRefresh,
   refreshing,
+  onCompanyLogoRequirementMet,
 }: {
   initialProfile?: UserProfile | null;
   onSave?: () => void;
@@ -2186,6 +2277,8 @@ function CompanyProfileSection({
   setIsSubmitting?: (value: boolean) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
+  /** For Save button disabled state when Company tab is active */
+  onCompanyLogoRequirementMet?: (met: boolean) => void;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
@@ -2223,12 +2316,24 @@ function CompanyProfileSection({
   const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  /** After Remove on logo; cleared after successful save. Triggers clearCompanyLogo before new upload. */
+  const removedCompanyLogoPendingReplaceRef = useRef(false);
 
   const companySource = initialProfile?.company ?? user?.company;
   const currentCompanyLogo = companySource?.logo || null;
   const displayImageUri = shouldRemovePhoto
     ? null
     : selectedImageUri || currentCompanyLogo;
+
+  const companyLogoReady = hasRequiredImage({
+    selectedUri: selectedImageUri,
+    existingUrl: currentCompanyLogo,
+    shouldRemove: shouldRemovePhoto,
+  });
+
+  React.useEffect(() => {
+    onCompanyLogoRequirementMet?.(companyLogoReady);
+  }, [companyLogoReady, onCompanyLogoRequirementMet]);
 
   React.useEffect(() => {
     const c = companySource;
@@ -2434,6 +2539,9 @@ function CompanyProfileSection({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false); // Clear removal flag if user selects new image
+        if (validationErrors.companyLogo) {
+          setValidationErrors((prev) => ({ ...prev, companyLogo: "" }));
+        }
       }
     } catch (error) {
       console.error("Error taking photo:", error);
@@ -2467,6 +2575,9 @@ function CompanyProfileSection({
       if (!result.canceled && result.assets[0]) {
         setSelectedImageUri(result.assets[0].uri);
         setShouldRemovePhoto(false); // Clear removal flag if user selects new image
+        if (validationErrors.companyLogo) {
+          setValidationErrors((prev) => ({ ...prev, companyLogo: "" }));
+        }
       }
     } catch (error) {
       console.error("Error choosing photo:", error);
@@ -2479,6 +2590,7 @@ function CompanyProfileSection({
       setShowProfileModal(false);
       setShouldRemovePhoto(true);
       setSelectedImageUri(null);
+      removedCompanyLogoPendingReplaceRef.current = true;
     } catch (error) {
       console.error("Error removing photo:", error);
       showToast("Failed to remove photo. Please try again.", "error");
@@ -2555,6 +2667,16 @@ function CompanyProfileSection({
       }
     });
 
+    if (
+      !hasRequiredImage({
+        selectedUri: selectedImageUri,
+        existingUrl: currentCompanyLogo,
+        shouldRemove: shouldRemovePhoto,
+      })
+    ) {
+      errors.companyLogo = REQUIRED_COMPANY_LOGO_MESSAGE;
+    }
+
     // If there are validation errors, show them
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
@@ -2612,12 +2734,24 @@ function CompanyProfileSection({
       });
 
       let logoUpdateFailed = false;
-      if (shouldRemovePhoto) {
-        setShouldRemovePhoto(false);
-        // TODO: backend support for removing company logo
-      }
       setIsUploadingImage(true);
       try {
+        const replacingAfterRemove =
+          removedCompanyLogoPendingReplaceRef.current &&
+          Boolean(selectedImageUri?.trim());
+        if (replacingAfterRemove) {
+          try {
+            await companyService.clearCompanyLogo(companySource.id);
+          } catch (clearErr: any) {
+            if (__DEV__) {
+              console.warn(
+                "clearCompanyLogo failed (upload may still replace):",
+                clearErr?.message ?? clearErr
+              );
+            }
+          }
+        }
+
         await companyService.updateCompany(
           companySource.id,
           companyData,
@@ -2627,6 +2761,7 @@ function CompanyProfileSection({
           setSelectedImageUri(null);
           setShouldRemovePhoto(false);
         }
+        removedCompanyLogoPendingReplaceRef.current = false;
       } catch (imageError: any) {
         showToast(
           imageError.message || "Failed to save company profile. Please try again.",
@@ -2728,7 +2863,13 @@ function CompanyProfileSection({
       >
         <View className="px-4">
           {/* Company Picture and Name Section */}
-          <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
+          <View
+            className={`rounded-2xl border mb-6 px-2 ${
+              validationErrors.companyLogo
+                ? "border-red-500"
+                : "border-neutral-200"
+            }`}
+          >
             <View className="flex-row items-center mb-4 pt-3">
               <View className="relative">
                 <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center overflow-hidden">
@@ -2773,6 +2914,14 @@ function CompanyProfileSection({
                 </Text>
               </View>
             </View>
+            <Text className="text-xs text-neutral-600 mb-1 px-1">
+              Company logo <Text className="text-red-500">*</Text>
+            </Text>
+            {validationErrors.companyLogo ? (
+              <Text className="text-red-500 text-xs mb-2 px-1">
+                {validationErrors.companyLogo}
+              </Text>
+            ) : null}
 
             {/* Email Warning */}
             <View
@@ -3404,6 +3553,20 @@ export default function ProfileScreen() {
   const [attendeeSaveTrigger, setAttendeeSaveTrigger] = useState(0);
   const [companyIsSubmitting, setCompanyIsSubmitting] = useState(false);
   const [attendeeIsSubmitting, setAttendeeIsSubmitting] = useState(false);
+  /** Updated by profile sections via effect — drives Save disabled state (primary guard). */
+  const [personalPhotoReady, setPersonalPhotoReady] = useState(false);
+  const [attendeePhotoReady, setAttendeePhotoReady] = useState(false);
+  const [companyLogoReady, setCompanyLogoReady] = useState(false);
+
+  const onPersonalPhotoRequirementMet = useCallback((met: boolean) => {
+    setPersonalPhotoReady(met);
+  }, []);
+  const onAttendeePhotoRequirementMet = useCallback((met: boolean) => {
+    setAttendeePhotoReady(met);
+  }, []);
+  const onCompanyLogoRequirementMet = useCallback((met: boolean) => {
+    setCompanyLogoReady(met);
+  }, []);
 
   const handleSavePersonal = () => {
     setPersonalSaveTrigger((prev) => prev + 1);
@@ -3456,6 +3619,7 @@ export default function ProfileScreen() {
               setIsSubmitting={setAttendeeIsSubmitting}
               onRefresh={onRefresh}
               refreshing={refreshing}
+              onProfilePhotoRequirementMet={onAttendeePhotoRequirementMet}
             />
             {/* Save Changes Button */}
             <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
@@ -3463,10 +3627,11 @@ export default function ProfileScreen() {
                 className="bg-black rounded-xl items-center justify-center flex-row gap-2"
                 style={{
                   paddingVertical: 12,
-                  opacity: attendeeIsSubmitting ? 0.6 : 1,
+                  opacity:
+                    attendeeIsSubmitting || !attendeePhotoReady ? 0.6 : 1,
                 }}
                 onPress={handleSaveAttendee}
-                disabled={attendeeIsSubmitting}
+                disabled={attendeeIsSubmitting || !attendeePhotoReady}
               >
                 {attendeeIsSubmitting && (
                   <LoadingSpinner size="small" color="#FFFFFF" />
@@ -3490,6 +3655,7 @@ export default function ProfileScreen() {
                 onSave={completeProfile}
                 onRefresh={onRefresh}
                 refreshing={refreshing}
+                onProfilePhotoRequirementMet={onPersonalPhotoRequirementMet}
               />
             ) : (
               <CompanyProfileSection
@@ -3500,6 +3666,7 @@ export default function ProfileScreen() {
                 setIsSubmitting={setCompanyIsSubmitting}
                 onRefresh={onRefresh}
                 refreshing={refreshing}
+                onCompanyLogoRequirementMet={onCompanyLogoRequirementMet}
               />
             )}
             {/* Save Changes Button */}
@@ -3509,14 +3676,24 @@ export default function ProfileScreen() {
                 style={{
                   paddingVertical: 12,
                   opacity:
-                    activeTab === "Company" && companyIsSubmitting ? 0.6 : 1,
+                    activeTab === "Personal"
+                      ? !personalPhotoReady
+                        ? 0.6
+                        : 1
+                      : companyIsSubmitting || !companyLogoReady
+                        ? 0.6
+                        : 1,
                 }}
                 onPress={
                   activeTab === "Personal"
                     ? handleSavePersonal
                     : handleSaveCompany
                 }
-                disabled={activeTab === "Company" && companyIsSubmitting}
+                disabled={
+                  activeTab === "Personal"
+                    ? !personalPhotoReady
+                    : companyIsSubmitting || !companyLogoReady
+                }
               >
                 {activeTab === "Company" && companyIsSubmitting && (
                   <LoadingSpinner size="small" color="#FFFFFF" />
