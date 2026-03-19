@@ -36,7 +36,7 @@ import {
   HeartIcon,
   HeartIconFilled,
 } from "../components/BottomNavIcons";
-import { SearchIcon, ChevronRightIcon } from "../components/icons";
+import { SearchIcon, ChevronRightIcon, SpeechBubbleIcon } from "../components/icons";
 import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -52,6 +52,7 @@ import { useNotifications } from "../context/NotificationsContext";
 import { connectionService, type Connection as BackendConnection } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
+import { useChat } from "../context/ChatContext";
 import { useToast } from "../hooks/useToast";
 import { useMeetingsBadgeCount } from "../hooks";
 import Toast from "../components/Toast";
@@ -239,6 +240,7 @@ export default function ConnectionsScreen() {
   const { user } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const { markRequestMeetingComplete, markConnectAttendeesComplete } = useChecklist();
+  const { getOrCreateConversation } = useChat();
   
   // Search state (commented out for now)
   // const [searchQuery, setSearchQuery] = useState("");
@@ -257,6 +259,7 @@ export default function ConnectionsScreen() {
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const isProcessingActionRef = useRef(false);
   const [isSubmittingMeeting, setIsSubmittingMeeting] = useState(false);
+  const [isOpeningChat, setIsOpeningChat] = useState(false);
 
   // Fresh connection detail fetched when opening sheet (so metadata is up-to-date without other user re-saving)
   const [connectionDetail, setConnectionDetail] = useState<Connection | null>(null);
@@ -268,6 +271,28 @@ export default function ConnectionsScreen() {
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const bottomSheetDragY = useRef(new Animated.Value(0)).current;
   const dragStartY = useRef(0);
+
+  // Close bottom sheet with animation (defined early so handlers can reference it)
+  const closeBottomSheet = useCallback(() => {
+    detailFetchConnectionIdRef.current = null;
+    Animated.parallel([
+      Animated.spring(bottomSheetTranslateY, {
+        toValue: 1000,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }),
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowBottomSheet(false);
+      setSelectedConnection(null);
+      setConnectionDetail(null);
+    });
+  }, []);
 
   /**
    * Map backend Connection to UI-friendly Connection.
@@ -882,28 +907,6 @@ export default function ConnectionsScreen() {
     [user?.user_id]
   );
 
-  // Close bottom sheet with animation
-  const closeBottomSheet = () => {
-    detailFetchConnectionIdRef.current = null;
-    Animated.parallel([
-      Animated.spring(bottomSheetTranslateY, {
-        toValue: 1000,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setShowBottomSheet(false);
-      setSelectedConnection(null);
-      setConnectionDetail(null);
-    });
-  };
-
   // Bottom sheet drag handler
   const bottomSheetPanResponder = useRef(
     PanResponder.create({
@@ -1292,24 +1295,6 @@ export default function ConnectionsScreen() {
                     </Pressable>
                   )}
 
-                  {/* Show Delete/Remove button for rejected/declined connections */}
-                  {selectedConnection.status === "rejected" && (
-                    <Pressable
-                      onPress={() => handleDeleteConnection(selectedConnection)}
-                      disabled={isProcessingAction}
-                      className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4 mb-3"
-                      style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
-                    >
-                      {isProcessingAction ? (
-                        <LoadingSpinner size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text className="text-base font-semibold text-white">
-                          Remove Connection
-                        </Text>
-                      )}
-                    </Pressable>
-                  )}
-
                   {/* LinkedIn pill - display username, open full URL */}
                   {(() => {
                     const linkedIn = getLinkedInDisplayInfo(selectedConnection.linkedInUrl);
@@ -1347,12 +1332,56 @@ export default function ConnectionsScreen() {
                     );
                   })()}
 
-                  {/* Show Remove Connection button for accepted connections (below LinkedIn) */}
+                  {/* Message button - after LinkedIn, only for accepted connections */}
                   {selectedConnection.status === "accepted" && (
+                    <Pressable
+                      onPress={async () => {
+                        if (isOpeningChat) return;
+                        setIsOpeningChat(true);
+                        try {
+                          const { conversationId } = await getOrCreateConversation(
+                            EVENT_ID,
+                            selectedConnection.userId
+                          );
+                          closeBottomSheet();
+                          navigation.navigate("Conversation", {
+                            eventId: EVENT_ID,
+                            conversationId,
+                            otherPartyName: selectedConnection.name,
+                          });
+                        } catch (err: any) {
+                          const msg =
+                            err instanceof ApiClientError
+                              ? err.message
+                              : "Failed to open chat. Please try again.";
+                          showToast(msg, "error");
+                        } finally {
+                          setIsOpeningChat(false);
+                        }
+                      }}
+                      disabled={isOpeningChat}
+                      className="w-full flex-row items-center justify-center bg-[#1BB273] rounded-xl py-3.5 px-4 mt-1"
+                    >
+                      {isOpeningChat ? (
+                        <LoadingSpinner size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <SpeechBubbleIcon size={20} color="#FFFFFF" />
+                          <Text className="text-base font-semibold text-white ml-2">
+                            Message
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                  )}
+
+                  {/* Remove Connection button for both rejected and accepted connections */}
+                  {(selectedConnection.status === "rejected" ||
+                    selectedConnection.status === "accepted") && (
                     <Pressable
                       onPress={() => handleDeleteConnection(selectedConnection)}
                       disabled={isProcessingAction}
-                      className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4"
+                      className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4 mt-3"
                       style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
                     >
                       {isProcessingAction ? (

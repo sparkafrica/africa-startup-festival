@@ -27,6 +27,7 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { ChecklistProvider } from "./src/context/ChecklistContext";
 import { MeetingsBadgeProvider } from "./src/context/MeetingsBadgeContext";
 import { NotificationsProvider } from "./src/context/NotificationsContext";
+import { ChatProvider } from "./src/context/ChatContext";
 import AppNavigator from "./src/navigation/AppNavigator";
 import PushTapHandler from "./src/components/PushTapHandler";
 import { LoadingSpinner } from "./src/components";
@@ -119,11 +120,13 @@ export default function App() {
           <ChecklistProvider>
             <MeetingsBadgeProvider>
               <NotificationsProvider>
-                <PushTapHandler />
-                <NavigationContainer ref={navigationRef}>
+                <ChatProvider>
+                  <PushTapHandler />
+                  <NavigationContainer ref={navigationRef}>
                   <AppNavigator />
                   <StatusBar style="auto" />
                 </NavigationContainer>
+                </ChatProvider>
               </NotificationsProvider>
             </MeetingsBadgeProvider>
           </ChecklistProvider>

@@ -30,6 +30,11 @@ export type RootStackParamList = {
       }
     | undefined;
   Connections: undefined;
+  Conversation: {
+    eventId: number;
+    conversationId: number;
+    otherPartyName: string;
+  };
   CompanyDetail: { exhibitorId: string; type: "exhibitor" | "partner"; name?: string };
   Contact: undefined;
   Talent: undefined;

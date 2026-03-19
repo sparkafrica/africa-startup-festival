@@ -22,6 +22,7 @@ import SpeakersScreen from "../screens/SpeakersScreen";
 import ScheduleScreen from "../screens/ScheduleScreen";
 import MeetingsScreen from "../screens/MeetingsScreen";
 import ConnectionsScreen from "../screens/ConnectionsScreen";
+import ConversationScreen from "../screens/ConversationScreen";
 import ContactScreen from "../screens/ContactScreen";
 import TalentBoardScreen from "../screens/TalentBoardScreen";
 import PartnersOffersScreen from "../screens/PartnersOffersScreen";
@@ -190,6 +191,11 @@ export default function MainNavigator() {
           // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
           animation: "none",
         }}
+      />
+      <Stack.Screen
+        name="Conversation"
+        component={ConversationScreen}
+        options={{ headerShown: false, animation: "slide_from_right" }}
       />
       <Stack.Screen
         name="Contact"
