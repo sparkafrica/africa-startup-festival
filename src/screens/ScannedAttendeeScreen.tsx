@@ -109,7 +109,8 @@ export default function ScannedAttendeeScreen() {
     useNavigation<RootStackScreenProps<"ScannedAttendee">["navigation"]>();
   const { attendee: routeAttendee } = route.params ?? {};
   const { user } = useAuth();
-  const { markRequestMeetingComplete } = useChecklist();
+  const { markRequestMeetingComplete, markConnectAttendeesComplete } =
+    useChecklist();
   const { toast, showToast, hideToast } = useToast();
 
   const insets = useSafeAreaInsets();
@@ -153,6 +154,7 @@ export default function ScannedAttendeeScreen() {
     setIsConnecting(true);
     try {
       await connectionService.createConnection(user.user_id, attendee.user.id);
+      markConnectAttendeesComplete();
       showToast("Connection request sent successfully!", "success");
       navigation.replace("Connections");
     } catch (error: any) {
@@ -162,7 +164,12 @@ export default function ScannedAttendeeScreen() {
       const isAlreadyExists =
         msg.includes("connection already exists") ||
         msg.includes("already exists");
-      if ((code === 400 || code === 409) && isAlreadyExists) {
+      if (code === 409) {
+        markConnectAttendeesComplete();
+        showToast("Connection request already exists.", "success");
+        navigation.replace("Connections");
+      } else if (code === 400 && isAlreadyExists) {
+        markConnectAttendeesComplete();
         showToast("Connection request already exists.", "success");
         navigation.replace("Connections");
       } else {

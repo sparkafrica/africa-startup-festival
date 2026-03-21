@@ -4824,7 +4824,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     }
   };
 
-  const { markRequestMeetingComplete } = useChecklist();
+  const { markRequestMeetingComplete, markConnectAttendeesComplete } =
+    useChecklist();
 
   const handleRequestMeeting = async () => {
     const canBook = await getCanUserBookMeetings();
@@ -4887,6 +4888,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         currentUser.user_id,
         scannedAttendee.user.id,
       );
+      markConnectAttendeesComplete();
       showToast("Connection request sent successfully!", "success");
       setScannedTicketProfileVisible(false);
       setScannedAttendee(null);
@@ -4910,6 +4912,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         // Connection already exists - treat as success since connection was likely created
         errorMessage = "Connection request already exists.";
         isSuccessCase = true;
+        markConnectAttendeesComplete();
         showToast(errorMessage, "success");
         setScannedTicketProfileVisible(false);
         setScannedAttendee(null);
@@ -4917,6 +4920,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       } else if (responseCode === 409) {
         errorMessage = "Connection request already exists.";
         isSuccessCase = true;
+        markConnectAttendeesComplete();
         showToast(errorMessage, "success");
         setScannedTicketProfileVisible(false);
         setScannedAttendee(null);
