@@ -3,7 +3,7 @@
  * Route params: eventId, conversationId, otherPartyName.
  */
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
@@ -47,6 +48,19 @@ function formatMessageTime(iso: string): string {
   }
 }
 
+/** API may return newest-first or oldest-first; normalize for inverted FlatList (newest near composer). */
+function sortMessagesForInvertedChat(list: ChatMessage[]): ChatMessage[] {
+  if (list.length <= 1) return [...list];
+  return [...list].sort((a, b) => {
+    const ta = new Date(a.timestamp).getTime();
+    const tb = new Date(b.timestamp).getTime();
+    const na = Number.isFinite(ta) ? ta : 0;
+    const nb = Number.isFinite(tb) ? tb : 0;
+    if (na !== nb) return na - nb;
+    return a.id - b.id;
+  }).reverse();
+}
+
 export default function ConversationScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList, "Conversation">>();
   const route = useRoute<RouteProp<RootStackParamList, "Conversation">>();
@@ -63,16 +77,35 @@ export default function ConversationScreen() {
 
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const listRef = useRef<FlatList>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const messages = messagesByConversationId[conversationId] ?? [];
+  /** Newest first — with inverted FlatList, index 0 sits above the composer (WhatsApp-style). */
+  const listData = useMemo(() => sortMessagesForInvertedChat(messages), [messages]);
+
+  useEffect(() => {
+    if (listData.length === 0) return;
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
+  }, [listData.length, conversationId]);
 
   useFocusEffect(
     React.useCallback(() => {
       loadConversation(eventId, conversationId);
     }, [eventId, conversationId, loadConversation])
   );
+
+  const onRefreshMessages = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadConversation(eventId, conversationId);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [eventId, conversationId, loadConversation]);
 
   useEffect(() => {
     if (error) clearError();
@@ -198,24 +231,33 @@ export default function ConversationScreen() {
             <View className="flex-1">
               <FlatList
                 ref={listRef}
-                data={messages}
+                inverted
+                data={listData}
                 renderItem={renderMessage}
                 keyExtractor={(item) => String(item.id)}
                 contentContainerStyle={{
-                  paddingVertical: 16,
-                  paddingBottom:
-                    Platform.OS === "android"
-                      ? keyboardHeight > 0
-                        ? keyboardHeight + 10
-                        : 8
-                      : 8,
+                  flexGrow: listData.length === 0 ? 1 : undefined,
+                  // Inverted list: paddingTop is the gap toward the composer / keyboard.
+                  paddingTop:
+                    Platform.OS === "android" && keyboardHeight > 0
+                      ? keyboardHeight + 10
+                      : 16,
+                  paddingBottom: 16,
                 }}
                 ListEmptyComponent={
-                  <View className="py-12 px-4 items-center">
+                  <View className="flex-1 justify-center py-12 px-4 items-center min-h-[200px]">
                     <Text className="text-neutral-500 text-center">
                       No messages yet. Say hello!
                     </Text>
                   </View>
+                }
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefreshMessages}
+                    tintColor="#1BB273"
+                    colors={["#1BB273"]}
+                  />
                 }
               />
             </View>

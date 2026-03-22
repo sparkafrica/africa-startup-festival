@@ -3398,17 +3398,21 @@ function EditAssignedTicketModal({
           >
             {/* Information Banner - status-dependent */}
             {isAccepted ? (
-              <View className="bg-neutral-100 rounded-xl p-4 border border-neutral-200 mb-6">
-                <Text className="text-sm text-black leading-5">
-                  This ticket has been accepted by the assignee. No further
-                  actions are available. Revoking and updating are only possible
-                  before the assignee accepts the invitation.
-                </Text>
-                <Text className="text-sm text-black leading-5">
-                  If you plan to revoke and reassign this ticket, please contact
-                  the recipient directly to complete the process.
-                </Text>
-              </View>
+              <>
+                <View className="bg-neutral-100 rounded-xl p-4 border border-neutral-200 mb-4">
+                  <Text className="text-sm text-black leading-5">
+                    This ticket has been accepted by the assignee. No further
+                    actions are available. Revoking and updating are only possible
+                    before the assignee accepts the invitation.
+                  </Text>
+                </View>
+                <View className="bg-amber-50 rounded-xl p-4 border border-amber-200 mb-6">
+                  <Text className="text-sm font-semibold text-black leading-5">
+                    If you plan to revoke and reassign this ticket, please contact
+                    the recipient directly to complete the process.
+                  </Text>
+                </View>
+              </>
             ) : (
               <View className="bg-amber-50 rounded-xl p-4 border border-amber-200 mb-6">
                 <Text className="text-sm text-black leading-5">
