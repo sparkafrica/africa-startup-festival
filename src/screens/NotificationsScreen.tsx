@@ -22,6 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
+import { EVENT_ID } from "../config/env";
 
 export default function NotificationsScreen() {
   const navigation =
@@ -150,6 +151,28 @@ export default function NotificationsScreen() {
    * Handle notification press
    */
   const handleNotificationPress = useCallback(async (notification: UINotification) => {
+    if (notification.type === "chat_message") {
+      await markAsRead(notification);
+      navigation.goBack();
+      setTimeout(() => {
+        const cid = notification.conversation_id;
+        if (cid && /^\d+$/.test(cid)) {
+          const conversationId = parseInt(cid, 10);
+          const eid = notification.event_id;
+          const eventId =
+            eid && /^\d+$/.test(eid) ? parseInt(eid, 10) : EVENT_ID;
+          navigation.navigate("Messages", {
+            openConversationId: conversationId,
+            eventId,
+            otherPartyName: notification.chatOtherPartyName ?? "Chat",
+          });
+        } else {
+          navigation.navigate("Messages");
+        }
+      }, 100);
+      return;
+    }
+
     // For notifications that open modals
     if (
       notification.type === "meeting_request" ||

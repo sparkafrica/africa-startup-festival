@@ -20,6 +20,7 @@ import CompanyDetailScreen from "../screens/CompanyDetailScreen";
 import PartnersScreen from "../screens/PartnersScreen";
 import SpeakersScreen from "../screens/SpeakersScreen";
 import ScheduleScreen from "../screens/ScheduleScreen";
+import MessagesScreen from "../screens/MessagesScreen";
 import MeetingsScreen from "../screens/MeetingsScreen";
 import ConnectionsScreen from "../screens/ConnectionsScreen";
 import ConversationScreen from "../screens/ConversationScreen";
@@ -27,6 +28,9 @@ import ContactScreen from "../screens/ContactScreen";
 import TalentBoardScreen from "../screens/TalentBoardScreen";
 import PartnersOffersScreen from "../screens/PartnersOffersScreen";
 import AppGuideScreen from "../screens/AppGuideScreen";
+
+// // Work around occasional TS module-resolution lag for newly added screens on Windows.
+// const MessagesScreen = require("../screens/MessagesScreen").default as React.ComponentType<any>;
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -180,6 +184,14 @@ export default function MainNavigator() {
         options={{
           headerShown: false,
           // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
+          animation: "none",
+        }}
+      />
+      <Stack.Screen
+        name="Messages"
+        component={MessagesScreen}
+        options={{
+          headerShown: false,
           animation: "none",
         }}
       />

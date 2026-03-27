@@ -27,6 +27,9 @@ export default function MenuScreen() {
         case "Tickets":
           navigation.navigate("ScanQR", { initialTab: "My Ticket" });
           break;
+        case "Messages":
+          navigation.navigate("Messages");
+          break;
         case "Profile":
           navigation.navigate("Profile");
           break;

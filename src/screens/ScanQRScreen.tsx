@@ -60,6 +60,7 @@ import {
 } from "../utils/meetingRestrictions";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import { logError, ERROR_TAGS } from "../utils/logError";
+// import PatternOverlay from "../components/ui/PatternOverlay";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -505,6 +506,7 @@ function TicketCard({
         end={{ x: 1, y: 0 }}
         className={cardClassName}
       >
+        {/* <PatternOverlay opacity={0.20} /> */}
         <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
           <View className="absolute top-3 right-3 w-10 h-10 border-2 border-white/30 rounded-lg" />
           <View className="absolute top-8 right-8 w-5 h-5 border-2 border-white/30 rounded" />
@@ -3019,13 +3021,6 @@ function ScannedTicketProfileModal({
   ).current;
 
   useEffect(() => {
-    if (__DEV__)
-      console.log("[ScannedProfileModal] useEffect visible/attendee", {
-        visible,
-        hasAttendee: !!attendee,
-        attendeeId: attendee?.user?.id,
-        platform: Platform.OS,
-      });
     if (visible) {
       isClosingRef.current = false;
       translateY.stopAnimation(() => {
@@ -3040,12 +3035,6 @@ function ScannedTicketProfileModal({
       isClosingRef.current = false;
     }
   }, [visible, translateY]);
-
-  if (__DEV__ && visible)
-    console.log("[ScannedProfileModal] render visible=true", {
-      hasAttendee: !!attendee,
-      platform: Platform.OS,
-    });
 
   return (
     <Modal

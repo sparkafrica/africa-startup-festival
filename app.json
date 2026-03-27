@@ -2,7 +2,7 @@
   "expo": {
     "name": "Africa Technology Expo",
     "slug": "spark",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sparkllc.mobile",
-      "buildNumber": "10",
+      "buildNumber": "12",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -25,11 +25,11 @@
     },
     "android": {
       "package": "com.sparkllc.mobile",
-      "versionCode": 10,
+      "versionCode": 12,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#FFFFFF"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -63,11 +63,14 @@
       "expo-notifications",
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
-      ["sentry-expo", {
-        "organization": "sparkllc",
-        "project": "ate2026",
-        "url": "https://de.sentry.io"
-      }],
+      [
+        "sentry-expo",
+        {
+          "organization": "sparkllc",
+          "project": "ate2026",
+          "url": "https://de.sentry.io"
+        }
+      ],
       [
         "expo-build-properties",
         {

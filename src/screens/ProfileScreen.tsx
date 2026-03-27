@@ -3540,8 +3540,12 @@ export default function ProfileScreen() {
     }
   }, [fetchProfile]);
 
-  // Determine user role based on company association (prioritize fetched profile)
-  const userRole: "attendee" | "company" = (profile?.company ?? user?.company)
+  // Company tab is only for company admins (admin_user === current user_id).
+  const sourceUser = profile ?? user ?? null;
+  const isCompanyAdmin =
+    !!sourceUser?.company?.admin_user &&
+    String(sourceUser.company.admin_user) === String(sourceUser.user_id);
+  const userRole: "attendee" | "company" = isCompanyAdmin
     ? "company"
     : "attendee";
   const [activeTab, setActiveTab] = useState<"Personal" | "Company">(

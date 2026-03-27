@@ -6,7 +6,6 @@
  */
 
 import { UserProfile, Company } from "../services/authService";
-import { TicketQuota } from "../services/ticketService";
 
 /**
  * Check if personal profile fields are complete
@@ -128,15 +127,13 @@ function isCompanyProfileComplete(
 }
 
 /**
- * Check if user has exhibitor/partner ticket type (requires company profile)
+ * Company profile is required only if user is the company admin.
+ * Ticket quotas are intentionally ignored for this rule.
  */
-export function requiresCompanyProfile(ticketQuotas: TicketQuota[]): boolean {
-  const companyTicketTypes = ["exhibitor", "partner"];
-
-  return ticketQuotas.some((quota) => {
-    const type = quota.ticket_class?.type || quota.ticket_class?.user_type;
-    return type && companyTicketTypes.includes(type.toLowerCase());
-  });
+export function requiresCompanyProfile(user: UserProfile): boolean {
+  const adminUserId = user.company?.admin_user;
+  if (!adminUserId || !user.user_id) return false;
+  return String(adminUserId) === String(user.user_id);
 }
 
 /**
@@ -144,25 +141,22 @@ export function requiresCompanyProfile(ticketQuotas: TicketQuota[]): boolean {
  *
  * Rules:
  * - Personal profile is always required
- * - Company profile is required if:
- *   a) User has exhibitor/partner ticket type (determined by ticketQuotas), OR
- *   b) User already has a company associated
+ * - Company profile is required only when user has a company AND is that company's admin_user
  *
  * @param user - User profile from backend
- * @param ticketQuotas - Optional array of ticket quotas to determine if company profile is required
+ * @param ticketQuotas - Deprecated. Ignored; kept for compatibility with existing callers.
  * @returns boolean indicating if profile is complete
  */
 export function isProfileComplete(
   user: UserProfile,
-  ticketQuotas?: TicketQuota[],
+  ticketQuotas?: unknown[],
 ): boolean {
   // Personal profile is always required
   const personalComplete = isPersonalProfileComplete(user);
 
-  // Determine if company profile is required
-  const needsCompanyProfile = ticketQuotas
-    ? requiresCompanyProfile(ticketQuotas)
-    : !!user.company; // If no ticket quotas provided, fall back to checking if company exists
+  // ticketQuotas intentionally ignored - company requirement is admin_user-based only.
+  void ticketQuotas;
+  const needsCompanyProfile = requiresCompanyProfile(user);
 
   // Debug logging removed for production - uncomment if needed for debugging
   // console.log("Profile completion check - needsCompanyProfile:", needsCompanyProfile);

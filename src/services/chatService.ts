@@ -37,11 +37,15 @@ export interface ChatMessage {
   file_type?: string;
 }
 
-/** Conversation list item – backend ConversationList */
+/** Conversation list item – backend ConversationList (runtime may send richer shapes). */
 export interface ConversationListItem {
   id: number;
-  other_party: string;
-  last_message: string;
+  /** Display name when API sends it explicitly. */
+  other_party_name?: string;
+  /** String (legacy) or nested user-like object from API. */
+  other_party?: string | Record<string, unknown>;
+  /** Plain string preview or object with content / timestamp (e.g. last activity). */
+  last_message?: string | Record<string, unknown>;
   updated_at: string;
   unread_count: string;
   event_name: string;

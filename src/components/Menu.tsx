@@ -7,14 +7,15 @@ import { useAuth } from "../context/AuthContext";
 import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
 import { getTicketTypeDisplay, getTicketGradientColors } from "../utils/ticketColors";
+// import PatternOverlay from "./ui/PatternOverlay";
 
 import {
   TicketsIcon,
+  MailIcon,
   ProfileIcon,
   MapIcon,
   OffersIcon,
   TalentIcon,
-  MailIcon,
   LogoutIcon,
   CloseIcon,
   UserAvatarIcon,
@@ -90,6 +91,11 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
       route: "Tickets",
     },
     {
+      label: "Messages",
+      icon: <MailIcon size={20} color="#444" />,
+      route: "Messages",
+    },
+    {
       label: "Manage Profile",
       icon: <ProfileIcon size={20} color="#444" />,
       route: "Profile",
@@ -154,23 +160,7 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
               end={{ x: 1, y: 0 }}
               className="rounded-2xl p-5 overflow-hidden"
             >
-              <View className="absolute inset-0 opacity-20">
-                <Svg width="100%" height="100%" viewBox="0 0 200 120">
-                  <Path
-                    d="M20 20C20 20 25 15 30 18C35 21 35 30 30 40C25 50 20 60 25 70C30 80 40 85 50 80C60 75 65 65 60 55C55 45 50 35 55 25C60 15 70 10 80 15C90 20 95 30 90 40C85 50 80 60 85 70C90 80 100 85 110 80"
-                    stroke="white"
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                  <Circle cx="140" cy="30" r="3" fill="white" />
-                  <Path d="M140 30L140 50M140 50L150 45" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                  <Circle cx="160" cy="50" r="3" fill="white" />
-                  <Path d="M160 50L160 70M160 70L170 65" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                  <Circle cx="120" cy="70" r="3" fill="white" />
-                  <Path d="M120 70L120 90M120 90L130 85" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                </Svg>
-              </View>
+              {/* <PatternOverlay opacity={0.30} /> */}
               <View className="flex-row items-center relative z-10">
                 <View className="w-12 h-12 rounded-full bg-white items-center justify-center mr-4 overflow-hidden">
                   {profilePicUrl ? (

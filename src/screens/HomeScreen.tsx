@@ -322,9 +322,6 @@ export default function HomeScreen() {
             buttonText="View attendees"
             gradient={gradients.sparkBlack}
             backgroundImage={require("../assets/images/lhs-card.jpg")}
-            // backgroundImage={{
-            //   uri: "https://res.cloudinary.com/dznd7vzlb/image/upload/v1765286724/DSC_5673_left_card_img_jou0ok.jpg"
-            // }}
             onPress={() => navigation.navigate("Attendees")}
           />
           <BannerCard
@@ -334,9 +331,6 @@ export default function HomeScreen() {
             buttonText="See schedule"
             gradient={gradients.partnerGreen}
             backgroundImage={require("../assets/images/rhs-card.jpg")}
-            // backgroundImage={{
-            //   uri: "https://res.cloudinary.com/dznd7vzlb/image/upload/v1765286711/DSC_5145_right_card_img_gqppcl.jpg"
-            // }}
             onPress={() => navigation.navigate("Schedule")}
           />
         </ScrollView>

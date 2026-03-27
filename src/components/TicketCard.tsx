@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { getTicketGradientColors } from "../utils/ticketColors";
+// import PatternOverlay from "./ui/PatternOverlay";
 
 interface TicketCardProps {
   ticketClassName: string;
@@ -41,6 +42,8 @@ export default function TicketCard({
 
   const inner = (
     <>
+      {/* <PatternOverlay opacity={0.20} /> */}
+
       {/* Decorative pattern in top right corner */}
       <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
         <View className="absolute top-3 right-3 w-10 h-10 border-2 border-white/30 rounded-lg" />

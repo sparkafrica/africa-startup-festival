@@ -24,6 +24,11 @@ export interface UserNotification {
   meeting_id: string | null;
   connection_id: string | null;
   is_read: boolean;
+  /** When backend includes chat metadata (optional). */
+  conversation_id?: string | null;
+  event_id?: string | null;
+  notification_type?: string | null;
+  other_party_name?: string | null;
 }
 
 /**

@@ -29,11 +29,20 @@ export type RootStackParamList = {
         secondaryTab?: "inbound" | "outbound";
       }
     | undefined;
+  Messages:
+    | {
+        /** From push: open inbox first, then this thread (stack: Messages → Conversation). */
+        openConversationId?: number;
+        eventId?: number;
+        otherPartyName?: string;
+      }
+    | undefined;
   Connections: undefined;
   Conversation: {
     eventId: number;
     conversationId: number;
     otherPartyName: string;
+    otherPartyAvatarUri?: string;
   };
   CompanyDetail: { exhibitorId: string; type: "exhibitor" | "partner"; name?: string };
   Contact: undefined;

@@ -23,7 +23,6 @@ import type {
   RootStackScreenProps,
 } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
-import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
 import { authService, type UserProfile } from "../services/authService";
 import { companyService } from "../services/companyService";
@@ -3776,8 +3775,7 @@ function SegmentedControl({
 
 export default function CompleteProfileScreen({ route }: Props) {
   const { user } = useAuth();
-  const [hasCompanyTicket, setHasCompanyTicket] = useState<boolean | null>(null);
-  const [isCheckingTickets, setIsCheckingTickets] = useState(true);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileFromCache, setProfileFromCache] = useState(false);
@@ -3787,6 +3785,16 @@ export default function CompleteProfileScreen({ route }: Props) {
   const fetchProfile = useCallback(async () => {
     try {
       const p = await authService.getCurrentUser();
+      if (__DEV__) {
+        console.log("[CompleteProfile] user/company admin check", {
+          userId: p.user_id,
+          companyId: p.company?.id ?? null,
+          adminUser: p.company?.admin_user ?? null,
+          isAdmin:
+            !!p.company?.admin_user &&
+            String(p.company.admin_user) === String(p.user_id),
+        });
+      }
       setProfile(p);
       setProfileError(null);
       setProfileFromCache(false);
@@ -3803,49 +3811,18 @@ export default function CompleteProfileScreen({ route }: Props) {
         setProfileFromCache(false);
         setProfileError(msg);
       }
+    } finally {
+      setIsLoadingProfile(false);
     }
   }, []);
 
-  // Check ticket types and fetch profile in parallel on mount
+  // Load profile on mount
   useEffect(() => {
-    const companyTicketTypes = ["exhibitor", "partner"];
-
-    const checkTicketTypes = async () => {
-      try {
-        let quotas = await ticketService.getUserQuotas(EVENT_ID);
-        if (quotas.length === 0) {
-          try {
-            const allocations = await ticketService.getUserAllocations(EVENT_ID);
-            const hasCompanyFromAllocations = allocations.some((a) => {
-              const c = (a.ticket_class_name ?? "").toLowerCase();
-              return companyTicketTypes.some((t) => c.includes(t));
-            });
-            if (hasCompanyFromAllocations) {
-              setHasCompanyTicket(true);
-              return;
-            }
-          } catch {
-            /* ignore */
-          }
-        }
-        const hasCompanyType = quotas.some((q) => {
-          const t = (q.ticket_class?.type ?? q.ticket_class?.user_type ?? "").toLowerCase();
-          return companyTicketTypes.includes(t);
-        });
-        setHasCompanyTicket(hasCompanyType);
-      } catch {
-        setHasCompanyTicket(false);
-      } finally {
-        setIsCheckingTickets(false);
-      }
-    };
-
-    checkTicketTypes();
     fetchProfile();
   }, [fetchProfile]);
 
-  // Show loading state while checking ticket types
-  if (isCheckingTickets) {
+  // Show loading state while profile is loading
+  if (isLoadingProfile) {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
         <View className="flex-1 items-center justify-center">
@@ -3855,10 +3832,12 @@ export default function CompleteProfileScreen({ route }: Props) {
     );
   }
 
-  // Determine which profile form to show based on ticket type
-  // If user has exhibitor/partner tickets → Show segmented control (Personal | Company)
-  // If user has attendee/basic tickets → Show Attendee profile only
-  const showCompanyProfile = hasCompanyTicket === true;
+  // Company flow is only for company admins. Quotas/ticket classes are intentionally ignored.
+  const sourceUser = profile ?? user ?? null;
+  const isCompanyAdmin =
+    !!sourceUser?.company?.admin_user &&
+    String(sourceUser.company.admin_user) === String(sourceUser.user_id);
+  const showCompanyProfile = isCompanyAdmin;
 
   // Handle Personal profile completion
   const handlePersonalSaved = () => {

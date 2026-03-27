@@ -184,19 +184,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
             (await AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING_COMPLETE)) === "true",
           );
 
-          let ticketQuotas: any[] = [];
-          try {
-            ticketQuotas = await ticketService.getUserQuotas(EVENT_ID);
-          } catch (error) {
-            console.warn(
-              "Failed to fetch ticket quotas for profile completion check:",
-              error,
-            );
-          }
-
           ticketService.getUserTicket(EVENT_ID).catch(() => {});
 
-          const profileComplete = isProfileComplete(userProfile, ticketQuotas);
+          const profileComplete = isProfileComplete(userProfile);
           setHasCompletedProfile(profileComplete);
           if (profileComplete) {
             await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
@@ -297,19 +287,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Step 2: Fetch user profile (token is now stored, so API client adds it to headers)
     const userProfile = await authService.getCurrentUser();
 
-    // Step 3: Fetch ticket quotas to determine if company profile is required
-    let ticketQuotas: any[] = [];
-    try {
-      ticketQuotas = await ticketService.getUserQuotas(EVENT_ID);
-    } catch (error) {
-      console.warn(
-        "Failed to fetch ticket quotas for profile completion check:",
-        error,
-      );
-      // Continue without ticket quotas - will fall back to checking if company exists
-    }
-
-    // Prefetch user ticket for Menu (reduces green→blue flash when opening Menu)
+    // Step 3: Prefetch user ticket for Menu (reduces green→blue flash when opening Menu)
     ticketService.getUserTicket(EVENT_ID).catch(() => {});
 
     // Step 4: Map UserProfile to User (they have the same structure now, so direct assignment)
@@ -320,7 +298,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
 
     // Step 6: Determine profile completion from backend data (field-based inference)
-    const profileComplete = isProfileComplete(userProfile, ticketQuotas);
+    const profileComplete = isProfileComplete(userProfile);
 
     // Step 7: Update state and persist completion so app start doesn't re-gate them
     setUser(user);
@@ -422,17 +400,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Fetch fresh user profile from backend (source of truth)
       const userProfile = await authService.getCurrentUser();
 
-      // Fetch ticket quotas to determine if company profile is required
-      let ticketQuotas: any[] = [];
-      try {
-        ticketQuotas = await ticketService.getUserQuotas(EVENT_ID);
-      } catch (error) {
-        console.warn(
-          "Failed to fetch ticket quotas for profile completion check:",
-          error,
-        );
-      }
-
       ticketService.getUserTicket(EVENT_ID).catch(() => {});
 
       await AsyncStorage.setItem(
@@ -443,7 +410,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const user: User = userProfile;
       setUser(user);
 
-      const profileComplete = isProfileComplete(userProfile, ticketQuotas);
+      const profileComplete = isProfileComplete(userProfile);
       setHasCompletedProfile(profileComplete);
 
       if (profileComplete) {

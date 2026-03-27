@@ -18,12 +18,17 @@ import {
 } from "@react-native-firebase/messaging";
 import type { RemoteMessage } from "@react-native-firebase/messaging";
 import { navigate, isReady } from "../navigation/navigationRef";
+import { EVENT_ID } from "../config/env";
 
 export interface PushNotificationData {
   id?: string;
   route?: string;
   meeting_id?: string;
   connection_id?: string;
+  conversation_id?: string;
+  event_id?: string;
+  other_party_name?: string;
+  sender_name?: string;
   title?: string;
   description?: string;
 }
@@ -42,6 +47,20 @@ function parseRemoteMessageData(
       typeof d.connection_id === "string" && d.connection_id
         ? d.connection_id
         : undefined,
+    conversation_id:
+      typeof d.conversation_id === "string" && d.conversation_id
+        ? d.conversation_id
+        : undefined,
+    event_id:
+      typeof d.event_id === "string" && d.event_id ? d.event_id : undefined,
+    other_party_name:
+      typeof d.other_party_name === "string" && d.other_party_name
+        ? d.other_party_name
+        : undefined,
+    sender_name:
+      typeof d.sender_name === "string" && d.sender_name
+        ? d.sender_name
+        : undefined,
     title: typeof d.title === "string" ? d.title : undefined,
     description: typeof d.description === "string" ? d.description : undefined,
   };
@@ -51,6 +70,25 @@ function handlePushData(data: PushNotificationData | null) {
   if (!data) {
     navigate("Notifications");
     return;
+  }
+  if (data.conversation_id) {
+    const conversationId = /^\d+$/.test(data.conversation_id)
+      ? parseInt(data.conversation_id, 10)
+      : undefined;
+    const eventId =
+      data.event_id && /^\d+$/.test(data.event_id)
+        ? parseInt(data.event_id, 10)
+        : EVENT_ID;
+    if (conversationId != null) {
+      const otherPartyName =
+        data.other_party_name || data.sender_name || "Chat";
+      navigate("Messages", {
+        openConversationId: conversationId,
+        eventId,
+        otherPartyName,
+      });
+      return;
+    }
   }
   if (data.connection_id) {
     navigate("Connections");
@@ -116,17 +154,11 @@ export function setupPushTapHandlers(): () => void {
   const messaging = getMessaging();
 
   const unsubOpened = onNotificationOpenedApp(messaging, (message) => {
-    if (__DEV__) {
-      console.log("[push] onNotificationOpenedApp:", message?.data);
-    }
     handlePushMessage(message);
   });
 
   getInitialNotification(messaging).then((message) => {
     if (!message) return;
-    if (__DEV__) {
-      console.log("[push] getInitialNotification:", message?.data);
-    }
     waitForNavReady().then(() => handlePushMessage(message));
   });
 

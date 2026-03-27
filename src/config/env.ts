@@ -61,6 +61,11 @@ export const CDN_BASE_URL = CDN_CONFIG[environment];
 // TODO: Consider fetching current event from backend API in the future
 export const EVENT_ID = 10;
 
+// Realtime chat (Pusher)
+// Public client values used to establish websocket connection.
+export const PUSHER_API_KEY = "2ed4ec1984333f9e92d1";
+export const PUSHER_CLUSTER = "eu";
+
 // Spark API Key for public endpoints (e.g. GET /jobs/, partner offers). Required for Talent Board and partner offers.
 // - Dev: set EXPO_PUBLIC_SPARK_API_KEY in .env (app.config.js loads it; .env is not shipped).
 // - Production: EAS secret at build time (extra.SPARK_API_KEY), or fallback below so OTA can deliver the key.

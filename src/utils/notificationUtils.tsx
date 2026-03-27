@@ -30,6 +30,7 @@ export type NotificationType =
   | "reminder"
   | "meeting_request"
   | "meeting_request_sent"
+  | "chat_message"
   | "generic";
 
 /**
@@ -67,7 +68,34 @@ export interface UINotification {
   route: string | null;
   meeting_id: string | null;
   connection_id: string | null;
+  /** Chat: from API or parsed route `.../events/{id}/conversations/{id}` */
+  conversation_id: string | null;
+  event_id: string | null;
+  /** Display name for Messages → Conversation when opening from notification list */
+  chatOtherPartyName?: string;
   backendNotificationId: number; // Store backend ID for API calls
+}
+
+// ============================================================================
+// ROUTE / CHAT HELPERS
+// ============================================================================
+
+export function parseEventConversationFromRoute(route: string | null): {
+  eventId: string | null;
+  conversationId: string | null;
+} {
+  if (!route) return { eventId: null, conversationId: null };
+  const normalized = route.replace(/^\/+/, "");
+  const m = normalized.match(/events\/(\d+)\/conversations\/(\d+)/i);
+  if (m) return { eventId: m[1], conversationId: m[2] };
+  return { eventId: null, conversationId: null };
+}
+
+/** Parse sender label from titles like "New Message from Jane Doe". */
+export function extractChatOtherPartyName(title: string): string {
+  const m = title.match(/new message from\s+(.+)/i);
+  if (m?.[1]) return m[1].trim();
+  return "Chat";
 }
 
 // ============================================================================
@@ -91,6 +119,21 @@ export function inferNotificationType(
   const title = notification.title.toLowerCase();
   const description = notification.description.toLowerCase();
   const combined = `${title} ${description}`.toLowerCase();
+
+  const routeLower = (notification.route || "").toLowerCase();
+  const ntype = (notification.notification_type || "").toLowerCase();
+  const fromRoute = parseEventConversationFromRoute(notification.route);
+
+  // Chat / DM — before generic and before broad "accepted/approved" meeting heuristics
+  if (
+    ntype.includes("chat") ||
+    routeLower.includes("conversation") ||
+    Boolean(fromRoute.conversationId) ||
+    /\bnew message\b/.test(title) ||
+    /\bnew message\b/.test(description)
+  ) {
+    return "chat_message";
+  }
 
   // Priority 0: Keyword-based inference (works even without meeting_id)
   // Backend titles: "Meeting Request Updated", "Meeting Cancelled", "Meeting Accepted", etc.
@@ -229,16 +272,6 @@ export function inferNotificationType(
     return "reminder";
   }
 
-  // Fallback: Generic notification
-  // Log in dev mode if we can't determine type
-  if (__DEV__) {
-    console.warn("⚠️ Could not infer notification type, using 'generic':", {
-      id: notification.id,
-      title: notification.title,
-      description: notification.description.substring(0, 50),
-    });
-  }
-
   return "generic";
 }
 
@@ -334,6 +367,16 @@ export function getNotificationIcon(type: NotificationType): React.ReactNode {
         </View>
       );
 
+    case "chat_message":
+      return (
+        <View
+          className="w-12 h-12 rounded-lg items-center justify-center"
+          style={{ backgroundColor: "#ECFDF5" }}
+        >
+          <BellIcon size={24} color="#1BB273" />
+        </View>
+      );
+
     default:
       // Generic notification icon
       return (
@@ -421,6 +464,15 @@ export function mapBackendNotificationToUI(
   const type = inferNotificationType(notification);
   const icon = getNotificationIcon(type);
   const time = formatRelativeTime(notification.timestamp);
+  const fromRoute = parseEventConversationFromRoute(notification.route);
+  const conversation_id =
+    notification.conversation_id ?? fromRoute.conversationId;
+  const event_id = notification.event_id ?? fromRoute.eventId;
+  const chatOtherPartyName =
+    type === "chat_message"
+      ? (notification.other_party_name?.trim() ||
+          extractChatOtherPartyName(notification.title))
+      : undefined;
 
   // Determine direction for meeting notifications
   // Use direction so requester → Outbound, requestee → Inbound (per item 4)
@@ -455,6 +507,9 @@ export function mapBackendNotificationToUI(
     route: notification.route,
     meeting_id: notification.meeting_id,
     connection_id: notification.connection_id,
+    conversation_id,
+    event_id,
+    chatOtherPartyName,
     backendNotificationId: notification.id,
     direction,
     // requester, meetingDetails, reason will be populated

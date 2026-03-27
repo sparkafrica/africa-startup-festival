@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
-  RefreshControl,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
@@ -21,9 +21,9 @@ import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
 import { LoadingSpinner } from "../components";
-import { useChat } from "../context/ChatContext";
+import { useChat, type LocalChatMessage } from "../context/ChatContext";
 import { useAuth } from "../context/AuthContext";
-import type { ChatMessage } from "../services/chatService";
+import { addPusherConnectionStateListener } from "../services/pusherChatService";
 import Svg, { Path } from "react-native-svg";
 
 function formatMessageTime(iso: string): string {
@@ -49,7 +49,7 @@ function formatMessageTime(iso: string): string {
 }
 
 /** API may return newest-first or oldest-first; normalize for inverted FlatList (newest near composer). */
-function sortMessagesForInvertedChat(list: ChatMessage[]): ChatMessage[] {
+function sortMessagesForInvertedChat(list: LocalChatMessage[]): LocalChatMessage[] {
   if (list.length <= 1) return [...list];
   return [...list].sort((a, b) => {
     const ta = new Date(a.timestamp).getTime();
@@ -64,7 +64,8 @@ function sortMessagesForInvertedChat(list: ChatMessage[]): ChatMessage[] {
 export default function ConversationScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList, "Conversation">>();
   const route = useRoute<RouteProp<RootStackParamList, "Conversation">>();
-  const { eventId, conversationId, otherPartyName } = route.params;
+  const { eventId, conversationId, otherPartyName, otherPartyAvatarUri } =
+    route.params;
   const { user } = useAuth();
   const {
     messagesByConversationId,
@@ -73,11 +74,11 @@ export default function ConversationScreen() {
     clearError,
     loadConversation,
     sendMessage,
+    bindConversationRealtime,
+    unbindConversationRealtime,
   } = useChat();
 
   const [inputText, setInputText] = useState("");
-  const [sending, setSending] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const listRef = useRef<FlatList>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
@@ -94,22 +95,40 @@ export default function ConversationScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      loadConversation(eventId, conversationId);
-    }, [eventId, conversationId, loadConversation])
-  );
+      let isActive = true;
 
-  const onRefreshMessages = React.useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await loadConversation(eventId, conversationId);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [eventId, conversationId, loadConversation]);
+      (async () => {
+        await loadConversation(eventId, conversationId);
+        if (!isActive) return;
+        await bindConversationRealtime(eventId, conversationId);
+      })();
+
+      return () => {
+        isActive = false;
+        void unbindConversationRealtime(conversationId);
+      };
+    }, [
+      eventId,
+      conversationId,
+      loadConversation,
+      bindConversationRealtime,
+      unbindConversationRealtime,
+    ])
+  );
 
   useEffect(() => {
     if (error) clearError();
-  }, [conversationId]);
+  }, [conversationId, error, clearError]);
+
+  // Auto-reload after websocket reconnect to catch messages possibly missed while offline/backgrounded.
+  useEffect(() => {
+    const removeListener = addPusherConnectionStateListener((current, previous) => {
+      if (current !== "CONNECTED") return;
+      if (previous === "CONNECTED") return;
+      void loadConversation(eventId, conversationId);
+    });
+    return removeListener;
+  }, [eventId, conversationId, loadConversation]);
 
   // Option B (Android): measure actual keyboard height so we can pad
   // the composer/list above it instead of relying on OS pan behavior.
@@ -131,25 +150,18 @@ export default function ConversationScreen() {
     };
   }, []);
 
-  const handleSend = async () => {
+  const handleSend = () => {
     const trimmed = inputText.trim();
-    if (!trimmed || sending) return;
-    setSending(true);
+    if (!trimmed) return;
     setInputText("");
-    try {
-      await sendMessage(eventId, conversationId, trimmed);
-    } catch {
-      // Error already set in context
-    } finally {
-      setSending(false);
-    }
+    void sendMessage(eventId, conversationId, trimmed);
   };
 
-  const isMine = (msg: ChatMessage): boolean => {
+  const isMine = (msg: LocalChatMessage): boolean => {
     return user?.email != null && msg.sender_email === user.email;
   };
 
-  const renderMessage = ({ item }: { item: ChatMessage }) => {
+  const renderMessage = ({ item }: { item: LocalChatMessage }) => {
     const mine = isMine(item);
     return (
       <View
@@ -170,7 +182,13 @@ export default function ConversationScreen() {
           <Text
             className={`text-xs mt-1 ${mine ? "text-neutral-400" : "text-neutral-500"}`}
           >
-            {formatMessageTime(item.timestamp)}
+            {mine
+              ? item.client_status === "pending"
+                ? `${formatMessageTime(item.timestamp)}  •  Sending...`
+                : item.client_status === "failed"
+                  ? `${formatMessageTime(item.timestamp)}  •  Failed`
+                  : formatMessageTime(item.timestamp)
+              : formatMessageTime(item.timestamp)}
           </Text>
         </View>
       </View>
@@ -201,6 +219,20 @@ export default function ConversationScreen() {
           >
             <ChevronLeftIcon size={24} color="#404040" />
           </Pressable>
+          <View className="w-10 h-10 rounded-full bg-neutral-100 items-center justify-center mr-3 flex-shrink-0 overflow-hidden">
+            {typeof otherPartyAvatarUri === "string" &&
+            otherPartyAvatarUri.trim().length ? (
+              <Image
+                source={{ uri: otherPartyAvatarUri }}
+                className="w-10 h-10 rounded-full"
+                resizeMode="cover"
+              />
+            ) : (
+              <Text className="text-neutral-700 font-semibold">
+                {(otherPartyName || "Chat").slice(0, 1).toUpperCase()}
+              </Text>
+            )}
+          </View>
           <Text
             className="flex-1 text-[20px] font-semibold text-neutral-900"
             numberOfLines={1}
@@ -251,14 +283,6 @@ export default function ConversationScreen() {
                     </Text>
                   </View>
                 }
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={onRefreshMessages}
-                    tintColor="#1BB273"
-                    colors={["#1BB273"]}
-                  />
-                }
               />
             </View>
 
@@ -279,18 +303,13 @@ export default function ConversationScreen() {
                 value={inputText}
                 onChangeText={setInputText}
                 multiline
-                editable={!sending}
               />
               <Pressable
                 onPress={handleSend}
-                disabled={!inputText.trim() || sending}
+                disabled={!inputText.trim()}
                 className="ml-2 w-11 h-11 rounded-full bg-neutral-900 items-center justify-center"
               >
-                {sending ? (
-                  <LoadingSpinner size="small" color="#FFFFFF" />
-                ) : (
-                  <SendIcon size={22} color="#FFFFFF" />
-                )}
+                <SendIcon size={22} color="#FFFFFF" />
               </Pressable>
             </View>
           </KeyboardAvoidingView>
