@@ -39,6 +39,8 @@ import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
+  getCanUserInitiateConnection,
+  showExhibitionCannotInitiateConnectionAlert,
 } from "../utils/meetingRestrictions";
 import { ApiClientError } from "../services/api";
 import Toast from "../components/Toast";
@@ -151,6 +153,14 @@ export default function ScannedAttendeeScreen() {
       showToast("User authentication required", "error");
       return;
     }
+
+    // Limited Pass: no connect + no message features
+    const canInitiateConnection = await getCanUserInitiateConnection();
+    if (!canInitiateConnection) {
+      showExhibitionCannotInitiateConnectionAlert(navigation);
+      return;
+    }
+
     setIsConnecting(true);
     try {
       await connectionService.createConnection(user.user_id, attendee.user.id);

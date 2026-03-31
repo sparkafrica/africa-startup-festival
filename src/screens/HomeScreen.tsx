@@ -7,7 +7,11 @@ import type { RootStackParamList } from "../navigation/types";
 import { useChecklist } from "../context/ChecklistContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
-import { useMeetingsBadgeCount } from "../hooks";
+import {
+  useMeetingsBadgeCount,
+  useMessagesBadgeCount,
+  useRefreshMessagesBadgeOnFocus,
+} from "../hooks";
 import { gradients } from "../theme/theme";
 import { eventService } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
@@ -44,6 +48,8 @@ export default function HomeScreen() {
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const meetingsBadgeCount = useMeetingsBadgeCount();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
+  const messagesBadgeCount = useMessagesBadgeCount();
+  useRefreshMessagesBadgeOnFocus();
   const scrollViewRef = useRef<ScrollView>(null);
   const [checklistExpanded, setChecklistExpanded] = useState(true);
 
@@ -289,9 +295,11 @@ export default function HomeScreen() {
     <View className="flex-1 bg-surface">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
         hasUnreadNotifications={hasUnreadNotifications}
+        unreadMessagesCount={messagesBadgeCount}
       />
 
       <ScrollView

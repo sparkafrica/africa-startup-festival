@@ -45,6 +45,7 @@ import {
   getTicketBackgroundColor,
   getTicketTypeDisplay,
   getTicketGradientColors,
+  isExhibitionPass,
   isUpgradeableAttendeeTier,
 } from "../utils/ticketColors";
 import { ApiClientError } from "../services/api";
@@ -57,6 +58,8 @@ import UpgradeTicketModal from "../components/UpgradeTicketModal";
 import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
+  getCanUserInitiateConnection,
+  showExhibitionCannotInitiateConnectionAlert,
 } from "../utils/meetingRestrictions";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import { logError, ERROR_TAGS } from "../utils/logError";
@@ -497,6 +500,10 @@ function TicketCard({
 
   const gradientColors = getTicketGradientColors(ticketType ?? "expo");
   const cardClassName = "rounded-2xl p-5 relative overflow-hidden";
+  const isExhibition = isExhibitionPass(ticketType ?? title);
+  const cardBorderColorClass = isExhibition ? "border-black/30" : "border-white/30";
+  const cardBorderColorSmallClass = isExhibition ? "border-black/30" : "border-white/30";
+  const iconColor = isExhibition ? "#111827" : "#FFFFFF";
 
   return (
     <View className="mb-4">
@@ -508,20 +515,46 @@ function TicketCard({
       >
         {/* <PatternOverlay opacity={0.20} /> */}
         <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
-          <View className="absolute top-3 right-3 w-10 h-10 border-2 border-white/30 rounded-lg" />
-          <View className="absolute top-8 right-8 w-5 h-5 border-2 border-white/30 rounded" />
-          <View className="absolute top-14 right-14 w-3 h-3 border border-white/30 rounded" />
+          <View
+            className={`absolute top-3 right-3 w-10 h-10 border-2 ${cardBorderColorClass} rounded-lg`}
+          />
+          <View
+            className={`absolute top-8 right-8 w-5 h-5 border-2 ${cardBorderColorSmallClass} rounded`}
+          />
+          <View
+            className={`absolute top-14 right-14 w-3 h-3 border ${cardBorderColorSmallClass} rounded`}
+          />
         </View>
         <View className="flex-row items-start justify-between">
           <View className="flex-1 pr-2">
-            <Text className="text-white text-2xl font-bold mb-2">{title}</Text>
-            <Text className="text-white/50 text-base mb-10 font-mono">
+            <Text
+              className={`text-2xl font-bold mb-2 ${
+                isExhibition ? "text-black" : "text-white"
+              }`}
+            >
+              {title}
+            </Text>
+            <Text
+              className={`text-base mb-10 font-mono ${
+                isExhibition ? "text-black/50" : "text-white/50"
+              }`}
+            >
               {unassignedLabel ?? formatTicketCodeForDisplay(ticketNumber)}
             </Text>
             {assignedTo && (
               <View className="flex-col">
-                <Text className="text-white/60 text-sm">Assigned to</Text>
-                <Text className="text-white text-[18px] font-semibold py-2">
+                <Text
+                  className={`text-sm ${
+                    isExhibition ? "text-black/60" : "text-white/60"
+                  }`}
+                >
+                  Assigned to
+                </Text>
+                <Text
+                  className={`text-[18px] font-semibold py-2 ${
+                    isExhibition ? "text-black" : "text-white"
+                  }`}
+                >
                   {assignedTo}
                 </Text>
               </View>
@@ -529,16 +562,28 @@ function TicketCard({
           </View>
           <View className="flex-row items-center gap-2">
             {isUnassigned && (
-              <View className="bg-white/20 px-2 py-1 rounded-full flex-row items-center">
-                <View className="w-1.5 h-1.5 bg-white rounded-full mr-1" />
-                <Text className="text-white text-xs font-medium">
+              <View
+                className={`px-2 py-1 rounded-full flex-row items-center ${
+                  isExhibition ? "bg-black/5" : "bg-white/20"
+                }`}
+              >
+                <View
+                  className={`w-1.5 h-1.5 rounded-full mr-1 ${
+                    isExhibition ? "bg-black/40" : "bg-white"
+                  }`}
+                />
+                <Text
+                  className={`text-xs font-medium ${
+                    isExhibition ? "text-black/70" : "text-white"
+                  }`}
+                >
                   Unassigned
                 </Text>
               </View>
             )}
             <View className="flex-row items-center gap-1">
               <View className="w-6 h-6 items-center justify-center">
-                <TicketIcon size={18} color="#FFFFFF" />
+                <TicketIcon size={18} color={iconColor} />
               </View>
             </View>
           </View>
@@ -1034,6 +1079,9 @@ function AssigningTicketsModal({
               const gradientColors = getTicketGradientColors(
                 ticket.ticketType ?? "expo",
               );
+              const isExhibition = isExhibitionPass(ticket.ticketType ?? ticket.title);
+              const cardBorderColorClass = isExhibition ? "border-black/30" : "border-white/30";
+              const iconColor = isExhibition ? "#111827" : "#FFFFFF";
               const cardClassName = "rounded-2xl p-5 relative overflow-hidden";
               return (
                 <Pressable
@@ -1048,28 +1096,52 @@ function AssigningTicketsModal({
                     className={cardClassName}
                   >
                     <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
-                      <View className="absolute top-3 right-3 w-10 h-10 border-2 border-white/30 rounded-lg" />
-                      <View className="absolute top-8 right-8 w-5 h-5 border-2 border-white/30 rounded" />
-                      <View className="absolute top-14 right-14 w-3 h-3 border border-white/30 rounded" />
+                      <View
+                        className={`absolute top-3 right-3 w-10 h-10 border-2 ${cardBorderColorClass} rounded-lg`}
+                      />
+                      <View
+                        className={`absolute top-8 right-8 w-5 h-5 border-2 ${cardBorderColorClass} rounded`}
+                      />
+                      <View
+                        className={`absolute top-14 right-14 w-3 h-3 border ${cardBorderColorClass} rounded`}
+                      />
                     </View>
                     <View className="flex-row items-start justify-between">
                       <View className="flex-1 pr-3">
-                        <Text className="text-white text-2xl font-bold mb-2">
+                        <Text
+                          className={`text-2xl font-bold mb-2 ${
+                            isExhibition ? "text-black" : "text-white"
+                          }`}
+                        >
                           {ticket.title}
                         </Text>
-                        <Text className="text-white/50 text-base">
+                        <Text
+                          className={`text-base ${isExhibition ? "text-black/50" : "text-white/50"}`}
+                        >
                           {ticket.ticketNumber}
                         </Text>
                       </View>
                       <View className="flex-row items-center gap-2">
-                        <View className="bg-white/20 px-2 py-1 rounded-full flex-row items-center">
-                          <View className="w-1.5 h-1.5 bg-white rounded-full mr-1" />
-                          <Text className="text-white text-xs font-medium">
+                        <View
+                          className={`px-2 py-1 rounded-full flex-row items-center ${
+                            isExhibition ? "bg-black/5" : "bg-white/20"
+                          }`}
+                        >
+                          <View
+                            className={`w-1.5 h-1.5 rounded-full mr-1 ${
+                              isExhibition ? "bg-black/40" : "bg-white"
+                            }`}
+                          />
+                          <Text
+                            className={`text-xs font-medium ${
+                              isExhibition ? "text-black/70" : "text-white"
+                            }`}
+                          >
                             Unassigned
                           </Text>
                         </View>
                         <View className="w-6 h-6 items-center justify-center">
-                          <TicketIcon size={18} color="#FFFFFF" />
+                          <TicketIcon size={18} color={iconColor} />
                         </View>
                       </View>
                     </View>
@@ -3286,6 +3358,7 @@ function EditAssignedTicketModal({
   onRevokeAccess: () => void;
 }) {
   const isAccepted = allocationStatus === "accepted";
+  const isExhibition = isExhibitionPass(title);
   const translateY = useRef(new Animated.Value(0)).current;
   const offset = useRef(0);
   const isClosingRef = useRef(false);
@@ -3419,35 +3492,80 @@ function EditAssignedTicketModal({
                 style={{ backgroundColor }}
               >
                 <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
-                  <View className="absolute top-3 right-3 w-10 h-10 border-2 border-white/30 rounded-lg" />
-                  <View className="absolute top-8 right-8 w-5 h-5 border-2 border-white/30 rounded" />
-                  <View className="absolute top-14 right-14 w-3 h-3 border border-white/30 rounded" />
+                  <View
+                    className={`absolute top-3 right-3 w-10 h-10 border-2 ${
+                      isExhibition ? "border-black/30" : "border-white/30"
+                    } rounded-lg`}
+                  />
+                  <View
+                    className={`absolute top-8 right-8 w-5 h-5 border-2 ${
+                      isExhibition ? "border-black/30" : "border-white/30"
+                    } rounded`}
+                  />
+                  <View
+                    className={`absolute top-14 right-14 w-3 h-3 border ${
+                      isExhibition ? "border-black/30" : "border-white/30"
+                    } rounded`}
+                  />
                 </View>
                 <View className="flex-row items-start justify-between">
                   <View className="flex-1 pr-3">
-                    <Text className="text-white text-2xl font-bold mb-2">
+                    <Text
+                      className={`text-2xl font-bold mb-2 ${
+                        isExhibition ? "text-black" : "text-white"
+                      }`}
+                    >
                       {title}
                     </Text>
-                    <Text className="text-white/50 text-base mb-10">
+                    <Text
+                      className={`text-base mb-10 ${
+                        isExhibition ? "text-black/50" : "text-white/50"
+                      }`}
+                    >
                       {ticketNumber || "—"}
                     </Text>
                     <View className="flex-col">
-                      <Text className="text-white/60 text-sm">Assigned to</Text>
-                      <Text className="text-white text-[18px] font-semibold py-2">
+                      <Text
+                        className={`text-sm ${
+                          isExhibition ? "text-black/60" : "text-white/60"
+                        }`}
+                      >
+                        Assigned to
+                      </Text>
+                      <Text
+                        className={`font-semibold py-2 text-[18px] ${
+                          isExhibition ? "text-black" : "text-white"
+                        }`}
+                      >
                         {assignedTo}
                       </Text>
                     </View>
                   </View>
                   <View className="flex-row items-center gap-2">
-                    <View className="bg-white/20 px-2 py-1 rounded-full flex-row items-center">
-                      <View className="w-1.5 h-1.5 bg-white rounded-full mr-1" />
-                      <Text className="text-white text-xs font-medium">
+                    <View
+                      className={`px-2 py-1 rounded-full flex-row items-center ${
+                        isExhibition ? "bg-black/5" : "bg-white/20"
+                      }`}
+                    >
+                      <View
+                        className={`w-1.5 h-1.5 rounded-full mr-1 ${
+                          isExhibition ? "bg-black/40" : "bg-white"
+                        }`}
+                      />
+                      <Text
+                        className={`text-xs font-medium ${
+                          isExhibition ? "text-black/70" : "text-white"
+                        }`}
+                      >
                         {isAccepted ? "Accepted" : "Pending"}
                       </Text>
                     </View>
                     <View className="flex-row items-center gap-1">
                       <View className="w-6 h-6 items-center justify-center">
-                        <TicketIcon size={18} color="#FFFFFF" />
+                        <TicketIcon
+                          size={18}
+                          color={isExhibition ? "#111827" : "#FFFFFF"}
+                        />
                       </View>
                     </View>
                   </View>
@@ -3528,6 +3646,7 @@ function TransferTicketModal({
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const offset = useRef(0);
+  const isExhibition = isExhibitionPass(title);
   const isClosingRef = useRef(false);
 
   const panResponder = useRef(
@@ -3671,31 +3790,66 @@ function TransferTicketModal({
                 style={{ backgroundColor }}
               >
                 <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
-                  <View className="absolute top-3 right-3 w-10 h-10 border-2 border-white/30 rounded-lg" />
-                  <View className="absolute top-8 right-8 w-5 h-5 border-2 border-white/30 rounded" />
-                  <View className="absolute top-14 right-14 w-3 h-3 border border-white/30 rounded" />
+                  <View
+                    className={`absolute top-3 right-3 w-10 h-10 border-2 ${
+                      isExhibition ? "border-black/30" : "border-white/30"
+                    } rounded-lg`}
+                  />
+                  <View
+                    className={`absolute top-8 right-8 w-5 h-5 border-2 ${
+                      isExhibition ? "border-black/30" : "border-white/30"
+                    } rounded`}
+                  />
+                  <View
+                    className={`absolute top-14 right-14 w-3 h-3 border ${
+                      isExhibition ? "border-black/30" : "border-white/30"
+                    } rounded`}
+                  />
                 </View>
                 <View className="flex-row items-start justify-between">
                   <View className="flex-1 pr-3">
-                    <Text className="text-white text-2xl font-bold mb-2">
+                    <Text
+                      className={`text-2xl font-bold mb-2 ${
+                        isExhibition ? "text-black" : "text-white"
+                      }`}
+                    >
                       {title}
                     </Text>
-                    <Text className="text-white/50 text-base">
+                    <Text
+                      className={`text-base ${
+                        isExhibition ? "text-black/50" : "text-white/50"
+                      }`}
+                    >
                       {ticketNumber}
                     </Text>
                   </View>
                   <View className="flex-row items-center gap-2">
                     {isUnassigned && (
-                      <View className="bg-white/20 px-2 py-1 rounded-full flex-row items-center">
-                        <View className="w-1.5 h-1.5 bg-white rounded-full mr-1" />
-                        <Text className="text-white text-xs font-medium">
+                      <View
+                        className={`px-2 py-1 rounded-full flex-row items-center ${
+                          isExhibition ? "bg-black/5" : "bg-white/20"
+                        }`}
+                      >
+                        <View
+                          className={`w-1.5 h-1.5 rounded-full mr-1 ${
+                            isExhibition ? "bg-black/40" : "bg-white"
+                          }`}
+                        />
+                        <Text
+                          className={`text-xs font-medium ${
+                            isExhibition ? "text-black/70" : "text-white"
+                          }`}
+                        >
                           Unassigned
                         </Text>
                       </View>
                     )}
                     <View className="flex-row items-center gap-1">
                       <View className="w-6 h-6 items-center justify-center">
-                        <TicketIcon size={18} color="#FFFFFF" />
+                        <TicketIcon
+                          size={18}
+                          color={isExhibition ? "#111827" : "#FFFFFF"}
+                        />
                       </View>
                     </View>
                   </View>
@@ -4871,6 +5025,13 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     const currentUser = user;
     if (!currentUser?.user_id) {
       showToast("User authentication required", "error");
+      return;
+    }
+
+    // Limited Pass: no connect + no message features
+    const canInitiateConnection = await getCanUserInitiateConnection();
+    if (!canInitiateConnection) {
+      showExhibitionCannotInitiateConnectionAlert(navigation);
       return;
     }
 

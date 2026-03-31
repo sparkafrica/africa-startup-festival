@@ -23,6 +23,7 @@ import { ChevronLeftIcon } from "../components/HeaderIcons";
 import { LoadingSpinner } from "../components";
 import { useChat, type LocalChatMessage } from "../context/ChatContext";
 import { useAuth } from "../context/AuthContext";
+import { useMessagesBadgeContext } from "../context/MessagesBadgeContext";
 import { addPusherConnectionStateListener } from "../services/pusherChatService";
 import Svg, { Path } from "react-native-svg";
 
@@ -67,6 +68,7 @@ export default function ConversationScreen() {
   const { eventId, conversationId, otherPartyName, otherPartyAvatarUri } =
     route.params;
   const { user } = useAuth();
+  const { refresh: refreshMessagesBadge } = useMessagesBadgeContext();
   const {
     messagesByConversationId,
     loading,
@@ -106,6 +108,7 @@ export default function ConversationScreen() {
       return () => {
         isActive = false;
         void unbindConversationRealtime(conversationId);
+        void refreshMessagesBadge({ force: true });
       };
     }, [
       eventId,
@@ -113,6 +116,7 @@ export default function ConversationScreen() {
       loadConversation,
       bindConversationRealtime,
       unbindConversationRealtime,
+      refreshMessagesBadge,
     ])
   );
 
@@ -153,6 +157,7 @@ export default function ConversationScreen() {
   const handleSend = () => {
     const trimmed = inputText.trim();
     if (!trimmed) return;
+
     setInputText("");
     void sendMessage(eventId, conversationId, trimmed);
   };

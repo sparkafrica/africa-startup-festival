@@ -5,7 +5,11 @@ import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef } from "../navigation/navigationRef";
-import { useMeetingsBadgeCount } from "../hooks";
+import {
+  useMeetingsBadgeCount,
+  useMessagesBadgeCount,
+  useRefreshMessagesBadgeOnFocus,
+} from "../hooks";
 import { useNotifications } from "../context/NotificationsContext";
 import {
   HeaderBar,
@@ -38,6 +42,8 @@ export default function PartnersScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Partners">>();
   const meetingsBadgeCount = useMeetingsBadgeCount();
+  const messagesBadgeCount = useMessagesBadgeCount();
+  useRefreshMessagesBadgeOnFocus();
   const { hasUnreadNotifications } = useNotifications();
   const [selectedFilterIds, setSelectedFilterIds] = useState<string[]>([]);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
@@ -190,9 +196,11 @@ export default function PartnersScreen() {
     <View className="flex-1 bg-white">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
         hasUnreadNotifications={hasUnreadNotifications}
+        unreadMessagesCount={messagesBadgeCount}
       />
 
       <ScrollView

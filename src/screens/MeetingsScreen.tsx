@@ -43,7 +43,11 @@ import { useAuth } from "../context/AuthContext";
 import { useChecklist } from "../context/ChecklistContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
-import { useMeetingsBadgeCount } from "../hooks";
+import {
+  useMeetingsBadgeCount,
+  useMessagesBadgeCount,
+  useRefreshMessagesBadgeOnFocus,
+} from "../hooks";
 import {
   meetingService,
   type Meeting as BackendMeeting,
@@ -125,6 +129,8 @@ export default function MeetingsScreen({ route }: Props) {
   const { user } = useAuth();
   const { markRequestMeetingComplete } = useChecklist();
   const meetingsBadgeCount = useMeetingsBadgeCount();
+  const messagesBadgeCount = useMessagesBadgeCount();
+  useRefreshMessagesBadgeOnFocus();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
   const { hasUnreadNotifications } = useNotifications();
   const { toast, showToast, hideToast } = useToast();
@@ -1167,9 +1173,11 @@ export default function MeetingsScreen({ route }: Props) {
     <View className="flex-1 bg-white">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
         hasUnreadNotifications={hasUnreadNotifications}
+        unreadMessagesCount={messagesBadgeCount}
       />
 
       {/* Fixed Primary Tab Navigation */}

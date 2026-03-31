@@ -26,26 +26,29 @@ import { getTicketBackgroundColor, getTicketGradientColors } from "../utils/tick
 import { colors, typography, spacing, borderRadius } from "../theme/theme";
 import { LinearGradient } from "expo-linear-gradient";
 
-const TIER_ORDER = "Expo → Oasis → Delegate → Chairperson";
+const TIER_ORDER = "Limited Pass → Expo → Oasis → Delegate → Chairperson";
 
 /** Tier sort order (lowest to highest): Expo=0, Oasis=1, Delegate=2, Chairperson=3 */
 function tierSortKey(nameOrType?: string): number {
   const t = (nameOrType ?? "").toLowerCase();
-  if (t.includes("chairperson") || t.includes("founder")) return 3;
-  if (t.includes("delegate")) return 2;
-  if (t.includes("oasis")) return 1;
-  // expo, attendee, general, or unknown
-  return 0;
+  // Lowest → highest
+  if (t.includes("chairperson") || t.includes("founder")) return 4;
+  if (t.includes("delegate")) return 3;
+  if (t.includes("oasis")) return 2;
+  if (t.includes("expo") || t.includes("attendee") || t.includes("general")) return 1;
+  if (t.includes("exhibition")) return 0;
+  return 0; // unknown -> treat as lowest for upgrade ordering
 }
 
 /**
  * Filter ticket classes to upgrade targets only (Oasis, Delegate, Chairperson),
  * then keep only tiers strictly above the user's current tier (no same-tier or downgrade).
  * Deduplicates by tier label so production APIs that return duplicate classes don't show repeated options.
- * - Expo (0) → Oasis, Delegate, Chairperson
- * - Oasis (1) → Delegate, Chairperson
- * - Delegate (2) → Chairperson only
- * - Chairperson (3) → none
+ * - Exhibition (0) → Expo, Oasis, Delegate, Chairperson
+ * - Expo (1) → Oasis, Delegate, Chairperson
+ * - Oasis (2) → Delegate, Chairperson
+ * - Delegate (3) → Chairperson only
+ * - Chairperson (4) → none
  */
 function filterAndSortUpgradeClasses(
   classes: TicketClass[],

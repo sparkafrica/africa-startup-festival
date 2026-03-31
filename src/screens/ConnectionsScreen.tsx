@@ -54,7 +54,11 @@ import { meetingService } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
 import { useChat } from "../context/ChatContext";
 import { useToast } from "../hooks/useToast";
-import { useMeetingsBadgeCount } from "../hooks";
+import {
+  useMeetingsBadgeCount,
+  useMessagesBadgeCount,
+  useRefreshMessagesBadgeOnFocus,
+} from "../hooks";
 import Toast from "../components/Toast";
 import { EVENT_ID } from "../config/env";
 
@@ -235,6 +239,8 @@ export default function ConnectionsScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const meetingsBadgeCount = useMeetingsBadgeCount();
+  const messagesBadgeCount = useMessagesBadgeCount();
+  useRefreshMessagesBadgeOnFocus();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
   const { hasUnreadNotifications } = useNotifications();
   const { user } = useAuth();
@@ -960,9 +966,11 @@ export default function ConnectionsScreen() {
     <View className="flex-1 bg-white">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
         hasUnreadNotifications={hasUnreadNotifications}
+        unreadMessagesCount={messagesBadgeCount}
       />
 
       {/* Loading spinner for meeting submission */}
@@ -1295,21 +1303,32 @@ export default function ConnectionsScreen() {
                     </Pressable>
                   )}
 
-                  {/* LinkedIn pill - display username, open full URL */}
-                  {(() => {
-                    const linkedIn = getLinkedInDisplayInfo(selectedConnection.linkedInUrl);
-                    if (!linkedIn) return null;
-                    return (
-                      <Pressable
-                        onPress={async () => {
+                  {/* Accepted: LinkedIn + Message in one row (50/50). Others: LinkedIn full width only. */}
+                  {selectedConnection.status === "accepted" ? (
+                    <View
+                      style={{
+                        width: "100%",
+                        flexDirection: "row",
+                        alignItems: "stretch",
+                        marginBottom: 12,
+                      }}
+                    >
+                      {(() => {
+                        const linkedIn = getLinkedInDisplayInfo(
+                          selectedConnection.linkedInUrl
+                        );
+                        const openLinkedIn = async () => {
+                          if (!linkedIn) return;
                           try {
-                            const supported = await Linking.canOpenURL(linkedIn.url);
+                            const supported = await Linking.canOpenURL(
+                              linkedIn.url
+                            );
                             if (supported) {
                               await Linking.openURL(linkedIn.url);
                             } else {
                               try {
                                 await Linking.openURL(linkedIn.url);
-                              } catch (openError) {
+                              } catch {
                                 Alert.alert(
                                   "Cannot Open LinkedIn",
                                   "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
@@ -1318,61 +1337,120 @@ export default function ConnectionsScreen() {
                               }
                             }
                           } catch (error) {
-                            if (__DEV__) console.error("Error opening LinkedIn URL:", error);
-                            Alert.alert("Error", "Failed to open LinkedIn profile. Please try again.", [{ text: "OK" }]);
+                            if (__DEV__)
+                              console.error("Error opening LinkedIn URL:", error);
+                            Alert.alert(
+                              "Error",
+                              "Failed to open LinkedIn profile. Please try again.",
+                              [{ text: "OK" }]
+                            );
+                          }
+                        };
+                        return linkedIn ? (
+                          <Pressable
+                            onPress={openLinkedIn}
+                            style={{ flex: 1, marginRight: 6 }}
+                            className="flex-row items-center justify-center bg-neutral-200 rounded-xl py-3.5 px-3"
+                          >
+                            <LinkedInIcon size={20} color="#0A66C2" />
+                            <Text
+                              className="text-sm font-semibold text-neutral-700 ml-1.5"
+                              numberOfLines={1}
+                            >
+                              {linkedIn.displayLabel}
+                            </Text>
+                          </Pressable>
+                        ) : (
+                          <View style={{ flex: 1, marginRight: 6 }} />
+                        );
+                      })()}
+                      <Pressable
+                        onPress={async () => {
+                          if (isOpeningChat) return;
+                          setIsOpeningChat(true);
+                          try {
+                            const { conversationId } =
+                              await getOrCreateConversation(
+                                EVENT_ID,
+                                selectedConnection.userId
+                              );
+                            closeBottomSheet();
+                            navigation.navigate("Conversation", {
+                              eventId: EVENT_ID,
+                              conversationId,
+                              otherPartyName: selectedConnection.name,
+                            });
+                          } catch (err: any) {
+                            const msg =
+                              err instanceof ApiClientError
+                                ? err.message
+                                : "Failed to open chat. Please try again.";
+                            showToast(msg, "error");
+                          } finally {
+                            setIsOpeningChat(false);
                           }
                         }}
-                        className="w-full flex-row items-center justify-center bg-neutral-200 rounded-xl py-3.5 px-4 mb-3"
+                        disabled={isOpeningChat}
+                        style={{ flex: 1, marginLeft: 6 }}
+                        className="flex-row items-center justify-center bg-[#1BB273] rounded-xl py-3.5 px-3"
                       >
-                        <LinkedInIcon size={20} color="#0A66C2" />
-                        <Text className="text-base font-semibold text-neutral-700 ml-2">
-                          {linkedIn.displayLabel}
-                        </Text>
+                        {isOpeningChat ? (
+                          <LoadingSpinner size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <SpeechBubbleIcon size={20} color="#FFFFFF" />
+                            <Text className="text-sm font-semibold text-white ml-1.5">
+                              Message
+                            </Text>
+                          </>
+                        )}
                       </Pressable>
-                    );
-                  })()}
-
-                  {/* Message button - after LinkedIn, only for accepted connections */}
-                  {selectedConnection.status === "accepted" && (
-                    <Pressable
-                      onPress={async () => {
-                        if (isOpeningChat) return;
-                        setIsOpeningChat(true);
-                        try {
-                          const { conversationId } = await getOrCreateConversation(
-                            EVENT_ID,
-                            selectedConnection.userId
-                          );
-                          closeBottomSheet();
-                          navigation.navigate("Conversation", {
-                            eventId: EVENT_ID,
-                            conversationId,
-                            otherPartyName: selectedConnection.name,
-                          });
-                        } catch (err: any) {
-                          const msg =
-                            err instanceof ApiClientError
-                              ? err.message
-                              : "Failed to open chat. Please try again.";
-                          showToast(msg, "error");
-                        } finally {
-                          setIsOpeningChat(false);
-                        }
-                      }}
-                      disabled={isOpeningChat}
-                      className="w-full flex-row items-center justify-center bg-[#1BB273] rounded-xl py-3.5 px-4 mt-1"
-                    >
-                      {isOpeningChat ? (
-                        <LoadingSpinner size="small" color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <SpeechBubbleIcon size={20} color="#FFFFFF" />
-                          <Text className="text-base font-semibold text-white ml-2">
-                            Message
+                    </View>
+                  ) : (
+                    (() => {
+                      const linkedIn = getLinkedInDisplayInfo(
+                        selectedConnection.linkedInUrl
+                      );
+                      if (!linkedIn) return null;
+                      return (
+                        <Pressable
+                          onPress={async () => {
+                            try {
+                              const supported = await Linking.canOpenURL(
+                                linkedIn.url
+                              );
+                              if (supported) {
+                                await Linking.openURL(linkedIn.url);
+                              } else {
+                                try {
+                                  await Linking.openURL(linkedIn.url);
+                                } catch {
+                                  Alert.alert(
+                                    "Cannot Open LinkedIn",
+                                    "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
+                                    [{ text: "OK" }]
+                                  );
+                                }
+                              }
+                            } catch (error) {
+                              if (__DEV__)
+                                console.error("Error opening LinkedIn URL:", error);
+                              Alert.alert(
+                                "Error",
+                                "Failed to open LinkedIn profile. Please try again.",
+                                [{ text: "OK" }]
+                              );
+                            }
+                          }}
+                          className="w-full flex-row items-center justify-center bg-neutral-200 rounded-xl py-3.5 px-4 mb-3"
+                        >
+                          <LinkedInIcon size={20} color="#0A66C2" />
+                          <Text className="text-base font-semibold text-neutral-700 ml-2">
+                            {linkedIn.displayLabel}
                           </Text>
-                        </>
-                      )}
-                    </Pressable>
+                        </Pressable>
+                      );
+                    })()
                   )}
 
                   {/* Remove Connection button for both rejected and accepted connections */}

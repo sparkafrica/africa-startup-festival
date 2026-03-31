@@ -38,7 +38,11 @@ import { navigate as navigateRef } from "../navigation/navigationRef";
 import { useChecklist } from "../context/ChecklistContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
-import { useMeetingsBadgeCount } from "../hooks";
+import {
+  useMeetingsBadgeCount,
+  useMessagesBadgeCount,
+  useRefreshMessagesBadgeOnFocus,
+} from "../hooks";
 import { eventService, type EventSchedule, type PersonalSchedule } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
@@ -81,6 +85,8 @@ export default function ScheduleScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const meetingsBadgeCount = useMeetingsBadgeCount();
+  const messagesBadgeCount = useMessagesBadgeCount();
+  useRefreshMessagesBadgeOnFocus();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
   const { hasUnreadNotifications } = useNotifications();
   const [scheduleView, setScheduleView] = React.useState<"all" | "my">("all");
@@ -694,9 +700,11 @@ export default function ScheduleScreen() {
     <View className="flex-1 bg-white">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
         hasUnreadNotifications={hasUnreadNotifications}
+        unreadMessagesCount={messagesBadgeCount}
       />
 
       {/* Fixed Header Section */}

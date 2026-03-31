@@ -32,6 +32,7 @@ import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef } from "../navigation/navigationRef";
 import { useChecklist } from "../context/ChecklistContext";
 import { useAuth } from "../context/AuthContext";
+import { useChat } from "../context/ChatContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { attendeeService, type Attendee as BackendAttendee, type MatchInfo } from "../services/attendeeService";
@@ -43,9 +44,15 @@ import { ApiClientError } from "../services/api";
 import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
+  getCanUserInitiateConnection,
+  showExhibitionCannotInitiateConnectionAlert,
 } from "../utils/meetingRestrictions";
 import { useToast } from "../hooks/useToast";
-import { useMeetingsBadgeCount } from "../hooks";
+import {
+  useMeetingsBadgeCount,
+  useMessagesBadgeCount,
+  useRefreshMessagesBadgeOnFocus,
+} from "../hooks";
 import Toast from "../components/Toast";
 import {
   HeaderBar,
@@ -71,7 +78,7 @@ import {
   HeartIcon,
   HeartIconFilled,
 } from "../components/BottomNavIcons";
-import { ChevronDownIcon, ListIcon, SearchIcon } from "../components/icons";
+import { ChevronDownIcon, ListIcon, SearchIcon, SpeechBubbleIcon } from "../components/icons";
 import { LinkedInIcon } from "../components/SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import Svg, { Path, Circle } from "react-native-svg";
@@ -257,6 +264,36 @@ interface Attendee {
   backendData?: BackendAttendee;
 }
 
+/**
+ * Backend (or metadata) may send tags/interests as a string, object, or sparse array.
+ * Calling `.some` on a string/object yields `undefined` as the callee → production crash:
+ * "TypeError: undefined is not a function" inside AttendeesScreen search/filter.
+ */
+function coerceStringArray(value: unknown): string[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) {
+    return value.filter((x): x is string => typeof x === "string");
+  }
+  if (typeof value === "string") {
+    const t = value.trim();
+    if (!t) return [];
+    if (t.includes(",")) {
+      return t.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+    return [t];
+  }
+  return [];
+}
+
+function getAttendeeProfilePicUri(attendee: Attendee): string | undefined {
+  const raw = attendee.avatar;
+  if (raw && typeof raw === "object" && "uri" in raw) {
+    const uri = (raw as { uri?: string }).uri;
+    if (typeof uri === "string" && uri.trim()) return uri.trim();
+  }
+  return undefined;
+}
+
 // Attendee Card Component (Tinder-style card)
 interface AttendeeCardProps {
   attendee: Attendee;
@@ -264,6 +301,9 @@ interface AttendeeCardProps {
   onSwipeRight?: () => void;
   onRequestMeeting?: (attendee: Attendee) => void;
   onConnect?: (attendee: Attendee) => void;
+  onMessage?: (attendee: Attendee) => void;
+  /** True while opening chat from any attendee card (top card only is interactive). */
+  messageOpening?: boolean;
   index: number;
   totalCards: number;
   hasFilters?: boolean;
@@ -278,6 +318,8 @@ function AttendeeCard({
   onSwipeRight,
   onRequestMeeting,
   onConnect,
+  onMessage,
+  messageOpening = false,
   index,
   totalCards,
   hasFilters = false,
@@ -672,8 +714,8 @@ function AttendeeCard({
           </View>
         )}
 
-        {/* Action Buttons - Stacked Vertically */}
-        <View className={hasFilters ? "pt-2 pb-2" : "mt-1"}>
+        {/* Primary CTA, then a separated pair: Connect | Message */}
+        <View className={hasFilters ? "pt-2 pb-2" : "mt-2"}>
           <GesturePressable
             onPress={() => {
               if (onRequestMeeting) {
@@ -682,7 +724,7 @@ function AttendeeCard({
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             className={`w-full flex-row items-center justify-center bg-black rounded-xl ${
-              hasFilters ? "py-4 px-3 mb-1.5" : "py-3 px-4 mb-2"
+              hasFilters ? "py-4 px-3" : "py-3.5 px-4"
             }`}
           >
             <CalendarIcon size={hasFilters ? 16 : 20} color="#FFFFFF" />
@@ -695,47 +737,111 @@ function AttendeeCard({
             </Text>
           </GesturePressable>
 
-          {attendee.connectionStatus === "accepted" ||
-          attendee.connectionStatus === "pending" ? (
+          <View
+            className={`border-t border-neutral-100 ${hasFilters ? "mt-2 pt-2" : "mt-3 pt-3"}`}
+          >
             <View
-              className={`w-full flex-row items-center justify-center rounded-xl ${
-                hasFilters ? "py-4 px-3" : "py-3 px-4"
-              }`}
-              style={{ backgroundColor: "#E5E7EB" }}
-            >
-              <PeopleIcon size={hasFilters ? 16 : 20} color="#9CA3AF" />
-              <Text
-                className={`${
-                  hasFilters ? "text-normal font-medium" : "text-base"
-                } font-medium text-neutral-500 ${hasFilters ? "ml-1.5" : "ml-2"}`}
-              >
-                {attendee.connectionStatus === "accepted"
-                  ? "Connected"
-                  : "Pending"}
-              </Text>
-            </View>
-          ) : (
-            <GesturePressable
-              onPress={() => {
-                if (onConnect) {
-                  onConnect(attendee);
-                }
+              style={{
+                width: "100%",
+                flexDirection: "row",
+                alignItems: "stretch",
+                columnGap: 8,
               }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              className={`w-full flex-row items-center justify-center bg-neutral-100 rounded-xl ${
-                hasFilters ? "py-4 px-3" : "py-3 px-4"
-              }`}
             >
-              <PeopleIcon size={hasFilters ? 16 : 20} color="#404040" />
-              <Text
-                className={`${
-                  hasFilters ? "text-normal font-medium" : "text-base"
-                } font-medium text-neutral-900 ${hasFilters ? "ml-1.5" : "ml-2"}`}
+              {attendee.connectionStatus === "accepted" ||
+              attendee.connectionStatus === "pending" ? (
+                <View
+                  style={{
+                    flex: 1,
+                    minHeight: hasFilters ? 44 : 48,
+                    backgroundColor: "#F3F4F6",
+                  }}
+                  className={`flex-row items-center justify-center rounded-xl border border-neutral-200/80 ${
+                    hasFilters ? "px-2" : "px-3"
+                  }`}
+                >
+                  <PeopleIcon size={hasFilters ? 16 : 20} color="#9CA3AF" />
+                  <Text
+                    className={`${
+                      hasFilters ? "text-xs font-medium" : "text-sm font-medium"
+                    } text-neutral-500 ml-1.5`}
+                    numberOfLines={1}
+                  >
+                    {attendee.connectionStatus === "accepted"
+                      ? "Connected"
+                      : "Pending"}
+                  </Text>
+                </View>
+              ) : (
+                <GesturePressable
+                  onPress={() => {
+                    if (onConnect) {
+                      onConnect(attendee);
+                    }
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={{ flex: 1, minHeight: hasFilters ? 44 : 48 }}
+                  className={`flex-row items-center justify-center rounded-xl border border-neutral-200 bg-white ${
+                    hasFilters ? "px-2" : "px-3"
+                  }`}
+                >
+                  <PeopleIcon size={hasFilters ? 16 : 20} color="#404040" />
+                  <Text
+                    className={`${
+                      hasFilters ? "text-xs font-semibold" : "text-sm font-semibold"
+                    } text-neutral-900 ml-1.5`}
+                    numberOfLines={1}
+                  >
+                    Connect
+                  </Text>
+                </GesturePressable>
+              )}
+
+              <Pressable
+                onPress={() => onMessage?.(attendee)}
+                disabled={messageOpening}
+                style={{
+                  flex: 1,
+                  minHeight: hasFilters ? 44 : 48,
+                  opacity: messageOpening ? 0.88 : 1,
+                }}
+                className={`flex-row items-center justify-center rounded-xl ${
+                  hasFilters ? "px-2" : "px-3"
+                } ${
+                  attendee.connectionStatus === "accepted"
+                    ? "bg-[#1BB273] shadow-sm"
+                    : "border border-dashed border-neutral-300 bg-white"
+                }`}
               >
-                Connect
-              </Text>
-            </GesturePressable>
-          )}
+                {messageOpening ? (
+                  <LoadingSpinner size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <SpeechBubbleIcon
+                      size={hasFilters ? 16 : 18}
+                      color={
+                        attendee.connectionStatus === "accepted"
+                          ? "#FFFFFF"
+                          : "#A3A3A3"
+                      }
+                    />
+                    <Text
+                      className={`${
+                        hasFilters ? "text-xs font-semibold" : "text-sm font-semibold"
+                      } ml-1.5 ${
+                        attendee.connectionStatus === "accepted"
+                          ? "text-white"
+                          : "text-neutral-400"
+                      }`}
+                      numberOfLines={1}
+                    >
+                      Message
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
         </View>
       </View>
       </Animated.View>
@@ -747,11 +853,14 @@ export default function AttendeesScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const meetingsBadgeCount = useMeetingsBadgeCount();
+  const messagesBadgeCount = useMessagesBadgeCount();
+  useRefreshMessagesBadgeOnFocus();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
   const { hasUnreadNotifications } = useNotifications();
   const { markConnectAttendeesComplete, markRequestMeetingComplete } =
     useChecklist();
   const { user } = useAuth();
+  const { getOrCreateConversation } = useChat();
   const [activeTab, setActiveTab] = useState<"Recommended" | "All">("All");
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [showViewDropdown, setShowViewDropdown] = useState(false);
@@ -796,6 +905,7 @@ export default function AttendeesScreen() {
   const [hasMoreAttendees, setHasMoreAttendees] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isOpeningChat, setIsOpeningChat] = useState(false);
 
   const { toast, showToast, hideToast } = useToast();
 
@@ -878,13 +988,13 @@ export default function AttendeesScreen() {
         const match = (): boolean => {
           if (catId === "industry") {
             const ind = normalize(attendee.industry || "");
-            const tagStr = (attendee.tags || []).map(normalize).join(" ");
+            const tagStr = coerceStringArray(attendee.tags).map(normalize).join(" ");
             return labels.some(
               (l) => ind.includes(normalize(l)) || tagStr.includes(normalize(l))
             );
           }
           if (catId === "interests") {
-            const list = (attendee.interests || []).map(normalize);
+            const list = coerceStringArray(attendee.interests).map(normalize);
             return labels.some((l) =>
               list.some((i) => i.includes(normalize(l)) || normalize(l).includes(i))
             );
@@ -948,10 +1058,8 @@ export default function AttendeesScreen() {
       tags.push(industry);
     }
 
-    // Extract interests from metadata
-    const interests = metadata?.interests && Array.isArray(metadata.interests)
-      ? metadata.interests
-      : [];
+    // Extract interests from metadata (may be array, comma-separated string, or missing)
+    const interests = coerceStringArray(metadata?.interests);
 
     // Extract bio from metadata
     const bio = metadata?.bio || "";
@@ -1217,10 +1325,10 @@ export default function AttendeesScreen() {
       const roleMatch = attendee.role?.toLowerCase().includes(query);
       const companyMatch = attendee.company?.toLowerCase().includes(query);
       const bioMatch = attendee.bio?.toLowerCase().includes(query);
-      const tagsMatch = attendee.tags?.some((tag) =>
+      const tagsMatch = coerceStringArray(attendee.tags).some((tag) =>
         tag.toLowerCase().includes(query)
       );
-      const interestsMatch = attendee.interests?.some((interest) =>
+      const interestsMatch = coerceStringArray(attendee.interests).some((interest) =>
         interest.toLowerCase().includes(query)
       );
       return (
@@ -1303,6 +1411,14 @@ export default function AttendeesScreen() {
         showToast("Sign in required to connect", "error");
         return;
       }
+
+      // Limited Pass: no connect + no message features.
+      const canInitiateConnection = await getCanUserInitiateConnection();
+      if (!canInitiateConnection) {
+        showExhibitionCannotInitiateConnectionAlert(navigation);
+        return;
+      }
+
       setIsConnecting(true);
       try {
         await connectionService.createConnection(
@@ -1352,6 +1468,38 @@ export default function AttendeesScreen() {
       markConnectAttendeesComplete,
       loadMoreAttendees,
     ]
+  );
+
+  const handleAttendeeMessage = useCallback(
+    async (attendee: Attendee) => {
+      if (attendee.connectionStatus !== "accepted") {
+        showToast("Connect with this attendee to send messages.", "info");
+        return;
+      }
+      if (isOpeningChat) return;
+      setIsOpeningChat(true);
+      try {
+        const { conversationId } = await getOrCreateConversation(
+          EVENT_ID,
+          attendee.id
+        );
+        navigation.navigate("Conversation", {
+          eventId: EVENT_ID,
+          conversationId,
+          otherPartyName: attendee.name,
+          otherPartyAvatarUri: getAttendeeProfilePicUri(attendee),
+        });
+      } catch (e: any) {
+        const msg =
+          e instanceof ApiClientError
+            ? e.message
+            : "Failed to open chat. Please try again.";
+        showToast(msg, "error");
+      } finally {
+        setIsOpeningChat(false);
+      }
+    },
+    [isOpeningChat, getOrCreateConversation, navigation, showToast]
   );
 
   const openBottomSheet = (attendee: Attendee) => {
@@ -1614,9 +1762,11 @@ export default function AttendeesScreen() {
     <View className="flex-1 bg-white">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
         hasUnreadNotifications={hasUnreadNotifications}
+        unreadMessagesCount={messagesBadgeCount}
       />
 
       <View className="flex-1">
@@ -1858,6 +2008,8 @@ export default function AttendeesScreen() {
                           }
                         }}
                         onConnect={(attendee) => handleConnect(attendee, true)}
+                        onMessage={handleAttendeeMessage}
+                        messageOpening={isOpeningChat}
                         index={index}
                         totalCards={Math.min(
                           5,
@@ -2156,7 +2308,7 @@ export default function AttendeesScreen() {
                   );
                 })()}
 
-                {/* Action Buttons */}
+                {/* Request Meeting, then separated Connect | Message (matches card view) */}
                 <View className="mt-2">
                   <Pressable
                     onPress={async () => {
@@ -2170,7 +2322,7 @@ export default function AttendeesScreen() {
                         showExpoCannotBookMeetingAlert(navigation);
                       }
                     }}
-                    className="w-full flex-row items-center justify-center bg-black rounded-xl py-3 px-4 mb-2"
+                    className="w-full flex-row items-center justify-center bg-black rounded-xl py-3.5 px-4"
                   >
                     <CalendarIcon size={20} color="#FFFFFF" />
                     <Text className="text-base font-medium text-white ml-2">
@@ -2178,35 +2330,104 @@ export default function AttendeesScreen() {
                     </Text>
                   </Pressable>
 
-                  {selectedAttendee.connectionStatus === "accepted" ||
-                  selectedAttendee.connectionStatus === "pending" ? (
+                  <View className="border-t border-neutral-100 mt-3 pt-3">
                     <View
-                      className="w-full flex-row items-center justify-center rounded-xl py-3 px-4"
-                      style={{ backgroundColor: "#E5E7EB" }}
-                    >
-                      <PeopleIcon size={20} color="#9CA3AF" />
-                      <Text className="text-base font-medium text-neutral-500 ml-2">
-                        {selectedAttendee.connectionStatus === "accepted"
-                          ? "Connected"
-                          : "Pending"}
-                      </Text>
-                    </View>
-                  ) : (
-                    <Pressable
-                      onPress={() => {
-                        handleConnect(selectedAttendee);
-                        closeBottomSheet();
+                      style={{
+                        width: "100%",
+                        flexDirection: "row",
+                        alignItems: "stretch",
+                        columnGap: 8,
                       }}
-                      className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-3 px-4"
                     >
-                      <PeopleIcon size={20} color="#404040" />
-                      <Text className="text-base font-medium text-neutral-900 ml-2">
-                        Connect
-                      </Text>
-                    </Pressable>
-                  )}
-        </View>
-      </ScrollView>
+                      {selectedAttendee.connectionStatus === "accepted" ||
+                      selectedAttendee.connectionStatus === "pending" ? (
+                        <View
+                          style={{
+                            flex: 1,
+                            minHeight: 48,
+                            backgroundColor: "#F3F4F6",
+                          }}
+                          className="flex-row items-center justify-center rounded-xl border border-neutral-200/80 px-3"
+                        >
+                          <PeopleIcon size={20} color="#9CA3AF" />
+                          <Text className="text-sm font-medium text-neutral-500 ml-1.5" numberOfLines={1}>
+                            {selectedAttendee.connectionStatus === "accepted"
+                              ? "Connected"
+                              : "Pending"}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Pressable
+                          onPress={() => {
+                            handleConnect(selectedAttendee);
+                            closeBottomSheet();
+                          }}
+                          style={{ flex: 1, minHeight: 48 }}
+                          className="flex-row items-center justify-center rounded-xl border border-neutral-200 bg-white px-3"
+                        >
+                          <PeopleIcon size={20} color="#404040" />
+                          <Text className="text-sm font-semibold text-neutral-900 ml-1.5" numberOfLines={1}>
+                            Connect
+                          </Text>
+                        </Pressable>
+                      )}
+
+                      <Pressable
+                        onPress={() => {
+                          const a = selectedAttendee;
+                          if (a.connectionStatus === "accepted") {
+                            closeBottomSheet();
+                          }
+                          void handleAttendeeMessage(a);
+                        }}
+                        disabled={isOpeningChat}
+                        style={{
+                          flex: 1,
+                          minHeight: 48,
+                          opacity: isOpeningChat ? 0.88 : 1,
+                        }}
+                        className={`flex-row items-center justify-center rounded-xl px-3 ${
+                          selectedAttendee.connectionStatus === "accepted"
+                            ? "bg-[#1BB273] shadow-sm"
+                            : "border border-dashed border-neutral-300 bg-white"
+                        }`}
+                      >
+                        {isOpeningChat ? (
+                          <LoadingSpinner
+                            size="small"
+                            color={
+                              selectedAttendee.connectionStatus === "accepted"
+                                ? "#FFFFFF"
+                                : "#404040"
+                            }
+                          />
+                        ) : (
+                          <>
+                            <SpeechBubbleIcon
+                              size={18}
+                              color={
+                                selectedAttendee.connectionStatus === "accepted"
+                                  ? "#FFFFFF"
+                                  : "#A3A3A3"
+                              }
+                            />
+                            <Text
+                              className={`text-sm font-semibold ml-1.5 ${
+                                selectedAttendee.connectionStatus === "accepted"
+                                  ? "text-white"
+                                  : "text-neutral-400"
+                              }`}
+                              numberOfLines={1}
+                            >
+                              Message
+                            </Text>
+                          </>
+                        )}
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              </ScrollView>
             </Pressable>
           </RNAnimated.View>
         </View>

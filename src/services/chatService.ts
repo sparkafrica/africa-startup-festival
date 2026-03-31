@@ -130,6 +130,24 @@ function unwrapPaginated<T>(data: any): { results: T[]; pagination: PaginationMe
   return { results: [], pagination: { count: 0, next: null, previous: null } };
 }
 
+/** Backend may send unread as string, int, or camelCase; keep list + badge math consistent. */
+function normalizeConversationListItem(raw: Record<string, unknown>): ConversationListItem {
+  const u =
+    raw.unread_count ??
+    (raw as { unreadCount?: unknown }).unreadCount ??
+    raw.unread_messages_count;
+  let unread_count = "0";
+  if (typeof u === "number" && Number.isFinite(u)) {
+    unread_count = String(Math.max(0, Math.floor(u)));
+  } else if (typeof u === "string") {
+    unread_count = u.trim() || "0";
+  }
+  return {
+    ...(raw as unknown as ConversationListItem),
+    unread_count,
+  };
+}
+
 // ============================================================================
 // API METHODS
 // ============================================================================
@@ -151,8 +169,11 @@ export async function listConversations(
   const path = `/events/${eventId}/conversations/`;
   const fullUrl = qs ? `${path}?${qs}` : path;
   const response = await api.get<any>(fullUrl);
-  const { results, pagination } = unwrapPaginated<ConversationListItem>(response);
-  return { conversations: results, pagination };
+  const { results, pagination } = unwrapPaginated<Record<string, unknown>>(response);
+  return {
+    conversations: results.map((r) => normalizeConversationListItem(r)),
+    pagination,
+  };
 }
 
 /**

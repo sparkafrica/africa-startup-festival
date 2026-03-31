@@ -2,22 +2,30 @@ import React from "react";
 import { View, Pressable, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import IconButton from "./IconButton";
 import { ScanIcon, BellIcon, MenuIcon } from "./HeaderIcons";
+import { MailIcon } from "./MenuIcons";
 
 interface HeaderBarProps {
   onScanPress?: () => void;
+  onMessagesPress?: () => void;
   onNotificationPress?: () => void;
   onMenuPress?: () => void;
   hasUnreadNotifications?: boolean;
+  unreadMessagesCount?: number;
 }
 
 export default function HeaderBar({
   onScanPress,
+  onMessagesPress,
   onNotificationPress,
   onMenuPress,
   hasUnreadNotifications = false,
+  unreadMessagesCount = 0,
 }: HeaderBarProps) {
+  const hasUnreadMessages = unreadMessagesCount > 0;
+  const messagesBadgeLabel =
+    unreadMessagesCount > 99 ? "99+" : String(unreadMessagesCount);
+
   return (
     <SafeAreaView edges={["top"]} className="bg-white">
       <StatusBar style="dark" />
@@ -68,6 +76,49 @@ export default function HeaderBar({
                   borderColor: "#FFF",
                 }}
               />
+            )}
+          </Pressable>
+          <Pressable
+            onPress={onMessagesPress}
+            className="w-10 h-10 rounded-full bg-[#fefefe] border border-[#c6c6c6] items-center justify-center ml-2"
+            style={{
+              shadowColor: "#2762C7",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.09,
+              shadowRadius: 3,
+              elevation: 2,
+            }}
+            hitSlop={10}
+          >
+            <MailIcon size={18} color="#404040" />
+            {hasUnreadMessages && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 4,
+                  right: 4,
+                  minWidth: 14,
+                  height: 14,
+                  borderRadius: 7,
+                  backgroundColor: "#22C55E",
+                  borderWidth: 1.5,
+                  borderColor: "#FFF",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingHorizontal: 2,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontSize: 9,
+                    fontWeight: "700",
+                  }}
+                  numberOfLines={1}
+                >
+                  {messagesBadgeLabel}
+                </Text>
+              </View>
             )}
           </Pressable>
         </View>

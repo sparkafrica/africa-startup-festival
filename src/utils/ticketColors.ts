@@ -1,6 +1,6 @@
 /**
  * Ticket color and label mapping.
- * Pass types: Expo, Oasis, Delegate, Chairperson, Partner, Exhibitor, Media, Speaker.
+ * Pass types: Exhibition, Expo, Oasis, Delegate, Chairperson, Partner, Exhibitor, Media, Speaker.
  * All types use a left-to-right gradient for cards/badges.
  */
 
@@ -8,6 +8,8 @@
 const TICKET_COLORS: Record<string, string> = {
   chairperson: "#171717",
   founder: "#171717",
+  // Exhibition is the lowest tier. Card background should be light (white) with dark text.
+  exhibition: "#FFFFFF",
   delegate: "#14B8A6",
   oasis: "#2563EB",
   expo: "#059669",
@@ -22,6 +24,8 @@ const TICKET_COLORS: Record<string, string> = {
 /** Left-to-right gradient [start, end] for each pass type */
 const TICKET_GRADIENTS: Record<string, [string, string]> = {
   chairperson: ["#171717", "#404040"],
+  // Exhibition card should be white with subtle gray for contrast.
+  exhibition: ["#FFFFFF", "#F3F4F6"],
   delegate: ["#14B8A6", "#2DD4BF"],
   oasis: ["#2563EB", "#3B82F6"],
   expo: ["#059669", "#10B981"],
@@ -34,6 +38,7 @@ const TICKET_GRADIENTS: Record<string, [string, string]> = {
 const TICKET_LABELS: Record<string, string> = {
   chairperson: "Chairperson",
   founder: "Founder",
+  exhibition: "Limited Pass",
   delegate: "Delegate",
   oasis: "Oasis",
   expo: "Expo",
@@ -50,14 +55,21 @@ function normalizeType(input?: string): string {
   return input.toLowerCase().replace(/\s+/g, " ");
 }
 
+function isLimitedPassAlias(normalized: string): boolean {
+  return normalized.includes("exhibition") || normalized.includes("limited pass");
+}
+
 /**
  * Get background color for a ticket from its type/class name.
  */
 export function getTicketBackgroundColor(ticketTypeOrName?: string): string {
   const t = normalizeType(ticketTypeOrName);
-  if (!t) return TICKET_COLORS.expo;
+  // Default to the lowest tier (Limited Pass / exhibition) when type is unknown,
+  // so fallbacks render with the white/neutral palette instead of Expo green.
+  if (!t) return TICKET_COLORS.exhibition;
 
   if (t.includes("chairperson") || t.includes("founder")) return TICKET_COLORS.chairperson;
+  if (isLimitedPassAlias(t)) return TICKET_COLORS.exhibition;
   if (t.includes("delegate")) return TICKET_COLORS.delegate;
   if (t.includes("oasis")) return TICKET_COLORS.oasis;
   if (t.includes("expo") || t.includes("attendee") || t.includes("general")) return TICKET_COLORS.expo;
@@ -77,10 +89,13 @@ export function getTicketTypeDisplay(ticketTypeOrName?: string): {
   color: string;
 } {
   const t = normalizeType(ticketTypeOrName);
-  if (!t) return { label: TICKET_LABELS.expo, color: TICKET_COLORS.expo };
+  // Default badge to Limited Pass styling when type is unknown.
+  if (!t) return { label: TICKET_LABELS.exhibition, color: TICKET_COLORS.exhibition };
 
   if (t.includes("chairperson") || t.includes("founder"))
     return { label: TICKET_LABELS.chairperson, color: TICKET_COLORS.chairperson };
+  if (isLimitedPassAlias(t))
+    return { label: TICKET_LABELS.exhibition, color: TICKET_COLORS.exhibition };
   if (t.includes("delegate"))
     return { label: TICKET_LABELS.delegate, color: TICKET_COLORS.delegate };
   if (t.includes("oasis"))
@@ -104,8 +119,10 @@ export function getTicketTypeDisplay(ticketTypeOrName?: string): {
  */
 export function getTicketGradientColors(ticketTypeOrName?: string): [string, string] {
   const t = normalizeType(ticketTypeOrName);
-  if (!t) return TICKET_GRADIENTS.expo;
+  // Default gradient to Limited Pass (exhibition) when type is unknown.
+  if (!t) return TICKET_GRADIENTS.exhibition;
   if (t.includes("chairperson") || t.includes("founder")) return TICKET_GRADIENTS.chairperson;
+  if (isLimitedPassAlias(t)) return TICKET_GRADIENTS.exhibition;
   if (t.includes("delegate")) return TICKET_GRADIENTS.delegate;
   if (t.includes("oasis")) return TICKET_GRADIENTS.oasis;
   if (t.includes("expo") || t.includes("attendee") || t.includes("general")) return TICKET_GRADIENTS.expo;
@@ -116,19 +133,28 @@ export function getTicketGradientColors(ticketTypeOrName?: string): [string, str
   return TICKET_GRADIENTS.expo;
 }
 
-/** True if this pass type is Expo (or attendee/general). Used to block meeting booking. */
-export function isExpoPass(ticketTypeOrName?: string): boolean {
+export function isExhibitionPass(ticketTypeOrName?: string): boolean {
   const t = normalizeType(ticketTypeOrName);
-  if (!t) return true; // treat unknown as Expo for safety
-  return (
-    t.includes("expo") ||
-    t.includes("attendee") ||
-    t.includes("general")
-  );
+  if (!t) return false;
+  return isLimitedPassAlias(t);
 }
 
-/** Tier order (lowest to highest): Expo → Oasis → Delegate → Chairperson */
+/** True if this pass type is the (restricted) Expo pass. */
+export function isExpoPass(ticketTypeOrName?: string): boolean {
+  const t = normalizeType(ticketTypeOrName);
+  if (!t) return false;
+  // Avoid ever treating Exhibition as Expo.
+  if (isExhibitionPass(t)) return false;
+  // Canonical match for Expo.
+  if (t.includes("expo")) return true;
+  // Back-compat: old backend may still label these as "attendee"/"general".
+  if (t.includes("attendee") || t.includes("general")) return true;
+  return false;
+}
+
+/** Tier order (lowest to highest): Limited Pass → Expo → Oasis → Delegate → Chairperson */
 const TIER_LABELS: Record<string, string> = {
+  exhibition: "Limited Pass",
   expo: "Expo",
   attendee: "Expo",
   general: "Expo",
@@ -146,6 +172,7 @@ export function isHighestTier(ticketTypeOrName?: string): boolean {
 export function getNextTierLabel(ticketTypeOrName?: string): string | null {
   const t = normalizeType(ticketTypeOrName);
   if (!t || t.includes("chairperson") || t.includes("founder")) return null;
+  if (isLimitedPassAlias(t)) return TIER_LABELS.expo;
   if (t.includes("delegate")) return TIER_LABELS.chairperson;
   if (t.includes("oasis")) return TIER_LABELS.delegate;
   if (t.includes("expo") || t.includes("attendee") || t.includes("general"))
@@ -154,6 +181,7 @@ export function getNextTierLabel(ticketTypeOrName?: string): string | null {
 }
 
 const TIER_VALUES: Record<string, string> = {
+  exhibition: "exhibition",
   expo: "expo",
   attendee: "expo",
   general: "expo",
@@ -164,13 +192,15 @@ const TIER_VALUES: Record<string, string> = {
 };
 
 const TIER_ORDER: { value: string; label: string }[] = [
+  { value: "exhibition", label: "Limited Pass" },
+  { value: "expo", label: "Expo" },
   { value: "oasis", label: "Oasis" },
   { value: "delegate", label: "Delegate" },
   { value: "chairperson", label: "Chairperson" },
 ];
 
 /**
- * Only Expo, Oasis, Delegate can upgrade. Chairperson, Partner, Exhibitor, Media, Speaker cannot.
+ * Upgradeable tiers: Exhibition → Expo → Oasis → Delegate. Chairperson, Partner, Exhibitor, Media, Speaker cannot.
  */
 export function isUpgradeableAttendeeTier(ticketTypeOrName?: string): boolean {
   const t = normalizeType(ticketTypeOrName);
@@ -179,6 +209,7 @@ export function isUpgradeableAttendeeTier(ticketTypeOrName?: string): boolean {
   if (t.includes("exhibitor") || t.includes("partner")) return false;
   if (t.includes("media") || t.includes("speaker")) return false;
   if (t.includes("delegate") || t.includes("oasis")) return true;
+  if (isLimitedPassAlias(t)) return true;
   if (t.includes("expo") || t.includes("attendee") || t.includes("general"))
     return true;
   return false;
@@ -190,6 +221,19 @@ export function getHigherTierOptions(ticketTypeOrName?: string): { value: string
   if (t.includes("delegate")) return [{ value: "chairperson", label: "Chairperson" }];
   if (t.includes("oasis"))
     return [
+      { value: "delegate", label: "Delegate" },
+      { value: "chairperson", label: "Chairperson" },
+    ];
+  if (t.includes("expo") || t.includes("attendee") || t.includes("general"))
+    return [
+      { value: "oasis", label: "Oasis" },
+      { value: "delegate", label: "Delegate" },
+      { value: "chairperson", label: "Chairperson" },
+    ];
+  if (isLimitedPassAlias(t))
+    return [
+      { value: "expo", label: "Expo" },
+      { value: "oasis", label: "Oasis" },
       { value: "delegate", label: "Delegate" },
       { value: "chairperson", label: "Chairperson" },
     ];

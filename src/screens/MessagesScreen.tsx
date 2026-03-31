@@ -23,9 +23,11 @@ import {
   markConversationRead,
   type ConversationListItem,
 } from "../services/chatService";
+import { connectionService, type Connection } from "../services/connectionService";
 import { ApiClientError } from "../services/api";
 import { EVENT_ID } from "../config/env";
 import { useAuth } from "../context/AuthContext";
+import { useMessagesBadgeContext } from "../context/MessagesBadgeContext";
 import {
   subscribeToConversationChannel,
   unsubscribeFromConversationChannel,
@@ -115,6 +117,29 @@ function getConversationAvatarUri(
   return t.length ? t : undefined;
 }
 
+/** Best-effort extract of conversation peer user id from API payload. */
+function getConversationOtherPartyId(item: ConversationListItem): string | null {
+  const raw = item.other_party;
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  const candidates = [obj.id, obj.user_id, obj.uuid];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim();
+    if (typeof c === "number" && Number.isFinite(c)) return String(c);
+  }
+  return null;
+}
+
+/** For a connection row, return the "other user" id relative to current user. */
+function getPeerUserId(connection: Connection, currentUserId: string): string | null {
+  const fromId = String(connection.from_user?.id ?? "").trim();
+  const toId = String(connection.to_user?.id ?? "").trim();
+  if (!fromId || !toId) return null;
+  if (fromId === currentUserId) return toId;
+  if (toId === currentUserId) return fromId;
+  return null;
+}
+
 function getLastMessagePreview(raw: unknown): string {
   if (typeof raw === "string") {
     const trimmed = raw.trim();
@@ -153,6 +178,7 @@ export default function MessagesScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "Messages">>();
   const isFocused = useIsFocused();
   const { user } = useAuth();
+  const { refresh: refreshMessagesBadge } = useMessagesBadgeContext();
   const [conversations, setConversations] = useState<ConversationListItem[]>(
     []
   );
@@ -179,14 +205,42 @@ export default function MessagesScreen() {
         }
         setError(null);
 
-        const response = await listConversations(EVENT_ID, {
-          ordering: "-updated_at",
-          page: 1,
-          page_size: 100,
-        });
-        setConversations(response.conversations);
+        const [conversationResponse, connectionsResult] = await Promise.all([
+          listConversations(EVENT_ID, {
+            ordering: "-updated_at",
+            page: 1,
+            page_size: 100,
+          }),
+          connectionService
+            .getConnections(1, 200)
+            .then((r) => ({ ok: true as const, connections: r.connections }))
+            .catch(() => ({ ok: false as const, connections: [] as Connection[] })),
+        ]);
+
+        const currentUserId = String(user?.user_id ?? "").trim();
+
+        // Only filter inbox by connections when the connections request succeeded.
+        // If it failed (network error), an empty list was previously treated as "no
+        // connections" and hid every thread — same symptom as "the app is broken".
+        let filteredConversations = conversationResponse.conversations;
+        if (connectionsResult.ok && currentUserId) {
+          const acceptedPeerIds = new Set(
+            connectionsResult.connections
+              .filter((c) => c.status === "accepted")
+              .map((c) => getPeerUserId(c, currentUserId))
+              .filter((id): id is string => typeof id === "string" && id.length > 0)
+          );
+          filteredConversations = conversationResponse.conversations.filter((c) => {
+            const otherPartyId = getConversationOtherPartyId(c);
+            if (!otherPartyId) return true;
+            return acceptedPeerIds.has(otherPartyId);
+          });
+        }
+
+        setConversations(filteredConversations);
         inboxHasLoadedOnceRef.current = true;
-        return response.conversations;
+        void refreshMessagesBadge({ force: true });
+        return filteredConversations;
       } catch (err: any) {
         const msg =
           err instanceof ApiClientError
@@ -201,7 +255,7 @@ export default function MessagesScreen() {
         setIsRefreshing(false);
       }
     },
-    []
+    [user?.user_id, refreshMessagesBadge]
   );
 
   useFocusEffect(

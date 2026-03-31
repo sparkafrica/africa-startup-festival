@@ -6,7 +6,11 @@ import Svg, { Path, Circle } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
 import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
-import { getTicketTypeDisplay, getTicketGradientColors } from "../utils/ticketColors";
+import {
+  getTicketTypeDisplay,
+  getTicketGradientColors,
+  isExhibitionPass,
+} from "../utils/ticketColors";
 // import PatternOverlay from "./ui/PatternOverlay";
 
 import {
@@ -74,11 +78,14 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
   // Badge and color: prefer ticket type, then company type (so assignee with Exhibitor ticket shows Exhibitor)
   // While loading, use slate to avoid green flash before real ticket type loads
   const companyType = user?.company?.company_type ?? "";
-  const effectiveType = ticketType || companyType || "attendee";
+  // Default to the lowest tier so the menu card starts white/black
+  // (instead of flashing the Expo/green gradient before ticketType loads).
+  const effectiveType = ticketType || companyType || "exhibition";
   const display = ticketLoading
     ? { label: "...", color: LOADING_COLOR }
     : getTicketTypeDisplay(effectiveType);
   const { label: userType, color: cardBackgroundColor } = display;
+  const isExhibition = isExhibitionPass(effectiveType);
   const cardGradient = getTicketGradientColors(effectiveType);
 
   // Get profile picture URL if available
@@ -171,12 +178,34 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
                 </View>
                 <View className="flex-1">
                   <View className="flex-row items-center space-x-2">
-                    <Text className="text-white text-[18px] font-bold">{userName}</Text>
-                    <View className="px-2 py-[2px] bg-white/30 rounded-full">
-                      <Text className="text-white text-[12px] capitalize">{userType}</Text>
+                    <Text
+                      className={`text-[18px] font-bold ${
+                        isExhibition ? "text-neutral-900" : "text-white"
+                      }`}
+                    >
+                      {userName}
+                    </Text>
+                    <View
+                      className={`px-2 py-[2px] rounded-full ${
+                        isExhibition ? "bg-neutral-900/10" : "bg-white/30"
+                      }`}
+                    >
+                      <Text
+                        className={`text-[12px] capitalize ${
+                          isExhibition ? "text-neutral-700" : "text-white"
+                        }`}
+                      >
+                        {userType}
+                      </Text>
                     </View>
                   </View>
-                  <Text className="text-white/80 text-[14px] mt-1">{userEmail}</Text>
+                  <Text
+                    className={`text-[14px] mt-1 ${
+                      isExhibition ? "text-neutral-600" : "text-white/80"
+                    }`}
+                  >
+                    {userEmail}
+                  </Text>
                 </View>
               </View>
             </LinearGradient>
