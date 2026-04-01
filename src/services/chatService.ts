@@ -87,9 +87,122 @@ export interface PusherAuthRequest {
   channel_name: string;
 }
 
-/** Pusher auth response – backend 200 body */
+/** Pusher auth response – backend 200 body (ideal shape) */
 export interface PusherAuthResponse {
   auth: string;
+  channel_data?: string;
+  shared_secret?: string;
+}
+
+/**
+ * Pusher RN forwards this object to native code, which only allows keys:
+ * auth, channel_data, shared_secret. Any other key (e.g. socket_id echo or a
+ * body shaped as { [socketId]: "key:sig" }) triggers "Invalid key in subscription auth data".
+ */
+export type PusherNativeAuthorizerPayload = {
+  auth: string;
+  channel_data?: string;
+  shared_secret?: string;
+};
+
+function looksLikePusherAuthSignature(value: string): boolean {
+  const t = value.trim();
+  return t.length > 0 && t.includes(":") && !t.startsWith("{");
+}
+
+/**
+ * Coerce various backend shapes into the minimal payload native Pusher accepts.
+ */
+export function normalizePusherAuthorizerPayload(
+  inner: unknown,
+  socketId: string
+): PusherNativeAuthorizerPayload {
+  let parsed: unknown = inner;
+  if (typeof inner === "string") {
+    try {
+      parsed = JSON.parse(inner) as unknown;
+    } catch {
+      throw new ApiClientError({
+        status: "error",
+        message: "Invalid pusher auth response (not JSON)",
+        response_code: 502,
+        data: {},
+      });
+    }
+  }
+
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new ApiClientError({
+      status: "error",
+      message: "Invalid pusher auth response shape",
+      response_code: 502,
+      data: {},
+    });
+  }
+
+  const o = parsed as Record<string, unknown>;
+  let authStr: string | null = null;
+
+  const direct = o.auth;
+  if (typeof direct === "string" && looksLikePusherAuthSignature(direct)) {
+    authStr = direct.trim();
+  } else if (typeof direct === "string" && direct.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(direct) as Record<string, unknown>;
+      const innerAuth = parsed.auth;
+      if (typeof innerAuth === "string" && looksLikePusherAuthSignature(innerAuth)) {
+        authStr = innerAuth.trim();
+      }
+    } catch {
+      /* ignore */
+    }
+  } else if (direct != null && typeof direct === "object" && !Array.isArray(direct)) {
+    const nested = direct as Record<string, unknown>;
+    const fromSocket = nested[socketId];
+    if (typeof fromSocket === "string" && looksLikePusherAuthSignature(fromSocket)) {
+      authStr = fromSocket.trim();
+    } else {
+      for (const v of Object.values(nested)) {
+        if (typeof v === "string" && looksLikePusherAuthSignature(v)) {
+          authStr = v.trim();
+          break;
+        }
+      }
+    }
+  }
+
+  if (
+    !authStr &&
+    typeof o[socketId] === "string" &&
+    looksLikePusherAuthSignature(o[socketId] as string)
+  ) {
+    authStr = (o[socketId] as string).trim();
+  }
+
+  if (!authStr) {
+    const keys = Object.keys(o).filter(
+      (k) => k !== "channel_data" && k !== "shared_secret"
+    );
+    if (keys.length === 1 && typeof o[keys[0]] === "string") {
+      const v = o[keys[0]] as string;
+      if (looksLikePusherAuthSignature(v)) authStr = v.trim();
+    }
+  }
+
+  if (!authStr) {
+    throw new ApiClientError({
+      status: "error",
+      message: "Pusher auth response missing usable auth signature",
+      response_code: 502,
+      data: {},
+    });
+  }
+
+  const payload: PusherNativeAuthorizerPayload = { auth: authStr };
+  if (typeof o.channel_data === "string") payload.channel_data = o.channel_data;
+  if (typeof o.shared_secret === "string") payload.shared_secret = o.shared_secret;
+
+  return payload;
 }
 
 export interface PaginationMeta {
@@ -294,14 +407,18 @@ export async function markConversationRead(
 /**
  * Authenticate subscription to a private Pusher channel.
  * POST /pusher/auth/ with application/x-www-form-urlencoded body: socket_id, channel_name.
- * Returns { auth } for the Pusher client.
+ * Returns a native-safe payload (only auth / channel_data / shared_secret).
  */
-export async function pusherAuth(socketId: string, channelName: string): Promise<PusherAuthResponse> {
+export async function pusherAuth(
+  socketId: string,
+  channelName: string
+): Promise<PusherNativeAuthorizerPayload> {
   const body = new URLSearchParams();
   body.set("socket_id", socketId);
   body.set("channel_name", channelName);
   const response = await api.post<any>("/pusher/auth/", body, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
-  return unwrapData<PusherAuthResponse>(response);
+  const inner = unwrapData<any>(response);
+  return normalizePusherAuthorizerPayload(inner, socketId);
 }

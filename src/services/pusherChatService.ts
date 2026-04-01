@@ -1,5 +1,6 @@
 import {
   Pusher,
+  type PusherAuthorizerResult,
   type PusherChannel,
   type PusherEvent,
 } from "@pusher/pusher-websocket-react-native";
@@ -83,8 +84,11 @@ export async function initPusherChat(): Promise<void> {
       cluster: PUSHER_CLUSTER,
       useTLS: true,
       onAuthorizer: async (channelName: string, socketId: string) => {
-        const auth = await pusherAuth(socketId, channelName);
-        return { auth: auth.auth };
+        const payload = await pusherAuth(socketId, channelName);
+        const out: PusherAuthorizerResult = { auth: payload.auth };
+        if (payload.channel_data != null) out.channel_data = payload.channel_data;
+        if (payload.shared_secret != null) out.shared_secret = payload.shared_secret;
+        return out;
       },
       onError: (message, code, e) => {
         captureRealtimeError("init", new Error(message), {
