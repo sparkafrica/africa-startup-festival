@@ -32,6 +32,7 @@ import { ChatProvider } from "./src/context/ChatContext";
 import AppNavigator from "./src/navigation/AppNavigator";
 import PushTapHandler from "./src/components/PushTapHandler";
 import { LoadingSpinner } from "./src/components";
+import PusherDebugBanner from "./src/components/PusherDebugBanner";
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
@@ -135,6 +136,7 @@ export default function App() {
           </ChecklistProvider>
         </AuthProvider>
       </View>
+      <PusherDebugBanner />
     </GestureHandlerRootView>
     </Sentry.ErrorBoundary>
   );

@@ -23,6 +23,19 @@ const getEnvironment = (): "development" | "staging" | "production" => {
 
 const environment = getEnvironment();
 
+/** Resolved once at load: `development` in Metro/__DEV__, else `production` (store + OTA). */
+export const APP_ENVIRONMENT = environment;
+
+/**
+ * When true, shows a small on-screen Pusher/API debug strip (connection state, key prefix, cluster, API host).
+ * - Dev: on automatically in __DEV__.
+ * - Production / TestFlight: set `EXPO_PUBLIC_PUSHER_DEBUG_BANNER=1` for the EAS Update bundle (or .env for local release builds).
+ */
+export const SHOW_PUSHER_DEBUG_BANNER =
+  __DEV__ ||
+  process.env.EXPO_PUBLIC_PUSHER_DEBUG_BANNER === "1" ||
+  process.env.EXPO_PUBLIC_PUSHER_DEBUG_BANNER === "true";
+
 // API Configuration
 export const API_CONFIG = {
   development: {
