@@ -26,16 +26,6 @@ const environment = getEnvironment();
 /** Resolved once at load: `development` in Metro/__DEV__, else `production` (store + OTA). */
 export const APP_ENVIRONMENT = environment;
 
-/**
- * When true, shows a small on-screen Pusher/API debug strip (connection state, key prefix, cluster, API host).
- * - Dev: on automatically in __DEV__.
- * - Production / TestFlight: set `EXPO_PUBLIC_PUSHER_DEBUG_BANNER=1` for the EAS Update bundle (or .env for local release builds).
- */
-export const SHOW_PUSHER_DEBUG_BANNER =
-  __DEV__ ||
-  process.env.EXPO_PUBLIC_PUSHER_DEBUG_BANNER === "1" ||
-  process.env.EXPO_PUBLIC_PUSHER_DEBUG_BANNER === "true";
-
 // API Configuration
 export const API_CONFIG = {
   development: {
@@ -83,8 +73,13 @@ export const PUSHER_CLUSTER = "eu";
 // - Dev: set EXPO_PUBLIC_SPARK_API_KEY in .env (app.config.js loads it; .env is not shipped).
 // - Production: EAS secret at build time (extra.SPARK_API_KEY), or fallback below so OTA can deliver the key.
 //   (.env and OTA do not mix: OTA only updates JS; the key must be in the bundle for production to get it.)
-const EXTRA_SPARK_KEY = (Constants?.expoConfig?.extra as Record<string, string> | undefined)?.SPARK_API_KEY ?? "";
-const ENV_SPARK_KEY = typeof process !== "undefined" ? process.env?.EXPO_PUBLIC_SPARK_API_KEY ?? "" : "";
+const EXTRA_SPARK_KEY =
+  (Constants?.expoConfig?.extra as Record<string, string> | undefined)
+    ?.SPARK_API_KEY ?? "";
+const ENV_SPARK_KEY =
+  typeof process !== "undefined"
+    ? (process.env?.EXPO_PUBLIC_SPARK_API_KEY ?? "")
+    : "";
 
 /** Production API key when extra/env are empty. OTA delivers this so production build uses prod key; dev keeps using .env. */
 const PRODUCTION_SPARK_API_KEY = "fbc8ba2ab4b7f7a2159f4e38043d2c0a";
@@ -114,7 +109,10 @@ export function getUpgradeTierClassId(tier: string): number | undefined {
   return undefined;
 }
 
-export function getUpgradePaymentDefaults(): { payment_method: string; currency: string } {
+export function getUpgradePaymentDefaults(): {
+  payment_method: string;
+  currency: string;
+} {
   const extra = (Constants?.expoConfig?.extra ?? {}) as Extra;
   return {
     payment_method: extra.UPGRADE_PAYMENT_METHOD ?? "free",

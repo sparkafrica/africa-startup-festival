@@ -13,8 +13,11 @@
  * - POST /events/{event_id}/conversations/{id}/mark_read/    → mark read
  * - POST /pusher/auth/  (form: socket_id, channel_name)     → auth for private channels
  *
- * Note: Initiate response is { user_id }. To get conversation id we list conversations
- * after initiate and use the newest (or backend may add conversation_id to response later).
+ * Backend contract (stable ids):
+ * - GET  .../conversations/ — list rows should include other_party_user_id (Spark user id
+ *   string) for matching; other_party may remain a display string.
+ * - POST .../conversations/initiate/ — response should include conversation_id with user_id
+ *   so the client can open the thread without a second list guess.
  */
 
 import { api } from "./api";
@@ -40,9 +43,14 @@ export interface ChatMessage {
 /** Conversation list item – backend ConversationList (runtime may send richer shapes). */
 export interface ConversationListItem {
   id: number;
+  /**
+   * Stable Spark user id for the other participant (preferred for list matching).
+   * Backend adds this alongside display `other_party` string.
+   */
+  other_party_user_id?: string;
   /** Display name when API sends it explicitly. */
   other_party_name?: string;
-  /** String (legacy) or nested user-like object from API. */
+  /** Display string (YAML) or nested user-like object from API. */
   other_party?: string | Record<string, unknown>;
   /** Plain string preview or object with content / timestamp (e.g. last activity). */
   last_message?: string | Record<string, unknown>;
@@ -64,9 +72,13 @@ export interface InitiateConversationRequest {
   user_id: string;
 }
 
-/** Initiate response – backend InitiateConversation (only user_id in YAML) */
+/**
+ * POST .../conversations/initiate/ body (idempotent).
+ * Backend should return conversation_id with user_id so the client opens the correct thread.
+ */
 export interface InitiateConversationResponse {
   user_id: string;
+  conversation_id?: number;
 }
 
 /** Send message request – backend SendMessageRequest */
@@ -261,6 +273,102 @@ function normalizeConversationListItem(raw: Record<string, unknown>): Conversati
   };
 }
 
+function stringOrNumberId(v: unknown): string | null {
+  if (typeof v === "string" && v.trim()) return v.trim();
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return null;
+}
+
+/**
+ * Peer Spark user id for list matching. Prefers `other_party_user_id` from GET .../conversations/.
+ * Falls back to legacy/extra keys and nested `other_party` objects.
+ */
+export function getConversationListItemPeerUserId(
+  item: ConversationListItem
+): string | null {
+  const r = item as unknown as Record<string, unknown>;
+  // Canonical + aliases (snake_case / camelCase serializers)
+  for (const key of [
+    "other_party_user_id",
+    "otherPartyUserId",
+    "other_user_id",
+    "otherUserId",
+    "peer_user_id",
+    "peerUserId",
+    "other_party_id",
+    "otherPartyId",
+  ]) {
+    const got = stringOrNumberId(r[key]);
+    if (got) return got;
+  }
+  const raw = item.other_party;
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    // Only treat as id when it plausibly matches a user id (not a display name sentence).
+    if (
+      t.length > 0 &&
+      (t.includes("userid_") || t.includes("_") || /^[a-zA-Z0-9]{12,}$/.test(t))
+    ) {
+      return t;
+    }
+    return null;
+  }
+  if (raw && typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    const candidates = [obj.user_id, obj.id, obj.uuid];
+    for (const c of candidates) {
+      const got = stringOrNumberId(c);
+      if (got) return got;
+    }
+  }
+  return null;
+}
+
+function normalizePeerUserId(userId: string): string {
+  return userId.trim();
+}
+
+function findConversationListItemForPeer(
+  items: ConversationListItem[],
+  peerUserId: string
+): ConversationListItem | null {
+  const want = normalizePeerUserId(peerUserId);
+  if (!want) return null;
+  for (const item of items) {
+    const got = getConversationListItemPeerUserId(item);
+    if (got && got === want) return item;
+  }
+  return null;
+}
+
+/** When initiate adds exactly one new row, its id was not in the prior list. */
+function soleConversationNotInPrior(
+  priorIds: Set<number>,
+  items: ConversationListItem[]
+): ConversationListItem | null {
+  const novel = items.filter((c) => !priorIds.has(c.id));
+  return novel.length === 1 ? novel[0] : null;
+}
+
+/** POST initiate: conversation_id (snake_case or camelCase), int or numeric string. */
+function coerceInitiateConversationId(
+  payload: InitiateConversationResponse | Record<string, unknown>
+): number | null {
+  const o = payload as Record<string, unknown>;
+  const raw =
+    (payload as InitiateConversationResponse).conversation_id ??
+    o.conversation_id ??
+    o.conversationId;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  if (typeof raw === "string") {
+    const n = parseInt(raw.trim(), 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
 // ============================================================================
 // API METHODS
 // ============================================================================
@@ -302,9 +410,8 @@ export async function getConversation(
 }
 
 /**
- * Start a 1:1 conversation. Backend creates the conversation.
- * POST /events/{event_id}/conversations/initiate/
- * Response: { user_id }. Backend does not return conversation_id; use getOrCreateConversation to obtain it.
+ * Start a 1:1 conversation (idempotent). POST /events/{event_id}/conversations/initiate/
+ * Response: { user_id }; optional conversation_id when backend returns it.
  */
 export async function initiateConversation(
   eventId: number,
@@ -317,30 +424,62 @@ export async function initiateConversation(
 }
 
 /**
- * Get or create a conversation with another user. Calls initiate, then lists conversations
- * and returns the newest (assumes the one just created is first when ordered by -updated_at).
- * Use this when opening chat from a connection card.
+ * Open a 1:1 thread with another user. Lists first and matches by peer id when possible;
+ * otherwise initiate (idempotent). If initiate returns conversation_id, uses it directly.
+ * Otherwise re-lists and matches / single-new-row fallback (never conversations[0] alone).
  */
 export async function getOrCreateConversation(
   eventId: number,
   otherUserId: string
 ): Promise<{ conversationId: number; detail: ConversationDetail }> {
-  await initiateConversation(eventId, otherUserId);
-  const { conversations } = await listConversations(eventId, {
-    ordering: "-updated_at",
-    page_size: 20,
-  });
-  if (conversations.length === 0) {
+  const peer = normalizePeerUserId(otherUserId);
+  if (!peer) {
     throw new ApiClientError({
       status: "error",
-      message: "Conversation was created but could not be loaded. Please try again.",
+      message: "Invalid user to start a chat with.",
       response_code: 0,
       data: {},
     });
   }
-  const first = conversations[0];
-  const detail = await getConversation(eventId, first.id);
-  return { conversationId: first.id, detail };
+
+  const listParams = {
+    ordering: "-updated_at" as const,
+    page_size: 100,
+  };
+
+  let { conversations } = await listConversations(eventId, listParams);
+  let match = findConversationListItemForPeer(conversations, peer);
+
+  if (match) {
+    const detail = await getConversation(eventId, match.id);
+    return { conversationId: match.id, detail };
+  }
+
+  const priorIds = new Set(conversations.map((c) => c.id));
+  const initiated = await initiateConversation(eventId, peer);
+  const idFromInitiate = coerceInitiateConversationId(initiated);
+  if (idFromInitiate != null) {
+    const detail = await getConversation(eventId, idFromInitiate);
+    return { conversationId: idFromInitiate, detail };
+  }
+
+  ({ conversations } = await listConversations(eventId, listParams));
+  match =
+    findConversationListItemForPeer(conversations, peer) ??
+    soleConversationNotInPrior(priorIds, conversations);
+
+  if (!match) {
+    throw new ApiClientError({
+      status: "error",
+      message:
+        "Could not open this chat. Try again, or open the thread from Messages.",
+      response_code: 0,
+      data: {},
+    });
+  }
+
+  const detail = await getConversation(eventId, match.id);
+  return { conversationId: match.id, detail };
 }
 
 /**

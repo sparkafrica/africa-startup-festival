@@ -19,6 +19,7 @@ import type { RootStackParamList } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
 import { LoadingSpinner } from "../components";
 import {
+  getConversationListItemPeerUserId,
   listConversations,
   markConversationRead,
   type ConversationListItem,
@@ -28,6 +29,7 @@ import { ApiClientError } from "../services/api";
 import { EVENT_ID } from "../config/env";
 import { useAuth } from "../context/AuthContext";
 import { useMessagesBadgeContext } from "../context/MessagesBadgeContext";
+import * as Sentry from "@sentry/react-native";
 import {
   subscribeToConversationChannel,
   unsubscribeFromConversationChannel,
@@ -115,19 +117,6 @@ function getConversationAvatarUri(
   if (typeof uri !== "string") return undefined;
   const t = uri.trim();
   return t.length ? t : undefined;
-}
-
-/** Best-effort extract of conversation peer user id from API payload. */
-function getConversationOtherPartyId(item: ConversationListItem): string | null {
-  const raw = item.other_party;
-  if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
-  const candidates = [obj.id, obj.user_id, obj.uuid];
-  for (const c of candidates) {
-    if (typeof c === "string" && c.trim()) return c.trim();
-    if (typeof c === "number" && Number.isFinite(c)) return String(c);
-  }
-  return null;
 }
 
 /** For a connection row, return the "other user" id relative to current user. */
@@ -231,7 +220,7 @@ export default function MessagesScreen() {
               .filter((id): id is string => typeof id === "string" && id.length > 0)
           );
           filteredConversations = conversationResponse.conversations.filter((c) => {
-            const otherPartyId = getConversationOtherPartyId(c);
+            const otherPartyId = getConversationListItemPeerUserId(c);
             if (!otherPartyId) return true;
             return acceptedPeerIds.has(otherPartyId);
           });
@@ -303,8 +292,14 @@ export default function MessagesScreen() {
             undefined,
             `inbox-${userId}-${id}`
           );
-        } catch {
-          /* per-channel auth / network */
+        } catch (err) {
+          Sentry.captureException(
+            err instanceof Error ? err : new Error(String(err)),
+            {
+              tags: { area: "chat_realtime", action: "inbox_subscribe" },
+              extra: { conversationId: id },
+            }
+          );
         }
       }
     })();

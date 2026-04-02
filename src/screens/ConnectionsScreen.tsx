@@ -125,6 +125,13 @@ interface Connection {
   isFromCurrentUser: boolean; // Whether the current user sent the request
 }
 
+/** Remote URI for Conversation header (matches inbox / attendees). */
+function getConnectionProfilePicUri(connection: Connection): string | undefined {
+  const a = connection.avatar;
+  if (typeof a === "string" && a.trim()) return a.trim();
+  return undefined;
+}
+
 // Connection Card Component
 interface ConnectionCardProps {
   connection: Connection;
@@ -1372,13 +1379,15 @@ export default function ConnectionsScreen() {
                             const { conversationId } =
                               await getOrCreateConversation(
                                 EVENT_ID,
-                                selectedConnection.userId
+                                displayConnection.userId
                               );
                             closeBottomSheet();
                             navigation.navigate("Conversation", {
                               eventId: EVENT_ID,
                               conversationId,
-                              otherPartyName: selectedConnection.name,
+                              otherPartyName: displayConnection.name,
+                              otherPartyAvatarUri:
+                                getConnectionProfilePicUri(displayConnection),
                             });
                           } catch (err: any) {
                             const msg =
