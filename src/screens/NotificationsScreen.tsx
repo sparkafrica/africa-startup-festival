@@ -17,7 +17,13 @@ import {
 import { BellIcon } from "../components/HeaderIcons";
 import { notificationService } from "../services/notificationService";
 import { ApiClientError } from "../services/api";
-import { mapBackendNotificationToUI, fetchNotificationDetails, type UINotification } from "../utils/notificationUtils";
+import {
+  mapBackendNotificationToUI,
+  fetchNotificationDetails,
+  buildAppUpdateUINotification,
+  type UINotification,
+} from "../utils/notificationUtils";
+import { openPlatformAppStore } from "../utils/openAppStore";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { useToast } from "../hooks/useToast";
@@ -29,6 +35,7 @@ export default function NotificationsScreen() {
     useNavigation<NavigationProp<RootStackParamList, "Notifications">>();
   const route = useRoute<RouteProp<RootStackParamList, "Notifications">>();
   const openNotificationId = route.params?.openNotificationId;
+  const openAppUpdateParam = route.params?.openAppUpdate;
   const { user } = useAuth();
   const { refreshUnreadCount } = useNotifications();
   const { showToast, hideToast, toast } = useToast();
@@ -132,7 +139,9 @@ export default function NotificationsScreen() {
     );
 
     try {
-      await notificationService.markAsRead(notification.backendNotificationId);
+      if (notification.backendNotificationId > 0) {
+        await notificationService.markAsRead(notification.backendNotificationId);
+      }
       await refreshUnreadCount();
     } catch (err: any) {
       // Rollback on error
@@ -170,6 +179,11 @@ export default function NotificationsScreen() {
           navigation.navigate("Messages");
         }
       }, 100);
+      return;
+    }
+
+    if (notification.type === "app_update") {
+      setSelectedNotification(notification);
       return;
     }
 
@@ -299,6 +313,22 @@ export default function NotificationsScreen() {
       refreshUnreadCount();
     }, [fetchNotifications, refreshUnreadCount])
   );
+
+  // Open app-update sheet from FCM (before or after list loads)
+  useEffect(() => {
+    if (!openAppUpdateParam) return;
+    const n = buildAppUpdateUINotification({
+      title: openAppUpdateParam.title,
+      description: openAppUpdateParam.description,
+      backendNotificationId: openAppUpdateParam.notificationId,
+      storeUrl: openAppUpdateParam.storeUrl,
+    });
+    setSelectedNotification(n);
+    navigation.setParams({
+      openAppUpdate: undefined,
+      openNotificationId: undefined,
+    });
+  }, [openAppUpdateParam, navigation]);
 
   // Open specific notification when navigated from push tap (Item 7)
   useEffect(() => {
@@ -448,6 +478,7 @@ export default function NotificationsScreen() {
             selectedNotification?.type === "connection_accepted" ||
             selectedNotification?.type === "ticket_allocation_accepted" ||
             selectedNotification?.type === "ticket_allocation_declined" ||
+            selectedNotification?.type === "app_update" ||
             selectedNotification?.type === "generic")
         }
         onClose={() => {
@@ -460,6 +491,7 @@ export default function NotificationsScreen() {
             selectedNotification?.type === "meeting_request_sent" ||
             selectedNotification?.type === "ticket_allocation_accepted" ||
             selectedNotification?.type === "ticket_allocation_declined" ||
+            selectedNotification?.type === "app_update" ||
             selectedNotification?.type === "generic"
           ) {
             markAsRead(selectedNotification);
@@ -470,6 +502,7 @@ export default function NotificationsScreen() {
           id: selectedNotification.id,
           type: selectedNotification.type as any,
           title: selectedNotification.title,
+          description: selectedNotification.description,
           requester: selectedNotification.requester ? {
             name: selectedNotification.requester.name,
             role: selectedNotification.requester.role || "",
@@ -509,6 +542,14 @@ export default function NotificationsScreen() {
             selectedNotification.type === "connection_request" ||
             selectedNotification.type === "connection_accepted"
               ? () => handleViewProfile(selectedNotification)
+              : undefined,
+          onOpenAppStore:
+            selectedNotification.type === "app_update"
+              ? async () => {
+                  await openPlatformAppStore(
+                    selectedNotification.appStoreUrlOverride ?? undefined
+                  );
+                }
               : undefined,
         } : null}
       />

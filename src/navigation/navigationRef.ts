@@ -2,7 +2,10 @@
  * Root navigation ref for imperative navigation (e.g. push tap handling).
  * Use with NavigationContainer ref prop.
  */
-import { createNavigationContainerRef } from "@react-navigation/native";
+import {
+  CommonActions,
+  createNavigationContainerRef,
+} from "@react-navigation/native";
 import type { RootStackParamList } from "./types";
 
 export const navigationRef =
@@ -22,6 +25,22 @@ export function navigate(
     if (!hasHomeScreen()) return;
   }
   (navigationRef.navigate as any)(name, params);
+}
+
+/**
+ * Reset main stack to Home only (cold-start style). Used when user taps FCM
+ * so the detail modal opens on Home, not after navigating to Notifications.
+ */
+export function resetToHome(
+  params?: RootStackParamList["Home"],
+) {
+  if (!navigationRef.isReady() || !hasHomeScreen()) return;
+  navigationRef.dispatch(
+    CommonActions.reset({
+      index: 0,
+      routes: [{ name: "Home", params: params ?? undefined }],
+    }),
+  );
 }
 
 /** True if the root navigator has a "Home" screen (i.e. we're in Main app). */

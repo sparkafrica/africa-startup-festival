@@ -1,12 +1,5 @@
 import React, { useEffect, useRef, useCallback } from "react";
-import {
-  View,
-  Text,
-  Animated,
-  StyleSheet,
-  Modal,
-  Platform,
-} from "react-native";
+import { Text, Animated, StyleSheet, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface ToastProps {
@@ -17,6 +10,14 @@ interface ToastProps {
   duration?: number;
 }
 
+/**
+ * Top banner toast — same layering model as ScheduleSuccessToast: in-tree absolute
+ * overlay (no React Native Modal). Avoids iOS stacking a full-screen modal above
+ * bottom sheets, which caused touch blocking and gesture jank.
+ *
+ * Mount this as the last child of each screen’s root (flex:1) so `position: absolute`
+ * anchors to the full screen. It will sit under other native Modals (e.g. sheets).
+ */
 export default function Toast({
   message,
   visible,
@@ -46,11 +47,9 @@ export default function Toast({
 
   useEffect(() => {
     if (visible) {
-      // Reset animation values when showing
       fadeAnim.setValue(0);
       slideAnim.setValue(-100);
 
-      // Show animation
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -65,7 +64,6 @@ export default function Toast({
         }),
       ]).start();
 
-      // Auto hide after duration
       const timer = setTimeout(() => {
         hideToast();
       }, duration);
@@ -78,56 +76,43 @@ export default function Toast({
     type === "success"
       ? "#10B981"
       : type === "error"
-      ? "#EF4444"
-      : type === "warning"
-      ? "#F59E0B"
-      : "#3B82F6";
+        ? "#EF4444"
+        : type === "warning"
+          ? "#F59E0B"
+          : "#3B82F6";
 
-  // Render in a Modal so the toast always appears on top of other modals and
-  // the transparent overlay — not under modal shadow/backdrop
+  if (!visible) return null;
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      statusBarTranslucent
-      supportedOrientations={["portrait", "landscape"]}
-      onRequestClose={hideToast}
+    <SafeAreaView
+      edges={["top"]}
+      style={styles.container}
+      pointerEvents="box-none"
     >
-      <View style={styles.modalOverlay} pointerEvents="box-none">
-        <SafeAreaView
-          edges={["top"]}
-          style={styles.container}
-          pointerEvents="box-none"
-        >
-          <Animated.View
-            style={[
-              styles.toast,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-                backgroundColor,
-              },
-            ]}
-          >
-            <Text style={styles.message}>{message}</Text>
-          </Animated.View>
-        </SafeAreaView>
-      </View>
-    </Modal>
+      <Animated.View
+        pointerEvents="auto"
+        style={[
+          styles.toast,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+            backgroundColor,
+          },
+        ]}
+      >
+        <Text style={styles.message}>{message}</Text>
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "transparent",
-  },
   container: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
+    zIndex: 9999,
     alignItems: "center",
     paddingTop: Platform.OS === "ios" ? 8 : 12,
   },
@@ -137,12 +122,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginHorizontal: 16,
     minWidth: 200,
-    // Strong shadow so toast is boldly visible above transparent/modal backdrop
+    maxWidth: "92%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.45,
     shadowRadius: 12,
-    ...(Platform.OS === "android" && { elevation: 24 }),
+    ...(Platform.OS === "android" && { elevation: 12 }),
   },
   message: {
     color: "#FFFFFF",

@@ -121,9 +121,12 @@ export default function ScheduleScreen() {
   const [selectedSpeakerName, setSelectedSpeakerName] = React.useState<string | undefined>();
   const [speakerModalVisible, setSpeakerModalVisible] = React.useState(false);
 
-  // Add to schedule success toast
+  // Add / remove schedule: same non-modal toast as ScheduleSuccessToast (avoids iOS Modal + sheet jank)
   const [scheduleToastVisible, setScheduleToastVisible] = React.useState(false);
   const [scheduleToastTitle, setScheduleToastTitle] = React.useState("");
+  const [scheduleToastVariant, setScheduleToastVariant] = React.useState<
+    "added" | "removed"
+  >("added");
 
   const { toast, showToast, hideToast } = useToast();
 
@@ -352,13 +355,6 @@ export default function ScheduleScreen() {
       setMyScheduleLoading(true);
       await fetchAndCacheSpeakers(); // Populate speaker cache for mapping
       const response = await eventService.getPersonalSchedules(EVENT_ID);
-      if (__DEV__ && response?.schedules) {
-        response.schedules.forEach((ps: PersonalSchedule, i: number) => {
-          const es = ps.event_schedule;
-          const raw = es && typeof es === "object" ? (es as any).speakers : undefined;
-          console.log(`[personal-schedules] schedule[${i}] event_schedule.speakers raw:`, raw, `(typeof: ${typeof raw})`);
-        });
-      }
       const mapped = response.schedules
         .filter((ps: PersonalSchedule) => ps.event_schedule && typeof ps.event_schedule === "object")
         .map((ps: PersonalSchedule) => {
@@ -570,7 +566,9 @@ export default function ScheduleScreen() {
     if (!event?.personalScheduleId) return;
     try {
       await eventService.removeEventFromSchedule(event.personalScheduleId);
-      showToast("Removed from schedule", "success");
+      setScheduleToastTitle(event.title);
+      setScheduleToastVariant("removed");
+      setScheduleToastVisible(true);
       await fetchMySchedules();
       if (selectedEvent?.personalScheduleId === event.personalScheduleId) {
         setIsEventViewModalVisible(false);
@@ -590,6 +588,7 @@ export default function ScheduleScreen() {
     try {
       await eventService.addEventToSchedule(event.eventScheduleId);
       setScheduleToastTitle(event.title);
+      setScheduleToastVariant("added");
       setScheduleToastVisible(true);
       refreshMyScheduleRef.current?.();
     } catch (err: any) {
@@ -965,6 +964,7 @@ export default function ScheduleScreen() {
         visible={scheduleToastVisible}
         onHide={() => setScheduleToastVisible(false)}
         eventTitle={scheduleToastTitle}
+        variant={scheduleToastVariant}
       />
 
       <Toast

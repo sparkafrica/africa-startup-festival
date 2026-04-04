@@ -38,6 +38,7 @@ interface NotificationDetailModalProps {
       | "ticket_allocation_accepted" // Info + View allocation → My tickets
       | "ticket_allocation_declined" // Info + View allocation → My tickets
       | "reminder" // Info + View meeting
+      | "app_update" // Store update: Later + Update
       | "generic"; // Simple info + OK
     title: string;
     description?: string;
@@ -64,6 +65,8 @@ interface NotificationDetailModalProps {
     onViewMeeting?: () => void;
     onViewAllocation?: () => void;
     onViewProfile?: () => void;
+    /** App store update CTA (opens Play / App Store). */
+    onOpenAppStore?: () => void | Promise<void>;
   } | null;
 }
 
@@ -284,9 +287,21 @@ export default function NotificationDetailModal({
                   </Text>
                 </View>
               )}
-              {/* Description: for generic, or fallback when no meeting/requester details */}
+              {/* App update: same single body as push — only backend `description` (no stacked client + server copy). */}
+              {notification.type === "app_update" && (
+                <View className="px-6 pb-4">
+                  <Text className="text-base text-neutral-600 leading-6">
+                    {notification.description?.trim()
+                      ? notification.description.trim()
+                      : "A new version of the app is available. Update for the latest fixes and features."}
+                  </Text>
+                </View>
+              )}
+              {/* Description: generic and other types without cards — not app_update (handled above). */}
               {(notification.type === "generic" ||
-                (!notification.meetingDetails && !notification.requester)) &&
+                (!notification.meetingDetails &&
+                  !notification.requester &&
+                  notification.type !== "app_update")) &&
                 notification.description && (
                   <View className="px-6 pb-4">
                     <Text className="text-base text-neutral-600 leading-6">
@@ -494,7 +509,39 @@ export default function NotificationDetailModal({
               )}
 
               {/* Action Buttons */}
-              {notification.onViewAllocation ? (
+              {notification.type === "app_update" ? (
+                <View className="px-6 flex-row" style={{ gap: 12 }}>
+                  <Pressable
+                    onPress={onClose}
+                    className="flex-1 rounded-2xl py-4 items-center justify-center border border-neutral-300 bg-white"
+                  >
+                    <Text className="text-neutral-900 font-semibold text-base">
+                      Later
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={async () => {
+                      try {
+                        await notification.onOpenAppStore?.();
+                      } finally {
+                        onClose();
+                      }
+                    }}
+                    className="flex-1 bg-black rounded-2xl py-4 items-center justify-center"
+                    style={{
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
+                  >
+                    <Text className="text-white font-semibold text-base">
+                      Update
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : notification.onViewAllocation ? (
                 <View className="px-6">
                   <Pressable
                     onPress={() => {

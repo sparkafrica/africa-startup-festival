@@ -31,6 +31,7 @@ export type NotificationType =
   | "meeting_request"
   | "meeting_request_sent"
   | "chat_message"
+  | "app_update"
   | "generic";
 
 /**
@@ -74,6 +75,8 @@ export interface UINotification {
   /** Display name for Messages → Conversation when opening from notification list */
   chatOtherPartyName?: string;
   backendNotificationId: number; // Store backend ID for API calls
+  /** app_update: open this URL instead of default Play / App Store links */
+  appStoreUrlOverride?: string | null;
 }
 
 // ============================================================================
@@ -121,8 +124,23 @@ export function inferNotificationType(
   const combined = `${title} ${description}`.toLowerCase();
 
   const routeLower = (notification.route || "").toLowerCase();
-  const ntype = (notification.notification_type || "").toLowerCase();
+  const ntype = (notification.notification_type || "").trim().toLowerCase();
   const fromRoute = parseEventConversationFromRoute(notification.route);
+
+  if (
+    ntype === "app_update" ||
+    ntype === "force_update" ||
+    ntype === "store_update" ||
+    ntype === "system_update"
+  ) {
+    return "app_update";
+  }
+  if (
+    /\bimportant update\b/i.test(notification.title) ||
+    /\bplease update your app\b/i.test(combined)
+  ) {
+    return "app_update";
+  }
 
   // Chat / DM — before generic and before broad "accepted/approved" meeting heuristics
   if (
@@ -377,6 +395,16 @@ export function getNotificationIcon(type: NotificationType): React.ReactNode {
         </View>
       );
 
+    case "app_update":
+      return (
+        <View
+          className="w-12 h-12 rounded-lg items-center justify-center"
+          style={{ backgroundColor: "#EFF6FF" }}
+        >
+          <BellIcon size={24} color="#2563EB" />
+        </View>
+      );
+
     default:
       // Generic notification icon
       return (
@@ -457,6 +485,34 @@ export function formatRelativeTime(timestamp: string): string {
 /**
  * Map backend UserNotification to UI-friendly format
  */
+/** Synthetic row when user opens an app-update push before the inbox list loads. */
+export function buildAppUpdateUINotification(params: {
+  title: string;
+  description?: string;
+  backendNotificationId?: number;
+  storeUrl?: string;
+}): UINotification {
+  const nid = params.backendNotificationId;
+  const hasBackendId = typeof nid === "number" && nid > 0;
+  const su = params.storeUrl?.trim();
+  return {
+    id: hasBackendId ? `notification-${nid}` : "notification-app-update-push",
+    type: "app_update",
+    icon: getNotificationIcon("app_update"),
+    title: params.title.trim() || "Important Update!",
+    description: (params.description ?? "").trim(),
+    time: "Just now",
+    unread: true,
+    route: null,
+    meeting_id: null,
+    connection_id: null,
+    conversation_id: null,
+    event_id: null,
+    backendNotificationId: hasBackendId ? nid! : 0,
+    appStoreUrlOverride: su || undefined,
+  };
+}
+
 export function mapBackendNotificationToUI(
   notification: UserNotification,
   currentUserId?: string,
@@ -512,6 +568,16 @@ export function mapBackendNotificationToUI(
     chatOtherPartyName,
     backendNotificationId: notification.id,
     direction,
+    appStoreUrlOverride:
+      type === "app_update"
+        ? (() => {
+            const raw =
+              notification.store_url ??
+              (notification as { storeUrl?: string | null }).storeUrl;
+            const s = typeof raw === "string" ? raw.trim() : "";
+            return s || undefined;
+          })()
+        : undefined,
     // requester, meetingDetails, reason will be populated
     // when fetchNotificationDetails() is called (when detail modal opens)
   };
@@ -533,6 +599,9 @@ export async function fetchNotificationDetails(
   notification: UINotification,
   currentUserId?: string,
 ): Promise<UINotification> {
+  if (notification.type === "app_update") {
+    return notification;
+  }
   // If notification already has details, return as-is
   if (notification.requester || notification.meetingDetails) {
     return notification;

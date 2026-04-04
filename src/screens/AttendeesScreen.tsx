@@ -84,7 +84,16 @@ import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import Svg, { Path, Circle } from "react-native-svg";
 
 /** Page size per API request when loading all attendees (one "load entire event" run). */
-const ATTENDEE_PAGE_SIZE = 100;
+const ATTENDEE_PAGE_SIZE = 500;
+/**
+ * Stable ordering so offset pagination cannot skip/duplicate rows when the backend
+ * would otherwise reshuffle between requests. Backend must honor the ordering param.
+ */
+const ATTENDEE_LIST_ORDERING = "id";
+/** Safety cap so a broken API cannot infinite-loop. */
+const ATTENDEE_FETCH_MAX_PAGES = 500;
+/** List-view search: debounce before GET …?name= (server filter); empty → full list. */
+const ATTENDEE_NAME_SEARCH_DEBOUNCE_MS = 400;
 const LOAD_MORE_THRESHOLD = 3;
 /** Minimum match_score (1–10) to show attendee in Recommended tab. Backend returns score 1–10 via match_info. */
 const RECOMMENDED_MIN_SCORE = 8;
@@ -894,6 +903,8 @@ export default function AttendeesScreen() {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
+  /** Debounced list search string (list view only); drives server `?name=`. */
+  const [debouncedListSearch, setDebouncedListSearch] = useState("");
 
   // Backend data state
   const [allAttendeesBackend, setAllAttendeesBackend] = useState<Attendee[]>([]);
@@ -911,6 +922,15 @@ export default function AttendeesScreen() {
 
   // Persist connection map for load-more (avoids re-fetching connections)
   const connectionStatusMapRef = useRef<Map<string, "pending" | "accepted">>(new Map());
+  /** Ignore stale results when multiple fetches overlap (pull-to-refresh + focus + mount). */
+  const attendeesFetchGenRef = useRef(0);
+  /** Last `name` query sent to attendees API (trimmed); load-more uses the same filter. */
+  const lastServerNameFilterRef = useRef<string>("");
+  const debouncedListSearchRef = useRef("");
+  /** Skip one debounced empty fetch so we do not duplicate initial-mount. */
+  const skipEmptyDebouncedFetchOnceRef = useRef(true);
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
 
   // Bottom sheet animation values
   const bottomSheetTranslateY = useRef(new RNAnimated.Value(0)).current;
@@ -1083,10 +1103,25 @@ export default function AttendeesScreen() {
   };
 
   /**
-   * Fetch all attendees for the event (load entire event – all pages in one run).
-   * Used for All attendees list view so the full list is available without "load more".
+   * Fetch all attendees via normal pagination (page ≥ 1).
+   * Optional `name` → server `?name=` (list search). Omit for full event list.
+   * Do not use `page=-1` until the API is fixed: dev currently 500s with
+   * `'list' object has no attribute 'paginator'` when the view returns a raw list
+   * but still runs DRF pagination logic.
    */
-  const fetchAttendees = useCallback(async () => {
+  const fetchAttendees = useCallback(
+    async (reason?: string, options?: { name?: string }) => {
+    const fetchGen = ++attendeesFetchGenRef.current;
+    const nameFilter = options?.name?.trim() || undefined;
+    lastServerNameFilterRef.current = nameFilter ?? "";
+    if (__DEV__) {
+      const mode = nameFilter
+        ? `server ?name="${nameFilter}"`
+        : "server full list (no name param)";
+      console.log(
+        `[AttendeesFetch] ${reason ?? "?"} · ${mode} · event ${EVENT_ID}`
+      );
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -1116,39 +1151,69 @@ export default function AttendeesScreen() {
       }
       connectionStatusMapRef.current = connectionStatusMap;
 
+      const seenIds = new Set<string>();
       const allMapped: Attendee[] = [];
-      let page = 1;
-      let hasNext = true;
 
-      while (hasNext) {
+      const mergeBatch = (batch: BackendAttendee[]) => {
+        for (const a of batch) {
+          const ui = mapBackendAttendeeToUI(a);
+          const status = connectionStatusMap.get(String(ui.id)) ?? null;
+          const row = { ...ui, connectionStatus: status };
+          if (!seenIds.has(row.id)) {
+            seenIds.add(row.id);
+            allMapped.push(row);
+          }
+        }
+      };
+
+      let page = 1;
+      for (; page <= ATTENDEE_FETCH_MAX_PAGES; page++) {
         const res = await attendeeService.getEventAttendees(EVENT_ID, "all", {
           page,
           page_size: ATTENDEE_PAGE_SIZE,
-          ordering: "-id",
+          ordering: ATTENDEE_LIST_ORDERING,
+          ...(nameFilter ? { name: nameFilter } : {}),
         });
-        const mapped = res.attendees.map((a) => {
-          const ui = mapBackendAttendeeToUI(a);
-          const status = connectionStatusMap.get(String(ui.id)) ?? null;
-          return { ...ui, connectionStatus: status };
-        });
-        allMapped.push(...mapped);
-        hasNext = !!res.pagination?.next;
-        page += 1;
+        const batch = res.attendees;
+        const totalCount = res.pagination?.count ?? 0;
+        const hasNext = !!res.pagination?.next;
+
+        if (batch.length === 0) break;
+
+        mergeBatch(batch);
+
+        if (totalCount > 0 && allMapped.length >= totalCount) break;
+        if (batch.length < ATTENDEE_PAGE_SIZE) break;
+        if (hasNext) continue;
+        if (totalCount > 0 && allMapped.length < totalCount) continue;
+        break;
       }
 
+      if (fetchGen !== attendeesFetchGenRef.current) return;
+      if (__DEV__) {
+        const tag = nameFilter ? ` · name="${nameFilter}"` : "";
+        console.log(
+          `[AttendeesFetch] done · ${allMapped.length} rows · ${page} page(s)${tag}`
+        );
+      }
       setAllAttendeesBackend(allMapped);
-      setAttendeePage(page - 1);
+      setAttendeePage(page);
       setHasMoreAttendees(false);
     } catch (err: any) {
+      if (fetchGen !== attendeesFetchGenRef.current) return;
       const errorMessage =
         err instanceof ApiClientError
           ? err.message
           : "Failed to load attendees";
       setError(errorMessage);
     } finally {
-      setIsLoading(false);
+      if (fetchGen === attendeesFetchGenRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [user?.user_id]);
+  },
+  [user?.user_id]
+  );
 
   /**
    * Handle pull-to-refresh
@@ -1156,7 +1221,12 @@ export default function AttendeesScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchAttendees();
+      await fetchAttendees("pull-to-refresh", {
+        name:
+          viewModeRef.current === "list" && debouncedListSearchRef.current
+            ? debouncedListSearchRef.current
+            : undefined,
+      });
       setSkippedAttendeeIds(new Set());
     } catch (err) {
       // Error already handled in fetchAttendees
@@ -1174,10 +1244,12 @@ export default function AttendeesScreen() {
     setLoadingMore(true);
     try {
       const nextPage = attendeePage + 1;
+      const nameForMore = lastServerNameFilterRef.current.trim();
       const res = await attendeeService.getEventAttendees(EVENT_ID, "all", {
         page: nextPage,
         page_size: ATTENDEE_PAGE_SIZE,
-        ordering: "-id",
+        ordering: ATTENDEE_LIST_ORDERING,
+        ...(nameForMore ? { name: nameForMore } : {}),
       });
       const mapRef = connectionStatusMapRef.current;
       const mapped = res.attendees.map((a) => {
@@ -1197,7 +1269,7 @@ export default function AttendeesScreen() {
 
   // Fetch on mount
   useEffect(() => {
-    fetchAttendees();
+    void fetchAttendees("initial-mount");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1206,11 +1278,55 @@ export default function AttendeesScreen() {
     useCallback(() => {
       refreshMeetingsBadge();
       if (allAttendeesBackend.length === 0 && !isLoading) {
-        fetchAttendees();
+        void fetchAttendees("focus-empty-list");
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
+
+  useEffect(() => {
+    debouncedListSearchRef.current = debouncedListSearch;
+  }, [debouncedListSearch]);
+
+  // Debounce list search bar → `debouncedListSearch` (drives server `?name=`).
+  useEffect(() => {
+    if (viewMode !== "list") {
+      setDebouncedListSearch("");
+      return;
+    }
+    const t = setTimeout(() => {
+      setDebouncedListSearch(searchQuery.trim());
+    }, ATTENDEE_NAME_SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchQuery, viewMode]);
+
+  // List view: refetch when debounced name changes (skip one empty run to avoid duplicating initial-mount).
+  useEffect(() => {
+    if (viewMode !== "list") return;
+    if (
+      debouncedListSearch === "" &&
+      skipEmptyDebouncedFetchOnceRef.current
+    ) {
+      skipEmptyDebouncedFetchOnceRef.current = false;
+      return;
+    }
+    skipEmptyDebouncedFetchOnceRef.current = false;
+    if (__DEV__ && debouncedListSearch.length > 0) {
+      console.log(
+        `[AttendeesSearch] refetch with ?name="${debouncedListSearch}" (list view also filters names in-app)`
+      );
+    }
+    void fetchAttendees("list-name-debounced", {
+      name: debouncedListSearch || undefined,
+    });
+  }, [debouncedListSearch, viewMode, fetchAttendees]);
+
+  // Card view needs the full list; if we had a server name filter, reload without `name`.
+  useEffect(() => {
+    if (viewMode !== "card") return;
+    if (!lastServerNameFilterRef.current) return;
+    void fetchAttendees("card-view-full-list", { name: undefined });
+  }, [viewMode, fetchAttendees]);
 
   // Mock data - remove after full integration
   const allAttendeesMock: Attendee[] = [
@@ -1317,29 +1433,12 @@ export default function AttendeesScreen() {
     );
   }
 
-  // Apply search filter if search query exists and in list view
+  // Apply search: attendee display name only (not tags, interests, bio, company, role).
   if (viewMode === "list" && searchQuery.trim().length > 0) {
     const query = searchQuery.toLowerCase().trim();
-    displayedAttendees = displayedAttendees.filter((attendee) => {
-      const nameMatch = attendee.name.toLowerCase().includes(query);
-      const roleMatch = attendee.role?.toLowerCase().includes(query);
-      const companyMatch = attendee.company?.toLowerCase().includes(query);
-      const bioMatch = attendee.bio?.toLowerCase().includes(query);
-      const tagsMatch = coerceStringArray(attendee.tags).some((tag) =>
-        tag.toLowerCase().includes(query)
-      );
-      const interestsMatch = coerceStringArray(attendee.interests).some((interest) =>
-        interest.toLowerCase().includes(query)
-      );
-      return (
-        nameMatch ||
-        roleMatch ||
-        companyMatch ||
-        bioMatch ||
-        tagsMatch ||
-        interestsMatch
-      );
-    });
+    displayedAttendees = displayedAttendees.filter((attendee) =>
+      attendee.name.toLowerCase().includes(query)
+    );
   }
 
   // List view: show all (including skipped with "Skipped" badge). Card view: exclude skipped so we don't re-show them.
@@ -1930,7 +2029,7 @@ export default function AttendeesScreen() {
               <SearchIcon size={18} color="#A3A3A3" />
               <TextInput
                 className="flex-1 ml-3 text-base text-neutral-900"
-                placeholder="Search attendees, speakers..."
+                placeholder="Search for attendees..."
                 placeholderTextColor="#A3A3A3"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -1958,7 +2057,15 @@ export default function AttendeesScreen() {
           <View className="flex-1 items-center justify-center py-20 px-4">
             <Text className="text-red-600 text-center mb-4">{error}</Text>
             <Pressable
-              onPress={fetchAttendees}
+              onPress={() =>
+                void fetchAttendees("retry-after-error", {
+                  name:
+                    viewModeRef.current === "list" &&
+                    debouncedListSearchRef.current
+                      ? debouncedListSearchRef.current
+                      : undefined,
+                })
+              }
               className="bg-black rounded-md px-6 py-3"
             >
               <Text className="text-white font-medium">Retry</Text>
@@ -2049,7 +2156,7 @@ export default function AttendeesScreen() {
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                   <RefreshControl
-                    refreshing={false}
+                    refreshing={refreshing}
                     onRefresh={onRefresh}
                     tintColor="#1BB273"
                     colors={["#1BB273"]}
@@ -2113,7 +2220,6 @@ export default function AttendeesScreen() {
           >
             <Pressable
               onPress={() => {
-                console.log("Backdrop pressed - closing modal");
                 closeBottomSheet();
               }}
               style={{

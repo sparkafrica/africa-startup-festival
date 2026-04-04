@@ -26,6 +26,7 @@ import { offerService } from "../services/offerService";
 import { boothService } from "../services/boothService";
 import { EVENT_ID } from "../config/env";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
+import { getSafeMetadataObjectForMerge } from "../utils/sanitizeUserMetadata";
 import {
   hasRequiredImage,
   REQUIRED_PROFILE_PHOTO_MESSAGE,
@@ -1054,7 +1055,7 @@ function PersonalProfileSection({
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
       // Build metadata: industry & interests are shown on attendee cards; merge with existing so we don't overwrite e.g. event_checklist
-      const metadata: any = { ...(user?.metadata || {}) };
+      const metadata: any = { ...getSafeMetadataObjectForMerge(user?.metadata) };
       if (industryLabel) {
         metadata.industry = industryLabel;
       }
@@ -1796,7 +1797,7 @@ function AttendeeProfileSection({
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
       // Build metadata: industry & interests for attendee cards; merge with existing so we don't overwrite e.g. event_checklist
-      const metadata: any = { ...(user?.metadata || {}) };
+      const metadata: any = { ...getSafeMetadataObjectForMerge(user?.metadata) };
       if (industryLabel) {
         metadata.industry = industryLabel;
       }

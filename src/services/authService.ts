@@ -317,10 +317,6 @@ export const authService = {
     options?: { imageUri?: string },
   ): Promise<UserProfile> {
     const imageUri = options?.imageUri;
-    const hasMetadata =
-      profileData != null &&
-      Object.prototype.hasOwnProperty.call(profileData, "metadata") &&
-      profileData.metadata != null;
 
     if (imageUri) {
       try {
@@ -328,20 +324,11 @@ export const authService = {
         if (base64) {
           const payload = { ...profileData, profile_pic: base64 };
           const response = await api.put<any>("/auth/user/", payload);
-          if (__DEV__) {
-            console.log("✅ Profile photo updated (PUT /auth/user/)");
-          }
           return toUserProfile(response);
         }
       } catch (e: any) {
-        if (__DEV__) {
-          console.warn("PUT with image failed, falling back to PUT + PATCH:", e?.message ?? e);
-        }
         // Fallback: save data via PUT then upload photo via PATCH
         const response = await api.put<any>("/auth/user/", profileData);
-        if (__DEV__) {
-          console.log("✅ User profile updated (PUT /auth/user/) — uploading photo next");
-        }
         const profile = toUserProfile(response);
         try {
           return toUserProfile(await this.uploadProfilePicture(imageUri));
@@ -353,13 +340,6 @@ export const authService = {
 
     try {
       const response = await api.put<any>("/auth/user/", profileData);
-      if (__DEV__) {
-        console.log(
-          hasMetadata
-            ? "✅ User metadata saved (PUT /auth/user/)"
-            : "✅ User profile updated (PUT /auth/user/)"
-        );
-      }
       return toUserProfile(response);
     } catch (e: any) {
       if (e instanceof ApiClientError) throw e;

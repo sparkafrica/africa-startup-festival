@@ -454,15 +454,6 @@ export const eventService = {
         return data as Event;
       }
 
-      // Log error response structure for debugging
-      if (__DEV__) {
-        console.log("🔍 Event details error response:", {
-          response_message: data.message,
-          response_code: data.response_code,
-          hasData: !!data.data,
-        });
-      }
-
       throw new ApiClientError({
         status: "error",
         message: data?.message || "Failed to fetch event details",
@@ -691,16 +682,6 @@ export const eventService = {
         return data as PersonalScheduleCreate;
       }
 
-      // Log error response structure for debugging
-      if (__DEV__) {
-        console.log("🔍 Add to schedule error response:", {
-          response_message: data.message,
-          response_code: data.response_code,
-          hasData: !!data.data,
-          nonFieldErrors: data.data?.non_field_errors || data.data?.data?.non_field_errors,
-        });
-      }
-
       // Parse validation errors from response
       let errorMessage = data?.message || "Failed to add event to schedule";
       
@@ -899,9 +880,6 @@ export const eventService = {
         
         // Check if data.data is directly an array (our case)
         if (Array.isArray(speakersData)) {
-          if (__DEV__) {
-            console.log(`✅ Found ${speakersData.length} speakers in ApiResponse.data array`);
-          }
           return {
             speakers: speakersData as Speaker[],
             pagination: {

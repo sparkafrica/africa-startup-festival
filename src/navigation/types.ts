@@ -8,7 +8,18 @@ export type RootStackParamList = {
   CompleteProfile: { step?: "personal" | "company" } | undefined;
   CompleteCompanyProfile: undefined;
   ProfileCreated: undefined;
-  Home: undefined;
+  Home:
+    | {
+        /** FCM tap: show detail modal on Home without opening Notifications list. */
+        openPushNotificationId?: number;
+        openAppUpdateFromPush?: {
+          title: string;
+          description?: string;
+          notificationId?: number;
+          storeUrl?: string;
+        };
+      }
+    | undefined;
   Attendees: undefined;
   EventDetails: { eventId: string };
   Ticket: { ticketId: string };
@@ -16,7 +27,18 @@ export type RootStackParamList = {
   Profile: undefined;
   Search: undefined;
   Menu: undefined;
-  Notifications: { openNotificationId?: number } | undefined;
+  Notifications:
+    | {
+        openNotificationId?: number;
+        /** Open app-update sheet (from FCM tap) with title/body from push data. */
+        openAppUpdate?: {
+          title: string;
+          description?: string;
+          notificationId?: number;
+          storeUrl?: string;
+        };
+      }
+    | undefined;
   ScanQR: { initialTab?: "My Ticket" | "Scan Ticket" } | undefined;
   ScannedAttendee: { attendee: Attendee } | undefined;
   Exhibitors: undefined;

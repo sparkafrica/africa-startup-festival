@@ -4885,11 +4885,6 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
   // Handle QR code scanned from camera
   const handleQRCodeScanned = async (scannedData: string) => {
-    if (__DEV__)
-      console.log("[ScanFlow] handleQRCodeScanned called", {
-        rawLength: scannedData?.length,
-        platform: Platform.OS,
-      });
     if (!scannedData || !scannedData.trim()) {
       showToast("Invalid QR code. Please try again.", "error");
       return;
@@ -4898,18 +4893,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     const trimmedData = scannedData.trim();
     const validation = validateUUID(trimmedData);
     if (!validation.valid) {
-      if (__DEV__)
-        console.log("[ScanFlow] UUID validation failed", validation.error);
       showToast(validation.error || "Invalid QR code format", "error");
       return;
     }
 
     setIsScanning(true);
-    if (__DEV__)
-      console.log("[ScanFlow] calling API scanTicketByCode", {
-        eventId: EVENT_ID,
-        platform: Platform.OS,
-      });
 
     try {
       const attendee = await ticketService.scanTicketByCode(
@@ -4917,29 +4905,16 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         trimmedData,
       );
 
-      if (__DEV__)
-        console.log("[ScanFlow] API success, attendee received", {
-          userId: attendee?.user?.id,
-          name: attendee?.user?.first_name,
-          platform: Platform.OS,
-        });
-
       setScannedAttendee(attendee);
       setQrScannerModalVisible(false);
       showToast("Ticket scanned successfully!", "success");
 
       if (Platform.OS === "ios") {
         // iOS: navigate to full screen instead of modal (avoids native modal stacking issue)
-        if (__DEV__)
-          console.log("[ScanFlow] iOS: navigating to ScannedAttendee screen");
         navigation.navigate("ScannedAttendee", { attendee });
       } else {
         // Android: keep seamless modal flow
         const showProfileModal = () => {
-          if (__DEV__)
-            console.log("[ScanFlow] showProfileModal running", {
-              platform: Platform.OS,
-            });
           setScannedTicketProfileVisible(true);
         };
         InteractionManager.runAfterInteractions(() => showProfileModal());

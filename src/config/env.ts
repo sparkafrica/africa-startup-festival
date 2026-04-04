@@ -120,9 +120,3 @@ export function getUpgradePaymentDefaults(): {
   };
 }
 
-// Log current environment (only in development)
-if (__DEV__) {
-  console.log(`🌍 Environment: ${environment}`);
-  console.log(`🔗 API Base URL: ${ENV.BASE_URL}`);
-  console.log(`🎫 Event ID: ${EVENT_ID}`);
-}

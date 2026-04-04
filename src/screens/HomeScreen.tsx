@@ -28,6 +28,7 @@ import {
   SpeakerDetailModal,
   BottomNavigation,
 } from "../components";
+import HomePushNotificationOverlay from "../components/HomePushNotificationOverlay";
 import EventChecklist from "../components/EventChecklist";
 import { ArrowUpRightIcon } from "../components/icons";
 import {
@@ -624,6 +625,9 @@ export default function HomeScreen() {
           }}
         />
       </SafeAreaView>
+
+      {/* FCM tap: modal on Home without pushing Notifications screen */}
+      <HomePushNotificationOverlay />
     </View>
   );
 }

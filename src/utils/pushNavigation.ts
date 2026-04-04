@@ -10,6 +10,10 @@
  * - connection_id: non-empty for connection notifications
  *
  * Example: { id: "123", route: "meetings/requests/inbound", meeting_id: "456", connection_id: "" }
+ *
+ * App update (store): set notification_type to app_update (or force_update / store_update / system_update).
+ * Optional: title, description, id (to mark read). Example:
+ * { notification_type: "app_update", title: "Important Update!", description: "Please update…", id: "99" }
  */
 import {
   getMessaging,
@@ -17,7 +21,7 @@ import {
   onNotificationOpenedApp,
 } from "@react-native-firebase/messaging";
 import type { RemoteMessage } from "@react-native-firebase/messaging";
-import { navigate, isReady } from "../navigation/navigationRef";
+import { navigate, isReady, resetToHome } from "../navigation/navigationRef";
 import { EVENT_ID } from "../config/env";
 
 export interface PushNotificationData {
@@ -31,6 +35,9 @@ export interface PushNotificationData {
   sender_name?: string;
   title?: string;
   description?: string;
+  /** app_update | force_update | store_update | system_update */
+  notification_type?: string;
+  store_url?: string;
 }
 
 function parseRemoteMessageData(
@@ -63,12 +70,47 @@ function parseRemoteMessageData(
         : undefined,
     title: typeof d.title === "string" ? d.title : undefined,
     description: typeof d.description === "string" ? d.description : undefined,
+    notification_type:
+      typeof d.notification_type === "string" ? d.notification_type : undefined,
+    store_url: typeof d.store_url === "string" ? d.store_url : undefined,
   };
+}
+
+function isAppUpdatePush(data: PushNotificationData): boolean {
+  const nt = (data.notification_type || "").trim().toLowerCase();
+  if (
+    nt === "app_update" ||
+    nt === "force_update" ||
+    nt === "store_update" ||
+    nt === "system_update"
+  ) {
+    return true;
+  }
+  const t = (data.title || "").toLowerCase();
+  const b = (data.description || "").toLowerCase();
+  if (/\bimportant update\b/i.test(t)) return true;
+  if (b.includes("please update your app") || b.includes("update your app to")) {
+    return true;
+  }
+  return false;
 }
 
 function handlePushData(data: PushNotificationData | null) {
   if (!data) {
-    navigate("Notifications");
+    resetToHome({});
+    return;
+  }
+  if (isAppUpdatePush(data)) {
+    const notificationId =
+      data.id && /^\d+$/.test(data.id) ? parseInt(data.id, 10) : undefined;
+    resetToHome({
+      openAppUpdateFromPush: {
+        title: data.title?.trim() || "Important Update!",
+        description: data.description,
+        notificationId,
+        storeUrl: data.store_url,
+      },
+    });
     return;
   }
   if (data.conversation_id) {
@@ -111,10 +153,11 @@ function handlePushData(data: PushNotificationData | null) {
   }
   const openNotificationId =
     data.id && /^\d+$/.test(data.id) ? parseInt(data.id, 10) : undefined;
-  navigate(
-    "Notifications",
-    openNotificationId != null ? { openNotificationId } : undefined
-  );
+  if (openNotificationId != null) {
+    resetToHome({ openPushNotificationId: openNotificationId });
+    return;
+  }
+  resetToHome({});
 }
 
 /**

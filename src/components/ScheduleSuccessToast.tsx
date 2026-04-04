@@ -5,10 +5,17 @@ import Svg, { Path, Circle } from "react-native-svg";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
+export type ScheduleToastVariant = "added" | "removed";
+
+const ACCENT_ADDED = "#10B981";
+const ACCENT_REMOVED = "#EF4444";
+
 interface ScheduleSuccessToastProps {
   visible: boolean;
   onHide: () => void;
   eventTitle: string;
+  /** "added" = green success; "removed" = red theme, same layout */
+  variant?: ScheduleToastVariant;
   duration?: number;
 }
 
@@ -32,6 +39,26 @@ function CheckmarkIcon({
       <Path
         d="M8 12L11 15L16 9"
         stroke="#FFFFFF"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function MinusIcon({
+  size = 20,
+  color = "#FFFFFF",
+}: {
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M5 12H19"
+        stroke={color}
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -64,8 +91,12 @@ export default function ScheduleSuccessToast({
   visible,
   onHide,
   eventTitle,
+  variant = "added",
   duration = 3000,
 }: ScheduleSuccessToastProps) {
+  const headline =
+    variant === "removed" ? "Removed from schedule" : "Added to schedule";
+  const accent = variant === "removed" ? ACCENT_REMOVED : ACCENT_ADDED;
   const translateY = useRef(new Animated.Value(-100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.8)).current;
@@ -155,35 +186,37 @@ export default function ScheduleSuccessToast({
       <Animated.View
         style={[
           styles.toast,
+          variant === "removed" && styles.toastRemoved,
           {
             transform: [{ translateY }, { scale }],
             opacity,
           },
         ]}
       >
-        {/* Success Icon with Checkmark */}
         <View style={styles.iconContainer}>
           <Animated.View
             style={[
               styles.iconCircle,
-              {
-                transform: [{ scale: checkmarkScale }],
-              },
+              { backgroundColor: accent },
+              { transform: [{ scale: checkmarkScale }] },
             ]}
           >
-            <CheckmarkIcon size={20} color="#FFFFFF" />
+            {variant === "removed" ? (
+              <MinusIcon size={20} color="#FFFFFF" />
+            ) : (
+              <CheckmarkIcon size={20} color="#FFFFFF" />
+            )}
           </Animated.View>
         </View>
 
-        {/* Content */}
         <View style={styles.content}>
           <View style={styles.textContainer}>
-            <Text style={styles.title}>Added to schedule</Text>
+            <Text style={styles.title}>{headline}</Text>
             <Text style={styles.subtitle} numberOfLines={1}>
               {eventTitle}
             </Text>
           </View>
-          <CalendarIcon size={20} color="#10B981" />
+          <CalendarIcon size={20} color={accent} />
         </View>
       </Animated.View>
     </SafeAreaView>
@@ -220,6 +253,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
+  toastRemoved: {
+    borderColor: "#FECACA",
+  },
   iconContainer: {
     marginRight: 12,
   },
@@ -227,7 +263,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#10B981",
     alignItems: "center",
     justifyContent: "center",
   },

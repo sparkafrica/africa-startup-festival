@@ -84,7 +84,7 @@ export const TOP_INTERESTS: string[] = [
   "Legal",
   "Robotics",
   "HR (Human Resources)",
-  "Professional Services)",
+  "Professional Services",
   "Consultancy",
 ];
 

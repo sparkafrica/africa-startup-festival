@@ -28,6 +28,9 @@ module.exports = {
       UPGRADE_PAYMENT_METHOD:
         process.env.EXPO_PUBLIC_UPGRADE_PAYMENT_METHOD || "free",
       UPGRADE_CURRENCY: process.env.EXPO_PUBLIC_UPGRADE_CURRENCY || "USD",
+      /** Africa Technology Expo on the App Store — override with EXPO_PUBLIC_IOS_APP_STORE_ID if needed. */
+      iosAppStoreId:
+        process.env.EXPO_PUBLIC_IOS_APP_STORE_ID || "6757281613",
     },
   },
 };

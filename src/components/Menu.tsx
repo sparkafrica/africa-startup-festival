@@ -35,8 +35,9 @@ interface MenuProps {
   onLogout?: () => void;
 }
 
-// Slate - neutral loading color to avoid green→blue flash for assignees
+// Slate — badge + gradient when ticket tier is unknown (loading, offline, or API returned no type)
 const LOADING_COLOR = "#475569";
+const NEUTRAL_MENU_GRADIENT: [string, string] = ["#475569", "#64748B"];
 
 export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: MenuProps) {
   const { user } = useAuth();
@@ -75,18 +76,25 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
 
   const userEmail = user?.email || "";
 
-  // Badge and color: prefer ticket type, then company type (so assignee with Exhibitor ticket shows Exhibitor)
-  // While loading, use slate to avoid green flash before real ticket type loads
-  const companyType = user?.company?.company_type ?? "";
-  // Default to the lowest tier so the menu card starts white/black
-  // (instead of flashing the Expo/green gradient before ticketType loads).
-  const effectiveType = ticketType || companyType || "exhibition";
-  const display = ticketLoading
+  const companyType = (user?.company?.company_type ?? "").trim();
+  const ticketTypeTrimmed = ticketType?.trim() ?? "";
+
+  // After fetch: prefer ticket tier, then company_type (assignees). Never guess "Limited Pass"
+  // when we don't know the tier — that misleads users offline or before the API responds.
+  const resolvedTier =
+    !ticketLoading && (ticketTypeTrimmed || companyType)
+      ? ticketTypeTrimmed || companyType
+      : "";
+  const tierPending = ticketLoading || resolvedTier === "";
+
+  const display = tierPending
     ? { label: "...", color: LOADING_COLOR }
-    : getTicketTypeDisplay(effectiveType);
-  const { label: userType, color: cardBackgroundColor } = display;
-  const isExhibition = isExhibitionPass(effectiveType);
-  const cardGradient = getTicketGradientColors(effectiveType);
+    : getTicketTypeDisplay(resolvedTier);
+  const { label: userType } = display;
+  const isExhibition = tierPending ? false : isExhibitionPass(resolvedTier);
+  const cardGradient = tierPending
+    ? NEUTRAL_MENU_GRADIENT
+    : getTicketGradientColors(resolvedTier);
 
   // Get profile picture URL if available
   const profilePicUrl = user?.profile_pic || null;

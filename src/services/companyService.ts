@@ -57,9 +57,6 @@ export const companyService = {
         try {
           const response = await api.put<CompanyUpdateRequest>(url, payload);
           if (response.status === "success" && response.data) {
-            if (__DEV__) {
-              console.log("✅ Company data + logo saved (PUT /companies/:id/)");
-            }
             return response.data as Company;
           }
         } catch (e: any) {
@@ -70,9 +67,6 @@ export const companyService = {
         try {
           const response = await api.patch<CompanyUpdateRequest>(url, payload);
           if (response.status === "success" && response.data) {
-            if (__DEV__) {
-              console.log("✅ Company data + logo saved (PATCH /companies/:id/)");
-            }
             return response.data as Company;
           }
         } catch (e: any) {
@@ -86,9 +80,6 @@ export const companyService = {
 
     const response = await api.patch<CompanyUpdateRequest>(url, companyData);
     if (response.status === "success" && response.data) {
-      if (__DEV__) {
-        console.log("✅ Company data saved (PATCH /companies/:id/)");
-      }
       return response.data as Company;
     }
     throw new ApiClientError({
@@ -146,9 +137,6 @@ export const companyService = {
     try {
       const response = await api.patch<CompanyUpdateRequest>(url, payload);
       if (response.status === "success" && response.data) {
-        if (__DEV__) {
-          console.log("✅ Company logo cleared (PATCH /companies/:id/ logo null)");
-        }
         return response.data as Company;
       }
     } catch (e: any) {
@@ -160,9 +148,6 @@ export const companyService = {
     try {
       const response = await api.put<CompanyUpdateRequest>(url, payload);
       if (response.status === "success" && response.data) {
-        if (__DEV__) {
-          console.log("✅ Company logo cleared (PUT /companies/:id/ logo null)");
-        }
         return response.data as Company;
       }
     } catch (e2: any) {

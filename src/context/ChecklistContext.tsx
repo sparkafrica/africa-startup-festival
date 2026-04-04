@@ -9,6 +9,7 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./AuthContext";
 import { authService } from "../services/authService";
+import { getSafeMetadataObjectForMerge } from "../utils/sanitizeUserMetadata";
 
 const CHECKLIST_STORAGE_KEY_PREFIX = "@spark:checklist_user:";
 const METADATA_CHECKLIST_KEY = "event_checklist";
@@ -79,8 +80,7 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
   const syncChecklistToBackend = useCallback(
     async (state: ChecklistState) => {
       if (!user) return;
-      const metadata = user.metadata;
-      const current = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata); } catch { return {}; } })() : { ...(metadata || {}) };
+      const current = getSafeMetadataObjectForMerge(user.metadata);
       const nextMetadataObj = { ...current, [METADATA_CHECKLIST_KEY]: state };
       try {
         await authService.updateProfile({ metadata: JSON.stringify(nextMetadataObj) });
@@ -167,8 +167,7 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
   const resetChecklist = useCallback(() => {
     setChecklistCompleted(defaultState);
     if (user) {
-      const metadata = user.metadata;
-      const current = typeof metadata === "string" ? (() => { try { return JSON.parse(metadata); } catch { return {}; } })() : { ...(metadata || {}) };
+      const current = getSafeMetadataObjectForMerge(user.metadata);
       const nextMetadataObj = { ...current, [METADATA_CHECKLIST_KEY]: defaultState };
       authService.updateProfile({ metadata: JSON.stringify(nextMetadataObj) }).catch(() => {});
     }

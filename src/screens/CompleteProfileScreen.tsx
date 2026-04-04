@@ -29,6 +29,7 @@ import { companyService } from "../services/companyService";
 import { offerService } from "../services/offerService";
 import { boothService } from "../services/boothService";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
+import { getSafeMetadataObjectForMerge } from "../utils/sanitizeUserMetadata";
 import {
   hasRequiredImage,
   REQUIRED_PROFILE_PHOTO_MESSAGE,
@@ -1123,7 +1124,7 @@ function AttendeeProfileForm({
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
       // Build metadata: industry & interests are shown on attendee cards; company fields for internal use only
-      const metadata: any = { ...(user?.metadata || {}) };
+      const metadata: any = { ...getSafeMetadataObjectForMerge(user?.metadata) };
       metadata.linkedIn = linkedIn.trim();
       if (industryLabel) {
         metadata.industry = industryLabel;
@@ -1965,7 +1966,7 @@ function PersonalProfileForm({
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
       // Build metadata: industry & interests for attendee cards; merge with existing so we don't overwrite e.g. event_checklist
-      const metadata: any = { ...(user?.metadata || {}) };
+      const metadata: any = { ...getSafeMetadataObjectForMerge(user?.metadata) };
       metadata.linkedIn = linkedIn.trim();
       if (industryLabel) {
         metadata.industry = industryLabel;

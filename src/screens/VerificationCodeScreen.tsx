@@ -100,9 +100,6 @@ export default function VerificationCodeScreen() {
       // TODO: BACKEND - Handle expired code
       await verifyCode(email, codeString);
 
-      console.log("Code verified, navigating to Welcome...");
-      // TODO: BACKEND - Navigation should happen after successful API response
-
       // Navigate to Welcome screen immediately
       // The navigation should work since Welcome is in the same AuthNavigator stack
       navigation.navigate("Welcome");

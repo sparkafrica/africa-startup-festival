@@ -299,15 +299,6 @@ class ApiClient {
           "Request failed. Please check your internet connection and try again.";
       }
 
-      if (__DEV__) {
-        console.warn("API no-response error:", {
-          code,
-          axiosMessage,
-          url: error.config?.url,
-          method: error.config?.method,
-        });
-      }
-
       return new ApiClientError({
         status: "error",
         message,
@@ -323,7 +314,6 @@ class ApiClient {
     // Backend returns errors in standard format
     // If it's already in the correct format, extract non_field_errors first
     if (data?.status === "error") {
-      // Check if this is a "Connection already exists" case that we handle as success
       let errorMessage: string = typeof data?.message === "string" ? data.message : "";
       
       // Extract non_field_errors FIRST before using generic message
@@ -342,25 +332,7 @@ class ApiClient {
           errorMessage = nonFieldErrors;
         }
       }
-      
-      const errorMessageStr = String(errorMessage || "");
-      const isConnectionAlreadyExists = 
-        status === 400 && 
-        (errorMessageStr.toLowerCase().includes("connection already exists") ||
-         errorMessageStr.toLowerCase().includes("already exists"));
-      
-      // Skip logging for "Connection already exists" (400) as it's handled as success in the UI
-      if (__DEV__ && !isConnectionAlreadyExists) {
-        const logData = typeof data === "string" && data.length > 500 
-          ? { _truncated: true, length: data.length, preview: data.substring(0, 300) + "..." }
-          : data;
-        console.log("🔍 API Error Response:", {
-          status,
-          data: logData,
-          url: error.config?.url,
-        });
-      }
-      
+
       // Create error with extracted message
       return new ApiClientError({
         status: "error",
@@ -374,28 +346,6 @@ class ApiClient {
     let errorMessage: string = "An error occurred";
     let errorDetails: any = {};
     
-    // Check if this is a "Connection already exists" case for logging purposes
-    const rawExtracted = data?.message ?? data?.error ?? data?.detail;
-    const extractedMessage = typeof rawExtracted === "string" ? rawExtracted : "";
-    const extractedStr = String(extractedMessage || "");
-    const isConnectionAlreadyExists = 
-      status === 400 && 
-      (extractedStr.toLowerCase().includes("connection already exists") ||
-       extractedStr.toLowerCase().includes("already exists"));
-
-    // Log raw error details in development for debugging
-    // Skip logging for "Connection already exists" (400) as it's handled as success in the UI
-    if (__DEV__ && !isConnectionAlreadyExists) {
-      const logData = typeof data === "string" && data.length > 500 
-        ? { _truncated: true, length: data.length, preview: data.substring(0, 300) + "..." }
-        : data;
-      console.log("🔍 API Error Response:", {
-        status,
-        data: logData,
-        url: error.config?.url,
-      });
-    }
-
     // Check for non_field_errors FIRST (they take priority over generic messages)
     // Check at different nesting levels (include data.message.non_field_errors)
     const nonFieldErrors = 

@@ -29,6 +29,8 @@ export interface UserNotification {
   event_id?: string | null;
   notification_type?: string | null;
   other_party_name?: string | null;
+  /** Optional store listing URL for app_update notifications. */
+  store_url?: string | null;
 }
 
 /**

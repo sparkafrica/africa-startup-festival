@@ -76,8 +76,14 @@ export type AttendeeType = "general" | "developer" | "standard" | "delegate" | "
  * Optional filters for fetching attendees
  */
 export interface AttendeeFilters {
+  /** Backend query param `name` — filter attendees by name on the server. */
+  name?: string;
+  /**
+   * Legacy alias: if `name` is unset, this value is sent as `?name=` (API does not use `search`).
+   */
   search?: string;
   ordering?: string;
+  /** Page number, or `-1` when the API returns the full list in one response. */
   page?: number;
   page_size?: number;
   // Note: Additional filters (industry, interests, job_title) can be added
@@ -94,7 +100,7 @@ export const attendeeService = {
    *
    * @param eventId - The ID of the event
    * @param attendeeType - Type of attendees (general, developer, standard, delegate, exhibitor, all)
-   * @param filters - Optional filters (search, ordering, pagination)
+   * @param filters - Optional filters (`name`, ordering, pagination; legacy `search` maps to `name`)
    * @returns Promise that resolves with paginated attendees
    *
    * Backend Endpoint: GET /attendees/{event_id}/{attendee_type}/
@@ -109,14 +115,15 @@ export const attendeeService = {
       const params: Record<string, string> = {};
 
       if (filters) {
-        if (filters.search) {
-          params.search = filters.search;
+        const nameFilter = (filters.name ?? filters.search)?.trim();
+        if (nameFilter) {
+          params.name = nameFilter;
         }
         if (filters.ordering) {
           params.ordering = filters.ordering;
         }
-        if (filters.page) {
-          params.page = filters.page.toString();
+        if (filters.page != null) {
+          params.page = String(filters.page);
         }
         if (filters.page_size) {
           params.page_size = filters.page_size.toString();

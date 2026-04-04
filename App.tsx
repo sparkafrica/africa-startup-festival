@@ -51,7 +51,6 @@ export default function App() {
     // Small delay to ensure images are rendered and cached
     const timer = setTimeout(() => {
       setImagesPreloaded(true);
-      console.log("✅ Banner images preloaded");
     }, 100);
 
     return () => clearTimeout(timer);
@@ -60,11 +59,7 @@ export default function App() {
   // Log font loading status
   React.useEffect(() => {
     if (fontError) {
-      console.error("❌ Font loading error:", fontError);
-    }
-    if (fontsLoaded) {
-      console.log("✅ Fonts loaded - Inter Display variants available");
-      console.log("📝 Default font set to: InterDisplay-Regular");
+      console.error("Font loading error:", fontError);
     }
   }, [fontsLoaded, fontError]);
 
