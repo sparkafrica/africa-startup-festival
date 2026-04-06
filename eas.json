@@ -39,6 +39,11 @@
   "submit": {
     "development": {},
     "preview": {},
-    "production": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./glossy-receiver-353007-910b0426a8e8.json",
+        "track": "internal"
+      }
+    }
   }
 }

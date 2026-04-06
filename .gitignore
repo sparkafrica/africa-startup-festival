@@ -42,6 +42,9 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# Google service account key (upload to EAS, never commit)
+glossy-receiver-353007-910b0426a8e8.json
+
 # local env files (secrets like EXPO_PUBLIC_SPARK_API_KEY go here; do not commit)
 .env
 .env*.local
