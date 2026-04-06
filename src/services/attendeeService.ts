@@ -162,14 +162,18 @@ export const attendeeService = {
             },
           };
         }
-        // If data is array directly
+        // If data is array directly — total/next may live on sibling `pagination`, not on the array
+        // (prod: { data: Attendee[], pagination: { count, next, previous } })
         if (Array.isArray(responseData)) {
+          const meta = data.pagination as
+            | { count?: number; next?: string | null; previous?: string | null }
+            | undefined;
           return {
             attendees: responseData as Attendee[],
             pagination: {
-              count: responseData.length,
-              next: null,
-              previous: null,
+              count: meta?.count ?? responseData.length,
+              next: meta?.next ?? null,
+              previous: meta?.previous ?? null,
             },
           };
         }

@@ -59,7 +59,25 @@ export { default as CancelledMeetingDetailModal } from "./CancelledMeetingDetail
 export type { CancelledMeetingDetailModalProps } from "./CancelledMeetingDetailModal";
 export { default as EmptyCancelledMeetings } from "./EmptyCancelledMeetings";
 export * from "./icons";
-export * from "./BottomNavIcons";
-export * from "./HeaderIcons";
-export * from "./MenuIcons";
 export * from "./SocialIcons";
+/** Header-only icons (skip BellIcon/MenuIcon — same names exist in `./icons`; HeaderBar imports from `./HeaderIcons` directly). */
+export { ScanIcon, ChevronLeftIcon, FilterIcon } from "./HeaderIcons";
+/** Menu icons except CalendarIcon/ChevronRightIcon — those names are exported from `./icons` (different glyphs). */
+export {
+  CreateEventIcon,
+  HelpIcon,
+  SettingsIcon,
+  AboutIcon,
+  CloseIcon,
+  TicketsIcon,
+  ProfileIcon,
+  MapIcon,
+  OffersIcon,
+  TalentIcon,
+  MailIcon,
+  LogoutIcon,
+  UserAvatarIcon,
+  VideoIcon,
+  DoorIcon,
+  LightbulbIcon,
+} from "./MenuIcons";

@@ -113,6 +113,13 @@ export default function HomePushNotificationOverlay() {
         return;
       }
 
+      if (notification.type === "book_meeting_prompt") {
+        await markAsRead(notification);
+        clearPushParams();
+        navigation.navigate("Attendees");
+        return;
+      }
+
       if (notification.type === "app_update") {
         setSelectedNotification(notification);
         return;
@@ -161,6 +168,11 @@ export default function HomePushNotificationOverlay() {
               routeName === "Connections"
             ) {
               navigation.navigate("Connections");
+            } else if (
+              routeName === "attendees" ||
+              routeName === "Attendees"
+            ) {
+              navigation.navigate("Attendees");
             }
           }
         } else {
@@ -174,6 +186,9 @@ export default function HomePushNotificationOverlay() {
               break;
             case "connection":
               navigation.navigate("Connections");
+              break;
+            case "book_meeting_prompt":
+              navigation.navigate("Attendees");
               break;
             default:
               break;

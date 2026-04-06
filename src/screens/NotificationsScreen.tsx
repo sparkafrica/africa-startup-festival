@@ -187,6 +187,15 @@ export default function NotificationsScreen() {
       return;
     }
 
+    if (notification.type === "book_meeting_prompt") {
+      await markAsRead(notification);
+      navigation.goBack();
+      setTimeout(() => {
+        navigation.navigate("Attendees");
+      }, 100);
+      return;
+    }
+
     // For notifications that open modals
     if (
       notification.type === "meeting_request" ||
@@ -240,6 +249,8 @@ export default function NotificationsScreen() {
               });
             } else if (routeName === "connections" || routeName === "Connections") {
               navigation.navigate("Connections");
+            } else if (routeName === "attendees" || routeName === "Attendees") {
+              navigation.navigate("Attendees");
             }
           }
         } else {
@@ -254,6 +265,9 @@ export default function NotificationsScreen() {
               break;
             case "connection":
               navigation.navigate("Connections");
+              break;
+            case "book_meeting_prompt":
+              navigation.navigate("Attendees");
               break;
             default:
               break;

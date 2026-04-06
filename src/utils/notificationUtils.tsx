@@ -32,6 +32,7 @@ export type NotificationType =
   | "meeting_request_sent"
   | "chat_message"
   | "app_update"
+  | "book_meeting_prompt"
   | "generic";
 
 /**
@@ -101,6 +102,32 @@ export function extractChatOtherPartyName(title: string): string {
   return "Chat";
 }
 
+/** Backend `notification_type` values that open Attendees (book-a-meeting nudges). */
+const BOOK_MEETING_PROMPT_TYPES = new Set([
+  "book_meeting_prompt",
+  "attendees_booking_nudge",
+  "book_first_meeting",
+]);
+
+export function isBookMeetingPromptNotificationType(
+  ntype: string | null | undefined,
+): boolean {
+  return BOOK_MEETING_PROMPT_TYPES.has((ntype || "").trim().toLowerCase());
+}
+
+/** True when route's first segment is `attendees` (e.g. `attendees`, `/Attendees`). */
+export function routeFirstSegmentIsAttendees(
+  route: string | null | undefined,
+): boolean {
+  if (!route) return false;
+  const first = route
+    .replace(/^\/+/, "")
+    .split("/")
+    .filter(Boolean)[0]
+    ?.toLowerCase();
+  return first === "attendees";
+}
+
 // ============================================================================
 // TYPE INFERENCE
 // ============================================================================
@@ -140,6 +167,18 @@ export function inferNotificationType(
     /\bplease update your app\b/i.test(combined)
   ) {
     return "app_update";
+  }
+
+  if (isBookMeetingPromptNotificationType(notification.notification_type)) {
+    return "book_meeting_prompt";
+  }
+  if (
+    routeFirstSegmentIsAttendees(notification.route) &&
+    !notification.meeting_id &&
+    !notification.connection_id &&
+    !fromRoute.conversationId
+  ) {
+    return "book_meeting_prompt";
   }
 
   // Chat / DM — before generic and before broad "accepted/approved" meeting heuristics
@@ -382,6 +421,16 @@ export function getNotificationIcon(type: NotificationType): React.ReactNode {
           style={{ backgroundColor: "#FFF7ED" }}
         >
           <BellIcon size={24} color="#F97316" />
+        </View>
+      );
+
+    case "book_meeting_prompt":
+      return (
+        <View
+          className="w-12 h-12 rounded-lg items-center justify-center"
+          style={{ backgroundColor: "#FFF7ED" }}
+        >
+          <CalendarIcon size={24} color="#F97316" />
         </View>
       );
 

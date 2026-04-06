@@ -11,6 +11,10 @@
  *
  * Example: { id: "123", route: "meetings/requests/inbound", meeting_id: "456", connection_id: "" }
  *
+ * Attendees / book-first-meeting nudge: set route to "attendees" and/or notification_type to
+ * book_meeting_prompt (aliases: attendees_booking_nudge, book_first_meeting). Example:
+ * { title: "…", description: "…", route: "attendees", notification_type: "book_meeting_prompt" }
+ *
  * App update (store): set notification_type to app_update (or force_update / store_update / system_update).
  * Optional: title, description, id (to mark read). Example:
  * { notification_type: "app_update", title: "Important Update!", description: "Please update…", id: "99" }
@@ -23,6 +27,10 @@ import {
 import type { RemoteMessage } from "@react-native-firebase/messaging";
 import { navigate, isReady, resetToHome } from "../navigation/navigationRef";
 import { EVENT_ID } from "../config/env";
+import {
+  isBookMeetingPromptNotificationType,
+  routeFirstSegmentIsAttendees,
+} from "./notificationUtils";
 
 export interface PushNotificationData {
   id?: string;
@@ -149,6 +157,13 @@ function handlePushData(data: PushNotificationData | null) {
         ? "inbound"
         : "outbound";
     navigate("Meetings", { primaryTab, secondaryTab });
+    return;
+  }
+  if (
+    isBookMeetingPromptNotificationType(data.notification_type) ||
+    routeFirstSegmentIsAttendees(data.route)
+  ) {
+    navigate("Attendees");
     return;
   }
   const openNotificationId =

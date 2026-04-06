@@ -5,7 +5,6 @@ import {
   Pressable,
   Dimensions,
   ScrollView,
-  FlatList,
   TextInput,
   Platform,
   Animated as RNAnimated,
@@ -15,11 +14,14 @@ import {
   ImageSourcePropType,
   Linking,
   Alert,
+  type ListRenderItemInfo,
+  type LayoutChangeEvent,
 } from "react-native";
 import { GestureDetector, Gesture, Pressable as GesturePressable } from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedScrollHandler,
   withSpring,
   withTiming,
   runOnJS,
@@ -82,8 +84,12 @@ import { ChevronDownIcon, ListIcon, SearchIcon, SpeechBubbleIcon } from "../comp
 import { LinkedInIcon } from "../components/SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import Svg, { Path, Circle } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
 
-/** Page size per API request when loading all attendees (one "load entire event" run). */
+/**
+ * Request page size for attendee list. Backend may return fewer rows per page (e.g. 100);
+ * pagination must use `count` / `next`, not "batch smaller than this number ⇒ done".
+ */
 const ATTENDEE_PAGE_SIZE = 500;
 /**
  * Stable ordering so offset pagination cannot skip/duplicate rows when the backend
@@ -97,6 +103,10 @@ const ATTENDEE_NAME_SEARCH_DEBOUNCE_MS = 400;
 const LOAD_MORE_THRESHOLD = 3;
 /** Minimum match_score (1–10) to show attendee in Recommended tab. Backend returns score 1–10 via match_info. */
 const RECOMMENDED_MIN_SCORE = 8;
+
+/** Custom list scrollbar (track + thumb) — native indicators are often invisible on Android / dark UI. */
+const ATTENDEE_LIST_SCROLLBAR_WIDTH = 6;
+const ATTENDEE_LIST_SCROLLBAR_GUTTER = 8;
 
 /**
  * Parse match_info from backend (may be JSON string or object).
@@ -274,6 +284,13 @@ interface Attendee {
 }
 
 /**
+ * Full attendee list for the current event (this JS session only). When the stack remounts
+ * AttendeesScreen after navigating away, we reuse this instead of re-paginating the API.
+ * Pull-to-refresh still calls the API and overwrites the cache on success.
+ */
+let attendeeFullListSessionCache: { eventId: number; attendees: Attendee[] } | null = null;
+
+/**
  * Backend (or metadata) may send tags/interests as a string, object, or sparse array.
  * Calling `.some` on a string/object yields `undefined` as the callee → production crash:
  * "TypeError: undefined is not a function" inside AttendeesScreen search/filter.
@@ -302,6 +319,147 @@ function getAttendeeProfilePicUri(attendee: Attendee): string | undefined {
   }
   return undefined;
 }
+
+/** Memoized row so VirtualizedList does not treat every item as changed when the parent re-renders. */
+const AttendeeListRow = React.memo(function AttendeeListRow({
+  item,
+  skipped,
+  onOpen,
+  onConnect,
+}: {
+  item: Attendee;
+  skipped: boolean;
+  onOpen: (a: Attendee) => void;
+  onConnect: (a: Attendee) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        onOpen(item);
+      }}
+      className="bg-white rounded-xl mb-3 mx-4"
+      style={{
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+      }}
+    >
+      <View className="p-4">
+        <View className="flex-row items-start mb-3">
+          <View className="w-14 h-14 rounded-full bg-neutral-100 border border-neutral-200 items-center justify-center mr-3 flex-shrink-0 overflow-hidden">
+            {item.avatar && typeof item.avatar === "object" && "uri" in item.avatar && item.avatar.uri ? (
+              <Image
+                source={item.avatar as ImageSourcePropType}
+                style={{ width: 56, height: 56, borderRadius: 28 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <PersonIcon size={28} color="#A3A3A3" />
+            )}
+          </View>
+
+          <View className="flex-1 pt-2">
+            <View className="flex-row items-center flex-wrap gap-2 mb-0.5">
+              <Text
+                className="text-base font-bold text-neutral-900"
+                numberOfLines={1}
+              >
+                {item.name}
+              </Text>
+              {item.connectionStatus && (
+                <View
+                  className="px-2 py-0.5 rounded-full"
+                  style={{
+                    backgroundColor:
+                      item.connectionStatus === "accepted"
+                        ? "#D1FAE5"
+                        : "#FEF3C7",
+                  }}
+                >
+                  <Text
+                    className="text-xs font-medium"
+                    style={{
+                      color:
+                        item.connectionStatus === "accepted"
+                          ? "#10B981"
+                          : "#F59E0B",
+                    }}
+                  >
+                    {item.connectionStatus === "accepted"
+                      ? "Connected"
+                      : "Pending"}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <Text className="text-sm text-neutral-600" numberOfLines={1}>
+              {item.role && item.company
+                ? `${item.role} · ${item.company}`
+                : item.role || item.company || ""}
+            </Text>
+          </View>
+        </View>
+
+        <View className="flex-row items-center justify-between">
+          {item.tags && item.tags.length > 0 ? (
+            <View className="flex-row flex-wrap flex-1 mr-3">
+              {item.tags.map((tag, index) => (
+                <View
+                  key={index}
+                  className="bg-white border border-neutral-200 rounded-full px-2.5 py-1 mr-2 mb-1"
+                >
+                  <Text className="text-xs font-medium text-neutral-900">
+                    {tag}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View className="flex-1" />
+          )}
+
+          {item.connectionStatus === "accepted" ||
+          item.connectionStatus === "pending" ? (
+            <View
+              className="flex-row items-center justify-center rounded-xl px-3 py-2 flex-shrink-0"
+              style={{ backgroundColor: "#E5E7EB" }}
+            >
+              <PeopleIcon size={16} color="#9CA3AF" />
+              <Text className="text-sm font-medium text-neutral-500 ml-1.5">
+                {item.connectionStatus === "accepted"
+                  ? "Connected"
+                  : "Pending"}
+              </Text>
+            </View>
+          ) : skipped ? (
+            <View
+              className="flex-row items-center justify-center rounded-xl px-3 py-2 flex-shrink-0"
+              style={{ backgroundColor: "#F3F4F6" }}
+            >
+              <Text className="text-sm font-medium text-neutral-500">Skipped</Text>
+            </View>
+          ) : (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                onConnect(item);
+              }}
+              className="flex-row items-center justify-center bg-neutral-100 rounded-xl px-3 py-2 flex-shrink-0"
+            >
+              <PeopleIcon size={16} color="#404040" />
+              <Text className="text-sm font-medium text-neutral-900 ml-1.5">
+                Connect
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    </Pressable>
+  );
+});
 
 // Attendee Card Component (Tinder-style card)
 interface AttendeeCardProps {
@@ -918,6 +1076,71 @@ export default function AttendeesScreen() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
 
+  /** List scrollbar: UI-thread only — avoids setState on scroll (VirtualizedList slow-update warnings). */
+  const listScrollY = useSharedValue(0);
+  const listContentHeightSV = useSharedValue(0);
+  const listLayoutHeightSV = useSharedValue(0);
+
+  const onAttendeeListScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      listScrollY.value = e.contentOffset.y;
+    },
+  });
+
+  const attendeeListScrollbarColumnStyle = useAnimatedStyle(() => {
+    const lh = listLayoutHeightSV.value;
+    const ch = listContentHeightSV.value;
+    const scrollable = ch > lh + 1 && lh >= 24;
+    return {
+      width: scrollable
+        ? ATTENDEE_LIST_SCROLLBAR_WIDTH + ATTENDEE_LIST_SCROLLBAR_GUTTER
+        : 0,
+      opacity: scrollable ? 1 : 0,
+      overflow: "hidden" as const,
+    };
+  });
+
+  const attendeeListThumbStyle = useAnimatedStyle(() => {
+    const lh = listLayoutHeightSV.value;
+    const ch = listContentHeightSV.value;
+    const y = listScrollY.value;
+    if (lh < 24 || ch <= lh + 1) {
+      return { opacity: 0, height: 0, top: 0 };
+    }
+    const minThumb = 44;
+    const thumbH = Math.min(lh, Math.max(minThumb, (lh / ch) * lh));
+    const maxScroll = Math.max(1, ch - lh);
+    const travel = Math.max(0, lh - thumbH);
+    const ratio = Math.max(0, Math.min(1, y / maxScroll));
+    const thumbTop = ratio * travel;
+    return {
+      opacity: 1,
+      position: "absolute" as const,
+      left: ATTENDEE_LIST_SCROLLBAR_GUTTER / 2,
+      top: thumbTop,
+      width: ATTENDEE_LIST_SCROLLBAR_WIDTH,
+      height: thumbH,
+      borderRadius: ATTENDEE_LIST_SCROLLBAR_WIDTH / 2,
+      overflow: "hidden" as const,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.2,
+      shadowRadius: 2,
+      elevation: 2,
+    };
+  });
+
+  const onAttendeeListContentSizeChange = useCallback((_w: number, h: number) => {
+    listContentHeightSV.value = h;
+  }, [listContentHeightSV]);
+
+  const onAttendeeListLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      listLayoutHeightSV.value = e.nativeEvent.layout.height;
+    },
+    [listLayoutHeightSV]
+  );
+
   const { toast, showToast, hideToast } = useToast();
 
   // Persist connection map for load-more (avoids re-fetching connections)
@@ -931,6 +1154,9 @@ export default function AttendeesScreen() {
   const skipEmptyDebouncedFetchOnceRef = useRef(true);
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
+
+  /** True after a successful fetch merged connections; skip redundant getConnections when restoring from session cache. */
+  const connectionsSyncedForListRef = useRef(false);
 
   // Bottom sheet animation values
   const bottomSheetTranslateY = useRef(new RNAnimated.Value(0)).current;
@@ -1103,39 +1329,91 @@ export default function AttendeesScreen() {
   };
 
   /**
-   * Fetch all attendees via normal pagination (page ≥ 1).
-   * Optional `name` → server `?name=` (list search). Omit for full event list.
-   * Do not use `page=-1` until the API is fixed: dev currently 500s with
-   * `'list' object has no attribute 'paginator'` when the view returns a raw list
-   * but still runs DRF pagination logic.
+   * Refresh connection badges on existing rows (one GET /connections/ page).
+   * Used when the list is restored from session cache without a full attendee refetch.
+   */
+  const syncConnectionStatusesOnly = useCallback(async () => {
+    const currentUserId = user?.user_id;
+    if (!currentUserId) return;
+    const emptyConnections = {
+      connections: [] as any[],
+      pagination: { count: 0, next: null, previous: null },
+    };
+    const connectionsRes = await connectionService
+      .getConnections(1, 100)
+      .catch(() => emptyConnections);
+    const map = new Map<string, "pending" | "accepted">();
+    const currentId = String(currentUserId);
+    for (const c of connectionsRes.connections) {
+      const fromId = String(c.from_user.id);
+      const toId = String(c.to_user.id);
+      const otherId = fromId === currentId ? toId : fromId;
+      if (c.status === "pending" || c.status === "accepted") {
+        map.set(otherId, c.status);
+      }
+    }
+    connectionStatusMapRef.current = map;
+    setAllAttendeesBackend((prev) =>
+      prev.map((a) => ({
+        ...a,
+        connectionStatus: map.get(String(a.id)) ?? null,
+      }))
+    );
+    connectionsSyncedForListRef.current = true;
+  }, [user?.user_id]);
+
+  /**
+   * Fetch attendees for the event.
+   * - Full list (no `name`): `GET …/attendees/{id}/all` with **no query params** on the first
+   *   request (backend returns one large payload when possible). If `pagination.next` is still
+   *   set, follow with `?page=2`… only (no `page_size` / `ordering`).
+   * - List search: `?name=&page=&page_size=&ordering=` so pages stay stable while filtering.
    */
   const fetchAttendees = useCallback(
     async (reason?: string, options?: { name?: string }) => {
     const fetchGen = ++attendeesFetchGenRef.current;
     const nameFilter = options?.name?.trim() || undefined;
     lastServerNameFilterRef.current = nameFilter ?? "";
+    const isServerNameSearch = !!nameFilter;
+
+    const searchAttendeeFilters = (page: number) => ({
+      page,
+      page_size: ATTENDEE_PAGE_SIZE,
+      ordering: ATTENDEE_LIST_ORDERING,
+      name: nameFilter as string,
+    });
+
     if (__DEV__) {
-      const mode = nameFilter
-        ? `server ?name="${nameFilter}"`
-        : "server full list (no name param)";
+      const mode = isServerNameSearch
+        ? `server search ?name=…&page&ordering`
+        : "server full list (no query params on page 1)";
       console.log(
         `[AttendeesFetch] ${reason ?? "?"} · ${mode} · event ${EVENT_ID}`
       );
     }
     setIsLoading(true);
     setError(null);
+    connectionsSyncedForListRef.current = false;
     try {
       const currentUserId = user?.user_id;
 
-      const connectionsRes = await (currentUserId
-        ? connectionService.getConnections(1, 100).catch(() => ({
-            connections: [] as any[],
-            pagination: { count: 0, next: null, previous: null },
-          }))
-        : Promise.resolve({
-            connections: [] as any[],
-            pagination: { count: 0, next: null, previous: null },
-          }));
+      const emptyConnections = {
+        connections: [] as any[],
+        pagination: { count: 0, next: null, previous: null },
+      };
+
+      const [connectionsRes, firstRes] = await Promise.all([
+        currentUserId
+          ? connectionService.getConnections(1, 100).catch(() => emptyConnections)
+          : Promise.resolve(emptyConnections),
+        isServerNameSearch
+          ? attendeeService.getEventAttendees(
+              EVENT_ID,
+              "all",
+              searchAttendeeFilters(1)
+            )
+          : attendeeService.getEventAttendees(EVENT_ID, "all"),
+      ]);
 
       const connectionStatusMap = new Map<string, "pending" | "accepted">();
       if (currentUserId && connectionsRes.connections.length > 0) {
@@ -1167,35 +1445,105 @@ export default function AttendeesScreen() {
       };
 
       let page = 1;
-      for (; page <= ATTENDEE_FETCH_MAX_PAGES; page++) {
-        const res = await attendeeService.getEventAttendees(EVENT_ID, "all", {
-          page,
-          page_size: ATTENDEE_PAGE_SIZE,
-          ordering: ATTENDEE_LIST_ORDERING,
-          ...(nameFilter ? { name: nameFilter } : {}),
-        });
-        const batch = res.attendees;
-        const totalCount = res.pagination?.count ?? 0;
-        const hasNext = !!res.pagination?.next;
+      let batch = firstRes.attendees;
+      let totalCount = firstRes.pagination?.count ?? 0;
+      let hasNext = !!firstRes.pagination?.next;
 
-        if (batch.length === 0) break;
+      if (__DEV__) {
+        const mode = isServerNameSearch
+          ? `asked page_size=${ATTENDEE_PAGE_SIZE} · ordering=${ATTENDEE_LIST_ORDERING}`
+          : "no query params";
+        console.log(
+          `[AttendeesFetch] page 1 · batch=${batch.length} · API count=${totalCount || "—"} · hasNext=${hasNext} · ${mode}`
+        );
+      }
 
+      if (batch.length > 0) {
         mergeBatch(batch);
+      }
 
-        if (totalCount > 0 && allMapped.length >= totalCount) break;
-        if (batch.length < ATTENDEE_PAGE_SIZE) break;
-        if (hasNext) continue;
-        if (totalCount > 0 && allMapped.length < totalCount) continue;
-        break;
+      // More pages: search uses full filter set; full list uses `?page=` only (after param-less first hit).
+      const needMorePages =
+        hasNext &&
+        batch.length > 0 &&
+        !(totalCount > 0 && allMapped.length >= totalCount);
+
+      if (needMorePages) {
+        const inferredPages =
+          totalCount > 0
+            ? Math.min(
+                ATTENDEE_FETCH_MAX_PAGES,
+                Math.ceil(totalCount / batch.length)
+              )
+            : 1;
+
+        if (inferredPages > 1) {
+          const rest = Array.from({ length: inferredPages - 1 }, (_, i) => i + 2);
+          const restResults = await Promise.all(
+            rest.map((p) =>
+              attendeeService.getEventAttendees(
+                EVENT_ID,
+                "all",
+                isServerNameSearch ? searchAttendeeFilters(p) : { page: p }
+              )
+            )
+          );
+          for (let i = 0; i < restResults.length; i++) {
+            const res = restResults[i];
+            const p = rest[i];
+            const b = res.attendees;
+            const tc = res.pagination?.count ?? totalCount;
+            const hn = !!res.pagination?.next;
+            if (__DEV__) {
+              const tag = isServerNameSearch ? "parallel · search filters" : "parallel · page only";
+              console.log(
+                `[AttendeesFetch] page ${p} · batch=${b.length} · API count=${tc || "—"} · hasNext=${hn} (${tag})`
+              );
+            }
+            if (b.length > 0) mergeBatch(b);
+          }
+          page = inferredPages;
+        } else {
+          let lastPage = 1;
+          for (let p = 2; p <= ATTENDEE_FETCH_MAX_PAGES; p++) {
+            const res = await attendeeService.getEventAttendees(
+              EVENT_ID,
+              "all",
+              isServerNameSearch ? searchAttendeeFilters(p) : { page: p }
+            );
+            const b = res.attendees;
+            totalCount = res.pagination?.count ?? totalCount;
+            hasNext = !!res.pagination?.next;
+            lastPage = p;
+            if (__DEV__) {
+              console.log(
+                `[AttendeesFetch] page ${p} · batch=${b.length} · API count=${totalCount || "—"} · hasNext=${hasNext} · sequential`
+              );
+            }
+            if (b.length === 0) break;
+            mergeBatch(b);
+            if (totalCount > 0 && allMapped.length >= totalCount) break;
+            if (!hasNext) break;
+          }
+          page = lastPage;
+        }
       }
 
       if (fetchGen !== attendeesFetchGenRef.current) return;
       if (__DEV__) {
         const tag = nameFilter ? ` · name="${nameFilter}"` : "";
         console.log(
-          `[AttendeesFetch] done · ${allMapped.length} rows · ${page} page(s)${tag}`
+          `[AttendeesFetch] done · ${allMapped.length} unique in UI · API count=${totalCount || "—"} · ${page} page(s)${tag}`
         );
       }
+      connectionsSyncedForListRef.current = true;
+      if (!nameFilter) {
+        attendeeFullListSessionCache = {
+          eventId: EVENT_ID,
+          attendees: allMapped.map((a) => ({ ...a })),
+        };
+      }
+      setError(null);
       setAllAttendeesBackend(allMapped);
       setAttendeePage(page);
       setHasMoreAttendees(false);
@@ -1245,12 +1593,18 @@ export default function AttendeesScreen() {
     try {
       const nextPage = attendeePage + 1;
       const nameForMore = lastServerNameFilterRef.current.trim();
-      const res = await attendeeService.getEventAttendees(EVENT_ID, "all", {
-        page: nextPage,
-        page_size: ATTENDEE_PAGE_SIZE,
-        ordering: ATTENDEE_LIST_ORDERING,
-        ...(nameForMore ? { name: nameForMore } : {}),
-      });
+      const res = await attendeeService.getEventAttendees(
+        EVENT_ID,
+        "all",
+        nameForMore
+          ? {
+              page: nextPage,
+              page_size: ATTENDEE_PAGE_SIZE,
+              ordering: ATTENDEE_LIST_ORDERING,
+              name: nameForMore,
+            }
+          : { page: nextPage }
+      );
       const mapRef = connectionStatusMapRef.current;
       const mapped = res.attendees.map((a) => {
         const ui = mapBackendAttendeeToUI(a);
@@ -1267,20 +1621,32 @@ export default function AttendeesScreen() {
     }
   }, [hasMoreAttendees, loadingMore, isLoading, attendeePage]);
 
-  // Fetch on mount
+  // First open: load from API. Later opens (stack remount): restore session cache — no attendee refetch.
   useEffect(() => {
+    const cache = attendeeFullListSessionCache;
+    if (cache?.eventId === EVENT_ID) {
+      connectionsSyncedForListRef.current = false;
+      setAllAttendeesBackend(cache.attendees.map((a) => ({ ...a })));
+      setIsLoading(false);
+      setError(null);
+      setHasMoreAttendees(false);
+      setAttendeePage(1);
+      return;
+    }
     void fetchAttendees("initial-mount");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Refetch on screen focus only if data is empty
+  // After cache restore, merge connection statuses once (full fetches already include connections).
+  useEffect(() => {
+    if (connectionsSyncedForListRef.current) return;
+    if (!user?.user_id || allAttendeesBackend.length === 0) return;
+    void syncConnectionStatusesOnly();
+  }, [user?.user_id, allAttendeesBackend.length, syncConnectionStatusesOnly]);
+
   useFocusEffect(
     useCallback(() => {
       refreshMeetingsBadge();
-      if (allAttendeesBackend.length === 0 && !isLoading) {
-        void fetchAttendees("focus-empty-list");
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
@@ -1454,6 +1820,22 @@ export default function AttendeesScreen() {
     setCurrentCardIndex(0);
   }, [activeTab, selectedFilterIds]);
 
+  // Reset scrollbar shared values when the list dataset changes
+  React.useEffect(() => {
+    listScrollY.value = 0;
+    listContentHeightSV.value = 0;
+    listLayoutHeightSV.value = 0;
+  }, [
+    activeTab,
+    searchQuery,
+    selectedFilterIds.join("|"),
+    allAttendeesBackend.length,
+    viewMode,
+    listScrollY,
+    listContentHeightSV,
+    listLayoutHeightSV,
+  ]);
+
   // Handle bottom sheet animation when it opens
   React.useEffect(() => {
     if (showBottomSheet && selectedAttendee) {
@@ -1572,7 +1954,7 @@ export default function AttendeesScreen() {
   const handleAttendeeMessage = useCallback(
     async (attendee: Attendee) => {
       if (attendee.connectionStatus !== "accepted") {
-        showToast("Connect with this attendee to send messages.", "info");
+        showToast("Connect with this attendee to send messages", "info");
         return;
       }
       if (isOpeningChat) return;
@@ -1601,10 +1983,10 @@ export default function AttendeesScreen() {
     [isOpeningChat, getOrCreateConversation, navigation, showToast]
   );
 
-  const openBottomSheet = (attendee: Attendee) => {
+  const openBottomSheet = useCallback((attendee: Attendee) => {
     setSelectedAttendee(attendee);
     setShowBottomSheet(true);
-  };
+  }, []);
 
   // Close bottom sheet with animation
   const closeBottomSheet = () => {
@@ -1666,142 +2048,19 @@ export default function AttendeesScreen() {
     })
   ).current;
 
-  // List View Item Component - Refactored to match Figma design exactly
-  const renderListItem = ({ item }: { item: Attendee }) => (
-    <Pressable
-      onPress={() => {
-        openBottomSheet(item);
-      }}
-      className="bg-white rounded-xl mb-3 mx-4"
-      style={{
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-      }}
-    >
-      <View className="p-4">
-        {/* Top Section: Avatar + Name/Role/Company (left aligned) */}
-        <View className="flex-row items-start mb-3">
-          {/* Profile Picture */}
-          <View className="w-14 h-14 rounded-full bg-neutral-100 border border-neutral-200 items-center justify-center mr-3 flex-shrink-0 overflow-hidden">
-            {item.avatar && typeof item.avatar === "object" && "uri" in item.avatar && item.avatar.uri ? (
-              <Image
-                source={item.avatar as ImageSourcePropType}
-                style={{ width: 56, height: 56, borderRadius: 28 }}
-                resizeMode="cover"
-              />
-            ) : (
-              <PersonIcon size={28} color="#A3A3A3" />
-            )}
-          </View>
-
-          {/* Name and Role/Company - Stacked vertically */}
-          <View className="flex-1 pt-2">
-            {/* Name - Bold and prominent, with optional status badge */}
-            <View className="flex-row items-center flex-wrap gap-2 mb-0.5">
-              <Text
-                className="text-base font-bold text-neutral-900"
-                numberOfLines={1}
-              >
-                {item.name}
-              </Text>
-              {item.connectionStatus && (
-                <View
-                  className="px-2 py-0.5 rounded-full"
-                  style={{
-                    backgroundColor:
-                      item.connectionStatus === "accepted"
-                        ? "#D1FAE5"
-                        : "#FEF3C7",
-                  }}
-                >
-                  <Text
-                    className="text-xs font-medium"
-                    style={{
-                      color:
-                        item.connectionStatus === "accepted"
-                          ? "#10B981"
-                          : "#F59E0B",
-                    }}
-                  >
-                    {item.connectionStatus === "accepted"
-                      ? "Connected"
-                      : "Pending"}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* Role and Company - Lighter text */}
-            <Text className="text-sm text-neutral-600" numberOfLines={1}>
-              {item.role && item.company
-                ? `${item.role} · ${item.company}`
-                : item.role || item.company || ""}
-            </Text>
-          </View>
-        </View>
-
-        {/* Bottom Section: Tags and Connect Button (spaced between) */}
-        <View className="flex-row items-center justify-between">
-          {/* Tags with light gray borders */}
-          {item.tags && item.tags.length > 0 ? (
-            <View className="flex-row flex-wrap flex-1 mr-3">
-              {item.tags.map((tag, index) => (
-                <View
-                  key={index}
-                  className="bg-white border border-neutral-200 rounded-full px-2.5 py-1 mr-2 mb-1"
-                >
-                  <Text className="text-xs font-medium text-neutral-900">
-                    {tag}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View className="flex-1" />
-          )}
-
-          {/* Connect / Skipped / status */}
-          {item.connectionStatus === "accepted" ||
-          item.connectionStatus === "pending" ? (
-            <View
-              className="flex-row items-center justify-center rounded-xl px-3 py-2 flex-shrink-0"
-              style={{ backgroundColor: "#E5E7EB" }}
-            >
-              <PeopleIcon size={16} color="#9CA3AF" />
-              <Text className="text-sm font-medium text-neutral-500 ml-1.5">
-                {item.connectionStatus === "accepted"
-                  ? "Connected"
-                  : "Pending"}
-              </Text>
-            </View>
-          ) : skippedAttendeeIds.has(item.id) ? (
-            <View
-              className="flex-row items-center justify-center rounded-xl px-3 py-2 flex-shrink-0"
-              style={{ backgroundColor: "#F3F4F6" }}
-            >
-              <Text className="text-sm font-medium text-neutral-500">Skipped</Text>
-            </View>
-          ) : (
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation();
-                handleConnect(item);
-              }}
-              className="flex-row items-center justify-center bg-neutral-100 rounded-xl px-3 py-2 flex-shrink-0"
-            >
-              <PeopleIcon size={16} color="#404040" />
-              <Text className="text-sm font-medium text-neutral-900 ml-1.5">
-                Connect
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
-    </Pressable>
+  const renderAttendeeListItem = useCallback(
+    ({ item }: ListRenderItemInfo<Attendee>) => (
+      <AttendeeListRow
+        item={item}
+        skipped={skippedAttendeeIds.has(item.id)}
+        onOpen={openBottomSheet}
+        onConnect={handleConnect}
+      />
+    ),
+    [skippedAttendeeIds, openBottomSheet, handleConnect]
   );
+
+  const attendeeListKeyExtractor = useCallback((item: Attendee) => item.id, []);
 
   const bottomNavItems = [
     {
@@ -2146,30 +2405,77 @@ export default function AttendeesScreen() {
             )}
           </View>
         ) : (
-          <View className="flex-1">
+          <View className="flex-1" style={{ minHeight: 0 }}>
             {displayedAttendees.length > 0 ? (
-              <FlatList
-                data={displayedAttendees}
-                renderItem={renderListItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={{ paddingTop: 8, paddingBottom: 16 }}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={onRefresh}
-                    tintColor="#1BB273"
-                    colors={["#1BB273"]}
-                  />
-                }
-                ListEmptyComponent={
-                  <View className="items-center justify-center py-12">
-                    <Text className="text-base text-neutral-500">
-                      No attendees found
-                    </Text>
+              <View className="flex-1 flex-row" style={{ minHeight: 0 }}>
+                <Animated.FlatList
+                  style={{ flex: 1, minWidth: 0 }}
+                  data={displayedAttendees}
+                  renderItem={renderAttendeeListItem}
+                  keyExtractor={attendeeListKeyExtractor}
+                  contentContainerStyle={{ paddingTop: 8, paddingBottom: 16 }}
+                  showsVerticalScrollIndicator={false}
+                  scrollEventThrottle={16}
+                  onScroll={onAttendeeListScroll}
+                  onContentSizeChange={onAttendeeListContentSizeChange}
+                  onLayout={onAttendeeListLayout}
+                  initialNumToRender={12}
+                  maxToRenderPerBatch={12}
+                  windowSize={10}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={onRefresh}
+                      tintColor="#1BB273"
+                      colors={["#1BB273"]}
+                    />
+                  }
+                  ListEmptyComponent={
+                    <View className="items-center justify-center py-12">
+                      <Text className="text-base text-neutral-500">
+                        No attendees found
+                      </Text>
+                    </View>
+                  }
+                />
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    {
+                      alignSelf: "stretch",
+                      paddingVertical: 6,
+                      paddingRight: 4,
+                    },
+                    attendeeListScrollbarColumnStyle,
+                  ]}
+                >
+                  <View style={{ flex: 1, position: "relative" }}>
+                    <LinearGradient
+                      colors={["#F3F3F3", "#DCDCDC", "#C4C4C4"]}
+                      locations={[0, 0.5, 1]}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
+                      style={{
+                        position: "absolute",
+                        left: ATTENDEE_LIST_SCROLLBAR_GUTTER / 2,
+                        top: 0,
+                        bottom: 0,
+                        width: ATTENDEE_LIST_SCROLLBAR_WIDTH,
+                        borderRadius: ATTENDEE_LIST_SCROLLBAR_WIDTH / 2,
+                      }}
+                    />
+                    <Animated.View style={attendeeListThumbStyle}>
+                      <LinearGradient
+                        colors={["#B0B0B0", "#888888", "#6A6A6A"]}
+                        locations={[0, 0.45, 1]}
+                        start={{ x: 0.5, y: 0 }}
+                        end={{ x: 0.5, y: 1 }}
+                        style={{ flex: 1 }}
+                      />
+                    </Animated.View>
                   </View>
-                }
-              />
+                </Animated.View>
+              </View>
             ) : (
               <View className="items-center justify-center py-12">
                 <Text className="text-base text-neutral-500">

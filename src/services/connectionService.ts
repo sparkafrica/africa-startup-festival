@@ -68,6 +68,19 @@ export interface ConnectionActionRequest {
   action: "accept" | "reject" | "block";
 }
 
+/** POST may return ApiResponse<Connection> or a raw Connection body depending on backend. */
+function isConnectionEntityPayload(value: unknown): value is Connection {
+  if (typeof value !== "object" || value === null) return false;
+  const o = value as Record<string, unknown>;
+  return (
+    o.id != null &&
+    typeof o.from_user === "object" &&
+    o.from_user !== null &&
+    typeof o.to_user === "object" &&
+    o.to_user !== null
+  );
+}
+
 // ============================================================================
 // SERVICE
 // ============================================================================
@@ -212,8 +225,9 @@ export const connectionService = {
       }
 
       // Check if response IS the Connection object directly (like GET /connections/)
-      if (response.id && response.from_user && response.to_user) {
-        return response as Connection;
+      const asEntity = response as unknown;
+      if (isConnectionEntityPayload(asEntity)) {
+        return asEntity;
       }
 
       throw new ApiClientError({

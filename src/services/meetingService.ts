@@ -203,6 +203,29 @@ export interface PaginatedMeetingSlotList {
   results: MeetingSlot[];
 }
 
+/** POST may return ApiResponse<Meeting> or a raw Meeting body depending on backend. */
+function isMeetingEntityPayload(value: unknown): value is Meeting {
+  if (typeof value !== "object" || value === null) return false;
+  const o = value as Record<string, unknown>;
+  return (
+    o.id != null &&
+    typeof o.slot === "object" &&
+    o.slot !== null &&
+    typeof o.requester === "string"
+  );
+}
+
+/** POST may return ApiResponse<VirtualMeeting> or a raw VirtualMeeting body depending on backend. */
+function isVirtualMeetingEntityPayload(value: unknown): value is VirtualMeeting {
+  if (typeof value !== "object" || value === null) return false;
+  const o = value as Record<string, unknown>;
+  return (
+    o.id != null &&
+    typeof o.requester === "string" &&
+    typeof o.requestee === "string"
+  );
+}
+
 // ============================================================================
 // SERVICE
 // ============================================================================
@@ -425,8 +448,9 @@ export const meetingService = {
       }
 
       // Check if response IS the Meeting object directly
-      if (response.id && response.slot && response.requester) {
-        return response as Meeting;
+      const meetingEntity = response as unknown;
+      if (isMeetingEntityPayload(meetingEntity)) {
+        return meetingEntity;
       }
 
       // Parse validation errors from response
@@ -593,8 +617,9 @@ export const meetingService = {
       }
 
       // Check if response IS the Meeting object directly
-      if (response.id && response.slot && response.requester) {
-        return response as Meeting;
+      const meetingEntity = response as unknown;
+      if (isMeetingEntityPayload(meetingEntity)) {
+        return meetingEntity;
       }
 
       throw new ApiClientError({
@@ -705,8 +730,9 @@ export const meetingService = {
       }
 
       // Check if response IS the Meeting object directly
-      if (response.id && response.slot && response.requester) {
-        return response as Meeting;
+      const meetingEntity = response as unknown;
+      if (isMeetingEntityPayload(meetingEntity)) {
+        return meetingEntity;
       }
 
       throw new ApiClientError({
@@ -803,8 +829,9 @@ export const meetingService = {
         return response.data as VirtualMeeting;
       }
 
-      if (response.id && response.requester && response.requestee) {
-        return response as VirtualMeeting;
+      const vmEntity = response as unknown;
+      if (isVirtualMeetingEntityPayload(vmEntity)) {
+        return vmEntity;
       }
 
       // Parse validation errors from response
@@ -891,10 +918,10 @@ export const meetingService = {
           
           if (fieldErrors.length > 0) {
             throw new ApiClientError({
-              status: error.status,
+              status: "error",
               message: fieldErrors.join(". "),
-              response_code: error.response_code,
-              data: error.data,
+              response_code: error.responseCode,
+              data: error.data ?? {},
             });
           }
         }
@@ -941,8 +968,9 @@ export const meetingService = {
         return response.data as VirtualMeeting;
       }
 
-      if (response.id && response.requester && response.requestee) {
-        return response as VirtualMeeting;
+      const vmEntity = response as unknown;
+      if (isVirtualMeetingEntityPayload(vmEntity)) {
+        return vmEntity;
       }
 
       throw new ApiClientError({
@@ -1042,8 +1070,9 @@ export const meetingService = {
         return response.data as VirtualMeeting;
       }
 
-      if (response.id && response.requester && response.requestee) {
-        return response as VirtualMeeting;
+      const vmEntity = response as unknown;
+      if (isVirtualMeetingEntityPayload(vmEntity)) {
+        return vmEntity;
       }
 
       throw new ApiClientError({

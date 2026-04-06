@@ -13,7 +13,10 @@ import {
   Linking,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import {
   HeaderBar,
   BottomNavigation,
@@ -254,7 +257,8 @@ export default function ConnectionsScreen() {
   const { toast, showToast, hideToast } = useToast();
   const { markRequestMeetingComplete, markConnectAttendeesComplete } = useChecklist();
   const { getOrCreateConversation } = useChat();
-  
+  const insets = useSafeAreaInsets();
+
   // Search state (commented out for now)
   // const [searchQuery, setSearchQuery] = useState("");
   
@@ -1461,6 +1465,21 @@ export default function ConnectionsScreen() {
                       );
                     })()
                   )}
+
+                  {selectedConnection.status === "pending" &&
+                    !selectedConnection.isFromCurrentUser && (
+                      <View
+                        style={{
+                          paddingHorizontal: 4,
+                          paddingTop: 4,
+                          paddingBottom: Math.max(insets.bottom, 10) + 0,
+                        }}
+                      >
+                        <Text className="text-xs text-neutral-500 text-center leading-5">
+                          Accepting this connection means your contact details will be shared, so you can stay in touch.
+                        </Text>
+                      </View>
+                    )}
 
                   {/* Remove Connection button for both rejected and accepted connections */}
                   {(selectedConnection.status === "rejected" ||
