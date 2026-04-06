@@ -105,8 +105,17 @@ const LOAD_MORE_THRESHOLD = 3;
 const RECOMMENDED_MIN_SCORE = 8;
 
 /** Custom list scrollbar (track + thumb) — native indicators are often invisible on Android / dark UI. */
-const ATTENDEE_LIST_SCROLLBAR_WIDTH = 6;
+const ATTENDEE_LIST_SCROLLBAR_WIDTH = Platform.OS === "ios" ? 7 : 6;
 const ATTENDEE_LIST_SCROLLBAR_GUTTER = 8;
+/** iOS: darker stops so the bar reads on white/light grey; Android: lighter track matches Material surfaces. */
+const ATTENDEE_LIST_SCROLLBAR_TRACK_COLORS =
+  Platform.OS === "ios"
+    ? (["#D4D4D4", "#B8B8B8", "#9CA3AF"] as const)
+    : (["#F3F3F3", "#DCDCDC", "#C4C4C4"] as const);
+const ATTENDEE_LIST_SCROLLBAR_THUMB_COLORS =
+  Platform.OS === "ios"
+    ? (["#6B7280", "#52525B", "#3F3F46"] as const)
+    : (["#B0B0B0", "#888888", "#6A6A6A"] as const);
 
 /**
  * Parse match_info from backend (may be JSON string or object).
@@ -2451,7 +2460,7 @@ export default function AttendeesScreen() {
                 >
                   <View style={{ flex: 1, position: "relative" }}>
                     <LinearGradient
-                      colors={["#F3F3F3", "#DCDCDC", "#C4C4C4"]}
+                      colors={[...ATTENDEE_LIST_SCROLLBAR_TRACK_COLORS]}
                       locations={[0, 0.5, 1]}
                       start={{ x: 0.5, y: 0 }}
                       end={{ x: 0.5, y: 1 }}
@@ -2466,7 +2475,7 @@ export default function AttendeesScreen() {
                     />
                     <Animated.View style={attendeeListThumbStyle}>
                       <LinearGradient
-                        colors={["#B0B0B0", "#888888", "#6A6A6A"]}
+                        colors={[...ATTENDEE_LIST_SCROLLBAR_THUMB_COLORS]}
                         locations={[0, 0.45, 1]}
                         start={{ x: 0.5, y: 0 }}
                         end={{ x: 0.5, y: 1 }}
