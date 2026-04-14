@@ -25,6 +25,8 @@ import LoadingSpinner from "./LoadingSpinner";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
 import { getCanUserBookMeetings } from "../utils/meetingRestrictions";
+import { filterPhysicalSlotsExcludingRequesteeBusyWindows } from "../utils/meetingRequesteeAvailability";
+import { trackMeetingEvent } from "../utils/analytics";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -42,7 +44,11 @@ interface RequestMeetingModalProps {
   /** When provided, modal enforces Expo pass: if user cannot book meetings, closes and calls this (e.g. show upgrade alert). */
   onExpoBlocked?: () => void;
   attendeeName?: string;
+  /** When set, physical slots overlapping this user's pending/accepted meetings (from our calendar) are hidden. */
+  requesteeUserId?: string;
   eventId?: number; // Allow override, defaults to EVENT_ID
+  /** For analytics (meeting_request_started). */
+  analyticsSource?: string;
 }
 
 export interface MeetingFormData {
@@ -64,7 +70,9 @@ export default function RequestMeetingModal({
   onSubmit,
   onExpoBlocked,
   attendeeName,
+  requesteeUserId,
   eventId = EVENT_ID,
+  analyticsSource = "unknown",
 }: RequestMeetingModalProps) {
   const [meetingType, setMeetingType] = useState<"Physical" | "Virtual">(
     "Physical"
@@ -189,29 +197,65 @@ export default function RequestMeetingModal({
 
       // Fetch available meeting slots
       fetchMeetingSlots();
+      void trackMeetingEvent("request_started", { source: analyticsSource });
     } else {
       translateY.setValue(SCREEN_HEIGHT);
     }
-  }, [visible, translateY]);
+  }, [visible, translateY, eventId, requesteeUserId, analyticsSource]);
 
   const fetchMeetingSlots = async () => {
     try {
       setIsLoadingSlots(true);
       setSlotsError(null);
       const response = await meetingService.getMeetingSlots(eventId);
-      
-      // Filter to only show truly available slots
-      // is_available should be true, but we'll also verify the slot isn't taken
-      const availableSlots = response.slots.filter(slot => slot.is_available === true);
-      
+
+      let availableSlots = response.slots.filter(
+        (slot) => slot.is_available === true,
+      );
+
+      if (requesteeUserId?.trim()) {
+        try {
+          const [meetings, virtualMeetings] = await Promise.all([
+            meetingService.getMeetings(),
+            meetingService.getVirtualMeetings(),
+          ]);
+          const before = availableSlots.length;
+          availableSlots = filterPhysicalSlotsExcludingRequesteeBusyWindows(
+            availableSlots,
+            meetings,
+            virtualMeetings,
+            requesteeUserId.trim(),
+          );
+          if (__DEV__) {
+            console.log(
+              "[RequestMeetingModal] slots after requestee busy-window filter",
+              {
+                requesteeUserId: requesteeUserId.trim(),
+                apiAvailable: before,
+                afterFilter: availableSlots.length,
+                removedAsBusy: before - availableSlots.length,
+              },
+            );
+          }
+        } catch (e) {
+          if (__DEV__) {
+            console.warn(
+              "[RequestMeetingModal] could not load meetings for requestee conflict filter; showing API slots only",
+              e,
+            );
+          }
+        }
+      }
+
       if (__DEV__) {
         console.log("📅 Slots loaded:", {
           total: response.slots.length,
-          available: availableSlots.length,
-          unavailable: response.slots.filter(s => !s.is_available).length,
+          availableAfterFilters: availableSlots.length,
+          unavailableFromApi: response.slots.filter((s) => !s.is_available)
+            .length,
         });
       }
-      
+
       setMeetingSlots(availableSlots);
     } catch (error: any) {
       setSlotsError(error?.message || "Failed to load meeting slots");

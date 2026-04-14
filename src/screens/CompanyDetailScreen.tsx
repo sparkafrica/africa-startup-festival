@@ -42,6 +42,7 @@ import {
   showExpoCannotBookMeetingAlert,
 } from "../utils/meetingRestrictions";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
+import { trackMeetingEvent } from "../utils/analytics";
 
 // ============================================
 // MODAL HEIGHT CONFIGURATION
@@ -664,6 +665,7 @@ function CompanyDetailScreenInner({ route }: Props) {
       {/* Request Meeting Modal */}
       <RequestMeetingModal
         visible={isRequestMeetingModalVisible}
+        analyticsSource="company_detail_screen"
         onClose={() => setIsRequestMeetingModalVisible(false)}
         onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
         onSubmit={async (data: MeetingFormData) => {
@@ -681,6 +683,9 @@ function CompanyDetailScreenInner({ route }: Props) {
               data,
               adminUserId
             );
+            void trackMeetingEvent("request_submitted", {
+              source: "company_detail_screen",
+            });
             markRequestMeetingComplete();
             setMeetingRequestData({
               attendeeName: companyData.name,
@@ -699,6 +704,7 @@ function CompanyDetailScreenInner({ route }: Props) {
           }
         }}
         attendeeName={displayName}
+        requesteeUserId={adminUserId ?? undefined}
       />
 
       {/* Meeting Request Message Modal */}

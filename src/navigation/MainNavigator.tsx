@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import * as Updates from "expo-updates";
 import type { RootStackParamList } from "./types";
 
 // Main App Screens
@@ -28,6 +27,7 @@ import ContactScreen from "../screens/ContactScreen";
 import TalentBoardScreen from "../screens/TalentBoardScreen";
 import PartnersOffersScreen from "../screens/PartnersOffersScreen";
 import AppGuideScreen from "../screens/AppGuideScreen";
+import { runEarlyOtaCheckOnly } from "../utils/otaUpdateFlow";
 
 // // Work around occasional TS module-resolution lag for newly added screens on Windows.
 // const MessagesScreen = require("../screens/MessagesScreen").default as React.ComponentType<any>;
@@ -35,20 +35,9 @@ import AppGuideScreen from "../screens/AppGuideScreen";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function MainNavigator() {
-  // Check for OTA updates only after user is authenticated (avoids overlap with login/verification flow)
+  // Returning users skip Verification — same early OTA check here (check only; fetch/reload on Home after delay).
   useEffect(() => {
-    if (__DEV__) return;
-    const runUpdateCheck = async () => {
-      try {
-        const update = await Updates.checkForUpdateAsync();
-        if (update.isAvailable) {
-          await Updates.fetchUpdateAsync();
-        }
-      } catch {
-        // Silently ignore update check failures
-      }
-    };
-    runUpdateCheck();
+    void runEarlyOtaCheckOnly();
   }, []);
 
   return (

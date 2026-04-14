@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { View, ScrollView, Pressable, Text, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -15,7 +15,6 @@ import {
   HeaderBar,
   PartnerCard,
   BottomNavigation,
-  FilterTag,
   FilterModal,
   LoadingSpinner,
   type FilterCategory,
@@ -25,6 +24,8 @@ import { ChevronDownIcon } from "../components/icons";
 import { eventService } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
+import { getIndustryAndInterestFilterCategories } from "../constants/industryAndInterests";
+import { directoryCompanyMatchesFilters } from "../utils/directoryFilters";
 import {
   HomeIcon,
   HomeIconFilled,
@@ -48,50 +49,26 @@ export default function PartnersScreen() {
   const [selectedFilterIds, setSelectedFilterIds] = useState<string[]>([]);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
-  const filterCategories: FilterCategory[] = [
-    {
-      id: "industry",
-      title: "Industry / Sector",
-      options: [
-        { id: "technology", label: "Technology" },
-        { id: "fintech", label: "Fintech" },
-        { id: "healthcare", label: "Healthcare" },
-        { id: "education", label: "Education" },
-        { id: "sustainability", label: "Sustainability" },
-        { id: "ecommerce", label: "E-commerce" },
-        { id: "transportation", label: "Transportation" },
-      ],
-    },
-    {
-      id: "interests",
-      title: "Interests",
-      options: [
-        { id: "ai-ml", label: "AI/ML" },
-        { id: "saas", label: "SaaS" },
-        { id: "product-strategy", label: "Product Strategy" },
-        { id: "ecommerce-interest", label: "E-commerce" },
-        { id: "fintech-interest", label: "Fintech" },
-        { id: "developer-tools", label: "Developer Tools" },
-        { id: "infrastructure", label: "Infrastructure" },
-        { id: "growth-marketing", label: "Growth Marketing" },
-      ],
-    },
-  ];
+  const filterCategories: FilterCategory[] = useMemo(
+    () => getIndustryAndInterestFilterCategories(),
+    []
+  );
 
   const handleApplyFilters = (filterIds: string[]) => {
     setSelectedFilterIds(filterIds);
   };
 
-  // Helper function to get filter label from ID
-  const getFilterLabel = (id: string): string => {
-    for (const category of filterCategories) {
-      const option = category.options.find((opt) => opt.id === id);
-      if (option) return option.label;
-    }
-    return id;
-  };
-
-  const [partners, setPartners] = useState<{ id: number; name: string; logoColor: string; logo?: string }[]>([]);
+  const [partners, setPartners] = useState<
+    {
+      id: number;
+      name: string;
+      logoColor: string;
+      logo?: string;
+      company_sector?: string | null;
+      company_description?: string | null;
+      metadata?: Record<string, unknown> | null;
+    }[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -118,6 +95,9 @@ export default function PartnersScreen() {
           name,
           logoColor,
           logo: c.logo ?? undefined,
+          company_sector: c.company_sector ?? null,
+          company_description: c.company_description ?? null,
+          metadata: c.metadata ?? null,
         };
       });
       setPartners(list);
@@ -134,9 +114,12 @@ export default function PartnersScreen() {
     fetchPartners();
   }, [fetchPartners]);
 
-  const removeFilter = (filterId: string) => {
-    setSelectedFilterIds(selectedFilterIds.filter((id) => id !== filterId));
-  };
+  const displayedPartners = useMemo(() => {
+    if (selectedFilterIds.length === 0) return partners;
+    return partners.filter((row) =>
+      directoryCompanyMatchesFilters(selectedFilterIds, filterCategories, row)
+    );
+  }, [partners, selectedFilterIds, filterCategories]);
 
   const bottomNavItems = [
     {
@@ -196,6 +179,12 @@ export default function PartnersScreen() {
     <View className="flex-1 bg-white">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMyTicketPress={() =>
+          navigation.navigate("ScanQR", {
+            initialTab: "My Ticket",
+            openPersonalTicketQr: true,
+          })
+        }
         onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
@@ -208,7 +197,12 @@ export default function PartnersScreen() {
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={false} onRefresh={() => fetchPartners(true)} tintColor="#1BB273" colors={["#1BB273"]} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => fetchPartners(true)}
+            tintColor="#1BB273"
+            colors={["#1BB273"]}
+          />
         }
       >
         {/* Screen Title Section */}
@@ -225,8 +219,8 @@ export default function PartnersScreen() {
           </Pressable>
         </View>
 
-        {/* Filter Section */}
-        <View className="px-4 mb-1 rounded-xl">
+        {/* Filter Section — selections only in modal (no chip row) */}
+        <View className="px-4 mb-4 rounded-xl">
           <Pressable
             className="flex-row items-center justify-between border border-neutral-300 bg-white rounded-xl px-4 py-1.5"
             onPress={() => setIsFilterModalVisible(true)}
@@ -242,25 +236,16 @@ export default function PartnersScreen() {
               <FilterIcon size={20} color="#404040" />
               <Text className="text-[16px] font-medium text-neutral-900 ml-1">
                 Filter
+                {selectedFilterIds.length > 0 ? (
+                  <Text className="text-[16px] font-medium text-[#000000]">
+                    {" "}
+                    ({selectedFilterIds.length})
+                  </Text>
+                ) : null}
               </Text>
             </View>
-              <ChevronDownIcon size={30} color="#404040" />
+            <ChevronDownIcon size={30} color="#404040" />
           </Pressable>
-        </View>
-
-        {/* Active Filter Tags */}
-        <View className="px-4 mb-6 rounded-xl">
-          {selectedFilterIds.length > 0 && (
-            <View className="flex-row flex-wrap mt-3">
-              {selectedFilterIds.map((filterId) => (
-                <FilterTag
-                  key={filterId}
-                  label={getFilterLabel(filterId)}
-                  onRemove={() => removeFilter(filterId)}
-                />
-              ))}
-            </View>
-          )}
         </View>
 
         {/* Partners Grid */}
@@ -284,9 +269,15 @@ export default function PartnersScreen() {
             <View className="py-12">
               <Text className="text-neutral-600 text-center">No partners available.</Text>
             </View>
+          ) : displayedPartners.length === 0 ? (
+            <View className="py-12">
+              <Text className="text-neutral-600 text-center">
+                No partners match your filters.
+              </Text>
+            </View>
           ) : (
             <View className="flex-row flex-wrap -mx-1.5">
-              {partners.map((partner) => (
+              {displayedPartners.map((partner) => (
                 <View
                   key={partner.id}
                   className="px-1.5 mb-3"

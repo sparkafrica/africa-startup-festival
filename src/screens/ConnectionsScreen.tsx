@@ -27,6 +27,7 @@ import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
 } from "../utils/meetingRestrictions";
+import { trackMeetingEvent, trackConnectionEvent } from "../utils/analytics";
 import {
   HomeIcon,
   HomeIconFilled,
@@ -498,6 +499,9 @@ export default function ConnectionsScreen() {
           meetingConnection.userId
         );
 
+        void trackMeetingEvent("request_submitted", {
+          source: "connections_screen",
+        });
         markRequestMeetingComplete();
         showToast("Meeting request sent successfully!", "success");
         setIsRequestMeetingModalVisible(false);
@@ -676,6 +680,7 @@ export default function ConnectionsScreen() {
       isProcessingActionRef.current = true;
       setIsProcessingAction(true);
       await connectionService.acceptConnection(connection.backendConnectionId);
+      void trackConnectionEvent("accepted", { source: "connections_screen" });
       markConnectAttendeesComplete();
       showToast("Connection accepted successfully!", "success");
       // Refresh connections list
@@ -736,6 +741,7 @@ export default function ConnectionsScreen() {
       isProcessingActionRef.current = true;
       setIsProcessingAction(true);
       await connectionService.rejectConnection(connection.backendConnectionId);
+      void trackConnectionEvent("declined", { source: "connections_screen" });
       showToast("Connection declined", "error");
       // Refresh connections list
       await fetchConnections();
@@ -977,6 +983,12 @@ export default function ConnectionsScreen() {
     <View className="flex-1 bg-white">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMyTicketPress={() =>
+          navigation.navigate("ScanQR", {
+            initialTab: "My Ticket",
+            openPersonalTicketQr: true,
+          })
+        }
         onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
@@ -1530,6 +1542,7 @@ export default function ConnectionsScreen() {
       {/* Request Meeting Modal */}
       <RequestMeetingModal
         visible={isRequestMeetingModalVisible}
+        analyticsSource="connections_screen"
         onClose={() => {
           if (!isSubmittingMeeting) {
             setIsRequestMeetingModalVisible(false);
@@ -1539,6 +1552,7 @@ export default function ConnectionsScreen() {
         onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
         onSubmit={handleMeetingRequestSubmit}
         attendeeName={meetingConnection?.name}
+        requesteeUserId={meetingConnection?.userId}
         eventId={EVENT_ID}
       />
 

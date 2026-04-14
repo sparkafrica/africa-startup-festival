@@ -39,7 +39,13 @@ export type RootStackParamList = {
         };
       }
     | undefined;
-  ScanQR: { initialTab?: "My Ticket" | "Scan Ticket" } | undefined;
+  ScanQR:
+    | {
+        initialTab?: "My Ticket" | "Scan Ticket";
+        /** After tickets load, open the personal ticket QR modal (same as View QR Code). */
+        openPersonalTicketQr?: boolean;
+      }
+    | undefined;
   ScannedAttendee: { attendee: Attendee } | undefined;
   Exhibitors: undefined;
   Partners: undefined;

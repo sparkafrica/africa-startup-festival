@@ -33,6 +33,7 @@ import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { useAuth } from "../context/AuthContext";
 import { useChecklist } from "../context/ChecklistContext";
+import { trackConnectionEvent, trackMeetingEvent } from "../utils/analytics";
 import { useToast } from "../hooks/useToast";
 import { EVENT_ID } from "../config/env";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
@@ -138,6 +139,9 @@ export default function ScannedAttendeeScreen() {
       formData,
       String(attendee.user.id),
     );
+    void trackMeetingEvent("request_submitted", {
+      source: "scanned_attendee_screen",
+    });
     markRequestMeetingComplete();
     showToast("Meeting request sent successfully!", "success");
     setRequestMeetingModalVisible(false);
@@ -164,6 +168,7 @@ export default function ScannedAttendeeScreen() {
     setIsConnecting(true);
     try {
       await connectionService.createConnection(user.user_id, attendee.user.id);
+      void trackConnectionEvent("sent", { source: "scanned_attendee_screen" });
       markConnectAttendeesComplete();
       showToast("Connection request sent successfully!", "success");
       navigation.replace("Connections");
@@ -412,10 +417,14 @@ export default function ScannedAttendeeScreen() {
 
       <RequestMeetingModal
         visible={requestMeetingModalVisible}
+        analyticsSource="scanned_attendee_screen"
         onClose={() => setRequestMeetingModalVisible(false)}
         onSubmit={handleMeetingSubmit}
         onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
         attendeeName={attendeeName}
+        requesteeUserId={
+          attendee ? String(attendee.user.id) : undefined
+        }
       />
 
       <Toast

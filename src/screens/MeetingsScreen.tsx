@@ -55,6 +55,7 @@ import {
   type MeetingUser,
 } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
+import { trackMeetingEvent } from "../utils/analytics";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
@@ -883,7 +884,16 @@ export default function MeetingsScreen({ route }: Props) {
         setIsModalVisible(false);
         setSelectedMeeting(null);
         if (action === "accept") {
+          void trackMeetingEvent("accepted", {
+            source: "meetings_screen",
+            meeting_type: meeting.isVirtual ? "virtual" : "physical",
+          });
           markRequestMeetingComplete();
+        } else {
+          void trackMeetingEvent("rejected", {
+            source: "meetings_screen",
+            meeting_type: meeting.isVirtual ? "virtual" : "physical",
+          });
         }
         showToast(
           action === "accept" ? "Meeting accepted" : "Meeting declined",
@@ -1173,6 +1183,12 @@ export default function MeetingsScreen({ route }: Props) {
     <View className="flex-1 bg-white">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMyTicketPress={() =>
+          navigation.navigate("ScanQR", {
+            initialTab: "My Ticket",
+            openPersonalTicketQr: true,
+          })
+        }
         onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}

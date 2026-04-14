@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -11,29 +11,29 @@ import {
   Linking,
   Alert,
   StyleSheet,
+  Animated,
+  PanResponder,
+  type LayoutChangeEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
-import { PersonProfileIcon } from "./icons";
-import { LinkedInIcon, CalendarIconWhite } from "./SocialIcons";
-import RequestMeetingModal from "./RequestMeetingModal";
-import MeetingRequestMessageModal from "./MeetingRequestMessageModal";
+import {
+  PersonProfileIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+} from "./icons";
+import { LinkedInIcon } from "./SocialIcons";
 import LoadingSpinner from "./LoadingSpinner";
-import type { MeetingFormData } from "./RequestMeetingModal";
-import { useChecklist } from "../context/ChecklistContext";
-import { eventService } from "../services/eventService";
-import { meetingService } from "../services/meetingService";
+import { eventService, type SpeakerNestedEvent } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
-import {
-  getCanUserBookMeetings,
-  showExpoCannotBookMeetingAlert,
-} from "../utils/meetingRestrictions";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 const SHEET_MAX_WIDTH = Math.min(SCREEN_WIDTH, 420);
+const DRAG_TO_CLOSE_THRESHOLD = 100;
+const SHEET_MAX_HEIGHT = SCREEN_HEIGHT * 0.85;
 const TAG_COLORS = ["#7DD3FC", "#86EFAC", "#93C5FD", "#A7F3D0"];
 const AVATAR_COLORS = [
   "#2762C7",
@@ -45,6 +45,60 @@ const AVATAR_COLORS = [
   "#F59E0B",
   "#8B5CF6",
 ];
+
+/** Clock label from API `time` (ISO) or date-only fallback — matches schedule-derived formatting. */
+function formatSessionTimeLabel(
+  isoTime?: string | null,
+  dateOnly?: string | null
+): string {
+  const raw =
+    (isoTime && isoTime.trim()) ||
+    (dateOnly && dateOnly.trim() ? `${dateOnly.trim()}T12:00:00` : "");
+  if (!raw) return "—";
+  const startDate = new Date(raw);
+  if (isNaN(startDate.getTime())) {
+    return isoTime?.trim() || dateOnly?.trim() || "—";
+  }
+  const hours = startDate.getHours();
+  const minutes = startDate.getMinutes();
+  const period = hours >= 12 ? "PM" : "AM";
+  const hour12 = hours % 12 || 12;
+  const minutesStr = minutes.toString().padStart(2, "0");
+  return `${hour12}:${minutesStr} ${period}`;
+}
+
+const SPEAKER_BIO_WORD_LIMIT = 80;
+
+/** Returns a prefix of up to `maxWords` words; `truncated` is true if the full text has more. */
+function truncateBioByWords(
+  full: string,
+  maxWords: number
+): { preview: string; truncated: boolean } {
+  const trimmed = full.trim();
+  if (!trimmed) return { preview: "", truncated: false };
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) {
+    return { preview: trimmed, truncated: false };
+  }
+  return { preview: words.slice(0, maxWords).join(" "), truncated: true };
+}
+
+function speakingSessionsFromSpeakerEvents(events: SpeakerNestedEvent[]) {
+  return events.map((ev) => {
+    const clock = formatSessionTimeLabel(ev.time ?? null, ev.date ?? null);
+    const time =
+      clock !== "—"
+        ? clock
+        : (ev.dates?.trim() || ev.date?.trim() || "—");
+    return {
+      id: String(ev.id),
+      scheduleId: ev.id,
+      title: (ev.name && ev.name.trim()) || "Session",
+      stage: (ev.venue && ev.venue.trim()) || "Main Stage",
+      time,
+    };
+  });
+}
 
 export interface SpeakerDetailModalProps {
   visible: boolean;
@@ -63,21 +117,19 @@ export default function SpeakerDetailModal({
 }: SpeakerDetailModalProps) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const { markRequestMeetingComplete } = useChecklist();
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const sheetTranslateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const sheetHeightRef = useRef(SCREEN_HEIGHT);
+  const sheetMeasuredRef = useRef(false);
+  const sheetAnimatingRef = useRef(false);
 
   const [speakerData, setSpeakerData] = useState<any>(null);
   const [speakingSessions, setSpeakingSessions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isRequestMeetingModalVisible, setIsRequestMeetingModalVisible] =
-    useState(false);
-  const [isMeetingRequestMessageVisible, setIsMeetingRequestMessageVisible] =
-    useState(false);
-  const [meetingRequestData, setMeetingRequestData] = useState<{
-    attendeeName: string;
-    meetingType: "Physical" | "Virtual";
-    meetingTitle: string;
-  } | null>(null);
+  const [bioExpanded, setBioExpanded] = useState(false);
 
   const fetchSpeakerDetails = useCallback(async () => {
     if (!visible || !speakerId) return;
@@ -89,31 +141,42 @@ export default function SpeakerDetailModal({
       if (isNaN(speakerIdNum)) throw new Error("Invalid speaker ID");
 
       const speaker = await eventService.getSpeakerDetails(eventId, speakerIdNum);
-      const schedulesResponse = await eventService.getEventSchedules(eventId, {});
-      const sessions = schedulesResponse.schedules
-        .filter((schedule) => {
-          if (Array.isArray(schedule.speakers)) {
-            return schedule.speakers.some((s: any) => {
-              const sId = typeof s === "number" ? s : s?.id;
-              return sId === speakerIdNum;
-            });
-          }
-          return false;
-        })
-        .map((schedule) => {
-          const startDate = new Date(schedule.start_time);
-          const hours = startDate.getHours();
-          const minutes = startDate.getMinutes();
-          const period = hours >= 12 ? "PM" : "AM";
-          const hour12 = hours % 12 || 12;
-          const minutesStr = minutes.toString().padStart(2, "0");
-          return {
-            id: schedule.id.toString(),
-            title: schedule.name,
-            stage: schedule.venue || "Main Stage",
-            time: `${hour12}:${minutesStr} ${period}`,
-          };
-        });
+
+      let sessions: ReturnType<typeof speakingSessionsFromSpeakerEvents>;
+      const nested = speaker.events;
+      if (Array.isArray(nested) && nested.length > 0) {
+        sessions = speakingSessionsFromSpeakerEvents(nested);
+      } else {
+        const schedulesResponse = await eventService.getEventSchedules(
+          eventId,
+          {}
+        );
+        sessions = schedulesResponse.schedules
+          .filter((schedule) => {
+            if (Array.isArray(schedule.speakers)) {
+              return schedule.speakers.some((s: any) => {
+                const sId = typeof s === "number" ? s : s?.id;
+                return sId === speakerIdNum;
+              });
+            }
+            return false;
+          })
+          .map((schedule) => {
+            const startDate = new Date(schedule.start_time);
+            const hours = startDate.getHours();
+            const minutes = startDate.getMinutes();
+            const period = hours >= 12 ? "PM" : "AM";
+            const hour12 = hours % 12 || 12;
+            const minutesStr = minutes.toString().padStart(2, "0");
+            return {
+              id: schedule.id.toString(),
+              scheduleId: schedule.id,
+              title: schedule.name,
+              stage: schedule.venue || "Main Stage",
+              time: `${hour12}:${minutesStr} ${period}`,
+            };
+          });
+      }
 
       const avatarColor = AVATAR_COLORS[speaker.id % AVATAR_COLORS.length];
       const rawTags = (speaker as any).metadata?.tags ?? (speaker as any).tags ?? [];
@@ -164,6 +227,95 @@ export default function SpeakerDetailModal({
     if (visible && speakerId) fetchSpeakerDetails();
   }, [visible, speakerId, fetchSpeakerDetails]);
 
+  useEffect(() => {
+    if (visible) setBioExpanded(false);
+  }, [visible, speakerId]);
+
+  const handleSheetLayout = useCallback((e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    if (h > 0 && !sheetMeasuredRef.current) {
+      sheetHeightRef.current = Math.min(h, SHEET_MAX_HEIGHT);
+      sheetMeasuredRef.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (visible) {
+      sheetTranslateY.stopAnimation();
+      sheetAnimatingRef.current = false;
+      const initialY = sheetMeasuredRef.current
+        ? sheetHeightRef.current
+        : SCREEN_HEIGHT;
+      sheetTranslateY.setValue(initialY);
+      sheetAnimatingRef.current = true;
+      Animated.spring(sheetTranslateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start(() => {
+        sheetAnimatingRef.current = false;
+      });
+    } else {
+      sheetTranslateY.stopAnimation();
+      sheetAnimatingRef.current = false;
+      sheetTranslateY.setValue(SCREEN_HEIGHT);
+      sheetMeasuredRef.current = false;
+    }
+  }, [visible, sheetTranslateY]);
+
+  const sheetPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !sheetAnimatingRef.current,
+      onMoveShouldSetPanResponder: (_, g) =>
+        !sheetAnimatingRef.current &&
+        Math.abs(g.dy) > 5 &&
+        g.dy > 0,
+      onPanResponderGrant: () => {
+        if (sheetAnimatingRef.current) return;
+        sheetTranslateY.stopAnimation();
+        sheetTranslateY.setOffset(
+          (sheetTranslateY as unknown as { _value?: number })._value ?? 0
+        );
+        sheetTranslateY.setValue(0);
+      },
+      onPanResponderMove: (_, g) => {
+        if (sheetAnimatingRef.current) return;
+        if (g.dy > 0) sheetTranslateY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (sheetAnimatingRef.current) return;
+        sheetTranslateY.flattenOffset();
+        const y =
+          (sheetTranslateY as unknown as { _value?: number })._value ?? 0;
+        const dismissDistance =
+          sheetHeightRef.current || SCREEN_HEIGHT;
+        if (y > DRAG_TO_CLOSE_THRESHOLD || g.vy > 0.5) {
+          sheetAnimatingRef.current = true;
+          Animated.timing(sheetTranslateY, {
+            toValue: dismissDistance,
+            duration: 220,
+            useNativeDriver: true,
+          }).start(() => {
+            sheetTranslateY.setValue(0);
+            sheetAnimatingRef.current = false;
+            onCloseRef.current();
+          });
+        } else {
+          sheetAnimatingRef.current = true;
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start(() => {
+            sheetAnimatingRef.current = false;
+          });
+        }
+      },
+    })
+  ).current;
+
   const handleLinkedInPress = useCallback(async () => {
     if (!speakerData?.linkedinUrl) {
       Alert.alert("LinkedIn", "LinkedIn profile not available");
@@ -194,13 +346,11 @@ export default function SpeakerDetailModal({
     }
   }, [speakerData?.linkedinUrl]);
 
-  if (!visible) return null;
-
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="none"
       onRequestClose={onClose}
       presentationStyle="overFullScreen"
     >
@@ -213,32 +363,43 @@ export default function SpeakerDetailModal({
           style={{
             width: "100%",
             alignItems: "center",
-            maxHeight: SCREEN_HEIGHT * 0.85,
+            maxHeight: SHEET_MAX_HEIGHT,
           }}
+          pointerEvents="box-none"
         >
-          {/* Bottom sheet - Figma layout */}
-          <View
+          <Animated.View
+            onLayout={handleSheetLayout}
             style={{
               width: SHEET_MAX_WIDTH,
               maxWidth: "100%",
+              maxHeight: SHEET_MAX_HEIGHT,
               backgroundColor: "#FFFFFF",
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               overflow: "hidden",
+              transform: [{ translateY: sheetTranslateY }],
             }}
           >
-            {/* Drag handle - w-12 h-1.5 bg-neutral-300 rounded-full mt-3 mb-6 */}
+            {/* Drag handle — wide touch strip above/below pill (users expect a large drag zone) */}
             <View
               style={{
-                width: 48,
-                height: 6,
-                backgroundColor: "#D4D4D4",
-                borderRadius: 999,
-                alignSelf: "center",
-                marginTop: 12,
-                marginBottom: 24,
+                alignItems: "center",
+                justifyContent: "center",
+                paddingTop: 4,
+                paddingBottom: 4,
+                minHeight: 50,
               }}
-            />
+              {...sheetPanResponder.panHandlers}
+            >
+              <View
+                style={{
+                  width: 48,
+                  height: 6,
+                  backgroundColor: "#D4D4D4",
+                  borderRadius: 999,
+                }}
+              />
+            </View>
 
             {isLoading ? (
               <View style={{ padding: 32, alignItems: "center" }}>
@@ -375,19 +536,60 @@ export default function SpeakerDetailModal({
                   </View>
                 )}
 
-                {/* Bio - text-base text-neutral-700 mb-4 leading-6 */}
-                {speakerData.bio && (
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      color: "#404040",
-                      lineHeight: 24,
-                      marginBottom: 16,
-                    }}
-                  >
-                    {speakerData.bio}
-                  </Text>
-                )}
+                {/* Bio — truncated by word count so sessions / LinkedIn stay discoverable */}
+                {speakerData.bio && (() => {
+                  const fullBio = String(speakerData.bio);
+                  const { preview, truncated } = truncateBioByWords(
+                    fullBio,
+                    SPEAKER_BIO_WORD_LIMIT
+                  );
+                  const showToggle = truncated;
+                  const displayText =
+                    bioExpanded || !truncated ? fullBio : preview;
+                  return (
+                    <View style={{ marginBottom: 16 }}>
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          color: "#404040",
+                          lineHeight: 24,
+                        }}
+                      >
+                        {displayText}
+                        {showToggle && !bioExpanded ? "…" : ""}
+                      </Text>
+                      {showToggle && (
+                        <Pressable
+                          onPress={() => setBioExpanded((e) => !e)}
+                          hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                          style={{
+                            alignSelf: "flex-start",
+                            marginTop: 6,
+                            flexDirection: "row",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontWeight: "200",
+                              color: "#A3A3A3",
+                            }}
+                          >
+                            {bioExpanded ? "See less" : "See more"}
+                          </Text>
+                          <View style={{ marginLeft: 4 }}>
+                            {bioExpanded ? (
+                              <ChevronUpIcon size={14} color="#A3A3A3" />
+                            ) : (
+                              <ChevronDownIcon size={14} color="#A3A3A3" />
+                            )}
+                          </View>
+                        </Pressable>
+                      )}
+                    </View>
+                  );
+                })()}
 
                 {/* Interests - bg-neutral-100 pills */}
                 {speakerData.interests?.length > 0 && (
@@ -480,39 +682,9 @@ export default function SpeakerDetailModal({
                   </View>
                 )}
 
-                {/* Action buttons - mt-2 */}
+                {/* Primary action: LinkedIn only (no speaker meeting requests). */}
                 <View style={{ marginTop: 8 }}>
-                  <Pressable
-                    onPress={async () => {
-                      const canBook = await getCanUserBookMeetings();
-                      if (canBook) setIsRequestMeetingModalVisible(true);
-                      else showExpoCannotBookMeetingAlert(navigation);
-                    }}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: "#000",
-                      borderRadius: 12,
-                      paddingVertical: 12,
-                      paddingHorizontal: 16,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <CalendarIconWhite size={20} color="#FFFFFF" />
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "500",
-                        color: "#FFFFFF",
-                        marginLeft: 8,
-                      }}
-                    >
-                      Request Meeting
-                    </Text>
-                  </Pressable>
-
-                  {speakerData?.linkedinUrl && (
+                  {speakerData?.linkedinUrl ? (
                     <Pressable
                       onPress={handleLinkedInPress}
                       style={{
@@ -537,66 +709,38 @@ export default function SpeakerDetailModal({
                         Connect on LinkedIn
                       </Text>
                     </Pressable>
+                  ) : (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: "#F5F5F5",
+                        borderRadius: 12,
+                        paddingVertical: 12,
+                        paddingHorizontal: 16,
+                        opacity: 0.65,
+                      }}
+                    >
+                      <LinkedInIcon size={20} color="#9CA3AF" />
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: "500",
+                          color: "#737373",
+                          marginLeft: 8,
+                        }}
+                      >
+                        LinkedIn not available
+                      </Text>
+                    </View>
                   )}
                 </View>
               </ScrollView>
             )}
-          </View>
+          </Animated.View>
         </View>
       </View>
-
-      {/* Request Meeting Modal */}
-      <RequestMeetingModal
-        visible={isRequestMeetingModalVisible}
-        onClose={() => setIsRequestMeetingModalVisible(false)}
-        onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
-        onSubmit={async (data: MeetingFormData) => {
-          if (!speakerData) throw new Error("No speaker");
-          const speakerUserId =
-            (speakerData as any).userId ?? (speakerData as any).user_id ?? null;
-          if (!speakerUserId) {
-            Alert.alert(
-              "Not supported",
-              "Requesting meetings with speakers is not yet supported."
-            );
-            throw new Error("No speaker user id");
-          }
-          try {
-            await meetingService.submitMeetingRequestFromForm(
-              eventId,
-              data,
-              String(speakerUserId)
-            );
-            markRequestMeetingComplete();
-            setMeetingRequestData({
-              attendeeName: speakerData.name,
-              meetingType: data.meetingType,
-              meetingTitle: data.title || "Meeting",
-            });
-            setIsRequestMeetingModalVisible(false);
-            setIsMeetingRequestMessageVisible(true);
-          } catch (e: any) {
-            const msg =
-              e instanceof ApiClientError
-                ? e.message
-                : e?.message || "Failed to send meeting request.";
-            Alert.alert("Error", msg);
-            throw e;
-          }
-        }}
-        attendeeName={speakerData?.name || fallbackName}
-      />
-
-      <MeetingRequestMessageModal
-        visible={isMeetingRequestMessageVisible}
-        onClose={() => {
-          setIsMeetingRequestMessageVisible(false);
-          setMeetingRequestData(null);
-        }}
-        attendeeName={meetingRequestData?.attendeeName}
-        meetingType={meetingRequestData?.meetingType}
-        meetingTitle={meetingRequestData?.meetingTitle}
-      />
     </Modal>
   );
 }

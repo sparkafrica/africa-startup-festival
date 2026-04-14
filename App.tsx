@@ -8,7 +8,6 @@ import * as Notifications from "expo-notifications";
 import { Text, View, Pressable, Image } from "react-native";
 import * as Updates from "expo-updates";
 import { NavigationContainer } from "@react-navigation/native";
-import { navigationRef } from "./src/navigation/navigationRef";
 import { useFonts } from "expo-font";
 
 initSentry();
@@ -30,10 +29,21 @@ import { NotificationsProvider } from "./src/context/NotificationsContext";
 import { MessagesBadgeProvider } from "./src/context/MessagesBadgeContext";
 import { ChatProvider } from "./src/context/ChatContext";
 import AppNavigator from "./src/navigation/AppNavigator";
+import { navigationRef } from "./src/navigation/navigationRef";
+import { createNavigationAnalyticsHandlers } from "./src/utils/analytics";
 import PushTapHandler from "./src/components/PushTapHandler";
 import { LoadingSpinner } from "./src/components";
 
 export default function App() {
+  const { onReady: onNavigationAnalyticsReady, onStateChange: onNavigationAnalyticsStateChange } =
+    React.useMemo(
+      () =>
+        createNavigationAnalyticsHandlers(() =>
+          navigationRef.isReady() ? navigationRef.getRootState() : undefined
+        ),
+      []
+    );
+
   const [fontsLoaded, fontError] = useFonts({
     // Inter Display - ONLY font family used throughout the app
     "InterDisplay-Light": require("./src/assets/fonts/Inter Display/Inter Display/InterDisplay-Light.ttf"),
@@ -70,15 +80,20 @@ export default function App() {
         {/* Preload banner images off-screen */}
         <View style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}>
           <Image
-            source={require("./src/assets/images/lhs-card.jpg")}
+            source={require("./src/assets/images/1st-card.jpeg")}
             style={{ width: 1, height: 1 }}
             resizeMode="cover"
           />
           <Image
-            source={require("./src/assets/images/rhs-card.jpg")}
+            source={require("./src/assets/images/2nd-card.jpg")}
             style={{ width: 1, height: 1 }}
             resizeMode="cover"
           />
+          {/* <Image
+            source={require("./src/assets/images/3rd-card.jpg")}
+            style={{ width: 1, height: 1 }}
+            resizeMode="cover"
+          /> */}
         </View>
         <LoadingSpinner size="large" />
       </View>
@@ -119,7 +134,11 @@ export default function App() {
                 <MessagesBadgeProvider>
                   <ChatProvider>
                     <PushTapHandler />
-                    <NavigationContainer ref={navigationRef}>
+                    <NavigationContainer
+                      ref={navigationRef}
+                      onReady={onNavigationAnalyticsReady}
+                      onStateChange={onNavigationAnalyticsStateChange}
+                    >
                       <AppNavigator />
                       <StatusBar style="auto" />
                     </NavigationContainer>

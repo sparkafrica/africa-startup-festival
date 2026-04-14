@@ -699,6 +699,12 @@ export default function ScheduleScreen() {
     <View className="flex-1 bg-white">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMyTicketPress={() =>
+          navigation.navigate("ScanQR", {
+            initialTab: "My Ticket",
+            openPersonalTicketQr: true,
+          })
+        }
         onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}

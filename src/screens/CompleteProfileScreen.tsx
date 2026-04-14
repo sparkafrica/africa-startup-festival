@@ -40,6 +40,7 @@ import { CloseIcon } from "../components/MenuIcons";
 import { LoadingSpinner } from "../components";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
+import { trackProfileEvent } from "../utils/analytics";
 import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
 import {
@@ -1203,6 +1204,8 @@ function AttendeeProfileForm({
       } else {
         showToast("Profile completed successfully!", "success");
       }
+
+      void trackProfileEvent("completed", { source: "complete_profile_screen" });
 
       await AsyncStorage.setItem("@spark:profile_just_saved", "true");
       setTimeout(() => {
@@ -3821,6 +3824,14 @@ export default function CompleteProfileScreen({ route }: Props) {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  useEffect(() => {
+    void trackProfileEvent("started", {
+      source: "complete_profile_screen",
+      entry_step: route.params?.step ?? "unspecified",
+    });
+    // Intentionally once per mount (navigation entry), not on every param change.
+  }, []);
 
   // Show loading state while profile is loading
   if (isLoadingProfile) {

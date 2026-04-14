@@ -49,6 +49,12 @@ import {
   isUpgradeableAttendeeTier,
 } from "../utils/ticketColors";
 import { ApiClientError } from "../services/api";
+import {
+  trackTicketEvent,
+  trackQrEvent,
+  trackConnectionEvent,
+  trackMeetingEvent,
+} from "../utils/analytics";
 import QRCode from "react-native-qrcode-svg";
 import RequestMeetingModal, {
   type MeetingFormData,
@@ -4539,6 +4545,12 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     }
   }, [route.params?.initialTab]);
 
+  useEffect(() => {
+    if (activeTab === "My Ticket") {
+      void trackTicketEvent("viewed", { source: "scan_qr_screen" });
+    }
+  }, [activeTab]);
+
   // Calculate transfer logic based on current ticket state
   const calculateTransferLogic = () => {
     const transferResult = canTransferPersonalTicket(EVENT_ID, user, tickets);
@@ -4579,6 +4591,71 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     });
     setQrModalVisible(true);
   };
+
+  /** Deep link: open personal ticket QR after the same ticket fetch as My Ticket tab (no extra API). */
+  const openingPersonalQrFromRouteRef = useRef(false);
+  useEffect(() => {
+    if (!route.params?.openPersonalTicketQr) {
+      openingPersonalQrFromRouteRef.current = false;
+      return;
+    }
+    if (ticketsLoading) return;
+    if (openingPersonalQrFromRouteRef.current) return;
+    openingPersonalQrFromRouteRef.current = true;
+
+    navigation.setParams({ openPersonalTicketQr: undefined });
+
+    if (ticketsError) {
+      showToast(
+        typeof ticketsError === "string"
+          ? ticketsError
+          : "Could not load your ticket. Try again.",
+        "error",
+      );
+      return;
+    }
+
+    const personal = tickets.find((t) => t.isPersonal);
+    if (!personal?.ticketNumber) {
+      showToast(
+        "No ticket found yet. Check your connection and try again.",
+        "error",
+      );
+      return;
+    }
+
+    const totalTickets = tickets.length;
+    const transferResult = canTransferPersonalTicket(EVENT_ID, user, tickets);
+    const unassignedTickets = tickets.filter(
+      (t) => !t.isPersonal && t.isUnassigned,
+    );
+    const availableToAssignSlots = unassignedTickets.reduce(
+      (sum, t) => sum + (t.availableCount ?? 1),
+      0,
+    );
+    const ticketRow = tickets.find(
+      (t) => t.ticketNumber === personal.ticketNumber,
+    );
+    setQrModalData({
+      title: personal.title,
+      ticketNumber: personal.ticketNumber,
+      assignedTo: ticketRow?.assignedTo || "John Doe",
+      canTransfer: transferResult.canTransfer,
+      totalTickets,
+      availableToAssignCount: availableToAssignSlots,
+      isAdminBlocked: transferResult.isAdminBlocked || false,
+      eventId: EVENT_ID,
+    });
+    setQrModalVisible(true);
+  }, [
+    route.params?.openPersonalTicketQr,
+    ticketsLoading,
+    tickets,
+    ticketsError,
+    user,
+    navigation,
+    showToast,
+  ]);
 
   const handleTransfer = (
     title: string,
@@ -4665,6 +4742,10 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         });
         setRecipientModalVisible(false);
         await fetchTickets();
+        void trackTicketEvent("assigned", {
+          source: "scan_qr_screen",
+          ticket_class_id: String(transferModalData.ticketClassId ?? ""),
+        });
         setTimeout(() => setConfirmationModalVisible(true), 300);
       } catch (error: any) {
         logError(
@@ -4694,6 +4775,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     setIsAllocating(true);
     try {
       await ticketService.transferTicketInitiate(EVENT_ID, recipientData);
+      void trackTicketEvent("transferred", { source: "scan_qr_screen" });
       setRecipientData({
         firstName: data.firstName,
         lastName: data.lastName,
@@ -4850,6 +4932,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     setIsRevokingAccess(true);
     try {
       await ticketService.revokeAllocation(allocationId, reason);
+      void trackTicketEvent("revoked", { source: "scan_qr_screen" });
       setRevokeAccessModalVisible(false);
       await fetchTickets();
       setTimeout(() => setTicketRevokedConfirmationVisible(true), 300);
@@ -4880,12 +4963,17 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
   // Handle QR code scanner press - open camera scanner modal
   const handleQRCodePress = () => {
+    void trackQrEvent("started", { source: "scan_qr_screen" });
     setQrScannerModalVisible(true);
   };
 
   // Handle QR code scanned from camera
   const handleQRCodeScanned = async (scannedData: string) => {
     if (!scannedData || !scannedData.trim()) {
+      void trackQrEvent("failed", {
+        source: "scan_qr_screen",
+        reason: "empty_payload",
+      });
       showToast("Invalid QR code. Please try again.", "error");
       return;
     }
@@ -4893,6 +4981,10 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     const trimmedData = scannedData.trim();
     const validation = validateUUID(trimmedData);
     if (!validation.valid) {
+      void trackQrEvent("failed", {
+        source: "scan_qr_screen",
+        reason: "invalid_format",
+      });
       showToast(validation.error || "Invalid QR code format", "error");
       return;
     }
@@ -4907,6 +4999,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
       setScannedAttendee(attendee);
       setQrScannerModalVisible(false);
+      void trackQrEvent("success", { source: "scan_qr_screen" });
       showToast("Ticket scanned successfully!", "success");
 
       if (Platform.OS === "ios") {
@@ -4938,6 +5031,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         errorMessage = "Server error. Please try again later.";
       }
 
+      void trackQrEvent("failed", {
+        source: "scan_qr_screen",
+        reason: "api_error",
+        response_code: responseCode ?? "unknown",
+      });
       showToast(errorMessage, "error");
       // Reset the processing ref so user can try scanning again
       // The modal will stay open, and user can click "Tap to Scan Again" to reset scanned state
@@ -4966,6 +5064,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         formData,
         String(scannedAttendee.user.id),
       );
+      void trackMeetingEvent("request_submitted", { source: "scan_qr_screen" });
       markRequestMeetingComplete();
       showToast("Meeting request sent successfully!", "success");
       setRequestMeetingModalVisible(false);
@@ -5017,6 +5116,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         currentUser.user_id,
         scannedAttendee.user.id,
       );
+      void trackConnectionEvent("sent", { source: "scan_qr_screen" });
       markConnectAttendeesComplete();
       showToast("Connection request sent successfully!", "success");
       setScannedTicketProfileVisible(false);
@@ -5041,6 +5141,10 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         // Connection already exists - treat as success since connection was likely created
         errorMessage = "Connection request already exists.";
         isSuccessCase = true;
+        void trackConnectionEvent("sent", {
+          source: "scan_qr_screen",
+          outcome: "already_exists",
+        });
         markConnectAttendeesComplete();
         showToast(errorMessage, "success");
         setScannedTicketProfileVisible(false);
@@ -5049,6 +5153,10 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       } else if (responseCode === 409) {
         errorMessage = "Connection request already exists.";
         isSuccessCase = true;
+        void trackConnectionEvent("sent", {
+          source: "scan_qr_screen",
+          outcome: "already_exists",
+        });
         markConnectAttendeesComplete();
         showToast(errorMessage, "success");
         setScannedTicketProfileVisible(false);
@@ -5263,12 +5371,18 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         />
         <RequestMeetingModal
           visible={requestMeetingModalVisible}
+          analyticsSource="scan_qr_screen"
           onClose={() => setRequestMeetingModalVisible(false)}
           onSubmit={handleMeetingRequestSubmit}
           onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
           attendeeName={
             scannedAttendee
               ? `${scannedAttendee.user.first_name} ${scannedAttendee.user.last_name}`.trim()
+              : undefined
+          }
+          requesteeUserId={
+            scannedAttendee
+              ? String(scannedAttendee.user.id)
               : undefined
           }
         />

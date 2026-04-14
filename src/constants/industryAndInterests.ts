@@ -102,3 +102,29 @@ function slug(label: string): string {
 export function getInterestFilterOptions(): { id: string; label: string }[] {
   return TOP_INTERESTS.map((label) => ({ id: slug(label), label }));
 }
+
+/** Shape matches `FilterCategory` from `FilterModal` (no UI import here). */
+export interface IndustryInterestFilterCategory {
+  id: string;
+  title: string;
+  options: { id: string; label: string }[];
+}
+
+/**
+ * Industry/Sector + Interests filter groups for directory screens and attendees.
+ * Single source of truth with profile dropdowns and attendee filtering.
+ */
+export function getIndustryAndInterestFilterCategories(): IndustryInterestFilterCategory[] {
+  return [
+    {
+      id: "industry",
+      title: "Industry / Sector",
+      options: INDUSTRY_OPTIONS,
+    },
+    {
+      id: "interests",
+      title: "Interests",
+      options: getInterestFilterOptions(),
+    },
+  ];
+}

@@ -488,6 +488,19 @@ export const meetingService = {
         }
       }
 
+      if (__DEV__) {
+        console.warn(
+          "[meetingService] createMeetingRequest rejected — backend body (edge cases / validation)",
+          {
+            endpoint: `POST /events/${eventId}/request-meeting/`,
+            requestBody: request,
+            responseCode: response.response_code,
+            parsedClientMessage: errorMessage,
+            rawApiResponse: response,
+          },
+        );
+      }
+
       throw new ApiClientError({
         status: "error",
         message: errorMessage,
@@ -498,6 +511,16 @@ export const meetingService = {
       // Re-throw ApiClientError as-is (it already has parsed errors)
       if (error instanceof ApiClientError) {
         throw error;
+      }
+      if (__DEV__) {
+        console.warn(
+          "[meetingService] createMeetingRequest threw (network/parse)",
+          {
+            endpoint: `POST /events/${eventId}/request-meeting/`,
+            requestBody: request,
+            error,
+          },
+        );
       }
       // Wrap other errors
       throw new ApiClientError({
@@ -871,6 +894,19 @@ export const meetingService = {
         if (fieldErrors.length > 0) {
           errorMessage = fieldErrors.join(". ");
         }
+      }
+
+      if (__DEV__) {
+        console.warn(
+          "[meetingService] createVirtualMeetingRequest rejected — backend body",
+          {
+            endpoint: `POST /virtual-meetings/${EVENT_ID}/request/`,
+            requestBody: request,
+            responseCode: response.response_code,
+            parsedClientMessage: errorMessage,
+            rawApiResponse: response,
+          },
+        );
       }
 
       throw new ApiClientError({

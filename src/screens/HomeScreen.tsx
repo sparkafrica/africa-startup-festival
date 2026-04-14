@@ -296,6 +296,12 @@ export default function HomeScreen() {
     <View className="flex-1 bg-surface">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMyTicketPress={() =>
+          navigation.navigate("ScanQR", {
+            initialTab: "My Ticket",
+            openPersonalTicketQr: true,
+          })
+        }
         onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
@@ -321,27 +327,41 @@ export default function HomeScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="px-4 pt-4 pb-4"
-          contentContainerStyle={{ paddingRight: 16 }}
+          className="px-4 pt-3 pb-3"
+          contentContainerStyle={{ paddingRight: 20, paddingVertical: 4 }}
         >
+          <BannerCard
+            // badge="GET YOUR TICKET FOR THE EVENT LIVE IN LAGOS"
+            title="Here's your ATE2026 Pass"
+            description="Please show this pass at the check-in counter to collect your tag."
+            buttonText="View Your Ticket"
+            gradient={gradients.sparkBlack}
+            backgroundImage={require("../assets/images/1st-card.jpeg")}
+            onPress={() =>
+              navigation.navigate("ScanQR", {
+                initialTab: "My Ticket",
+                openPersonalTicketQr: true,
+              })
+            }
+          />
           <BannerCard
             // badge="EVENT LIVE IN LAGOS"
             title="Welcome to ATE 2026"
             description="Complete your checklist and start booking 1:1 meetings with attendees and partners."
             buttonText="View attendees"
-            gradient={gradients.sparkBlack}
-            backgroundImage={require("../assets/images/lhs-card.jpg")}
+            gradient={gradients.partnerGreen}
+            backgroundImage={require("../assets/images/2nd-card.jpg")}
             onPress={() => navigation.navigate("Attendees")}
           />
-          <BannerCard
+          {/* <BannerCard
             // badge="PARTNER OFFERS"
             title="Review event schedule"
             description="Get your ATE 2026 itinerary ready ahead of the event day"
             buttonText="See schedule"
-            gradient={gradients.partnerGreen}
-            backgroundImage={require("../assets/images/rhs-card.jpg")}
+            gradient={gradients.ocean}
+            backgroundImage={require("../assets/images/3rd-card.jpg")}
             onPress={() => navigation.navigate("Schedule")}
-          />
+          /> */}
         </ScrollView>
 
         {/* Body sections */}

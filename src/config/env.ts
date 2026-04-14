@@ -119,4 +119,3 @@ export function getUpgradePaymentDefaults(): {
     currency: extra.UPGRADE_CURRENCY ?? "USD",
   };
 }
-

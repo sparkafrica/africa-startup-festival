@@ -50,6 +50,29 @@ export interface EventSchedule {
 }
 
 /**
+ * Event/session rows nested on speaker payloads
+ * (GET /events/{event_id}/speakers/ and GET .../speakers/{id}/).
+ */
+export interface SpeakerNestedEvent {
+  id: number;
+  metadata?: string | Record<string, unknown> | null;
+  name?: string | null;
+  description?: string | null;
+  date?: string | null;
+  dates?: string | null;
+  venue?: string | null;
+  /** ISO 8601 date-time when the session occurs */
+  time?: string | null;
+  success_url?: string | null;
+  booth_success_url?: string | null;
+  cancel_url?: string | null;
+  base_url?: string | null;
+  portal_url?: string | null;
+  venue_map_url?: string | null;
+  calendar_url?: string | null;
+}
+
+/**
  * Speaker
  * Matches backend schema: Speaker
  */
@@ -63,7 +86,7 @@ export interface Speaker {
   website_url?: string | null;
   linkedin_url?: string | null;
   twitter_handle?: string | null;
-  events?: number[];
+  events?: SpeakerNestedEvent[];
   created_at?: string;
   updated_at?: string;
 }

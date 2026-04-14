@@ -14,6 +14,7 @@ import { ticketService, clearTicketCache } from "../services/ticketService";
 import { notificationService } from "../services/notificationService";
 import { registerForPushNotifications } from "../utils/pushRegistration";
 import { EVENT_ID } from "../config/env";
+import { setAnalyticsUserContext } from "../utils/analytics";
 
 // Types
 /**
@@ -230,6 +231,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     checkAuthState();
   }, [checkAuthState]);
+
+  useEffect(() => {
+    void setAnalyticsUserContext(user);
+  }, [user]);
 
   // Register for push notifications when user is authenticated
   useEffect(() => {

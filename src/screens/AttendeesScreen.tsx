@@ -6,6 +6,7 @@ import {
   Dimensions,
   ScrollView,
   TextInput,
+  ActivityIndicator,
   Platform,
   Animated as RNAnimated,
   PanResponder,
@@ -41,8 +42,9 @@ import { attendeeService, type Attendee as BackendAttendee, type MatchInfo } fro
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
-import { INDUSTRY_OPTIONS, getInterestFilterOptions } from "../constants/industryAndInterests";
+import { getIndustryAndInterestFilterCategories } from "../constants/industryAndInterests";
 import { ApiClientError } from "../services/api";
+import { trackConnectionEvent, trackMeetingEvent } from "../utils/analytics";
 import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
@@ -87,17 +89,14 @@ import Svg, { Path, Circle } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 
 /**
- * Request page size for attendee list. Backend may return fewer rows per page (e.g. 100);
- * pagination must use `count` / `next`, not "batch smaller than this number ⇒ done".
+ * API page size for attendee list (matches typical backend max, e.g. 100 per page).
+ * Initial load + `onEndReached` fetch the next page and append.
  */
-const ATTENDEE_PAGE_SIZE = 500;
+const ATTENDEE_LIST_PAGE_SIZE = 100;
 /**
- * Stable ordering so offset pagination cannot skip/duplicate rows when the backend
- * would otherwise reshuffle between requests. Backend must honor the ordering param.
+ * Attendee row primary key — stable sort for offset pagination.
  */
 const ATTENDEE_LIST_ORDERING = "id";
-/** Safety cap so a broken API cannot infinite-loop. */
-const ATTENDEE_FETCH_MAX_PAGES = 500;
 /** List-view search: debounce before GET …?name= (server filter); empty → full list. */
 const ATTENDEE_NAME_SEARCH_DEBOUNCE_MS = 400;
 const LOAD_MORE_THRESHOLD = 3;
@@ -293,11 +292,15 @@ interface Attendee {
 }
 
 /**
- * Full attendee list for the current event (this JS session only). When the stack remounts
- * AttendeesScreen after navigating away, we reuse this instead of re-paginating the API.
- * Pull-to-refresh still calls the API and overwrites the cache on success.
+ * Full-list session cache (this JS session only). Remount restores loaded rows + pagination cursor
+ * so we do not refetch page 1. Pull-to-refresh refetches from the API and overwrites the cache.
  */
-let attendeeFullListSessionCache: { eventId: number; attendees: Attendee[] } | null = null;
+let attendeeFullListSessionCache: {
+  eventId: number;
+  attendees: Attendee[];
+  lastFetchedPage: number;
+  hasMore: boolean;
+} | null = null;
 
 /**
  * Backend (or metadata) may send tags/interests as a string, object, or sparse array.
@@ -1156,6 +1159,10 @@ export default function AttendeesScreen() {
   const connectionStatusMapRef = useRef<Map<string, "pending" | "accepted">>(new Map());
   /** Ignore stale results when multiple fetches overlap (pull-to-refresh + focus + mount). */
   const attendeesFetchGenRef = useRef(0);
+  /** Blocks FlatList `onEndReached` briefly after list reset / mount to avoid duplicate load-more. */
+  const listEndReachAllowedAfterRef = useRef(0);
+  /** Prevents overlapping `loadMoreAttendees` before `loadingMore` state commits. */
+  const loadMoreInFlightRef = useRef(false);
   /** Last `name` query sent to attendees API (trimmed); load-more uses the same filter. */
   const lastServerNameFilterRef = useRef<string>("");
   const debouncedListSearchRef = useRef("");
@@ -1173,18 +1180,9 @@ export default function AttendeesScreen() {
   const bottomSheetDragY = useRef(new RNAnimated.Value(0)).current;
   const dragStartY = useRef(0);
 
-  // Filter categories: Industry/Sector and Top Interests (Job Title / Role commented out for now)
+  // Filter categories: shared with directory screens (Job Title / Role commented out for now)
   const filterCategories: FilterCategory[] = [
-    {
-      id: "industry",
-      title: "Industry / Sector",
-      options: INDUSTRY_OPTIONS,
-    },
-    {
-      id: "interests",
-      title: "Interests",
-      options: getInterestFilterOptions(),
-    },
+    ...getIndustryAndInterestFilterCategories(),
     // Job Title / Role section commented out for now
     // {
     //   id: "job-title",
@@ -1372,11 +1370,8 @@ export default function AttendeesScreen() {
   }, [user?.user_id]);
 
   /**
-   * Fetch attendees for the event.
-   * - Full list (no `name`): `GET …/attendees/{id}/all` with **no query params** on the first
-   *   request (backend returns one large payload when possible). If `pagination.next` is still
-   *   set, follow with `?page=2`… only (no `page_size` / `ordering`).
-   * - List search: `?name=&page=&page_size=&ordering=` so pages stay stable while filtering.
+   * Fetch attendees page 1 (reset). Further pages load via `loadMoreAttendees` (list infinite scroll / card stack).
+   * Full list: `page=1` + `page_size` + `ordering`. Search: same + `name=`.
    */
   const fetchAttendees = useCallback(
     async (reason?: string, options?: { name?: string }) => {
@@ -1385,21 +1380,28 @@ export default function AttendeesScreen() {
     lastServerNameFilterRef.current = nameFilter ?? "";
     const isServerNameSearch = !!nameFilter;
 
-    const searchAttendeeFilters = (page: number) => ({
+    const fullListFilters = (page: number) => ({
       page,
-      page_size: ATTENDEE_PAGE_SIZE,
+      page_size: ATTENDEE_LIST_PAGE_SIZE,
+      ordering: ATTENDEE_LIST_ORDERING,
+    });
+
+    const searchFilters = (page: number) => ({
+      page,
+      page_size: ATTENDEE_LIST_PAGE_SIZE,
       ordering: ATTENDEE_LIST_ORDERING,
       name: nameFilter as string,
     });
 
     if (__DEV__) {
       const mode = isServerNameSearch
-        ? `server search ?name=…&page&ordering`
-        : "server full list (no query params on page 1)";
+        ? `search · page=1 · page_size=${ATTENDEE_LIST_PAGE_SIZE}`
+        : `full list · page=1 · page_size=${ATTENDEE_LIST_PAGE_SIZE} · ordering=${ATTENDEE_LIST_ORDERING}`;
       console.log(
         `[AttendeesFetch] ${reason ?? "?"} · ${mode} · event ${EVENT_ID}`
       );
     }
+    listEndReachAllowedAfterRef.current = Date.now() + 800;
     setIsLoading(true);
     setError(null);
     connectionsSyncedForListRef.current = false;
@@ -1416,12 +1418,8 @@ export default function AttendeesScreen() {
           ? connectionService.getConnections(1, 100).catch(() => emptyConnections)
           : Promise.resolve(emptyConnections),
         isServerNameSearch
-          ? attendeeService.getEventAttendees(
-              EVENT_ID,
-              "all",
-              searchAttendeeFilters(1)
-            )
-          : attendeeService.getEventAttendees(EVENT_ID, "all"),
+          ? attendeeService.getEventAttendees(EVENT_ID, "all", searchFilters(1))
+          : attendeeService.getEventAttendees(EVENT_ID, "all", fullListFilters(1)),
       ]);
 
       const connectionStatusMap = new Map<string, "pending" | "accepted">();
@@ -1453,17 +1451,18 @@ export default function AttendeesScreen() {
         }
       };
 
-      let page = 1;
-      let batch = firstRes.attendees;
-      let totalCount = firstRes.pagination?.count ?? 0;
-      let hasNext = !!firstRes.pagination?.next;
+      const batch = firstRes.attendees;
+      const totalCount = firstRes.pagination?.count ?? 0;
+      const hasNext = !!firstRes.pagination?.next;
+      const partialPage =
+        totalCount > 0 && batch.length > 0 && batch.length < totalCount;
+      const hasMorePages =
+        batch.length > 0 &&
+        (hasNext || partialPage);
 
       if (__DEV__) {
-        const mode = isServerNameSearch
-          ? `asked page_size=${ATTENDEE_PAGE_SIZE} · ordering=${ATTENDEE_LIST_ORDERING}`
-          : "no query params";
         console.log(
-          `[AttendeesFetch] page 1 · batch=${batch.length} · API count=${totalCount || "—"} · hasNext=${hasNext} · ${mode}`
+          `[AttendeesFetch] page 1 · batch=${batch.length} · API count=${totalCount || "—"} · hasMore=${hasMorePages}`
         );
       }
 
@@ -1471,78 +1470,11 @@ export default function AttendeesScreen() {
         mergeBatch(batch);
       }
 
-      // More pages: search uses full filter set; full list uses `?page=` only (after param-less first hit).
-      const needMorePages =
-        hasNext &&
-        batch.length > 0 &&
-        !(totalCount > 0 && allMapped.length >= totalCount);
-
-      if (needMorePages) {
-        const inferredPages =
-          totalCount > 0
-            ? Math.min(
-                ATTENDEE_FETCH_MAX_PAGES,
-                Math.ceil(totalCount / batch.length)
-              )
-            : 1;
-
-        if (inferredPages > 1) {
-          const rest = Array.from({ length: inferredPages - 1 }, (_, i) => i + 2);
-          const restResults = await Promise.all(
-            rest.map((p) =>
-              attendeeService.getEventAttendees(
-                EVENT_ID,
-                "all",
-                isServerNameSearch ? searchAttendeeFilters(p) : { page: p }
-              )
-            )
-          );
-          for (let i = 0; i < restResults.length; i++) {
-            const res = restResults[i];
-            const p = rest[i];
-            const b = res.attendees;
-            const tc = res.pagination?.count ?? totalCount;
-            const hn = !!res.pagination?.next;
-            if (__DEV__) {
-              const tag = isServerNameSearch ? "parallel · search filters" : "parallel · page only";
-              console.log(
-                `[AttendeesFetch] page ${p} · batch=${b.length} · API count=${tc || "—"} · hasNext=${hn} (${tag})`
-              );
-            }
-            if (b.length > 0) mergeBatch(b);
-          }
-          page = inferredPages;
-        } else {
-          let lastPage = 1;
-          for (let p = 2; p <= ATTENDEE_FETCH_MAX_PAGES; p++) {
-            const res = await attendeeService.getEventAttendees(
-              EVENT_ID,
-              "all",
-              isServerNameSearch ? searchAttendeeFilters(p) : { page: p }
-            );
-            const b = res.attendees;
-            totalCount = res.pagination?.count ?? totalCount;
-            hasNext = !!res.pagination?.next;
-            lastPage = p;
-            if (__DEV__) {
-              console.log(
-                `[AttendeesFetch] page ${p} · batch=${b.length} · API count=${totalCount || "—"} · hasNext=${hasNext} · sequential`
-              );
-            }
-            if (b.length === 0) break;
-            mergeBatch(b);
-            if (totalCount > 0 && allMapped.length >= totalCount) break;
-            if (!hasNext) break;
-          }
-          page = lastPage;
-        }
-      }
-
       if (fetchGen !== attendeesFetchGenRef.current) return;
       if (__DEV__) {
         const tag = nameFilter ? ` · name="${nameFilter}"` : "";
         console.log(
-          `[AttendeesFetch] done · ${allMapped.length} unique in UI · API count=${totalCount || "—"} · ${page} page(s)${tag}`
+          `[AttendeesFetch] ready · ${allMapped.length} unique in UI · API count=${totalCount || "—"} · hasMore=${hasMorePages}${tag}`
         );
       }
       connectionsSyncedForListRef.current = true;
@@ -1550,12 +1482,14 @@ export default function AttendeesScreen() {
         attendeeFullListSessionCache = {
           eventId: EVENT_ID,
           attendees: allMapped.map((a) => ({ ...a })),
+          lastFetchedPage: 1,
+          hasMore: hasMorePages,
         };
       }
       setError(null);
       setAllAttendeesBackend(allMapped);
-      setAttendeePage(page);
-      setHasMoreAttendees(false);
+      setAttendeePage(1);
+      setHasMoreAttendees(hasMorePages);
     } catch (err: any) {
       if (fetchGen !== attendeesFetchGenRef.current) return;
       const errorMessage =
@@ -1566,6 +1500,7 @@ export default function AttendeesScreen() {
     } finally {
       if (fetchGen === attendeesFetchGenRef.current) {
         setIsLoading(false);
+        listEndReachAllowedAfterRef.current = Date.now() + 600;
       }
     }
   },
@@ -1593,11 +1528,13 @@ export default function AttendeesScreen() {
   }, [fetchAttendees]);
 
   /**
-   * Load more attendees (infinite scroll / swipe).
-   * Appends next page and merges connection status from stored map.
+   * Load next page (FlatList `onEndReached` / card stack near end). Appends rows; skips duplicate `user.id`.
    */
   const loadMoreAttendees = useCallback(async () => {
     if (!hasMoreAttendees || loadingMore || isLoading) return;
+    if (loadMoreInFlightRef.current) return;
+    if (Date.now() < listEndReachAllowedAfterRef.current) return;
+    loadMoreInFlightRef.current = true;
     setLoadingMore(true);
     try {
       const nextPage = attendeePage + 1;
@@ -1608,11 +1545,15 @@ export default function AttendeesScreen() {
         nameForMore
           ? {
               page: nextPage,
-              page_size: ATTENDEE_PAGE_SIZE,
+              page_size: ATTENDEE_LIST_PAGE_SIZE,
               ordering: ATTENDEE_LIST_ORDERING,
               name: nameForMore,
             }
-          : { page: nextPage }
+          : {
+              page: nextPage,
+              page_size: ATTENDEE_LIST_PAGE_SIZE,
+              ordering: ATTENDEE_LIST_ORDERING,
+            }
       );
       const mapRef = connectionStatusMapRef.current;
       const mapped = res.attendees.map((a) => {
@@ -1620,17 +1561,43 @@ export default function AttendeesScreen() {
         const status = mapRef.get(String(ui.id)) ?? null;
         return { ...ui, connectionStatus: status };
       });
-      setAllAttendeesBackend((prev) => [...prev, ...mapped]);
+      const hasNext = !!res.pagination?.next;
+      setAllAttendeesBackend((prev) => {
+        const ids = new Set(prev.map((x) => x.id));
+        const deduped = mapped.filter((row) => !ids.has(row.id));
+        const nextList = [...prev, ...deduped];
+        if (!nameForMore) {
+          attendeeFullListSessionCache = {
+            eventId: EVENT_ID,
+            attendees: nextList.map((a) => ({ ...a })),
+            lastFetchedPage: nextPage,
+            hasMore: hasNext,
+          };
+        }
+        return nextList;
+      });
       setAttendeePage(nextPage);
-      setHasMoreAttendees(!!res.pagination?.next);
+      setHasMoreAttendees(hasNext);
+      if (__DEV__) {
+        console.log(
+          `[AttendeesFetch] load more · page=${nextPage} · +${mapped.length} rows · hasNext=${hasNext}`
+        );
+      }
     } catch (err) {
-      // Optionally set error for load-more; avoid clearing list
+      // Keep list; optional toast could go here
     } finally {
+      loadMoreInFlightRef.current = false;
       setLoadingMore(false);
+      listEndReachAllowedAfterRef.current = Date.now() + 450;
     }
   }, [hasMoreAttendees, loadingMore, isLoading, attendeePage]);
 
-  // First open: load from API. Later opens (stack remount): restore session cache — no attendee refetch.
+  const onAttendeeListEndReached = useCallback(() => {
+    if (Date.now() < listEndReachAllowedAfterRef.current) return;
+    void loadMoreAttendees();
+  }, [loadMoreAttendees]);
+
+  // First open: load from API. Later opens: restore session cache + pagination cursor (no page-1 refetch).
   useEffect(() => {
     const cache = attendeeFullListSessionCache;
     if (cache?.eventId === EVENT_ID) {
@@ -1638,8 +1605,9 @@ export default function AttendeesScreen() {
       setAllAttendeesBackend(cache.attendees.map((a) => ({ ...a })));
       setIsLoading(false);
       setError(null);
-      setHasMoreAttendees(false);
-      setAttendeePage(1);
+      setHasMoreAttendees(cache.hasMore);
+      setAttendeePage(cache.lastFetchedPage);
+      listEndReachAllowedAfterRef.current = Date.now() + 600;
       return;
     }
     void fetchAttendees("initial-mount");
@@ -1930,6 +1898,10 @@ export default function AttendeesScreen() {
       } finally {
         setIsConnecting(false);
       }
+      void trackConnectionEvent("sent", {
+        source: "attendees_screen",
+        view: isFromCardView ? "card" : "list",
+      });
       connectionStatusMapRef.current.set(attendee.id, "pending");
       setAllAttendeesBackend((prev) =>
         prev.map((a) =>
@@ -2129,6 +2101,12 @@ export default function AttendeesScreen() {
     <View className="flex-1 bg-white">
       <HeaderBar
         onScanPress={() => navigation.navigate("ScanQR")}
+        onMyTicketPress={() =>
+          navigation.navigate("ScanQR", {
+            initialTab: "My Ticket",
+            openPersonalTicketQr: true,
+          })
+        }
         onMessagesPress={() => navigation.navigate("Messages")}
         onNotificationPress={() => navigation.navigate("Notifications")}
         onMenuPress={() => navigation.navigate("Menu")}
@@ -2428,9 +2406,12 @@ export default function AttendeesScreen() {
                   onScroll={onAttendeeListScroll}
                   onContentSizeChange={onAttendeeListContentSizeChange}
                   onLayout={onAttendeeListLayout}
-                  initialNumToRender={12}
-                  maxToRenderPerBatch={12}
-                  windowSize={10}
+                  initialNumToRender={10}
+                  maxToRenderPerBatch={10}
+                  windowSize={5}
+                  removeClippedSubviews={Platform.OS === "android"}
+                  onEndReached={onAttendeeListEndReached}
+                  onEndReachedThreshold={0.35}
                   refreshControl={
                     <RefreshControl
                       refreshing={refreshing}
@@ -2438,6 +2419,13 @@ export default function AttendeesScreen() {
                       tintColor="#1BB273"
                       colors={["#1BB273"]}
                     />
+                  }
+                  ListFooterComponent={
+                    loadingMore && hasMoreAttendees ? (
+                      <View className="py-5 items-center justify-center">
+                        <ActivityIndicator size="small" color="#1BB273" />
+                      </View>
+                    ) : null
                   }
                   ListEmptyComponent={
                     <View className="items-center justify-center py-12">
@@ -2880,6 +2868,7 @@ export default function AttendeesScreen() {
       {/* Request Meeting Modal */}
       <RequestMeetingModal
         visible={isRequestMeetingModalVisible}
+        analyticsSource="attendees_screen"
         onClose={() => {
           setIsRequestMeetingModalVisible(false);
           setMeetingAttendee(null);
@@ -2896,6 +2885,9 @@ export default function AttendeesScreen() {
               data,
               meetingAttendee.id
             );
+            void trackMeetingEvent("request_submitted", {
+              source: "attendees_screen",
+            });
             markRequestMeetingComplete();
             setMeetingRequestData({
               attendeeName: meetingAttendee.name || "Attendee",
@@ -2915,6 +2907,7 @@ export default function AttendeesScreen() {
           }
         }}
         attendeeName={meetingAttendee?.name}
+        requesteeUserId={meetingAttendee?.id}
       />
 
       {/* Connect Message Modal */}

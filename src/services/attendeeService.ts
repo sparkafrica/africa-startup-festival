@@ -69,7 +69,13 @@ export interface Attendee {
  * Attendee Type
  * Types supported by the API endpoint
  */
-export type AttendeeType = "general" | "developer" | "standard" | "delegate" | "exhibitor" | "all";
+export type AttendeeType =
+  | "general"
+  | "developer"
+  | "standard"
+  | "delegate"
+  | "exhibitor"
+  | "all";
 
 /**
  * Attendee Filters
@@ -109,7 +115,7 @@ export const attendeeService = {
   async getEventAttendees(
     eventId: number,
     attendeeType: AttendeeType = "all",
-    filters?: AttendeeFilters
+    filters?: AttendeeFilters,
   ): Promise<{ attendees: Attendee[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {};
@@ -138,7 +144,12 @@ export const attendeeService = {
       const data = response as any;
 
       // Check if response has paginated structure (most common)
-      if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {
+      if (
+        data &&
+        typeof data === "object" &&
+        "results" in data &&
+        Array.isArray(data.results)
+      ) {
         return {
           attendees: data.results as Attendee[],
           pagination: {
@@ -225,17 +236,21 @@ export const attendeeService = {
   async getAttendeeDetails(
     eventId: number,
     attendeeType: AttendeeType,
-    ticketPk: string
+    ticketPk: string,
   ): Promise<Attendee> {
     try {
       const response = await api.get<any>(
-        `/attendees/${eventId}/${attendeeType}/${ticketPk}/`
+        `/attendees/${eventId}/${attendeeType}/${ticketPk}/`,
       );
 
       const res = response as any;
 
       // Handle ApiResponse format (data wrapped)
-      if (res.status === "success" && res.data && typeof res.data === "object") {
+      if (
+        res.status === "success" &&
+        res.data &&
+        typeof res.data === "object"
+      ) {
         const data = res.data;
         if (data.ticket && data.user) {
           return data as Attendee;

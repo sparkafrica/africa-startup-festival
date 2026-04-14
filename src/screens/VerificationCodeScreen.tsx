@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import type {
 import { useAuth } from "../context/AuthContext";
 import { LoadingSpinner } from "../components";
 import { logError, ERROR_TAGS } from "../utils/logError";
+import { runEarlyOtaCheckOnly } from "../utils/otaUpdateFlow";
 import Svg, { Path, Rect } from "react-native-svg";
 
 // Email Icon Component
@@ -62,6 +63,10 @@ export default function VerificationCodeScreen() {
   const [isFocused, setIsFocused] = useState(false);
 
   const hiddenInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    void runEarlyOtaCheckOnly();
+  }, []);
 
   const handlePaste = async () => {
     try {

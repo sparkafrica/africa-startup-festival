@@ -37,6 +37,7 @@ import { CloseIcon } from "../components/MenuIcons";
 import { LoadingSpinner } from "../components";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
+import { trackProfileEvent } from "../utils/analytics";
 import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
 
@@ -1122,6 +1123,11 @@ function PersonalProfileSection({
         showToast("Profile saved successfully!", "success");
       }
 
+      void trackProfileEvent("updated", {
+        source: "profile_screen",
+        section: "personal",
+      });
+
       if (onSave) {
         await onSave();
       }
@@ -1861,6 +1867,11 @@ function AttendeeProfileSection({
       } else {
         showToast("Profile saved successfully!", "success");
       }
+
+      void trackProfileEvent("updated", {
+        source: "profile_screen",
+        section: "personal_attendee",
+      });
 
       if (onSave) {
         await onSave();
@@ -2795,6 +2806,11 @@ function CompanyProfileSection({
       } else {
         showToast("Company profile saved successfully!", "success");
       }
+
+      void trackProfileEvent("updated", {
+        source: "profile_screen",
+        section: "company",
+      });
 
       if (onSave) {
         await onSave();
