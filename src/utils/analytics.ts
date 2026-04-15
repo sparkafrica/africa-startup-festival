@@ -3,13 +3,21 @@
  *
  * - All custom events use snake_case: `connection_sent`, `meeting_request_started`, …
  * - Every event is merged with `source` (screen or logical origin) and `user_type` when known.
- * - Screen changes: `logScreenView` (GA4 “Screens”); optional duplicate avoided.
+ * - Screen changes: `logEvent('screen_view', …)` (GA4 “Screens”); debounced duplicate avoided.
  *
  * Mark “key conversions” in Firebase Console (Configure → Events) using existing names:
  *   meeting_request_submitted, connection_sent, ticket_assigned, profile_completed
  */
 import type { NavigationState, PartialState } from "@react-navigation/native";
-import analytics from "@react-native-firebase/analytics";
+import {
+  getAnalytics,
+  logEvent as firebaseLogEvent,
+  setUserId,
+  setUserProperty,
+} from "@react-native-firebase/analytics";
+
+/** Modular API — avoids namespaced `analytics()` deprecation warnings in RN Firebase v22+. */
+const analytics = getAnalytics();
 
 const PARAM_MAX = 100;
 const MAX_PARAMS = 25;
@@ -68,20 +76,16 @@ export async function setAnalyticsUserContext(
 ): Promise<void> {
   cachedUserType = deriveUserTypeForAnalytics(user);
   try {
-    if (user?.user_id) {
-      await analytics().setUserId(String(user.user_id));
-    } else {
-      await analytics().setUserId("");
-    }
+    await setUserId(analytics, user?.user_id ? String(user.user_id) : null);
   } catch {
     /* ignore */
   }
   try {
-    if (cachedUserType) {
-      await analytics().setUserProperty("user_ticket_type", cachedUserType.slice(0, 36));
-    } else {
-      await analytics().setUserProperty("user_ticket_type", "");
-    }
+    await setUserProperty(
+      analytics,
+      "user_ticket_type",
+      cachedUserType ? cachedUserType.slice(0, 36) : null
+    );
   } catch {
     /* ignore */
   }
@@ -121,7 +125,8 @@ export async function trackEvent(
 ): Promise<void> {
   try {
     const name = safeEventName(eventName);
-    await analytics().logEvent(name, sanitizeAnalyticsParams(enrichEventParams(params)));
+    const payload = sanitizeAnalyticsParams(enrichEventParams(params));
+    await firebaseLogEvent(analytics, name as never, payload);
   } catch (e) {
     if (__DEV__) console.log("[Analytics] trackEvent", eventName, e);
   }
@@ -129,7 +134,7 @@ export async function trackEvent(
 
 /**
  * One log per real navigation change; debounces duplicate route.name bursts.
- * Uses Firebase `logScreenView` → appears under GA4 engagement / screen reporting.
+ * Uses GA4 recommended `screen_view` event → engagement / screen reporting.
  */
 export async function trackScreenView(screenName: string): Promise<void> {
   const now = Date.now();
@@ -139,8 +144,8 @@ export async function trackScreenView(screenName: string): Promise<void> {
   lastScreenName = screenName;
   lastScreenLoggedAt = now;
   try {
-    // GA4 “Screens” + engagement; `screen_name` is the primary dimension here.
-    await analytics().logScreenView({
+    // Prefer `logEvent('screen_view')` over deprecated modular `logScreenView` wrapper.
+    await firebaseLogEvent(analytics, "screen_view", {
       screen_name: screenName,
       screen_class: screenName,
     });
