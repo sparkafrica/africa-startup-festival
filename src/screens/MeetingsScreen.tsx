@@ -1456,6 +1456,7 @@ export default function MeetingsScreen({ route }: Props) {
             participantBio={selectedMeeting.bio}
             participantInterests={selectedMeeting.interests}
             participantSocialLabel={selectedMeeting.socialLabel}
+            participantLinkedInUrl={selectedMeeting.linkedInUrl}
             participantAvatar={selectedMeeting.participantAvatar}
             onCloseParticipantDetail={() => {
               setIsParticipantModalVisible(false);

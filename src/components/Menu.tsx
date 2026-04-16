@@ -176,41 +176,52 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
               className="rounded-2xl p-5 overflow-hidden"
             >
               {/* <PatternOverlay opacity={0.30} /> */}
-              <View className="flex-row items-center relative z-10">
-                <View className="w-12 h-12 rounded-full bg-white items-center justify-center mr-4 overflow-hidden">
+              <View className="flex-row items-start relative z-10">
+                <View className="w-12 h-12 rounded-full bg-white items-center justify-center mr-4 overflow-hidden flex-shrink-0">
                   {profilePicUrl ? (
                     <Image source={{ uri: profilePicUrl }} className="w-full h-full" resizeMode="cover" />
                   ) : (
                     <UserAvatarIcon size={28} color="#1BB273" />
                   )}
                 </View>
-                <View className="flex-1">
-                  <View className="flex-row items-center space-x-2">
-                    <Text
-                      className={`text-[18px] font-bold ${
-                        isExhibition ? "text-neutral-900" : "text-white"
-                      }`}
-                    >
-                      {userName}
-                    </Text>
-                    <View
-                      className={`px-2 py-[2px] rounded-full ${
-                        isExhibition ? "bg-neutral-900/10" : "bg-white/30"
-                      }`}
-                    >
+                {/* min-w-0 so long names shrink/wrap instead of pushing the tier pill off-card */}
+                <View className="flex-1 min-w-0">
+                  <View className="flex-row items-start">
+                    <View className="flex-1 min-w-0 pr-2">
                       <Text
-                        className={`text-[12px] capitalize ${
-                          isExhibition ? "text-neutral-700" : "text-white"
+                        className={`text-[18px] font-bold leading-snug ${
+                          isExhibition ? "text-neutral-900" : "text-white"
+                        }`}
+                        numberOfLines={5}
+                        ellipsizeMode="tail"
+                      >
+                        {userName}
+                      </Text>
+                    </View>
+                    <View className="flex-shrink-0 max-w-[38%] pt-0.5">
+                      <View
+                        className={`px-2 py-[2px] rounded-full self-start ${
+                          isExhibition ? "bg-neutral-900/10" : "bg-white/30"
                         }`}
                       >
-                        {userType}
-                      </Text>
+                        <Text
+                          className={`text-[12px] capitalize ${
+                            isExhibition ? "text-neutral-700" : "text-white"
+                          }`}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {userType}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                   <Text
-                    className={`text-[14px] mt-1 ${
+                    className={`text-[14px] mt-1.5 ${
                       isExhibition ? "text-neutral-600" : "text-white/80"
                     }`}
+                    numberOfLines={2}
+                    ellipsizeMode="middle"
                   >
                     {userEmail}
                   </Text>
