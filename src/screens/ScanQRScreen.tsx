@@ -892,8 +892,7 @@ function QRCodeModal({
 
             <View className="bg-orange-50 rounded-xl p-4 border border-orange-200 mb-8">
               <Text className="text-sm text-black leading-5">
-                Show this QR code at check-in or when connecting with other
-                attendees.
+                Show this QR code at check-in or when connecting with other attendees.
               </Text>
             </View>
 

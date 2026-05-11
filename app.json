@@ -2,7 +2,7 @@
   "expo": {
     "name": "Africa Technology Expo",
     "slug": "spark",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sparkllc.mobile",
-      "buildNumber": "15",
+      "buildNumber": "16",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -25,7 +25,7 @@
     },
     "android": {
       "package": "com.sparkllc.mobile",
-      "versionCode": 15,
+      "versionCode": 16,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

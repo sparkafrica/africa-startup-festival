@@ -32,6 +32,10 @@ import HomePushNotificationOverlay from "../components/HomePushNotificationOverl
 import EventChecklist from "../components/EventChecklist";
 import { ArrowUpRightIcon } from "../components/icons";
 import {
+  checkFetchAndReloadOta,
+  OTA_HOME_STABLE_DELAY_MS,
+} from "../utils/otaUpdateFlow";
+import {
   HomeIcon,
   HomeIconFilled,
   PeopleIcon,
@@ -186,6 +190,20 @@ export default function HomeScreen() {
     fetchFeaturedSpeakers();
     fetchFeaturedExhibitors();
     fetchFeaturedPartners();
+  }, []);
+
+  // OTA: once Home is mounted and stable, check for a pending JS update,
+  // download it in the background, and reload the app to apply.
+  // No-ops in dev / Expo Go (see `otaUpdateFlow.ts`).
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      checkFetchAndReloadOta(() => {
+        // Silent reload — no UI hint for this rollout.
+      }).catch(() => {
+        // Swallow OTA failures; user keeps using the current JS bundle.
+      });
+    }, OTA_HOME_STABLE_DELAY_MS);
+    return () => clearTimeout(timer);
   }, []);
 
   // Handle pull-to-refresh

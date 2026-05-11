@@ -934,7 +934,7 @@ export default function WelcomeScreen() {
           {!isLoadingQuotas && ticketQuotaCount === 0 && (
             <View className="bg-neutral-50 rounded-xl p-6 mb-12 border border-neutral-200">
               <Text className="text-base text-neutral-600 text-center">
-                You don't have any tickets in your quota.
+                You don't have any tickets in your quota to assign, please proceed to logging in to your account to view your tickets.
               </Text>
               <Text className="text-sm text-neutral-500 text-center mt-2">
                 Continue to complete your profile.
