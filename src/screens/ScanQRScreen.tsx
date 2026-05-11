@@ -54,7 +54,10 @@ import {
   trackQrEvent,
   trackConnectionEvent,
   trackMeetingEvent,
+  trackEvent,
 } from "../utils/analytics";
+import TicketBenefitsModal from "../components/TicketBenefitsModal";
+import { getTicketBenefits } from "../constants/ticketBenefits";
 import QRCode from "react-native-qrcode-svg";
 import RequestMeetingModal, {
   type MeetingFormData,
@@ -475,6 +478,7 @@ function TicketCard({
   onUpgrade,
   onAssign,
   onEditAssignment,
+  onViewBenefits,
 }: {
   title: string;
   ticketNumber: string;
@@ -496,6 +500,8 @@ function TicketCard({
   onUpgrade?: () => void;
   onAssign?: () => void;
   onEditAssignment?: () => void;
+  /** My Ticket only — when provided, renders an inline "View benefits ↓" link. */
+  onViewBenefits?: () => void;
 }) {
   const unassignedLabel =
     isUnassigned && availableCount != null
@@ -594,6 +600,28 @@ function TicketCard({
             </View>
           </View>
         </View>
+        {isMyTicket && onViewBenefits && (
+          <Pressable
+            onPress={onViewBenefits}
+            hitSlop={8}
+            className="absolute bottom-3 right-4 flex-row items-center"
+          >
+            <Text
+              className={`text-sm font-semibold  ${
+                isExhibition ? "text-black" : "text-white"
+              }`}
+            >
+              View benefits
+            </Text>
+            <Text
+              className={`text-sm font-bold ml-1  ${
+                isExhibition ? "text-black" : "text-white"
+              }`}
+            >
+              ↓
+            </Text>
+          </Pressable>
+        )}
       </LinearGradient>
       {/* My Ticket buttons - View QR Code / Transfer Ticket */}
       {assignedTo && isMyTicket && (
@@ -4083,6 +4111,12 @@ function MyTicketView({
     0,
   );
 
+  const [benefitsModal, setBenefitsModal] = useState<{
+    tierLabel: string;
+    items: string[];
+    ticketType?: string;
+  } | null>(null);
+
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center py-20">
@@ -4113,6 +4147,7 @@ function MyTicketView({
   }
 
   return (
+    <>
     <ScrollView
       className="flex-1"
       contentContainerStyle={{ paddingBottom: 24 }}
@@ -4126,6 +4161,7 @@ function MyTicketView({
           const upgradeable =
             isUpgradeableAttendeeTier(ticket.ticketType) &&
             ticket.backendTicketId != null;
+          const benefits = getTicketBenefits(ticket.ticketType ?? ticket.title);
           return (
             <View
               key={ticket.id}
@@ -4174,6 +4210,22 @@ function MyTicketView({
                 }
                 onUpgrade={
                   upgradeable && onUpgrade ? () => onUpgrade(ticket) : undefined
+                }
+                onViewBenefits={
+                  benefits
+                    ? () => {
+                        setBenefitsModal({
+                          tierLabel: benefits.tierLabel,
+                          items: benefits.items,
+                          ticketType: ticket.ticketType,
+                        });
+                        void trackEvent("ticket_benefits_opened", {
+                          source: "scan_qr_screen",
+                          ticket_type: ticket.ticketType ?? "",
+                          tier: benefits.tier,
+                        });
+                      }
+                    : undefined
                 }
               />
             </View>
@@ -4276,6 +4328,14 @@ function MyTicketView({
         )}
       </View>
     </ScrollView>
+    <TicketBenefitsModal
+      visible={benefitsModal != null}
+      onClose={() => setBenefitsModal(null)}
+      tierLabel={benefitsModal?.tierLabel ?? ""}
+      items={benefitsModal?.items ?? []}
+      ticketType={benefitsModal?.ticketType}
+    />
+    </>
   );
 }
 
