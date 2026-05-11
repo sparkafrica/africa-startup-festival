@@ -843,7 +843,7 @@ function QRCodeModal({
       <View className="flex-1 bg-black/50">
         <Pressable className="flex-1" onPress={onClose} />
         <Animated.View
-          className="bg-white rounded-t-3xl"
+          className="w-full bg-white rounded-t-3xl"
           style={{
             transform: [{ translateY }],
           }}
@@ -858,7 +858,7 @@ function QRCodeModal({
             </Text>
           </View>
 
-          <View className="px-4">
+          <View className="w-full self-stretch px-4">
             <View className="items-center mb-6">
               <View className="bg-white rounded-2xl p-6 border border-neutral-200 items-center">
                 {ticketNumber ? (
@@ -890,9 +890,20 @@ function QRCodeModal({
               </View>
             </View>
 
-            <View className="bg-orange-50 rounded-xl p-4 border border-orange-200 mb-8">
-              <Text className="text-sm text-black leading-5">
-                Show this QR code at check-in or when connecting with other attendees.
+            <View className="w-full self-stretch bg-orange-50 rounded-xl p-4 border border-orange-200 mb-8">
+              <Text
+                className="text-sm text-black leading-5 w-full"
+                style={{ flexShrink: 1 }}
+              >
+                - Show this QR code when checking in.
+
+              </Text>
+              <Text
+                className="text-sm text-black leading-5 w-full"
+                style={{ flexShrink: 1 }}
+              >
+                - Also, when connecting with other attendees.
+
               </Text>
             </View>
 
