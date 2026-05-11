@@ -102,3 +102,46 @@ export function getTicketBenefits(
     items: TICKET_BENEFITS[tier],
   };
 }
+
+/**
+ * Aggressive normalization for set-diff between tier perk strings — ignores
+ * parentheticals, case, and punctuation so phrasing variants like
+ * "Center Stage access (broad industry sessions)" vs "Center Stage access"
+ * collapse to the same key.
+ */
+function normalizeForDiff(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Upgrade preview — perks the user would gain by moving from `currentTier`
+ * (their existing pass) to `targetTier`.
+ *
+ * - If `targetTier` is not one of the four supported tiers, returns `null` →
+ *   caller should hide the "View benefits" affordance.
+ * - If `currentTier` is unknown / unsupported (e.g. Limited Pass), the user is
+ *   treated as having no named perks, so the delta is the full target list.
+ * - Items are returned in `targetTier`'s original wording (no parenthetical
+ *   stripping for display); normalization is only used for the diff itself.
+ */
+export function getUpgradeBenefitsDelta(
+  currentTierOrName: string | undefined,
+  targetTierOrName: string | undefined
+): { tier: TicketBenefitTier; tierLabel: string; items: string[] } | null {
+  const target = getTicketBenefits(targetTierOrName);
+  if (!target) return null;
+  const currentTier = resolveBenefitTier(currentTierOrName);
+  if (!currentTier) return target;
+  const have = new Set(
+    TICKET_BENEFITS[currentTier].map(normalizeForDiff)
+  );
+  const items = target.items.filter(
+    (i) => !have.has(normalizeForDiff(i))
+  );
+  return { ...target, items };
+}

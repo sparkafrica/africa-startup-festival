@@ -25,6 +25,9 @@ import { ApiClientError } from "../services/api";
 import { getTicketBackgroundColor, getTicketGradientColors } from "../utils/ticketColors";
 import { colors, typography, spacing, borderRadius } from "../theme/theme";
 import { LinearGradient } from "expo-linear-gradient";
+import { getTicketBenefits } from "../constants/ticketBenefits";
+import { trackEvent } from "../utils/analytics";
+import TicketBenefitsModal from "./TicketBenefitsModal";
 
 const TIER_ORDER = "Limited Pass → Expo → Oasis → Delegate → Chairperson";
 
@@ -96,6 +99,12 @@ export default function UpgradeTicketModal({
   const [selectedTicketClassId, setSelectedTicketClassId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Nested full-benefits modal target (when user taps "View benefits" on a row). */
+  const [fullBenefitsTarget, setFullBenefitsTarget] = useState<{
+    tierLabel: string;
+    items: string[];
+    ticketType?: string;
+  } | null>(null);
 
   const fetchClasses = useCallback(async () => {
     if (!eventId) return;
@@ -126,6 +135,9 @@ export default function UpgradeTicketModal({
     if (visible && eventId) {
       setError(null);
       fetchClasses();
+    }
+    if (!visible) {
+      setFullBenefitsTarget(null);
     }
   }, [visible, eventId, fetchClasses]);
 
@@ -228,10 +240,10 @@ export default function UpgradeTicketModal({
                       const isSelected = selectedTicketClassId === opt.ticket_class_id;
                       const tierColor = getTicketBackgroundColor(opt.value);
                       const gradientColors = getTicketGradientColors(opt.value);
+                      const benefits = getTicketBenefits(opt.value);
                       return (
-                        <Pressable
+                        <View
                           key={opt.ticket_class_id}
-                          onPress={() => setSelectedTicketClassId(opt.ticket_class_id)}
                           style={[
                             styles.optionRow,
                             isSelected && {
@@ -248,33 +260,66 @@ export default function UpgradeTicketModal({
                               style={styles.optionRowAccent}
                             />
                           ) : null}
-                          <View
-                            style={[
-                              styles.radioOuter,
-                              isSelected && { borderColor: tierColor },
-                            ]}
+                          <Pressable
+                            onPress={() =>
+                              setSelectedTicketClassId(opt.ticket_class_id)
+                            }
+                            style={styles.optionRowSelectArea}
                           >
-                            {isSelected ? (
-                              <View
-                                style={[
-                                  styles.radioInner,
-                                  { backgroundColor: tierColor },
-                                ]}
-                              />
-                            ) : null}
-                          </View>
-                          <Text
-                            style={[
-                              styles.optionLabel,
-                              isSelected && {
-                                color: tierColor,
-                                fontWeight: "600",
-                              },
-                            ]}
-                          >
-                            {opt.label}
-                          </Text>
-                        </Pressable>
+                            <View
+                              style={[
+                                styles.radioOuter,
+                                isSelected && { borderColor: tierColor },
+                              ]}
+                            >
+                              {isSelected ? (
+                                <View
+                                  style={[
+                                    styles.radioInner,
+                                    { backgroundColor: tierColor },
+                                  ]}
+                                />
+                              ) : null}
+                            </View>
+                            <Text
+                              style={[
+                                styles.optionLabel,
+                                isSelected && {
+                                  color: tierColor,
+                                  fontWeight: "600",
+                                },
+                              ]}
+                            >
+                              {opt.label}
+                            </Text>
+                          </Pressable>
+                          {benefits && (
+                            <Pressable
+                              onPress={() => {
+                                setFullBenefitsTarget({
+                                  tierLabel: benefits.tierLabel,
+                                  items: benefits.items,
+                                  ticketType: opt.value,
+                                });
+                                void trackEvent(
+                                  "ticket_upgrade_benefits_viewed",
+                                  {
+                                    source: "upgrade_modal",
+                                    from_tier: currentTierLabel,
+                                    to_tier: opt.label,
+                                  }
+                                );
+                              }}
+                              hitSlop={8}
+                              style={styles.viewBenefitsLink}
+                            >
+                              <Text  style={styles.viewBenefitsText}>
+                                View benefits
+                              </Text>
+                              <Text style={styles.viewBenefitsArrow}>↓</Text>
+                            </Pressable>
+                          )}
+                        </View>
                       );
                     })}
                   </View>
@@ -326,6 +371,13 @@ export default function UpgradeTicketModal({
           <SafeAreaView edges={["bottom"]} style={styles.safeBottom} />
         </View>
       </View>
+      <TicketBenefitsModal
+        visible={fullBenefitsTarget != null}
+        onClose={() => setFullBenefitsTarget(null)}
+        tierLabel={fullBenefitsTarget?.tierLabel ?? ""}
+        items={fullBenefitsTarget?.items ?? []}
+        ticketType={fullBenefitsTarget?.ticketType}
+      />
     </Modal>
   );
 }
@@ -418,6 +470,31 @@ const styles = StyleSheet.create({
     marginBottom: spacing[2],
     overflow: "hidden",
     position: "relative",
+  },
+  optionRowSelectArea: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing[1],
+  },
+  viewBenefitsLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: spacing[2],
+    paddingHorizontal: spacing[1],
+    paddingVertical: spacing[1],
+  },
+  viewBenefitsText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    fontFamily: typography.fontFamily["inter-semibold"],
+    paddingTop: 4,
+    // textDecorationLine: "underline",
+  },
+  viewBenefitsArrow: {
+    fontSize: typography.fontSize.lg,
+    color: colors.text.secondary,
+    marginLeft: 2,
   },
   optionRowAccent: {
     position: "absolute",
