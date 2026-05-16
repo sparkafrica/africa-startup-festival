@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["6635QUGDA7.com.sparkllc.mobile"],
+        "components": [
+          { "/": "/meetings" },
+          { "/": "/meetings/*" },
+          { "/": "/connections" },
+          { "/": "/attendees" },
+          { "/": "/download", "exclude": true },
+          { "/": "/", "exclude": true }
+        ]
+      }
+    ]
+  }
+}

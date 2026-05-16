@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.sparkllc.mobile",
+      "sha256_cert_fingerprints": [
+        "74:B4:D9:C0:B3:B9:42:92:E5:28:AD:0A:23:EF:DC:DF:A8:0B:E3:04:85:D5:4C:A2:53:1B:EF:97:E8:EF:67:82",
+        "C3:AF:84:49:72:7E:57:6B:DF:64:47:8C:70:F9:15:C4:FD:9E:69:94:43:DA:4A:47:03:C6:39:3E:97:45:02:42"
+      ]
+    }
+  }
+]

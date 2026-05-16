@@ -11,13 +11,7 @@
  *
  * Example: { id: "123", route: "meetings/requests/inbound", meeting_id: "456", connection_id: "" }
  *
- * Attendees / book-first-meeting nudge: set route to "attendees" and/or notification_type to
- * book_meeting_prompt (aliases: attendees_booking_nudge, book_first_meeting). Example:
- * { title: "…", description: "…", route: "attendees", notification_type: "book_meeting_prompt" }
- *
- * App update (store): set notification_type to app_update (or force_update / store_update / system_update).
- * Optional: title, description, id (to mark read). Example:
- * { notification_type: "app_update", title: "Important Update!", description: "Please update…", id: "99" }
+ * Email digest deeplinks use the same route grammar via deepLinkRoutes.ts.
  */
 import {
   getMessaging,
@@ -25,28 +19,13 @@ import {
   onNotificationOpenedApp,
 } from "@react-native-firebase/messaging";
 import type { RemoteMessage } from "@react-native-firebase/messaging";
-import { navigate, isReady, resetToHome } from "../navigation/navigationRef";
-import { EVENT_ID } from "../config/env";
+import { isReady } from "../navigation/navigationRef";
 import {
-  isBookMeetingPromptNotificationType,
-  routeFirstSegmentIsAttendees,
-} from "./notificationUtils";
+  applyRouteNavigation,
+  type RouteNavigationInput,
+} from "../navigation/deepLinkRoutes";
 
-export interface PushNotificationData {
-  id?: string;
-  route?: string;
-  meeting_id?: string;
-  connection_id?: string;
-  conversation_id?: string;
-  event_id?: string;
-  other_party_name?: string;
-  sender_name?: string;
-  title?: string;
-  description?: string;
-  /** app_update | force_update | store_update | system_update */
-  notification_type?: string;
-  store_url?: string;
-}
+export type PushNotificationData = RouteNavigationInput;
 
 function parseRemoteMessageData(
   message: RemoteMessage | null
@@ -84,103 +63,12 @@ function parseRemoteMessageData(
   };
 }
 
-function isAppUpdatePush(data: PushNotificationData): boolean {
-  const nt = (data.notification_type || "").trim().toLowerCase();
-  if (
-    nt === "app_update" ||
-    nt === "force_update" ||
-    nt === "store_update" ||
-    nt === "system_update"
-  ) {
-    return true;
-  }
-  const t = (data.title || "").toLowerCase();
-  const b = (data.description || "").toLowerCase();
-  if (/\bimportant update\b/i.test(t)) return true;
-  if (b.includes("please update your app") || b.includes("update your app to")) {
-    return true;
-  }
-  return false;
-}
-
-function handlePushData(data: PushNotificationData | null) {
-  if (!data) {
-    resetToHome({});
-    return;
-  }
-  if (isAppUpdatePush(data)) {
-    const notificationId =
-      data.id && /^\d+$/.test(data.id) ? parseInt(data.id, 10) : undefined;
-    resetToHome({
-      openAppUpdateFromPush: {
-        title: data.title?.trim() || "Important Update!",
-        description: data.description,
-        notificationId,
-        storeUrl: data.store_url,
-      },
-    });
-    return;
-  }
-  if (data.conversation_id) {
-    const conversationId = /^\d+$/.test(data.conversation_id)
-      ? parseInt(data.conversation_id, 10)
-      : undefined;
-    const eventId =
-      data.event_id && /^\d+$/.test(data.event_id)
-        ? parseInt(data.event_id, 10)
-        : EVENT_ID;
-    if (conversationId != null) {
-      const otherPartyName =
-        data.other_party_name || data.sender_name || "Chat";
-      navigate("Messages", {
-        openConversationId: conversationId,
-        eventId,
-        otherPartyName,
-      });
-      return;
-    }
-  }
-  if (data.connection_id) {
-    navigate("Connections");
-    return;
-  }
-  if (data.meeting_id) {
-    const routeLower = (data.route || "").toLowerCase();
-    const primaryTab =
-      routeLower.includes("scheduled") ||
-      routeLower.includes("accepted") ||
-      routeLower.includes("approved")
-        ? "scheduled"
-        : "requests";
-    const secondaryTab =
-      routeLower.includes("inbound") || routeLower.includes("received")
-        ? "inbound"
-        : "outbound";
-    navigate("Meetings", { primaryTab, secondaryTab });
-    return;
-  }
-  if (
-    isBookMeetingPromptNotificationType(data.notification_type) ||
-    routeFirstSegmentIsAttendees(data.route)
-  ) {
-    navigate("Attendees");
-    return;
-  }
-  const openNotificationId =
-    data.id && /^\d+$/.test(data.id) ? parseInt(data.id, 10) : undefined;
-  if (openNotificationId != null) {
-    resetToHome({ openPushNotificationId: openNotificationId });
-    return;
-  }
-  resetToHome({});
-}
-
 /**
  * Process a RemoteMessage (from getInitialNotification or onNotificationOpenedApp).
  */
 export function handlePushMessage(message: RemoteMessage | null) {
   const data = parseRemoteMessageData(message);
-  handlePushData(data);
+  applyRouteNavigation(data);
 }
 
 const NAV_READY_INTERVAL_MS = 50;

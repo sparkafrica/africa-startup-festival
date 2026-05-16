@@ -7,7 +7,6 @@ import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import { Text, View, Pressable, Image } from "react-native";
 import * as Updates from "expo-updates";
-import { NavigationContainer } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 
 initSentry();
@@ -28,22 +27,10 @@ import { MeetingsBadgeProvider } from "./src/context/MeetingsBadgeContext";
 import { NotificationsProvider } from "./src/context/NotificationsContext";
 import { MessagesBadgeProvider } from "./src/context/MessagesBadgeContext";
 import { ChatProvider } from "./src/context/ChatContext";
-import AppNavigator from "./src/navigation/AppNavigator";
-import { navigationRef } from "./src/navigation/navigationRef";
-import { createNavigationAnalyticsHandlers } from "./src/utils/analytics";
-import PushTapHandler from "./src/components/PushTapHandler";
+import AppNavigationContainer from "./src/navigation/AppNavigationContainer";
 import { LoadingSpinner } from "./src/components";
 
 export default function App() {
-  const { onReady: onNavigationAnalyticsReady, onStateChange: onNavigationAnalyticsStateChange } =
-    React.useMemo(
-      () =>
-        createNavigationAnalyticsHandlers(() =>
-          navigationRef.isReady() ? navigationRef.getRootState() : undefined
-        ),
-      []
-    );
-
   const [fontsLoaded, fontError] = useFonts({
     // Inter Display - ONLY font family used throughout the app
     "InterDisplay-Light": require("./src/assets/fonts/Inter Display/Inter Display/InterDisplay-Light.ttf"),
@@ -133,15 +120,7 @@ export default function App() {
               <NotificationsProvider>
                 <MessagesBadgeProvider>
                   <ChatProvider>
-                    <PushTapHandler />
-                    <NavigationContainer
-                      ref={navigationRef}
-                      onReady={onNavigationAnalyticsReady}
-                      onStateChange={onNavigationAnalyticsStateChange}
-                    >
-                      <AppNavigator />
-                      <StatusBar style="auto" />
-                    </NavigationContainer>
+                    <AppNavigationContainer />
                   </ChatProvider>
                 </MessagesBadgeProvider>
               </NotificationsProvider>
