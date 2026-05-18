@@ -21,6 +21,8 @@ export function createLinkingConfig(enabled: boolean): LinkingOptions<RootStackP
       screens: {
         Home: "",
         Attendees: "attendees",
+        Schedule: "schedule",
+        Profile: "profile",
         Connections: "connections",
         Meetings: {
           path: "meetings/:segment?",

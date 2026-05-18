@@ -371,7 +371,7 @@ export default function HomeScreen() {
             backgroundImage={require("../assets/images/2nd-card.jpg")}
             onPress={() => navigation.navigate("Attendees")}
           />
-          {/* <BannerCard
+          <BannerCard
             // badge="PARTNER OFFERS"
             title="Review event schedule"
             description="Get your ATE 2026 itinerary ready ahead of the event day"
@@ -379,7 +379,7 @@ export default function HomeScreen() {
             gradient={gradients.ocean}
             backgroundImage={require("../assets/images/3rd-card.jpg")}
             onPress={() => navigation.navigate("Schedule")}
-          /> */}
+          />
         </ScrollView>
 
         {/* Body sections */}

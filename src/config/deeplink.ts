@@ -12,19 +12,6 @@ export const DEEP_LINK_PREFIXES = [
   `${DEEP_LINK_SCHEME}://`,
 ] as const;
 
-
-
-// Base host (from the app): https://app.africatechnologyexpo.com
-
-// Digest CTA	URL to give backend
-// Download app
-// https://app.africatechnologyexpo.com/download
-// Meetings (general)
-// https://app.africatechnologyexpo.com/meetings
-// Inbound meeting invites
-// https://app.africatechnologyexpo.com/meetings/inbound
-// Pending connection requests
-// https://app.africatechnologyexpo.com/connections
-// Attendees (if needed later)
-// https://app.africatechnologyexpo.com/attendees
+/** Numbered digest URLs (1–9) — see `digestDeepLinks.ts` */
+export { DIGEST_DEEP_LINKS } from "./digestDeepLinks";
 
