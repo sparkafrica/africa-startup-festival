@@ -2,6 +2,8 @@ import React from "react";
 import { View, Text, Pressable } from "react-native";
 import { CalendarIconWhite } from "./SocialIcons";
 import LoadingSpinner from "./LoadingSpinner";
+import ScheduleBadge from "./ScheduleBadge";
+import type { ScheduleBadgeColor } from "../utils/scheduleMetadata";
 
 export interface EventCardProps {
   title: string;
@@ -9,9 +11,13 @@ export interface EventCardProps {
   day: string;
   startTime: string;
   endTime: string;
+  sessionBadge?: {
+    label: string;
+    color?: ScheduleBadgeColor;
+  };
   sponsoredBy?: {
     name: string;
-    color: "blue" | "purple";
+    color?: ScheduleBadgeColor;
   };
   onAddToSchedule?: () => void;
   onLeaveFeedback?: () => void;
@@ -26,6 +32,7 @@ export default function EventCard({
   day,
   startTime,
   endTime,
+  sessionBadge,
   sponsoredBy,
   onAddToSchedule,
   onLeaveFeedback,
@@ -33,21 +40,6 @@ export default function EventCard({
   isInMySchedule,
   isAddingToSchedule = false,
 }: EventCardProps) {
-  const sponsorColors = {
-    blue: {
-      bg: "bg-blue-100",
-      dot: "bg-blue-700",
-      text: "text-blue-700",
-    },
-    purple: {
-      bg: "bg-purple-100",
-      dot: "bg-purple-700",
-      text: "text-purple-700",
-    },
-  };
-
-  const sponsorColor = sponsoredBy ? sponsorColors[sponsoredBy.color] : null;
-
   const showActions =
     !!onRemoveFromSchedule ||
     !!onAddToSchedule ||
@@ -56,16 +48,22 @@ export default function EventCard({
 
   return (
     <View className="bg-white rounded-xl p-4 mb-4 border border-gray-100">
-      {sponsoredBy && sponsorColor && (
-        <View
-          className={`flex-row items-center ${sponsorColor.bg} rounded-full px-3 py-1 mb-3 self-start`}
-        >
-          <View
-            className={`w-1.5 h-1.5 ${sponsorColor.dot} rounded-full mr-2`}
-          />
-          <Text className={`text-xs font-medium ${sponsorColor.text}`}>
-            Sponsored by {sponsoredBy.name}
-          </Text>
+      {(sessionBadge || sponsoredBy) && (
+        <View className="mb-3 gap-2">
+          {sessionBadge ? (
+            <ScheduleBadge
+              text={sessionBadge.label}
+              color={sessionBadge.color}
+              className="mb-0"
+            />
+          ) : null}
+          {sponsoredBy ? (
+            <ScheduleBadge
+              text={`Sponsored by ${sponsoredBy.name}`}
+              color={sponsoredBy.color}
+              className="mb-0"
+            />
+          ) : null}
         </View>
       )}
 

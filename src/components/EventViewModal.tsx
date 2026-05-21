@@ -17,6 +17,8 @@ import { LocationPinIcon, SpeechBubbleIcon, PersonProfileIcon } from "./icons";
 import { CalendarIconWhite } from "./SocialIcons";
 import { ChevronRightIcon } from "./icons";
 import LoadingSpinner from "./LoadingSpinner";
+import ScheduleBadge from "./ScheduleBadge";
+import type { ScheduleBadgeColor } from "../utils/scheduleMetadata";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -40,9 +42,13 @@ export interface EventViewModalProps {
   startTime: string;
   endTime: string;
   stage: string;
+  sessionBadge?: {
+    label: string;
+    color?: ScheduleBadgeColor;
+  };
   sponsoredBy?: {
     name: string;
-    color: "blue" | "purple";
+    color?: ScheduleBadgeColor;
   };
   speakers?: Speaker[];
   description?: string;
@@ -60,6 +66,7 @@ export default function EventViewModal({
   startTime,
   endTime,
   stage,
+  sessionBadge,
   sponsoredBy,
   speakers = [],
   description,
@@ -149,21 +156,6 @@ export default function EventViewModal({
     })
   ).current;
 
-  const sponsorColors = {
-    blue: {
-      bg: "#DBEAFE",
-      dot: "#1D4ED8",
-      text: "#1D4ED8",
-    },
-    purple: {
-      bg: "#F3E8FF",
-      dot: "#7C3AED",
-      text: "#7C3AED",
-    },
-  };
-
-  const sponsorColor = sponsoredBy ? sponsorColors[sponsoredBy.color] : null;
-
   return (
     <Modal
       visible={visible}
@@ -199,25 +191,22 @@ export default function EventViewModal({
             bounces={true}
             scrollEnabled={true}
           >
-            {/* Sponsored Tag */}
-            {sponsoredBy && sponsorColor && (
-              <View
-                style={[
-                  styles.sponsoredTag,
-                  { backgroundColor: sponsorColor.bg },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.sponsoredDot,
-                    { backgroundColor: sponsorColor.dot },
-                  ]}
-                />
-                <Text
-                  style={[styles.sponsoredText, { color: sponsorColor.text }]}
-                >
-                  Sponsored by {sponsoredBy.name}
-                </Text>
+            {(sessionBadge || sponsoredBy) && (
+              <View style={styles.badgeStack}>
+                {sessionBadge ? (
+                  <ScheduleBadge
+                    text={sessionBadge.label}
+                    color={sessionBadge.color}
+                    className="mb-0"
+                  />
+                ) : null}
+                {sponsoredBy ? (
+                  <ScheduleBadge
+                    text={`Sponsored by ${sponsoredBy.name}`}
+                    color={sponsoredBy.color}
+                    className="mb-0"
+                  />
+                ) : null}
               </View>
             )}
 
@@ -377,24 +366,9 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 20,
   },
-  sponsoredTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+  badgeStack: {
+    gap: 8,
     marginBottom: 16,
-  },
-  sponsoredDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
-  },
-  sponsoredText: {
-    fontSize: 12,
-    fontWeight: "500",
   },
   title: {
     fontSize: 24,

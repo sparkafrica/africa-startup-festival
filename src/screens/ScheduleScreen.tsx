@@ -64,6 +64,7 @@ import {
   SCHEDULE_SESSION_CTAS_ENABLED,
   SESSION_FEEDBACK_FORM_URL,
 } from "../config/scheduleFeatures";
+import { parseScheduleCardMetadata } from "../utils/scheduleMetadata";
 import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
 import {
@@ -300,7 +301,8 @@ export default function ScheduleScreen() {
     day: string;
     startTime: string;
     endTime: string;
-    sponsoredBy?: { name: string; color: "blue" | "purple" };
+    sessionBadge?: { label: string; color?: "blue" | "purple" };
+    sponsoredBy?: { name: string; color?: "blue" | "purple" };
     speakers?: Speaker[];
     description?: string;
     personalScheduleId?: number; // For My Schedule tab: backend personal schedule id (remove from schedule)
@@ -426,8 +428,10 @@ export default function ScheduleScreen() {
     const eventObj = typeof schedule.event === "object" ? schedule.event : null;
     const stage = scheduleVenue(schedule);
     
-    // Extract sponsoredBy from metadata if available
-    const sponsoredBy = schedule.metadata?.sponsoredBy || eventObj?.metadata?.sponsoredBy;
+    const { sponsoredBy, sessionBadge } = parseScheduleCardMetadata(
+      schedule.metadata,
+      eventObj?.metadata,
+    );
 
     const parsed = parseScheduleSpeakersRaw(schedule.speakers);
     const speakers: Speaker[] = parsed
@@ -454,10 +458,18 @@ export default function ScheduleScreen() {
       endTime: formatTime(endDate),
       startTimeMs: startDate.getTime(),
       scheduleDateIso: scheduleStartDateIso(schedule.start_time),
-      sponsoredBy: sponsoredBy ? {
-        name: sponsoredBy.name || "",
-        color: (sponsoredBy.color || "blue") as "blue" | "purple",
-      } : undefined,
+      sessionBadge: sessionBadge
+        ? {
+            label: sessionBadge.label,
+            color: sessionBadge.color ?? "purple",
+          }
+        : undefined,
+      sponsoredBy: sponsoredBy
+        ? {
+            name: sponsoredBy.name,
+            color: sponsoredBy.color ?? "blue",
+          }
+        : undefined,
       speakers: speakers,
       description: schedule.description || (typeof schedule.event === "object" ? schedule.event.description : undefined),
     };
@@ -992,6 +1004,7 @@ export default function ScheduleScreen() {
                     day={event?.day || ""}
                     startTime={event?.startTime || ""}
                     endTime={event?.endTime || ""}
+                    sessionBadge={event?.sessionBadge}
                     sponsoredBy={event?.sponsoredBy}
                     onAddToSchedule={
                       SCHEDULE_SESSION_CTAS_ENABLED
@@ -1077,6 +1090,7 @@ export default function ScheduleScreen() {
                   day={event?.day || ""}
                   startTime={event?.startTime || ""}
                   endTime={event?.endTime || ""}
+                  sessionBadge={event?.sessionBadge}
                   sponsoredBy={event?.sponsoredBy}
                   onRemoveFromSchedule={
                     SCHEDULE_SESSION_CTAS_ENABLED
@@ -1117,6 +1131,7 @@ export default function ScheduleScreen() {
           startTime={selectedEvent?.startTime || ""}
           endTime={selectedEvent?.endTime || ""}
           stage={selectedEvent?.stage || ""}
+          sessionBadge={selectedEvent?.sessionBadge}
           sponsoredBy={selectedEvent?.sponsoredBy}
           speakers={(selectedEvent?.speakers || []).map((speaker: Speaker) => {
             return {
