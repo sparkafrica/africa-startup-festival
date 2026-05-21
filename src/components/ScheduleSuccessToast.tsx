@@ -101,79 +101,84 @@ export default function ScheduleSuccessToast({
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.8)).current;
   const checkmarkScale = useRef(new Animated.Value(0)).current;
+  const wasVisibleRef = useRef(false);
+  const onHideRef = useRef(onHide);
+  onHideRef.current = onHide;
 
   useEffect(() => {
-    if (visible) {
-      // Reset animations
+    if (!visible) {
+      wasVisibleRef.current = false;
       translateY.setValue(-100);
       opacity.setValue(0);
       scale.setValue(0.8);
       checkmarkScale.setValue(0);
+      return;
+    }
 
-      // Animate in
+    if (wasVisibleRef.current) {
+      return;
+    }
+    wasVisibleRef.current = true;
+
+    translateY.setValue(-100);
+    opacity.setValue(0);
+    scale.setValue(0.8);
+    checkmarkScale.setValue(0);
+
+    Animated.parallel([
+      Animated.spring(translateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }),
+    ]).start();
+
+    Animated.sequence([
+      Animated.spring(checkmarkScale, {
+        toValue: 1.2,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 3,
+      }),
+      Animated.spring(checkmarkScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 5,
+      }),
+    ]).start();
+
+    const timer = setTimeout(() => {
       Animated.parallel([
-        Animated.spring(translateY, {
-          toValue: 0,
+        Animated.timing(translateY, {
+          toValue: -100,
+          duration: 250,
           useNativeDriver: true,
-          tension: 50,
-          friction: 8,
         }),
         Animated.timing(opacity, {
-          toValue: 1,
-          duration: 300,
+          toValue: 0,
+          duration: 250,
           useNativeDriver: true,
         }),
-        Animated.spring(scale, {
-          toValue: 1,
-          useNativeDriver: true,
-          tension: 50,
-          friction: 8,
-        }),
-      ]).start();
+      ]).start(() => {
+        onHideRef.current();
+      });
+    }, duration);
 
-      // Animate checkmark with bounce
-      Animated.sequence([
-        Animated.spring(checkmarkScale, {
-          toValue: 1.2,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 3,
-        }),
-        Animated.spring(checkmarkScale, {
-          toValue: 1,
-          useNativeDriver: true,
-          tension: 50,
-          friction: 5,
-        }),
-      ]).start();
-
-      // Auto hide after duration
-      const timer = setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(translateY, {
-            toValue: -100,
-            duration: 250,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0,
-            duration: 250,
-            useNativeDriver: true,
-          }),
-        ]).start(() => {
-          onHide();
-        });
-      }, duration);
-
-      return () => clearTimeout(timer);
-    } else {
-      // Reset when hidden
-      translateY.setValue(-100);
-      opacity.setValue(0);
-      scale.setValue(0.8);
-      checkmarkScale.setValue(0);
-    }
-  }, [visible, duration, onHide, translateY, opacity, scale, checkmarkScale]);
+    return () => clearTimeout(timer);
+  }, [visible, duration, translateY, opacity, scale, checkmarkScale]);
 
   if (!visible) return null;
 

@@ -5,7 +5,7 @@
 import * as Updates from "expo-updates";
 
 /** Time Home must stay focused before we check again, fetch, and reload. */
-export const OTA_HOME_STABLE_DELAY_MS = 3000;
+export const OTA_HOME_STABLE_DELAY_MS = 2000;
 
 /** Light check only — run on verification or main mount; does not download or reload. */
 export async function runEarlyOtaCheckOnly(): Promise<void> {

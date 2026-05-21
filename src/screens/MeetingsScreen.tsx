@@ -55,6 +55,10 @@ import {
   type MeetingUser,
 } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
+import {
+  markMeetingsFetched,
+  shouldRefetchMeetingsOnFocus,
+} from "../utils/eventDataCache";
 import { trackMeetingEvent } from "../utils/analytics";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
@@ -827,6 +831,7 @@ export default function MeetingsScreen({ route }: Props) {
       // Simple: API is source of truth. Whatever backend returns, we display.
       const fromApi = [...physicalUIMeetings, ...virtualUIMeetings];
       setAllMeetingsForCounts(fromApi);
+      markMeetingsFetched();
     } catch (err: any) {
       const errorMessage =
         err instanceof ApiClientError
@@ -847,12 +852,18 @@ export default function MeetingsScreen({ route }: Props) {
     fetchMeetings(false);
   }, [fetchMeetings]);
 
-  // Refetch when screen gains focus so the other user sees cancelled/declined updates
+  const meetingsCountRef = React.useRef(0);
+  React.useEffect(() => {
+    meetingsCountRef.current = allMeetingsForCounts.length;
+  }, [allMeetingsForCounts.length]);
+
   useFocusEffect(
     useCallback(() => {
       refreshMeetingsBadge();
-      fetchMeetings(false);
-    }, [refreshMeetingsBadge, fetchMeetings])
+      if (shouldRefetchMeetingsOnFocus(meetingsCountRef.current > 0)) {
+        fetchMeetings(false);
+      }
+    }, [refreshMeetingsBadge, fetchMeetings]),
   );
 
   // ============================================================================

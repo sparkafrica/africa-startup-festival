@@ -1,5 +1,15 @@
 import React, { useCallback } from "react";
-import { View, ScrollView, Pressable, Linking, Alert, Text, RefreshControl } from "react-native";
+import {
+  View,
+  ScrollView,
+  Pressable,
+  Linking,
+  Alert,
+  Text,
+  RefreshControl,
+  Animated,
+  Dimensions,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   HeaderBar,
@@ -31,8 +41,12 @@ import {
   HeartIcon,
   HeartIconFilled,
 } from "../components/BottomNavIcons";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import type { NavigationProp } from "@react-navigation/native";
+import {
+  useNavigation,
+  useFocusEffect,
+  useRoute,
+} from "@react-navigation/native";
+import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef } from "../navigation/navigationRef";
 import { useChecklist } from "../context/ChecklistContext";
@@ -45,8 +59,69 @@ import {
 } from "../hooks";
 import { eventService, type EventSchedule, type PersonalSchedule } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
+import {
+  SCHEDULE_MOCK_PREVIEW_ENABLED,
+  SCHEDULE_SESSION_CTAS_ENABLED,
+} from "../config/scheduleFeatures";
 import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
+import {
+  DAY_FILTER_ID_TO_ISO_DATE,
+  deriveDayLabel,
+  filterEventSchedules,
+  scheduleStartDateIso,
+  scheduleVenue,
+  setExpoEventDates,
+} from "../utils/scheduleFilters";
+import {
+  clearCachedEventSchedules,
+  clearCachedEventSpeakers,
+  ensureEventProgramme,
+  ensureEventSpeakers,
+  getCachedEventSchedules,
+  getCachedEventSpeakers,
+  isProgrammeCacheFresh,
+} from "../utils/eventDataCache";
+import {
+  isEmbeddedScheduleSpeaker,
+  mapCachedApiSpeakerToUi,
+  mapEmbeddedSpeakerToUi,
+  parseScheduleSpeakersRaw,
+} from "../utils/scheduleSpeakers";
+import type { Speaker as ApiSpeaker } from "../services/eventService";
+
+/**
+ * Reference EventData for schedule cards/modals (not loaded into the live list).
+ * Live rows come from mapEventScheduleToEventData + API.
+ */
+export const MOCK_SCHEDULE_EVENT = {
+  id: "mock-1",
+  eventScheduleId: 0,
+  title: "Opening Keynote: The Future of African Tech",
+  stage: "Main Stage",
+  day: "Day 1",
+  startTime: "10:00 AM",
+  endTime: "11:00 AM",
+  startTimeMs: Date.parse("2026-06-26T10:00:00"),
+  scheduleDateIso: "2026-06-26",
+  sponsoredBy: {
+    name: "Spark Capital",
+    color: "blue" as const,
+  },
+  speakers: [
+    {
+      id: "1",
+      name: "Dr. Jane Smith",
+      affiliation: "VC Partner · TechVentures Inc",
+      bio: "Dr. Jane Smith is a seasoned venture capitalist with over 15 years of experience in technology investments.",
+      interests: ["Fintech", "Enterprise SaaS", "AI/ML", "Startup Ecosystem"],
+      tags: ["VC", "Fintech Expert", "Africa Tech"],
+      socialLabel: "jane.smith@techventures.com",
+    },
+  ] as Speaker[],
+  description:
+    "Explore how AI is transforming enterprise operations and what's next.",
+};
 
 // ============================================================================
 // EXTERNAL LINKS INTEGRATION POINTS - ScheduleScreen
@@ -81,9 +156,131 @@ import { useToast } from "../hooks/useToast";
 //
 // ============================================================================
 
+const HIGHLIGHT_PULSE_MS = 2000;
+const HIGHLIGHT_FADE_MS = 350;
+const ESTIMATED_EVENT_CARD_HEIGHT = 150;
+
 export default function ScheduleScreen() {
   const navigation =
-    useNavigation<NavigationProp<RootStackParamList, "Home">>();
+    useNavigation<NavigationProp<RootStackParamList, "Schedule">>();
+  const route = useRoute<RouteProp<RootStackParamList, "Schedule">>();
+  const scrollRef = React.useRef<ScrollView>(null);
+  const listContentRef = React.useRef<View>(null);
+  const scrollViewportHeightRef = React.useRef(
+    Dimensions.get("window").height * 0.55,
+  );
+  const cardLayoutRef = React.useRef<
+    Map<number, { y: number; height: number }>
+  >(new Map());
+  const cardViewRefs = React.useRef<Map<number, View>>(new Map());
+  const highlightRunIdRef = React.useRef(0);
+  const highlightTimersRef = React.useRef<{
+    scroll?: ReturnType<typeof setTimeout>;
+    fade?: ReturnType<typeof setTimeout>;
+  }>({});
+  const highlightOpacity = React.useRef(new Animated.Value(0)).current;
+  const [pulseScheduleId, setPulseScheduleId] = React.useState<number | null>(
+    null,
+  );
+  /** Set once from navigation params; scroll/highlight runs when events list is ready. */
+  const [highlightTargetId, setHighlightTargetId] = React.useState<
+    number | null
+  >(null);
+
+  const clearHighlightTimers = React.useCallback(() => {
+    const timers = highlightTimersRef.current;
+    if (timers.scroll) clearTimeout(timers.scroll);
+    if (timers.fade) clearTimeout(timers.fade);
+    highlightTimersRef.current = {};
+  }, []);
+
+  const clearScheduleHighlight = React.useCallback(() => {
+    clearHighlightTimers();
+    highlightRunIdRef.current += 1;
+    setHighlightTargetId(null);
+    highlightOpacity.stopAnimation();
+    highlightOpacity.setValue(0);
+    setPulseScheduleId(null);
+  }, [clearHighlightTimers, highlightOpacity]);
+
+  const startScheduleHighlight = React.useCallback(
+    (scheduleId: number) => {
+      clearHighlightTimers();
+      const runId = ++highlightRunIdRef.current;
+      setPulseScheduleId(scheduleId);
+      highlightOpacity.setValue(1);
+
+      highlightTimersRef.current.fade = setTimeout(() => {
+        if (highlightRunIdRef.current !== runId) return;
+        Animated.timing(highlightOpacity, {
+          toValue: 0,
+          duration: HIGHLIGHT_FADE_MS,
+          useNativeDriver: false,
+        }).start(({ finished }) => {
+          if (finished && highlightRunIdRef.current === runId) {
+            setPulseScheduleId(null);
+          }
+        });
+      }, HIGHLIGHT_PULSE_MS);
+    },
+    [clearHighlightTimers, highlightOpacity],
+  );
+
+  const scrollToCenteredSchedule = React.useCallback((scheduleId: number) => {
+    const layout = cardLayoutRef.current.get(scheduleId);
+    const viewportH = scrollViewportHeightRef.current;
+    if (!layout || !scrollRef.current) return false;
+
+    const centeredY = Math.max(
+      0,
+      layout.y + layout.height / 2 - viewportH / 2,
+    );
+    scrollRef.current.scrollTo({ y: centeredY, animated: true });
+    return true;
+  }, []);
+
+  const measureCardLayout = React.useCallback(
+    (scheduleId: number, node: View | null) => {
+      const container = listContentRef.current;
+      if (!node || !container) return;
+      node.measureLayout(
+        container,
+        (_x, y, _w, height) => {
+          cardLayoutRef.current.set(scheduleId, { y, height });
+        },
+        () => {},
+      );
+    },
+    [],
+  );
+
+  const tryScrollAndHighlight = React.useCallback(
+    (scheduleId: number, listIndex: number, attempt = 0) => {
+      let scrolled = scrollToCenteredSchedule(scheduleId);
+      if (!scrolled && listIndex >= 0 && attempt >= 4) {
+        const viewportH = scrollViewportHeightRef.current;
+        const y = Math.max(
+          0,
+          listIndex * ESTIMATED_EVENT_CARD_HEIGHT +
+            ESTIMATED_EVENT_CARD_HEIGHT / 2 -
+            viewportH / 2,
+        );
+        scrollRef.current?.scrollTo({ y, animated: true });
+        scrolled = true;
+      }
+
+      if (!scrolled && attempt < 16) {
+        highlightTimersRef.current.scroll = setTimeout(
+          () => tryScrollAndHighlight(scheduleId, listIndex, attempt + 1),
+          80,
+        );
+        return;
+      }
+
+      startScheduleHighlight(scheduleId);
+    },
+    [scrollToCenteredSchedule, startScheduleHighlight],
+  );
   const meetingsBadgeCount = useMeetingsBadgeCount();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
@@ -106,7 +303,14 @@ export default function ScheduleScreen() {
     speakers?: Speaker[];
     description?: string;
     personalScheduleId?: number; // For My Schedule tab: backend personal schedule id (remove from schedule)
+    /** UTC ms from schedule.start_time — used for chronological sort */
+    startTimeMs: number;
+    /** YYYY-MM-DD from schedule.start_time — used for day filter matching */
+    scheduleDateIso: string;
   }
+
+  const sortEventsByStartTime = (list: EventData[]): EventData[] =>
+    [...list].sort((a, b) => a.startTimeMs - b.startTimeMs);
 
   const [selectedEvent, setSelectedEvent] = React.useState<EventData | null>(
     null
@@ -137,8 +341,11 @@ export default function ScheduleScreen() {
   const [myScheduleLoading, setMyScheduleLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
-  // Speaker cache: Map of speaker ID -> full speaker object
-  const speakerCacheRef = React.useRef<Map<number, any>>(new Map());
+  const [addingScheduleId, setAddingScheduleId] = React.useState<number | null>(
+    null,
+  );
+  const allSchedulesRef = React.useRef<EventSchedule[]>([]);
+  const speakerCacheRef = React.useRef<Map<number, ApiSpeaker>>(new Map());
 
   // ============================================================================
   // EXTERNAL LINKS CONFIGURATION
@@ -163,31 +370,38 @@ export default function ScheduleScreen() {
     "main-stage": "Main Stage",
     "enterprise-stage": "Enterprise Stage",
   };
-  const dayFilterToEventDay: Record<string, string> = {
-    "26th June, 2026": "Day 1",
-    "27th June, 2026": "Day 2",
-  };
+  const seedSpeakerCacheFromSchedules = React.useCallback(
+    (schedules: EventSchedule[]) => {
+      for (const schedule of schedules) {
+        for (const item of parseScheduleSpeakersRaw(schedule.speakers)) {
+          if (isEmbeddedScheduleSpeaker(item)) {
+            speakerCacheRef.current.set(item.id, item as ApiSpeaker);
+          }
+        }
+      }
+    },
+    [],
+  );
 
-  /**
-   * Fetch all speakers for the event and cache them
-   */
+  const seedSpeakerCacheRef = React.useCallback(() => {
+    const speakers = getCachedEventSpeakers();
+    speakers?.forEach((speaker) => {
+      if (speaker?.id) {
+        speakerCacheRef.current.set(speaker.id, speaker);
+      }
+    });
+  }, []);
+
   const fetchAndCacheSpeakers = React.useCallback(async () => {
     try {
-      // Fetch all speakers for the event (with a large page size to get all)
-      const response = await eventService.getEventSpeakers(EVENT_ID, {
-        page_size: 1000, // Large page size to get all speakers
+      const speakers = await ensureEventSpeakers();
+      speakers.forEach((speaker) => {
+        if (speaker?.id) {
+          speakerCacheRef.current.set(speaker.id, speaker);
+        }
       });
-
-      // Cache speakers by ID
-      if (response && response.speakers && Array.isArray(response.speakers)) {
-        response.speakers.forEach((speaker) => {
-          if (speaker && speaker.id) {
-            speakerCacheRef.current.set(speaker.id, speaker);
-          }
-        });
-      }
-    } catch (err: any) {
-      // Silently fail - we can still show schedules without speaker details
+    } catch {
+      // Schedules still render without speaker enrichment
     }
   }, []);
 
@@ -209,67 +423,25 @@ export default function ScheduleScreen() {
       return `${hour12}:${minutesStr} ${period}`;
     };
 
-    // Format day as "Day 1", "Day 2", etc. based on event date
-    const formatDay = (date: Date): string => {
-      // For now, use a simple day calculation
-      // You might want to use event.dates or calculate based on event start date
-      const eventObj = typeof schedule.event === "object" ? schedule.event : null;
-      const eventDate = eventObj?.date ? new Date(eventObj.date) : date;
-      const daysDiff = Math.floor((date.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24));
-      return `Day ${daysDiff + 1}`;
-    };
-
-    // Extract stage from venue or metadata
     const eventObj = typeof schedule.event === "object" ? schedule.event : null;
-    const stage = schedule.venue || eventObj?.venue || "Main Stage";
+    const stage = scheduleVenue(schedule);
     
     // Extract sponsoredBy from metadata if available
     const sponsoredBy = schedule.metadata?.sponsoredBy || eventObj?.metadata?.sponsoredBy;
 
-    // Extract speakers - may be array or JSON string from personal-schedules
-    const rawSpeakers = (schedule as any).speakers;
-    let parsed: unknown[] = [];
-    if (typeof rawSpeakers === "string") {
-      try {
-        parsed = JSON.parse(rawSpeakers || "[]");
-      } catch {
-        parsed = [];
-      }
-    } else {
-      parsed = Array.isArray(rawSpeakers) ? rawSpeakers : (rawSpeakers ? [rawSpeakers] : []);
-    }
-    let speakers: Speaker[] = [];
-    const arr = Array.isArray(parsed) ? parsed : [];
-    if (arr.length > 0) {
-      // Map speaker IDs to full speaker objects using the cache
-      speakers = arr
-        .map((speakerId: number | any) => {
-          // Check if it's already a full speaker object (fallback)
-          if (speakerId && typeof speakerId === "object" && speakerId.name) {
-            return speakerId;
-          }
-          
-          // If it's an ID, look it up in cache
-          if (typeof speakerId === "number") {
-            const cached = speakerCacheRef.current.get(speakerId);
-            if (cached) {
-              // Map backend Speaker format to UI Speaker format
-              return {
-                id: cached.id.toString(),
-                name: cached.full_name || "",
-                affiliation: [cached.role, cached.company].filter(Boolean).join(" · ") || "",
-                bio: cached.description || "",
-                interests: [],
-                tags: [],
-                socialLabel: cached.linkedin_url || cached.website_url || "",
-              };
-            }
-          }
-          
-          return null;
-        })
-        .filter((speaker): speaker is Speaker => speaker !== null);
-    }
+    const parsed = parseScheduleSpeakersRaw(schedule.speakers);
+    const speakers: Speaker[] = parsed
+      .map((item) => {
+        if (isEmbeddedScheduleSpeaker(item)) {
+          return mapEmbeddedSpeakerToUi(item);
+        }
+        if (typeof item === "number") {
+          const cached = speakerCacheRef.current.get(item);
+          if (cached) return mapCachedApiSpeakerToUi(cached);
+        }
+        return null;
+      })
+      .filter((speaker): speaker is Speaker => speaker !== null);
 
 
     return {
@@ -277,9 +449,11 @@ export default function ScheduleScreen() {
       eventScheduleId: schedule.id,
       title: schedule.name,
       stage: stage,
-      day: formatDay(startDate),
+      day: deriveDayLabel(schedule.start_time, schedule.event),
       startTime: formatTime(startDate),
       endTime: formatTime(endDate),
+      startTimeMs: startDate.getTime(),
+      scheduleDateIso: scheduleStartDateIso(schedule.start_time),
       sponsoredBy: sponsoredBy ? {
         name: sponsoredBy.name || "",
         color: (sponsoredBy.color || "blue") as "blue" | "purple",
@@ -289,64 +463,163 @@ export default function ScheduleScreen() {
     };
   };
 
-  /**
-   * Fetch event schedules from API
-   */
-  const fetchEventSchedules = React.useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Build filters based on selected stage and filters
-      const filters: { search?: string; ordering?: string } = {};
-      
+  const buildEventsFromSchedules = React.useCallback(
+    (schedules: EventSchedule[]): EventData[] => {
       const selectedVenue = stageMapping[selectedStage] || "Main Stage";
-
-      // First, fetch and cache all speakers for the event
-      await fetchAndCacheSpeakers();
-
-      const response = await eventService.getEventSchedules(EVENT_ID, filters);
-      
-      // Map backend schedules to UI format
-      let mappedEvents = response.schedules.map(mapEventScheduleToEventData);
-      
-      // Filter by stage/venue client-side (since backend might not support venue filtering)
-      // Match venue from schedule.venue or schedule.event.venue
-      mappedEvents = mappedEvents.filter((event) => {
-        // Check if event stage matches selected stage
-        return event.stage === selectedVenue;
+      const filtered = filterEventSchedules(schedules, {
+        venue: selectedVenue,
+        dayFilterIds: selectedFilters,
       });
-      
-      setEvents(mappedEvents);
-    } catch (err: any) {
-      const errorMessage =
-        err instanceof ApiClientError
-          ? err.message
-          : "Failed to load event schedule";
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedStage, selectedFilters]);
+      let mappedEvents = sortEventsByStartTime(
+        filtered.map(mapEventScheduleToEventData),
+      );
 
-  // Handle pull-to-refresh
+      const showMockPreview =
+        SCHEDULE_MOCK_PREVIEW_ENABLED &&
+        selectedVenue === "Main Stage" &&
+        (selectedFilters.length === 0 ||
+          selectedFilters.includes("26th June, 2026"));
+
+      return showMockPreview
+        ? [MOCK_SCHEDULE_EVENT, ...mappedEvents]
+        : mappedEvents;
+    },
+    [selectedStage, selectedFilters],
+  );
+
+  const applyCachedSchedulesToList = React.useCallback(
+    (schedules: EventSchedule[]) => {
+      allSchedulesRef.current = schedules;
+      seedSpeakerCacheFromSchedules(schedules);
+      setEvents(buildEventsFromSchedules(schedules));
+    },
+    [buildEventsFromSchedules, seedSpeakerCacheFromSchedules],
+  );
+
+  /**
+   * Load programme from cache or API. Filters/stage only re-slice cached data.
+   */
+  const fetchEventSchedules = React.useCallback(
+    async (options?: { force?: boolean; showLoading?: boolean }) => {
+      const force = options?.force ?? false;
+      const showLoading = options?.showLoading ?? true;
+
+      if (!force && isProgrammeCacheFresh()) {
+        const cached = getCachedEventSchedules();
+        if (cached && cached.length > 0) {
+          seedSpeakerCacheRef();
+          applyCachedSchedulesToList(cached);
+          setError(null);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      try {
+        if (showLoading) setIsLoading(true);
+        setError(null);
+
+        seedSpeakerCacheRef();
+        await fetchAndCacheSpeakers();
+        const schedules = await ensureEventProgramme({ force });
+        applyCachedSchedulesToList(schedules);
+      } catch (err: any) {
+        const errorMessage =
+          err instanceof ApiClientError
+            ? err.message
+            : "Failed to load event schedule";
+        setError(errorMessage);
+      } finally {
+        if (showLoading) setIsLoading(false);
+      }
+    },
+    [applyCachedSchedulesToList, fetchAndCacheSpeakers, seedSpeakerCacheRef],
+  );
+
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      // Clear speaker cache to force refresh
       speakerCacheRef.current.clear();
-      await fetchEventSchedules();
-    } catch (err) {
-      // Error already handled in fetchEventSchedules
+      clearCachedEventSchedules();
+      clearCachedEventSpeakers();
+      await fetchEventSchedules({ force: true, showLoading: false });
     } finally {
       setRefreshing(false);
     }
   }, [fetchEventSchedules]);
 
-  // Fetch schedules on mount and when filters change
   React.useEffect(() => {
-    fetchEventSchedules();
+    void fetchEventSchedules({ force: false, showLoading: true });
   }, [fetchEventSchedules]);
+
+  React.useEffect(() => {
+    if (allSchedulesRef.current.length === 0) return;
+    setEvents(buildEventsFromSchedules(allSchedulesRef.current));
+  }, [selectedStage, selectedFilters, buildEventsFromSchedules]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => clearScheduleHighlight();
+    }, [clearScheduleHighlight]),
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isProgrammeCacheFresh()) return;
+      void fetchEventSchedules({
+        force: false,
+        showLoading: events.length === 0,
+      });
+    }, [events.length, fetchEventSchedules]),
+  );
+
+  React.useEffect(() => {
+    const scheduleId = route.params?.highlightScheduleId;
+    const highlightStage = route.params?.highlightStage;
+    if (scheduleId == null) return;
+
+    if (highlightStage) {
+      setSelectedStage(highlightStage);
+    }
+    setSelectedFilters([]);
+    setScheduleView("all");
+    cardLayoutRef.current.clear();
+    cardViewRefs.current.clear();
+    setHighlightTargetId(scheduleId);
+
+    navigation.setParams({
+      highlightScheduleId: undefined,
+      highlightStage: undefined,
+    });
+  }, [route.params?.highlightScheduleId, route.params?.highlightStage, navigation]);
+
+  React.useEffect(() => {
+    const targetId = highlightTargetId;
+    if (targetId == null || scheduleView !== "all" || isLoading) return;
+
+    const index = events.findIndex((e) => e.eventScheduleId === targetId);
+    if (index < 0) return;
+
+    clearHighlightTimers();
+    const capturedId = targetId;
+    highlightTimersRef.current.scroll = setTimeout(() => {
+      setHighlightTargetId(null);
+      tryScrollAndHighlight(capturedId, index);
+    }, 300);
+
+    return () => {
+      if (highlightTimersRef.current.scroll) {
+        clearTimeout(highlightTimersRef.current.scroll);
+      }
+    };
+  }, [
+    highlightTargetId,
+    events,
+    isLoading,
+    scheduleView,
+    tryScrollAndHighlight,
+    clearHighlightTimers,
+  ]);
 
   const refreshMyScheduleRef = React.useRef<(() => void) | null>(null);
 
@@ -361,7 +634,7 @@ export default function ScheduleScreen() {
           const eventData = mapEventScheduleToEventData(ps.event_schedule as EventSchedule);
           return { ...eventData, personalScheduleId: ps.id };
         });
-      setMySchedules(mapped);
+      setMySchedules(sortEventsByStartTime(mapped));
     } catch (err: any) {
       setMySchedules([]);
     } finally {
@@ -379,12 +652,22 @@ export default function ScheduleScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshMeetingsBadge();
-      fetchMySchedules(); // Always fetch so we have addedScheduleIds for Schedule tab
+      if (SCHEDULE_SESSION_CTAS_ENABLED) {
+        fetchMySchedules();
+      }
     }, [refreshMeetingsBadge, fetchMySchedules])
   );
 
   React.useEffect(() => {
-    if (scheduleView === "my") fetchMySchedules();
+    if (!SCHEDULE_SESSION_CTAS_ENABLED && scheduleView === "my") {
+      setScheduleView("all");
+    }
+  }, [scheduleView]);
+
+  React.useEffect(() => {
+    if (SCHEDULE_SESSION_CTAS_ENABLED && scheduleView === "my") {
+      fetchMySchedules();
+    }
   }, [scheduleView, fetchMySchedules]);
 
   const addedScheduleIds = React.useMemo(
@@ -397,170 +680,20 @@ export default function ScheduleScreen() {
     const venue = stageMapping[selectedStage] || "Main Stage";
     let list = mySchedules.filter((event) => event.stage === venue);
     if (selectedFilters.length > 0) {
-      const allowedDays = new Set(
-        selectedFilters.map((id) => dayFilterToEventDay[id]).filter(Boolean)
+      const allowedDates = new Set(
+        selectedFilters
+          .map((id) => DAY_FILTER_ID_TO_ISO_DATE[id])
+          .filter(Boolean),
       );
-      if (allowedDays.size > 0) {
-        list = list.filter((event) => event.day && allowedDays.has(event.day));
+      if (allowedDates.size > 0) {
+        list = list.filter(
+          (event) =>
+            event.scheduleDateIso && allowedDates.has(event.scheduleDateIso),
+        );
       }
     }
-    return list;
+    return sortEventsByStartTime(list);
   }, [mySchedules, selectedStage, selectedFilters]);
-
-  // MOCK DATA - Commented out, using backend API now
-  /*
-  React.useEffect(() => {
-    setIsLoading(true);
-    // Simulate API call delay
-    setTimeout(() => {
-      const mockEvents: EventData[] = [
-        {
-          id: "1",
-          title: "Opening Keynote: The Future of African Tech",
-          stage: "Main Stage",
-          day: "Day 1",
-          startTime: "10:00 AM",
-          endTime: "11:00 AM",
-          sponsoredBy: {
-            name: "Spark Capital",
-            color: "blue" as const,
-          },
-          speakers: [
-            {
-              id: "1",
-              name: "Dr. Jane Smith",
-              affiliation: "VC Partner · TechVentures Inc",
-              bio: "Dr. Jane Smith is a seasoned venture capitalist with over 15 years of experience in technology investments. She specializes in early-stage fintech and enterprise SaaS companies across Africa. Jane has led investments in over 50 startups and has been instrumental in scaling some of the continent's most successful tech companies.",
-              interests: [
-                "Fintech",
-                "Enterprise SaaS",
-                "AI/ML",
-                "Startup Ecosystem",
-              ],
-              tags: ["VC", "Fintech Expert", "Africa Tech"],
-              socialLabel: "jane.smith@techventures.com",
-            },
-            {
-              id: "2",
-              name: "Sarah Johnson",
-              affiliation: "Founder · Innovation Labs",
-              bio: "Sarah Johnson is the founder and CEO of Innovation Labs, a leading technology incubator focused on supporting African entrepreneurs. With a background in software engineering and product management, Sarah has helped launch over 30 successful startups in the past decade.",
-              interests: [
-                "Product Development",
-                "Startup Mentoring",
-                "Tech Innovation",
-              ],
-              tags: ["Founder", "Product Expert", "Mentor"],
-              socialLabel: "sarah.johnson@innovationlabs.com",
-            },
-          ] as Speaker[],
-          description:
-            "Explore how AI is transforming enterprise operations and what's next.",
-        },
-        {
-          id: "2",
-          title: "Building Enterprise-Ready SaaS from Africa",
-          stage: "Enterprise Stage",
-          day: "Day 1",
-          startTime: "11:00 AM",
-          endTime: "11:40 AM",
-          speakers: [
-            {
-              id: "3",
-              name: "Michael Chen",
-              affiliation: "CTO · CloudScale Africa",
-              bio: "Michael Chen is the Chief Technology Officer at CloudScale Africa, where he leads a team of 50+ engineers building scalable cloud infrastructure solutions. He has over 12 years of experience in distributed systems and cloud architecture, having previously worked at major tech companies.",
-              interests: [
-                "Cloud Infrastructure",
-                "Distributed Systems",
-                "DevOps",
-                "Scalability",
-              ],
-              tags: ["CTO", "Cloud Expert", "Architecture"],
-              socialLabel: "michael.chen@cloudscale.africa",
-            },
-            {
-              id: "4",
-              name: "Amina Okafor",
-              affiliation: "Product Lead · TechBuild",
-              bio: "Amina Okafor is a product leader with a passion for building user-centric technology solutions. She has led product teams at several successful startups and has a track record of launching products that have reached millions of users across Africa.",
-              interests: [
-                "Product Strategy",
-                "User Experience",
-                "Data Analytics",
-                "Growth",
-              ],
-              tags: ["Product Lead", "UX Expert", "Growth Hacker"],
-              socialLabel: "amina.okafor@techbuild.com",
-            },
-          ] as Speaker[],
-          description: "Learn how to build scalable SaaS solutions from Africa.",
-        },
-        {
-          id: "3",
-          title: "Meet the ASF Startups",
-          stage: "Future Stage",
-          day: "Day 2",
-          startTime: "2:00 PM",
-          endTime: "3:00 PM",
-          sponsoredBy: {
-            name: "ASF",
-            color: "purple" as const,
-          },
-          speakers: [
-            {
-              id: "5",
-              name: "David Kimani",
-              affiliation: "Founder · StartupHub",
-              bio: "David Kimani is the visionary founder of StartupHub, a platform connecting African entrepreneurs with investors and resources. He has been featured in Forbes Africa and has mentored hundreds of startups. David is passionate about building the next generation of African tech leaders.",
-              interests: [
-                "Entrepreneurship",
-                "Startup Ecosystem",
-                "Investor Relations",
-                "Mentoring",
-              ],
-              tags: ["Founder", "Ecosystem Builder", "Mentor"],
-              socialLabel: "david.kimani@startuphub.com",
-            },
-            {
-              id: "6",
-              name: "Fatima Bello",
-              affiliation: "CEO · Innovation Labs",
-              bio: "Fatima Bello is the CEO of Innovation Labs, driving innovation in the African tech space. With a background in business strategy and technology, she has transformed multiple companies and led them to successful exits. Fatima is a sought-after speaker at tech conferences worldwide.",
-              interests: [
-                "Business Strategy",
-                "Tech Innovation",
-                "Leadership",
-                "Public Speaking",
-              ],
-              tags: ["CEO", "Strategy Expert", "Speaker"],
-              socialLabel: "fatima.bello@innovationlabs.com",
-            },
-            {
-              id: "7",
-              name: "James Osei",
-              affiliation: "Co-founder · TechVenture",
-              bio: "James Osei is the co-founder of TechVenture, a venture capital firm focused on African tech startups. He has invested in over 100 companies and has a deep understanding of the African market. James is known for his hands-on approach to supporting portfolio companies.",
-              interests: [
-                "Venture Capital",
-                "Market Analysis",
-                "Startup Investing",
-                "Portfolio Management",
-              ],
-              tags: ["Co-founder", "VC", "Investor"],
-              socialLabel: "james.osei@techventure.com",
-            },
-          ] as Speaker[],
-          description: "Discover the next generation of African startups.",
-        },
-      ];
-
-      // Show all mock events (no filtering) while waiting for backend
-      setEvents(mockEvents);
-      setIsLoading(false);
-    }, 500); // Simulate network delay
-  }, [selectedStage]);
-  */
 
   const handleRemoveFromSchedule = async (event?: EventData) => {
     if (!event?.personalScheduleId) return;
@@ -583,15 +716,24 @@ export default function ScheduleScreen() {
     }
   };
 
+  const hideScheduleToast = React.useCallback(() => {
+    setScheduleToastVisible(false);
+  }, []);
+
   const handleAddToSchedule = async (event?: EventData) => {
-    if (!event?.eventScheduleId) return;
+    if (!event?.eventScheduleId || event.eventScheduleId === 0) return;
+    if (addingScheduleId !== null) return;
+
+    setAddingScheduleId(event.eventScheduleId);
     try {
       await eventService.addEventToSchedule(event.eventScheduleId);
+      setAddingScheduleId(null);
       setScheduleToastTitle(event.title);
       setScheduleToastVariant("added");
       setScheduleToastVisible(true);
       refreshMyScheduleRef.current?.();
     } catch (err: any) {
+      setAddingScheduleId(null);
       const msg =
         err instanceof ApiClientError
           ? err.message
@@ -717,19 +859,27 @@ export default function ScheduleScreen() {
         {/* Time Zone Alert Banner */}
         <TimeZoneAlertBanner />
 
-        {/* Schedule / My Schedule segment */}
+        {/* Schedule / My Schedule segment (My Schedule hidden while CTAs disabled) */}
+        {SCHEDULE_SESSION_CTAS_ENABLED ? (
         <View className="flex-row mx-4 mb-2 p-1 bg-neutral-100 rounded-lg">
           <TabButton
             label="Schedule"
             isActive={scheduleView === "all"}
-            onPress={() => setScheduleView("all")}
+            onPress={() => {
+              clearScheduleHighlight();
+              setScheduleView("all");
+            }}
           />
           <TabButton
             label="My Schedule"
             isActive={scheduleView === "my"}
-            onPress={() => setScheduleView("my")}
+            onPress={() => {
+              clearScheduleHighlight();
+              setScheduleView("my");
+            }}
           />
         </View>
+        ) : null}
 
         {/* Filter Controls - Stage dropdown + Filter for both Schedule and My Schedule */}
         <View className="flex-row items-center justify-center mb-4 px-4 pt-2 gap-3">
@@ -754,9 +904,13 @@ export default function ScheduleScreen() {
 
       {/* Scrollable Event Cards */}
       <ScrollView
+        ref={scrollRef}
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
+        onLayout={(e) => {
+          scrollViewportHeightRef.current = e.nativeEvent.layout.height;
+        }}
         refreshControl={
           <RefreshControl
             refreshing={false}
@@ -770,7 +924,7 @@ export default function ScheduleScreen() {
           />
         }
       >
-        <View className="px-4">
+        <View ref={listContentRef} className="px-4" collapsable={false}>
           {scheduleView === "all" ? (
             isLoading ? (
               <View className="flex-1 items-center justify-center py-20">
@@ -781,7 +935,9 @@ export default function ScheduleScreen() {
               <View className="flex-1 items-center justify-center py-20 px-4">
                 <Text className="text-red-600 text-center mb-4">{error}</Text>
                 <Pressable
-                  onPress={fetchEventSchedules}
+                  onPress={() =>
+                    void fetchEventSchedules({ force: true, showLoading: true })
+                  }
                   className="bg-black rounded-md px-6 py-3"
                 >
                   <Text className="text-white font-medium">Retry</Text>
@@ -794,11 +950,36 @@ export default function ScheduleScreen() {
                 </Text>
               </View>
             ) : (
-              events.map((event) => (
-                <Pressable
+              events.map((event) => {
+                const scheduleId = event?.eventScheduleId ?? 0;
+                const isHighlighted = pulseScheduleId === scheduleId;
+                return (
+                <View
                   key={event?.id || `event-${Math.random()}`}
+                  ref={(node) => {
+                    if (!scheduleId) return;
+                    if (node) {
+                      cardViewRefs.current.set(scheduleId, node);
+                      measureCardLayout(scheduleId, node);
+                    } else {
+                      cardViewRefs.current.delete(scheduleId);
+                    }
+                  }}
+                  onLayout={() => {
+                    const node = cardViewRefs.current.get(scheduleId);
+                    if (node) measureCardLayout(scheduleId, node);
+                  }}
+                  style={{
+                    marginBottom: 4,
+                    borderRadius: 12,
+                    overflow: "hidden",
+                    position: "relative",
+                  }}
+                >
+                <Pressable
                   onPress={() => {
                     if (event) {
+                      clearScheduleHighlight();
                       setSelectedEvent(event);
                       setIsEventViewModalVisible(true);
                     }
@@ -814,12 +995,46 @@ export default function ScheduleScreen() {
                     startTime={event?.startTime || ""}
                     endTime={event?.endTime || ""}
                     sponsoredBy={event?.sponsoredBy}
-                    onAddToSchedule={() => handleAddToSchedule(event)}
-                    onLeaveFeedback={() => handleLeaveFeedback(event)}
-                    isInMySchedule={addedScheduleIds.has(event?.eventScheduleId ?? 0)}
+                    onAddToSchedule={
+                      SCHEDULE_SESSION_CTAS_ENABLED
+                        ? () => handleAddToSchedule(event)
+                        : undefined
+                    }
+                    onLeaveFeedback={
+                      SCHEDULE_SESSION_CTAS_ENABLED
+                        ? () => handleLeaveFeedback(event)
+                        : undefined
+                    }
+                    isInMySchedule={
+                      SCHEDULE_SESSION_CTAS_ENABLED &&
+                      addedScheduleIds.has(event?.eventScheduleId ?? 0)
+                    }
+                    isAddingToSchedule={
+                      addingScheduleId === event?.eventScheduleId
+                    }
                   />
                 </Pressable>
-              ))
+                {isHighlighted ? (
+                  <Animated.View
+                    pointerEvents="none"
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      zIndex: 2,
+                      borderRadius: 12,
+                      borderWidth: 2,
+                      borderColor: "#1BB273",
+                      backgroundColor: "rgba(27, 178, 115, 0.14)",
+                      opacity: highlightOpacity,
+                    }}
+                  />
+                ) : null}
+                </View>
+              );
+              })
             )
           ) : myScheduleLoading ? (
             <View className="flex-1 items-center justify-center py-20">
@@ -865,8 +1080,16 @@ export default function ScheduleScreen() {
                   startTime={event?.startTime || ""}
                   endTime={event?.endTime || ""}
                   sponsoredBy={event?.sponsoredBy}
-                  onRemoveFromSchedule={() => handleRemoveFromSchedule(event)}
-                  onLeaveFeedback={() => handleLeaveFeedback(event)}
+                  onRemoveFromSchedule={
+                    SCHEDULE_SESSION_CTAS_ENABLED
+                      ? () => handleRemoveFromSchedule(event)
+                      : undefined
+                  }
+                  onLeaveFeedback={
+                    SCHEDULE_SESSION_CTAS_ENABLED
+                      ? () => handleLeaveFeedback(event)
+                      : undefined
+                  }
                 />
               </Pressable>
             ))
@@ -879,7 +1102,6 @@ export default function ScheduleScreen() {
         onClose={() => setIsFilterModalVisible(false)}
         onApply={(filters) => {
           setSelectedFilters(filters);
-          // Refetch events when filters change (handled by useEffect)
         }}
         categories={filterCategories}
         initialSelected={selectedFilters}
@@ -891,6 +1113,7 @@ export default function ScheduleScreen() {
           onClose={() => {
             setIsEventViewModalVisible(false);
             setSelectedEvent(null);
+            clearScheduleHighlight();
           }}
           title={selectedEvent?.title || ""}
           startTime={selectedEvent?.startTime || ""}
@@ -913,24 +1136,37 @@ export default function ScheduleScreen() {
           })}
           description={selectedEvent?.description}
           onAddToSchedule={
-            selectedEvent?.personalScheduleId ||
-            (selectedEvent && addedScheduleIds.has(selectedEvent.eventScheduleId))
+            !SCHEDULE_SESSION_CTAS_ENABLED
               ? undefined
-              : () => handleAddToSchedule(selectedEvent)
+              : selectedEvent?.personalScheduleId ||
+                  (selectedEvent &&
+                    addedScheduleIds.has(selectedEvent.eventScheduleId))
+                ? undefined
+                : () => handleAddToSchedule(selectedEvent)
           }
           onRemoveFromSchedule={
-            selectedEvent?.personalScheduleId
+            SCHEDULE_SESSION_CTAS_ENABLED && selectedEvent?.personalScheduleId
               ? () => handleRemoveFromSchedule(selectedEvent)
               : undefined
           }
           isInMySchedule={
-            !!selectedEvent?.personalScheduleId ||
-            (!!selectedEvent && addedScheduleIds.has(selectedEvent.eventScheduleId))
+            SCHEDULE_SESSION_CTAS_ENABLED &&
+            (!!selectedEvent?.personalScheduleId ||
+              (!!selectedEvent &&
+                addedScheduleIds.has(selectedEvent.eventScheduleId)))
           }
-          onLeaveFeedback={() => {
-            handleLeaveFeedback(selectedEvent);
-            setIsEventViewModalVisible(false);
-          }}
+          onLeaveFeedback={
+            SCHEDULE_SESSION_CTAS_ENABLED
+              ? () => {
+                  handleLeaveFeedback(selectedEvent);
+                  setIsEventViewModalVisible(false);
+                }
+              : undefined
+          }
+          isAddingToSchedule={
+            !!selectedEvent &&
+            addingScheduleId === selectedEvent.eventScheduleId
+          }
         />
       )}
 
@@ -968,7 +1204,7 @@ export default function ScheduleScreen() {
 
       <ScheduleSuccessToast
         visible={scheduleToastVisible}
-        onHide={() => setScheduleToastVisible(false)}
+        onHide={hideScheduleToast}
         eventTitle={scheduleToastTitle}
         variant={scheduleToastVariant}
       />

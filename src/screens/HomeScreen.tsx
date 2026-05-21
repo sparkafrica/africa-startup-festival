@@ -16,6 +16,7 @@ import { gradients } from "../theme/theme";
 import { eventService } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
+import { bootstrapEventData } from "../utils/eventDataCache";
 import {
   HeaderBar,
   BannerCard,
@@ -185,11 +186,12 @@ export default function HomeScreen() {
     }
   };
 
-  // Fetch all featured data on mount
+  // Featured home rows + warm programme/speakers for Schedule & speaker modals
   useEffect(() => {
     fetchFeaturedSpeakers();
     fetchFeaturedExhibitors();
     fetchFeaturedPartners();
+    void bootstrapEventData();
   }, []);
 
   // OTA: once Home is mounted and stable, check for a pending JS update,
@@ -214,6 +216,7 @@ export default function HomeScreen() {
         fetchFeaturedSpeakers(),
         fetchFeaturedExhibitors(),
         fetchFeaturedPartners(),
+        bootstrapEventData({ force: true }),
       ]);
     } catch (err) {
       // Errors already handled in individual fetch functions

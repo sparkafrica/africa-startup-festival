@@ -11,9 +11,13 @@ import {
   useRefreshMessagesBadgeOnFocus,
 } from "../hooks";
 import { useNotifications } from "../context/NotificationsContext";
-import { eventService, type Speaker } from "../services/eventService";
-import { EVENT_ID } from "../config/env";
+import { type Speaker } from "../services/eventService";
 import { ApiClientError } from "../services/api";
+import {
+  ensureEventSpeakers,
+  getCachedEventSpeakers,
+  isSpeakersCacheFresh,
+} from "../utils/eventDataCache";
 import { getIndustryAndInterestFilterCategories } from "../constants/industryAndInterests";
 import { speakerRowMatchesFilters } from "../utils/directoryFilters";
 import {
@@ -52,6 +56,38 @@ type SpeakerListItem = {
   speakerData: Speaker;
 };
 
+const SPEAKER_AVATAR_COLORS = [
+  "#2762C7",
+  "#1BB273",
+  "#9333EA",
+  "#F97316",
+  "#DC2626",
+  "#10B981",
+  "#F59E0B",
+  "#8B5CF6",
+];
+
+function mapSpeakersToListItems(list: Speaker[]): SpeakerListItem[] {
+  return list.map((speaker) => {
+    const avatarColor = SPEAKER_AVATAR_COLORS[speaker.id % SPEAKER_AVATAR_COLORS.length];
+    const roleText =
+      speaker.role && speaker.company
+        ? `${speaker.role} at ${speaker.company}`
+        : speaker.role || speaker.company || "Speaker";
+    return {
+      id: speaker.id.toString(),
+      name: speaker.full_name || "Speaker",
+      role: roleText,
+      rolePlain: speaker.role || "",
+      company: speaker.company || "",
+      description: speaker.description || "",
+      avatar: speaker.profile_pic ? { uri: speaker.profile_pic } : undefined,
+      avatarColor,
+      speakerData: speaker,
+    };
+  });
+}
+
 export default function SpeakersScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Speakers">>();
@@ -66,9 +102,11 @@ export default function SpeakersScreen() {
   const [selectedSpeakerId, setSelectedSpeakerId] = useState<string | null>(null);
   const [speakerModalVisible, setSpeakerModalVisible] = useState(false);
 
-  // State for speakers data
-  const [speakers, setSpeakers] = useState<SpeakerListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [speakers, setSpeakers] = useState<SpeakerListItem[]>(() => {
+    const cached = getCachedEventSpeakers();
+    return cached?.length ? mapSpeakersToListItems(cached) : [];
+  });
+  const [isLoading, setIsLoading] = useState(() => !isSpeakersCacheFresh());
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -97,80 +135,65 @@ export default function SpeakersScreen() {
     setSelectedFilterIds(filterIds);
   };
 
-  // Fetch all speakers
-  const fetchSpeakers = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Fetch all speakers for the event with pagination
-      // Use a reasonable page size (50-100) instead of 1000
-      const response = await eventService.getEventSpeakers(EVENT_ID, {
-        page_size: 100, // Fetch 100 at a time
-        ordering: "-id",
-      });
+  const fetchSpeakers = useCallback(
+    async (options?: { force?: boolean; silent?: boolean }) => {
+      const force = options?.force ?? false;
+      const silent = options?.silent ?? false;
 
-      // Generate consistent colors for avatars
-      const colors = ["#2762C7", "#1BB273", "#9333EA", "#F97316", "#DC2626", "#10B981", "#F59E0B", "#8B5CF6"];
-      
-      // Map backend Speaker format to UI format
-      const mappedSpeakers: SpeakerListItem[] = response.speakers.map((speaker) => {
-        const avatarColor = colors[speaker.id % colors.length];
-        const roleText = speaker.role && speaker.company
-          ? `${speaker.role} at ${speaker.company}`
-          : speaker.role || speaker.company || "Speaker";
+      if (!force && isSpeakersCacheFresh()) {
+        const cached = getCachedEventSpeakers();
+        if (cached?.length) {
+          setSpeakers(mapSpeakersToListItems(cached));
+          setError(null);
+          setIsLoading(false);
+          return;
+        }
+      }
 
-        return {
-          id: speaker.id.toString(),
-          name: speaker.full_name || "Speaker",
-          role: roleText,
-          rolePlain: speaker.role || "",
-          company: speaker.company || "",
-          description: speaker.description || "",
-          avatar: speaker.profile_pic ? { uri: speaker.profile_pic } : undefined,
-          avatarColor: avatarColor,
-          speakerData: speaker,
-        };
-      });
-
-      setSpeakers(mappedSpeakers);
-    } catch (err: any) {
-      const errorMessage =
-        err instanceof ApiClientError
-          ? err.message
-          : "Failed to load speakers";
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      if (!silent) {
+        setIsLoading(true);
+      }
+      setError(null);
+      try {
+        const list = await ensureEventSpeakers({ force });
+        setSpeakers(mapSpeakersToListItems(list));
+      } catch (err: any) {
+        const errorMessage =
+          err instanceof ApiClientError
+            ? err.message
+            : "Failed to load speakers";
+        setError(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
 
   // Handle pull-to-refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchSpeakers();
-    } catch (err) {
-      // Error already handled in fetchSpeakers
+      await fetchSpeakers({ force: true });
     } finally {
       setRefreshing(false);
     }
   }, [fetchSpeakers]);
 
-  // Fetch on mount only (not on every focus to avoid constant reloading)
   useEffect(() => {
-    fetchSpeakers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void fetchSpeakers();
+  }, [fetchSpeakers]);
 
-  // Refetch on screen focus only if data is empty or there was an error
   useFocusEffect(
     useCallback(() => {
-      // Only refetch if we don't have data and we're not currently loading
       if (speakers.length === 0 && !isLoading) {
-        fetchSpeakers();
+        void fetchSpeakers();
+        return;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+      if (!isSpeakersCacheFresh()) {
+        void fetchSpeakers({ silent: true });
+      }
+    }, [speakers.length, isLoading, fetchSpeakers]),
   );
 
   const displayedSpeakers = useMemo(() => {
@@ -323,7 +346,7 @@ export default function SpeakersScreen() {
             <View className="py-20 items-center px-4">
               <Text className="text-red-600 text-center mb-4">{error}</Text>
               <Pressable
-                onPress={fetchSpeakers}
+                onPress={() => void fetchSpeakers()}
                 className="bg-black rounded-md px-6 py-3"
               >
                 <Text className="text-white font-medium">Retry</Text>

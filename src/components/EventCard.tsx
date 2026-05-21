@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
 import { CalendarIconWhite } from "./SocialIcons";
+import LoadingSpinner from "./LoadingSpinner";
 
 export interface EventCardProps {
   title: string;
@@ -16,6 +17,7 @@ export interface EventCardProps {
   onLeaveFeedback?: () => void;
   onRemoveFromSchedule?: () => void; // For My Schedule tab
   isInMySchedule?: boolean; // Show "Added" when true
+  isAddingToSchedule?: boolean;
 }
 
 export default function EventCard({
@@ -29,6 +31,7 @@ export default function EventCard({
   onLeaveFeedback,
   onRemoveFromSchedule,
   isInMySchedule,
+  isAddingToSchedule = false,
 }: EventCardProps) {
   const sponsorColors = {
     blue: {
@@ -44,6 +47,12 @@ export default function EventCard({
   };
 
   const sponsorColor = sponsoredBy ? sponsorColors[sponsoredBy.color] : null;
+
+  const showActions =
+    !!onRemoveFromSchedule ||
+    !!onAddToSchedule ||
+    !!onLeaveFeedback ||
+    !!isInMySchedule;
 
   return (
     <View className="bg-white rounded-xl p-4 mb-4 border border-gray-100">
@@ -66,6 +75,7 @@ export default function EventCard({
         {stage} · {day} · {startTime} - {endTime}
       </Text>
 
+      {showActions ? (
       <View className="flex-row items-center gap-3">
         {onRemoveFromSchedule ? (
           <Pressable
@@ -79,22 +89,32 @@ export default function EventCard({
             <CalendarIconWhite size={16} color="#737373" />
             <Text className="text-neutral-500 font-medium text-sm ml-2">Added</Text>
           </View>
-        ) : (
+        ) : onAddToSchedule ? (
           <Pressable
             onPress={onAddToSchedule}
-            className="flex-row items-center bg-black rounded-md px-4 py-2.5"
+            disabled={isAddingToSchedule}
+            className={`flex-row items-center rounded-md px-4 py-2.5 ${
+              isAddingToSchedule ? "bg-neutral-700" : "bg-black"
+            }`}
           >
-            <CalendarIconWhite size={16} color="#FFFFFF" />
+            {isAddingToSchedule ? (
+              <LoadingSpinner size="small" color="#FFFFFF" />
+            ) : (
+              <CalendarIconWhite size={16} color="#FFFFFF" />
+            )}
             <Text className="text-white font-medium text-sm ml-2">
-              Add to schedule
+              {isAddingToSchedule ? "Adding…" : "Add to schedule"}
             </Text>
           </Pressable>
-        )}
+        ) : null}
 
+        {onLeaveFeedback ? (
         <Pressable onPress={onLeaveFeedback} className="px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-md">
           <Text className="text-gray-800 text-sm">Leave a Feedback</Text>
         </Pressable>
+        ) : null}
       </View>
+      ) : null}
     </View>
   );
 }

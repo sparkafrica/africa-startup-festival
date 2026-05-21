@@ -45,8 +45,21 @@ export interface EventSchedule {
   end_time: string; // Format: date-time (ISO 8601)
   venue?: string | null;
   event: Event | number; // Full Event object or just ID
-  metadata?: any; // Metadata may contain speakers, sponsoredBy, etc.
-  speakers?: number[] | any[]; // Speaker IDs array or full speaker objects
+  metadata?: Record<string, unknown> | null;
+  /** API: JSON string of ids, array of ids, or embedded speaker objects */
+  speakers?: string | number[] | Array<{
+    id: number;
+    full_name?: string;
+    profile_pic?: string | null;
+    description?: string | null;
+    company?: string | null;
+    role?: string | null;
+    website_url?: string | null;
+    linkedin_url?: string | null;
+    twitter_handle?: string | null;
+  }>;
+  created_at?: string;
+  updated_at?: string;
 }
 
 /**
@@ -237,7 +250,7 @@ export const eventService = {
    * Returns paginated list of Event objects
    */
   async getEvents(
-    filters?: EventFilters
+    filters?: EventFilters,
   ): Promise<{ events: Event[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {};
@@ -265,7 +278,12 @@ export const eventService = {
       const data = response as any;
 
       // Check if response has paginated structure
-      if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {
+      if (
+        data &&
+        typeof data === "object" &&
+        "results" in data &&
+        Array.isArray(data.results)
+      ) {
         return {
           events: data.results as Event[],
           pagination: {
@@ -348,13 +366,38 @@ export const eventService = {
    * Backend Endpoint: GET /events/{event_id}/schedules/
    * Returns paginated list of EventSchedule objects
    */
+  /**
+   * Fetch every page of event schedules (client filters venue/day locally).
+   */
+  async getAllEventSchedules(
+    eventId: number,
+    filters?: Omit<EventFilters, "page">,
+  ): Promise<EventSchedule[]> {
+    const pageSize = filters?.page_size ?? 100;
+    const all: EventSchedule[] = [];
+    let page = 1;
+
+    while (true) {
+      const { schedules, pagination } = await this.getEventSchedules(eventId, {
+        ...filters,
+        page,
+        page_size: pageSize,
+      });
+      all.push(...schedules);
+      if (!pagination.next) break;
+      page += 1;
+    }
+
+    return all;
+  },
+
   async getEventSchedules(
     eventId: number,
-    filters?: EventFilters
+    filters?: EventFilters,
   ): Promise<{ schedules: EventSchedule[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {};
-      
+
       if (filters) {
         if (filters.search) {
           params.search = filters.search;
@@ -378,7 +421,12 @@ export const eventService = {
       const data = response as any;
 
       // Check if response has paginated structure
-      if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {
+      if (
+        data &&
+        typeof data === "object" &&
+        "results" in data &&
+        Array.isArray(data.results)
+      ) {
         return {
           schedules: data.results as EventSchedule[],
           pagination: {
@@ -510,10 +558,12 @@ export const eventService = {
    */
   async getEventScheduleDetails(
     eventId: number,
-    scheduleId: number
+    scheduleId: number,
   ): Promise<EventSchedule> {
     try {
-      const response = await api.get<any>(`/events/${eventId}/schedules/${scheduleId}/`);
+      const response = await api.get<any>(
+        `/events/${eventId}/schedules/${scheduleId}/`,
+      );
 
       // Backend might return EventSchedule directly or wrapped in ApiResponse
       const data = response as any;
@@ -561,11 +611,11 @@ export const eventService = {
    */
   async getPersonalSchedules(
     eventId?: number,
-    filters?: EventFilters
+    filters?: EventFilters,
   ): Promise<{ schedules: PersonalSchedule[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {};
-      
+
       if (filters) {
         if (filters.search) {
           params.search = filters.search;
@@ -582,21 +632,26 @@ export const eventService = {
       }
 
       const queryString = new URLSearchParams(params).toString();
-      
+
       // Use event-specific endpoint if eventId provided, otherwise use general endpoint
       // Note: Based on YAML, /events/{event_id}/personal-schedules/ has event_pk parameter which seems redundant
       // Using /personal-schedules/ endpoint with query params if eventId is needed
-      const url = eventId 
+      const url = eventId
         ? `/events/${eventId}/personal-schedules/${queryString ? `?${queryString}` : ""}`
         : `/personal-schedules/${queryString ? `?${queryString}` : ""}`;
-      
+
       const response = await api.get<any>(url);
 
       // Backend returns PaginatedPersonalScheduleListList directly
       const data = response as any;
 
       // Check if response has paginated structure
-      if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {
+      if (
+        data &&
+        typeof data === "object" &&
+        "results" in data &&
+        Array.isArray(data.results)
+      ) {
         return {
           schedules: data.results as PersonalSchedule[],
           pagination: {
@@ -679,7 +734,9 @@ export const eventService = {
    * Request Body: { event_schedule: number }
    * Returns 201 Created with PersonalScheduleCreate object
    */
-  async addEventToSchedule(eventScheduleId: number): Promise<PersonalScheduleCreate> {
+  async addEventToSchedule(
+    eventScheduleId: number,
+  ): Promise<PersonalScheduleCreate> {
     try {
       const request: PersonalScheduleCreateRequest = {
         event_schedule: eventScheduleId,
@@ -707,12 +764,11 @@ export const eventService = {
 
       // Parse validation errors from response
       let errorMessage = data?.message || "Failed to add event to schedule";
-      
+
       // Check for non_field_errors at different nesting levels FIRST
-      const nonFieldErrors = 
-        data?.data?.non_field_errors || 
-        data?.data?.data?.non_field_errors;
-      
+      const nonFieldErrors =
+        data?.data?.non_field_errors || data?.data?.data?.non_field_errors;
+
       if (nonFieldErrors) {
         if (Array.isArray(nonFieldErrors)) {
           errorMessage = nonFieldErrors[0];
@@ -787,19 +843,19 @@ export const eventService = {
   async leaveEventFeedback(
     eventScheduleId: number,
     feedback: string,
-    rating?: number
+    rating?: number,
   ): Promise<void> {
     // TODO: Implement when backend endpoint is available
     // Expected endpoint: POST /events/{event_id}/schedules/{id}/feedback/
     // Request body: { feedback: string, rating?: number }
-    
+
     throw new ApiClientError({
       status: "error",
       message: "Feedback endpoint not yet available in backend API",
       response_code: 501, // Not Implemented
       data: {},
     });
-    
+
     /* 
     // Uncomment when backend endpoint is ready:
     try {
@@ -842,7 +898,13 @@ export const eventService = {
    */
   async getEventSpeakers(
     eventId: number,
-    filters?: { full_name?: string; search?: string; ordering?: string; page?: number; page_size?: number }
+    filters?: {
+      full_name?: string;
+      search?: string;
+      ordering?: string;
+      page?: number;
+      page_size?: number;
+    },
   ): Promise<{ speakers: Speaker[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {};
@@ -872,9 +934,13 @@ export const eventService = {
       // Backend returns PaginatedSpeakerList directly
       const data = response as any;
 
-
       // Check if response has paginated structure (most common)
-      if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {
+      if (
+        data &&
+        typeof data === "object" &&
+        "results" in data &&
+        Array.isArray(data.results)
+      ) {
         return {
           speakers: data.results as Speaker[],
           pagination: {
@@ -900,7 +966,7 @@ export const eventService = {
       // Check if response is wrapped in ApiResponse format (most common)
       if (data?.status === "success" && data?.data !== undefined) {
         const speakersData = data.data;
-        
+
         // Check if data.data is directly an array (our case)
         if (Array.isArray(speakersData)) {
           return {
@@ -912,9 +978,14 @@ export const eventService = {
             },
           };
         }
-        
+
         // Check if data has paginated structure (nested in data.data)
-        if (speakersData && typeof speakersData === "object" && "results" in speakersData && Array.isArray(speakersData.results)) {
+        if (
+          speakersData &&
+          typeof speakersData === "object" &&
+          "results" in speakersData &&
+          Array.isArray(speakersData.results)
+        ) {
           return {
             speakers: speakersData.results as Speaker[],
             pagination: {
@@ -959,10 +1030,12 @@ export const eventService = {
    */
   async getSpeakerDetails(
     eventId: number,
-    speakerId: number
+    speakerId: number,
   ): Promise<Speaker> {
     try {
-      const response = await api.get<any>(`/events/${eventId}/speakers/${speakerId}/`);
+      const response = await api.get<any>(
+        `/events/${eventId}/speakers/${speakerId}/`,
+      );
 
       // Backend might return Speaker directly or wrapped in ApiResponse
       const data = response as any;
@@ -1010,7 +1083,12 @@ export const eventService = {
    */
   async getEventExhibitors(
     eventId: number,
-    filters?: { search?: string; ordering?: string; page?: number; page_size?: number }
+    filters?: {
+      search?: string;
+      ordering?: string;
+      page?: number;
+      page_size?: number;
+    },
   ): Promise<{ exhibitors: Exhibitor[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {};
@@ -1037,7 +1115,12 @@ export const eventService = {
       const data = response as any;
 
       // Check if response has paginated structure
-      if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {
+      if (
+        data &&
+        typeof data === "object" &&
+        "results" in data &&
+        Array.isArray(data.results)
+      ) {
         return {
           exhibitors: data.results as Exhibitor[],
           pagination: {
@@ -1063,7 +1146,7 @@ export const eventService = {
       // Check if response is wrapped in ApiResponse format
       if (data?.status === "success" && data?.data !== undefined) {
         const exhibitorsData = data.data;
-        
+
         if (Array.isArray(exhibitorsData)) {
           return {
             exhibitors: exhibitorsData as Exhibitor[],
@@ -1074,8 +1157,13 @@ export const eventService = {
             },
           };
         }
-        
-        if (exhibitorsData && typeof exhibitorsData === "object" && "results" in exhibitorsData && Array.isArray(exhibitorsData.results)) {
+
+        if (
+          exhibitorsData &&
+          typeof exhibitorsData === "object" &&
+          "results" in exhibitorsData &&
+          Array.isArray(exhibitorsData.results)
+        ) {
           return {
             exhibitors: exhibitorsData.results as Exhibitor[],
             pagination: {
@@ -1118,7 +1206,12 @@ export const eventService = {
    */
   async getEventPartners(
     eventId: number,
-    filters?: { search?: string; ordering?: string; page?: number; page_size?: number }
+    filters?: {
+      search?: string;
+      ordering?: string;
+      page?: number;
+      page_size?: number;
+    },
   ): Promise<{ partners: Partner[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {};
@@ -1145,7 +1238,12 @@ export const eventService = {
       const data = response as any;
 
       // Check if response has paginated structure
-      if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {
+      if (
+        data &&
+        typeof data === "object" &&
+        "results" in data &&
+        Array.isArray(data.results)
+      ) {
         return {
           partners: data.results as Partner[],
           pagination: {
@@ -1171,7 +1269,7 @@ export const eventService = {
       // Check if response is wrapped in ApiResponse format
       if (data?.status === "success" && data?.data !== undefined) {
         const partnersData = data.data;
-        
+
         if (Array.isArray(partnersData)) {
           return {
             partners: partnersData as Partner[],
@@ -1182,8 +1280,13 @@ export const eventService = {
             },
           };
         }
-        
-        if (partnersData && typeof partnersData === "object" && "results" in partnersData && Array.isArray(partnersData.results)) {
+
+        if (
+          partnersData &&
+          typeof partnersData === "object" &&
+          "results" in partnersData &&
+          Array.isArray(partnersData.results)
+        ) {
           return {
             partners: partnersData.results as Partner[],
             pagination: {
@@ -1228,7 +1331,12 @@ export const eventService = {
   async getDirectoryCompanies(
     eventId: number,
     companyType: "exhibitor" | "partner",
-    filters?: { search?: string; ordering?: string; page?: number; page_size?: number }
+    filters?: {
+      search?: string;
+      ordering?: string;
+      page?: number;
+      page_size?: number;
+    },
   ): Promise<{ companies: Company[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {};
@@ -1243,14 +1351,26 @@ export const eventService = {
       const response = await api.get<any>(url);
       const data = response as any;
 
-      if (data && typeof data === "object" && "results" in data && Array.isArray(data.results)) {
+      if (
+        data &&
+        typeof data === "object" &&
+        "results" in data &&
+        Array.isArray(data.results)
+      ) {
         return {
           companies: data.results as Company[],
-          pagination: { count: data.count || 0, next: data.next || null, previous: data.previous || null },
+          pagination: {
+            count: data.count || 0,
+            next: data.next || null,
+            previous: data.previous || null,
+          },
         };
       }
       if (Array.isArray(data)) {
-        return { companies: data as Company[], pagination: { count: data.length, next: null, previous: null } };
+        return {
+          companies: data as Company[],
+          pagination: { count: data.length, next: null, previous: null },
+        };
       }
       if (data?.status === "success" && data?.data) {
         const list = Array.isArray(data.data) ? data.data : data.data?.results;
@@ -1292,7 +1412,7 @@ export const eventService = {
   async getCompanyDetail(
     eventId: number,
     companyType: "exhibitor" | "partner",
-    companyPk: number
+    companyPk: number,
   ): Promise<Company> {
     try {
       const url = `/directory/${eventId}/${companyType}/${companyPk}/`;
@@ -1300,7 +1420,11 @@ export const eventService = {
       const data = response as any;
 
       let company: any = null;
-      if (data?.status === "success" && data?.data && typeof data.data === "object") {
+      if (
+        data?.status === "success" &&
+        data?.data &&
+        typeof data.data === "object"
+      ) {
         company = data.data;
       } else if (data?.id != null && data?.name) {
         company = data;

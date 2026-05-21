@@ -50,7 +50,13 @@ export type RootStackParamList = {
   Exhibitors: undefined;
   Partners: undefined;
   Speakers: undefined;
-  Schedule: undefined;
+  Schedule:
+    | {
+        /** Scroll to and pulse this programme row (from Speakers → session tap). */
+        highlightScheduleId?: number;
+        highlightStage?: "main-stage" | "enterprise-stage";
+      }
+    | undefined;
   Meetings:
     | {
         primaryTab?: "requests" | "scheduled" | "cancelled";

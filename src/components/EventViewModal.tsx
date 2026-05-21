@@ -9,12 +9,14 @@ import {
   Dimensions,
   PanResponder,
   Animated,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ClockIcon } from "./BottomNavIcons";
 import { LocationPinIcon, SpeechBubbleIcon, PersonProfileIcon } from "./icons";
 import { CalendarIconWhite } from "./SocialIcons";
 import { ChevronRightIcon } from "./icons";
+import LoadingSpinner from "./LoadingSpinner";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -23,6 +25,7 @@ export interface Speaker {
   id: string;
   name: string;
   affiliation: string;
+  profilePic?: string | null;
   bio?: string;
   interests?: string[];
   tags?: string[];
@@ -47,6 +50,7 @@ export interface EventViewModalProps {
   onLeaveFeedback?: () => void;
   onRemoveFromSchedule?: () => void; // For My Schedule tab
   isInMySchedule?: boolean;
+  isAddingToSchedule?: boolean;
 }
 
 export default function EventViewModal({
@@ -63,7 +67,14 @@ export default function EventViewModal({
   onLeaveFeedback,
   onRemoveFromSchedule,
   isInMySchedule,
+  isAddingToSchedule = false,
 }: EventViewModalProps) {
+  const showActions =
+    !!onRemoveFromSchedule ||
+    !!onAddToSchedule ||
+    !!onLeaveFeedback ||
+    !!isInMySchedule;
+
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const isAnimating = useRef(false);
 
@@ -245,7 +256,14 @@ export default function EventViewModal({
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <View style={styles.speakerIconContainer}>
-                      <PersonProfileIcon size={24} color="#000000" />
+                      {speaker.profilePic ? (
+                        <Image
+                          source={{ uri: speaker.profilePic }}
+                          style={styles.speakerAvatar}
+                        />
+                      ) : (
+                        <PersonProfileIcon size={24} color="#000000" />
+                      )}
                     </View>
                     <View style={styles.speakerInfo}>
                       <Text style={styles.speakerName}>{speaker.name}</Text>
@@ -269,6 +287,7 @@ export default function EventViewModal({
           </ScrollView>
 
           {/* Action Buttons */}
+          {showActions ? (
           <SafeAreaView edges={["bottom"]} style={styles.actionsContainer}>
             {onRemoveFromSchedule ? (
               <Pressable style={styles.removeButton} onPress={onRemoveFromSchedule}>
@@ -279,17 +298,33 @@ export default function EventViewModal({
                 <CalendarIconWhite size={20} color="#737373" />
                 <Text style={styles.addedButtonText}>Added</Text>
               </View>
-            ) : (
-              <Pressable style={styles.addButton} onPress={onAddToSchedule}>
-                <CalendarIconWhite size={20} color="#FFFFFF" />
-                <Text style={styles.addButtonText}>Add to schedule</Text>
+            ) : onAddToSchedule ? (
+              <Pressable
+                style={[
+                  styles.addButton,
+                  isAddingToSchedule && styles.addButtonLoading,
+                ]}
+                onPress={onAddToSchedule}
+                disabled={isAddingToSchedule}
+              >
+                {isAddingToSchedule ? (
+                  <LoadingSpinner size="small" color="#FFFFFF" />
+                ) : (
+                  <CalendarIconWhite size={20} color="#FFFFFF" />
+                )}
+                <Text style={styles.addButtonText}>
+                  {isAddingToSchedule ? "Adding…" : "Add to schedule"}
+                </Text>
               </Pressable>
-            )}
+            ) : null}
+            {onLeaveFeedback ? (
             <Pressable style={styles.feedbackButton} onPress={onLeaveFeedback}>
               <SpeechBubbleIcon size={20} color="#000000" />
               <Text style={styles.feedbackButtonText}>Leave a Feedback</Text>
             </Pressable>
+            ) : null}
           </SafeAreaView>
+          ) : null}
         </Animated.View>
       </View>
     </Modal>
@@ -403,10 +438,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F5F5F5",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+    overflow: "hidden",
+  },
+  speakerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   speakerInfo: {
     flex: 1,
@@ -444,6 +485,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 16,
     marginBottom: 12,
+    gap: 8,
+  },
+  addButtonLoading: {
+    backgroundColor: "#404040",
   },
   addButtonText: {
     color: "#FFFFFF",

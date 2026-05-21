@@ -29,6 +29,14 @@ import LoadingSpinner from "./LoadingSpinner";
 import { eventService, type SpeakerNestedEvent } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
+import { getCachedEventSchedules } from "../utils/scheduleCache";
+import {
+  buildSpeakingSessionsFromSchedules,
+  formatSpeakingSessionTitleLine,
+  stageKeyForScheduleId,
+  type SpeakingSessionRow,
+  venueToStageKey,
+} from "../utils/scheduleSpeakingSessions";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 const SHEET_MAX_WIDTH = Math.min(SCREEN_WIDTH, 420);
@@ -83,19 +91,25 @@ function truncateBioByWords(
   return { preview: words.slice(0, maxWords).join(" "), truncated: true };
 }
 
-function speakingSessionsFromSpeakerEvents(events: SpeakerNestedEvent[]) {
+function speakingSessionsFromSpeakerEvents(
+  events: SpeakerNestedEvent[],
+): SpeakingSessionRow[] {
   return events.map((ev) => {
     const clock = formatSessionTimeLabel(ev.time ?? null, ev.date ?? null);
-    const time =
+    const description = (ev.description && ev.description.trim()) || "";
+    const timeRange =
       clock !== "—"
         ? clock
-        : (ev.dates?.trim() || ev.date?.trim() || "—");
+        : (ev.dates?.trim() || ev.date?.trim() || "");
+    const title = (ev.name && ev.name.trim()) || "Session";
     return {
       id: String(ev.id),
       scheduleId: ev.id,
-      title: (ev.name && ev.name.trim()) || "Session",
-      stage: (ev.venue && ev.venue.trim()) || "Main Stage",
-      time,
+      title,
+      timeRange,
+      titleLine: formatSpeakingSessionTitleLine(title, timeRange),
+      description,
+      venue: (ev.venue && ev.venue.trim()) || undefined,
     };
   });
 }
@@ -126,7 +140,9 @@ export default function SpeakerDetailModal({
   const sheetAnimatingRef = useRef(false);
 
   const [speakerData, setSpeakerData] = useState<any>(null);
-  const [speakingSessions, setSpeakingSessions] = useState<any[]>([]);
+  const [speakingSessions, setSpeakingSessions] = useState<SpeakingSessionRow[]>(
+    [],
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bioExpanded, setBioExpanded] = useState(false);
@@ -142,40 +158,24 @@ export default function SpeakerDetailModal({
 
       const speaker = await eventService.getSpeakerDetails(eventId, speakerIdNum);
 
-      let sessions: ReturnType<typeof speakingSessionsFromSpeakerEvents>;
-      const nested = speaker.events;
-      if (Array.isArray(nested) && nested.length > 0) {
-        sessions = speakingSessionsFromSpeakerEvents(nested);
-      } else {
-        const schedulesResponse = await eventService.getEventSchedules(
-          eventId,
-          {}
-        );
-        sessions = schedulesResponse.schedules
-          .filter((schedule) => {
-            if (Array.isArray(schedule.speakers)) {
-              return schedule.speakers.some((s: any) => {
-                const sId = typeof s === "number" ? s : s?.id;
-                return sId === speakerIdNum;
-              });
-            }
-            return false;
-          })
-          .map((schedule) => {
-            const startDate = new Date(schedule.start_time);
-            const hours = startDate.getHours();
-            const minutes = startDate.getMinutes();
-            const period = hours >= 12 ? "PM" : "AM";
-            const hour12 = hours % 12 || 12;
-            const minutesStr = minutes.toString().padStart(2, "0");
-            return {
-              id: schedule.id.toString(),
-              scheduleId: schedule.id,
-              title: schedule.name,
-              stage: schedule.venue || "Main Stage",
-              time: `${hour12}:${minutesStr} ${period}`,
-            };
+      const cachedSchedules = getCachedEventSchedules();
+      let sessions = cachedSchedules?.length
+        ? buildSpeakingSessionsFromSchedules(cachedSchedules, speakerIdNum)
+        : [];
+
+      if (sessions.length === 0) {
+        const nested = speaker.events;
+        if (Array.isArray(nested) && nested.length > 0) {
+          sessions = speakingSessionsFromSpeakerEvents(nested);
+        } else {
+          const allSchedules = await eventService.getAllEventSchedules(eventId, {
+            ordering: "start_time",
           });
+          sessions = buildSpeakingSessionsFromSchedules(
+            allSchedules,
+            speakerIdNum,
+          );
+        }
       }
 
       const avatarColor = AVATAR_COLORS[speaker.id % AVATAR_COLORS.length];
@@ -650,7 +650,22 @@ export default function SpeakerDetailModal({
                         key={session.id}
                         onPress={() => {
                           onClose();
-                          navigation.navigate("Schedule");
+                          const cached = getCachedEventSchedules();
+                          const highlightStage =
+                            session.venue != null
+                              ? venueToStageKey(session.venue)
+                              : stageKeyForScheduleId(
+                                  session.scheduleId,
+                                  cached,
+                                );
+                          navigation.navigate({
+                            name: "Schedule",
+                            params: {
+                              highlightScheduleId: session.scheduleId,
+                              highlightStage,
+                            },
+                            merge: true,
+                          });
                         }}
                         style={{
                           backgroundColor: "#F5F5F5",
@@ -664,19 +679,22 @@ export default function SpeakerDetailModal({
                             fontSize: 16,
                             fontWeight: "700",
                             color: "#171717",
-                            marginBottom: 8,
+                            marginBottom: session.description ? 8 : 0,
                           }}
                         >
-                          {session.title}
+                          {session.titleLine}
                         </Text>
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: "#525252",
-                          }}
-                        >
-                          {session.stage} · {session.time}
-                        </Text>
+                        {session.description ? (
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              color: "#525252",
+                              lineHeight: 20,
+                            }}
+                          >
+                            {session.description}
+                          </Text>
+                        ) : null}
                       </Pressable>
                     ))}
                   </View>

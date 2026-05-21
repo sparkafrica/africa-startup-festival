@@ -56,6 +56,10 @@ import { useNotifications } from "../context/NotificationsContext";
 import { connectionService, type Connection as BackendConnection } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
+import {
+  markConnectionsFetched,
+  shouldRefetchConnectionsOnFocus,
+} from "../utils/eventDataCache";
 import { useChat } from "../context/ChatContext";
 import { useToast } from "../hooks/useToast";
 import {
@@ -414,6 +418,7 @@ export default function ConnectionsScreen() {
       }
       const mappedConnections = response.connections.map(mapBackendConnectionToUI);
       setConnections(mappedConnections);
+      markConnectionsFetched();
     } catch (err: any) {
       const errorMessage =
         err instanceof ApiClientError
@@ -429,12 +434,18 @@ export default function ConnectionsScreen() {
     }
   }, [user?.user_id, showToast]);
 
-  // Fetch on mount and when screen gains focus (e.g. after connecting from Attendees)
+  const connectionsCountRef = useRef(0);
+  useEffect(() => {
+    connectionsCountRef.current = connections.length;
+  }, [connections.length]);
+
   useFocusEffect(
     useCallback(() => {
       refreshMeetingsBadge();
-      fetchConnections();
-    }, [fetchConnections, refreshMeetingsBadge])
+      if (shouldRefetchConnectionsOnFocus(connectionsCountRef.current > 0)) {
+        fetchConnections();
+      }
+    }, [fetchConnections, refreshMeetingsBadge]),
   );
 
   // Refetch when current user becomes available (e.g. auth restore from storage).
