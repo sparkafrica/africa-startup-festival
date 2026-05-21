@@ -62,6 +62,7 @@ import { EVENT_ID } from "../config/env";
 import {
   SCHEDULE_MOCK_PREVIEW_ENABLED,
   SCHEDULE_SESSION_CTAS_ENABLED,
+  SESSION_FEEDBACK_FORM_URL,
 } from "../config/scheduleFeatures";
 import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
@@ -141,7 +142,7 @@ export const MOCK_SCHEDULE_EVENT = {
 // 2. "LEAVE FEEDBACK" BUTTON
 //    - Location: EventCard component & EventViewModal component
 //    - Action: Click button → Open external feedback form URL
-//    - Implementation: handleLeaveFeedback() uses Linking.openURL(FEEDBACK_FORM_URL)
+//    - Implementation: handleLeaveFeedback() opens SESSION_FEEDBACK_FORM_URL (Typeform)
 //    - URL Source Options:
 //      a) From event metadata: schedule.metadata.feedbackUrl
 //      b) From event config: event.metadata.feedbackUrl
@@ -353,7 +354,7 @@ export default function ScheduleScreen() {
   // These URLs will be used for external link buttons in the ScheduleScreen.
   // Integration points:
   // 1. "Ask a question" button (EventCard & EventViewModal) → QUESTION_FORM_URL
-  // 2. "Leave feedback" button (EventCard & EventViewModal) → FEEDBACK_FORM_URL
+  // 2. "Leave feedback" button (EventCard & EventViewModal) → SESSION_FEEDBACK_FORM_URL
   //
   // TODO: Backend Integration Options:
   // - Option A: Store URLs in event metadata (schedule.metadata.questionUrl, schedule.metadata.feedbackUrl)
@@ -364,7 +365,6 @@ export default function ScheduleScreen() {
   // Current implementation: Uses placeholder URLs, will be replaced with backend data
   // ============================================================================
   const QUESTION_FORM_URL = "https://example.com/ask-question"; // TODO: Replace with backend URL
-  const FEEDBACK_FORM_URL = "https://example.com/leave-feedback"; // TODO: Replace with backend URL
 
   const stageMapping: Record<string, string> = {
     "main-stage": "Main Stage",
@@ -742,24 +742,22 @@ export default function ScheduleScreen() {
     }
   };
 
-  const handleLeaveFeedback = async (event?: EventData) => {
+  const handleLeaveFeedback = async () => {
     try {
-      // Use event-specific feedback URL if available in metadata, otherwise use default
-      const feedbackUrl = event?.description?.includes("feedback")
-        ? event.description
-        : FEEDBACK_FORM_URL;
-      
-      const canOpen = await Linking.canOpenURL(feedbackUrl);
-      if (canOpen) {
-        await Linking.openURL(feedbackUrl);
-      } else {
-        Alert.alert("Error", "Cannot open the feedback form URL");
+      const supported = await Linking.canOpenURL(SESSION_FEEDBACK_FORM_URL);
+      if (supported) {
+        await Linking.openURL(SESSION_FEEDBACK_FORM_URL);
+        return;
       }
+      await Linking.openURL(SESSION_FEEDBACK_FORM_URL);
     } catch (error) {
       if (__DEV__) {
-        console.error("Error opening feedback form URL:", error);
+        console.error("Error opening feedback form:", error);
       }
-      Alert.alert("Error", "Failed to open feedback form");
+      Alert.alert(
+        "Cannot open feedback form",
+        "Please try again or open the form in your browser.",
+      );
     }
   };
 
@@ -1002,7 +1000,7 @@ export default function ScheduleScreen() {
                     }
                     onLeaveFeedback={
                       SCHEDULE_SESSION_CTAS_ENABLED
-                        ? () => handleLeaveFeedback(event)
+                        ? () => void handleLeaveFeedback()
                         : undefined
                     }
                     isInMySchedule={
@@ -1087,7 +1085,7 @@ export default function ScheduleScreen() {
                   }
                   onLeaveFeedback={
                     SCHEDULE_SESSION_CTAS_ENABLED
-                      ? () => handleLeaveFeedback(event)
+                      ? () => void handleLeaveFeedback()
                       : undefined
                   }
                 />
@@ -1158,7 +1156,7 @@ export default function ScheduleScreen() {
           onLeaveFeedback={
             SCHEDULE_SESSION_CTAS_ENABLED
               ? () => {
-                  handleLeaveFeedback(selectedEvent);
+                  void handleLeaveFeedback();
                   setIsEventViewModalVisible(false);
                 }
               : undefined
