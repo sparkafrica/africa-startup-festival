@@ -437,16 +437,18 @@ function CompanyDetailScreenInner({ route }: Props) {
           {/* Company Header */}
           <View className="px-4 mb-6" style={{ marginTop: 8 }}>
           <View className="flex-row items-center mb-4">
-            {/* Logo - rounded corners */}
+            {/* Logo — contain + grey bg so wide/light logos aren't cropped or washed out */}
             <View
-              className="w-16 h-16 rounded-xl items-center justify-center mr-3 overflow-hidden"
-              style={{ backgroundColor: companyData.logoColor }}
+              className="w-16 h-16 rounded-xl items-center justify-center mr-3 overflow-hidden border border-neutral-200"
+              style={{
+                backgroundColor: companyData.logo ? "#E8EAED" : companyData.logoColor,
+              }}
             >
               {companyData.logo ? (
                 <Image
                   source={companyData.logo}
-                  style={{ width: 64, height: 64, borderRadius: 12 }}
-                  resizeMode="cover"
+                  style={{ width: 64, height: 64 }}
+                  resizeMode="contain"
                 />
               ) : (
                 <Text className="text-white font-bold text-2xl">
