@@ -42,6 +42,70 @@ export function getCachedEventSchedules(): EventSchedule[] | null {
   return cachedSchedules;
 }
 
+/**
+ * Personal-schedule API rows are often slim (no metadata/speakers).
+ * Merge with the cached full programme row so My Schedule badges match Schedule tab.
+ */
+export function enrichEventScheduleFromCache(
+  schedule: EventSchedule,
+): EventSchedule {
+  const full = cachedSchedules?.find((row) => row.id === schedule.id);
+  if (!full) return schedule;
+
+  const fullMeta =
+    full.metadata && typeof full.metadata === "object" ? full.metadata : {};
+  const scheduleMeta =
+    schedule.metadata && typeof schedule.metadata === "object"
+      ? schedule.metadata
+      : {};
+  const mergedMeta =
+    Object.keys(fullMeta).length > 0 || Object.keys(scheduleMeta).length > 0
+      ? { ...fullMeta, ...scheduleMeta }
+      : schedule.metadata ?? full.metadata;
+
+  let mergedEvent = schedule.event;
+  if (typeof schedule.event === "number" && typeof full.event === "object") {
+    mergedEvent = full.event;
+  } else if (
+    typeof schedule.event === "object" &&
+    schedule.event &&
+    typeof full.event === "object" &&
+    full.event
+  ) {
+    const fe = full.event;
+    const se = schedule.event;
+    const feMeta =
+      fe.metadata && typeof fe.metadata === "object" ? fe.metadata : {};
+    const seMeta =
+      se.metadata && typeof se.metadata === "object" ? se.metadata : {};
+    mergedEvent = {
+      ...fe,
+      ...se,
+      metadata:
+        Object.keys(feMeta).length > 0 || Object.keys(seMeta).length > 0
+          ? { ...feMeta, ...seMeta }
+          : se.metadata ?? fe.metadata,
+    };
+  }
+
+  const speakersAreIdsOnly =
+    Array.isArray(schedule.speakers) &&
+    schedule.speakers.length > 0 &&
+    typeof schedule.speakers[0] === "number";
+
+  return {
+    ...full,
+    ...schedule,
+    metadata: mergedMeta as EventSchedule["metadata"],
+    description: schedule.description ?? full.description,
+    venue: schedule.venue ?? full.venue,
+    event: mergedEvent,
+    speakers: speakersAreIdsOnly
+      ? (full.speakers ?? schedule.speakers)
+      : (schedule.speakers ?? full.speakers),
+  };
+}
+
 export function getCachedEventSpeakers(): Speaker[] | null {
   return cachedSpeakers;
 }

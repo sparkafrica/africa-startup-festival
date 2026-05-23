@@ -78,6 +78,7 @@ import {
 import {
   clearCachedEventSchedules,
   clearCachedEventSpeakers,
+  enrichEventScheduleFromCache,
   ensureEventProgramme,
   ensureEventSpeakers,
   getCachedEventSchedules,
@@ -411,9 +412,11 @@ export default function ScheduleScreen() {
    * Map EventSchedule (backend) to EventData (UI format)
    */
   const mapEventScheduleToEventData = (schedule: EventSchedule): EventData => {
+    const scheduleRow = enrichEventScheduleFromCache(schedule);
+
     // Parse start_time and end_time (ISO 8601 format)
-    const startDate = new Date(schedule.start_time);
-    const endDate = new Date(schedule.end_time);
+    const startDate = new Date(scheduleRow.start_time);
+    const endDate = new Date(scheduleRow.end_time);
 
     // Format time as "10:00 AM"
     const formatTime = (date: Date): string => {
@@ -425,15 +428,16 @@ export default function ScheduleScreen() {
       return `${hour12}:${minutesStr} ${period}`;
     };
 
-    const eventObj = typeof schedule.event === "object" ? schedule.event : null;
-    const stage = scheduleVenue(schedule);
-    
+    const eventObj =
+      typeof scheduleRow.event === "object" ? scheduleRow.event : null;
+    const stage = scheduleVenue(scheduleRow);
+
     const { sponsoredBy, sessionBadge } = parseScheduleCardMetadata(
-      schedule.metadata,
+      scheduleRow.metadata,
       eventObj?.metadata,
     );
 
-    const parsed = parseScheduleSpeakersRaw(schedule.speakers);
+    const parsed = parseScheduleSpeakersRaw(scheduleRow.speakers);
     const speakers: Speaker[] = parsed
       .map((item) => {
         if (isEmbeddedScheduleSpeaker(item)) {
@@ -449,15 +453,15 @@ export default function ScheduleScreen() {
 
 
     return {
-      id: `schedule-${schedule.id}`,
-      eventScheduleId: schedule.id,
-      title: schedule.name,
+      id: `schedule-${scheduleRow.id}`,
+      eventScheduleId: scheduleRow.id,
+      title: scheduleRow.name,
       stage: stage,
-      day: deriveDayLabel(schedule.start_time, schedule.event),
+      day: deriveDayLabel(scheduleRow.start_time, scheduleRow.event),
       startTime: formatTime(startDate),
       endTime: formatTime(endDate),
       startTimeMs: startDate.getTime(),
-      scheduleDateIso: scheduleStartDateIso(schedule.start_time),
+      scheduleDateIso: scheduleStartDateIso(scheduleRow.start_time),
       sessionBadge: sessionBadge
         ? {
             label: sessionBadge.label,
@@ -471,7 +475,11 @@ export default function ScheduleScreen() {
           }
         : undefined,
       speakers: speakers,
-      description: schedule.description || (typeof schedule.event === "object" ? schedule.event.description : undefined),
+      description:
+        scheduleRow.description ||
+        (typeof scheduleRow.event === "object"
+          ? scheduleRow.event.description
+          : undefined),
     };
   };
 
@@ -638,7 +646,10 @@ export default function ScheduleScreen() {
   const fetchMySchedules = React.useCallback(async () => {
     try {
       setMyScheduleLoading(true);
-      await fetchAndCacheSpeakers(); // Populate speaker cache for mapping
+      await Promise.all([
+        fetchAndCacheSpeakers(),
+        ensureEventProgramme(),
+      ]);
       const response = await eventService.getPersonalSchedules(EVENT_ID);
       const mapped = response.schedules
         .filter((ps: PersonalSchedule) => ps.event_schedule && typeof ps.event_schedule === "object")
