@@ -12,6 +12,11 @@ export const DEEP_LINK_PREFIXES = [
   `${DEEP_LINK_SCHEME}://`,
 ] as const;
 
-/** Numbered digest URLs (1–9) — see `digestDeepLinks.ts` */
-export { DIGEST_DEEP_LINKS } from "./digestDeepLinks";
+/** Numbered digest URLs (1–9) and entity id links — see `digestDeepLinks.ts` */
+export {
+  DIGEST_DEEP_LINKS,
+  ENTITY_DEEP_LINKS,
+  BACKEND_EMAIL_DEEP_LINK_LINES,
+  entityDeepLinkUrl,
+} from "./digestDeepLinks";
 

@@ -12,6 +12,8 @@
           { "/": "/schedule" },
           { "/": "/schedule/*" },
           { "/": "/connections/*" },
+          { "/": "/exhibitors/*" },
+          { "/": "/partners/*" },
           { "/": "/profile" },
           { "/": "/download", "exclude": true },
           { "/": "/", "exclude": true }

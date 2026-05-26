@@ -52,8 +52,17 @@ export type RootStackParamList = {
       }
     | undefined;
   ScannedAttendee: { attendee: Attendee } | undefined;
-  Exhibitors: undefined;
-  Partners: undefined;
+  Exhibitors:
+    | {
+        /** Deeplink: brief list highlight then open company profile. */
+        highlightCompanyId?: string;
+      }
+    | undefined;
+  Partners:
+    | {
+        highlightCompanyId?: string;
+      }
+    | undefined;
   Speakers: undefined;
   Schedule:
     | {

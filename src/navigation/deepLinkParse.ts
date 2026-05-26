@@ -18,10 +18,14 @@ export type DeepLinkTarget =
       secondaryTab: MeetingsDeepLinkTab["secondaryTab"];
     }
   | { screen: "Meetings"; primaryTab?: MeetingsDeepLinkTab["primaryTab"]; secondaryTab?: MeetingsDeepLinkTab["secondaryTab"] }
+  | { screen: "Exhibitors"; companyId: number }
+  | { screen: "Partners"; companyId: number }
   | { screen: "Profile" }
   | { screen: "Connections" }
   | { screen: "Attendees" }
-  | { screen: "Schedule" };
+  | { screen: "Schedule" }
+  | { screen: "Exhibitors" }
+  | { screen: "Partners" };
 
 function parsePositiveInt(value: string | undefined): number | null {
   if (!value) return null;
@@ -82,6 +86,18 @@ export function parseDeepLinkTarget(path: string): DeepLinkTarget | null {
       return { screen: "Attendees", userId: decodeURIComponent(parts[1]) };
     }
     return parts.length === 1 ? { screen: "Attendees" } : null;
+  }
+
+  if (parts[0] === "exhibitors") {
+    const companyId = parsePositiveInt(parts[1]);
+    if (companyId != null) return { screen: "Exhibitors", companyId };
+    return parts.length === 1 ? { screen: "Exhibitors" } : null;
+  }
+
+  if (parts[0] === "partners") {
+    const companyId = parsePositiveInt(parts[1]);
+    if (companyId != null) return { screen: "Partners", companyId };
+    return parts.length === 1 ? { screen: "Partners" } : null;
   }
 
   if (parts[0] === "meetings") {

@@ -43,3 +43,14 @@ export async function resolveMeetingById(
 ): Promise<Meeting | null> {
   return meetingService.getMeetingById(meetingId);
 }
+
+export async function resolveCompanyById(
+  companyId: number,
+  companyType: "exhibitor" | "partner",
+) {
+  try {
+    return await eventService.getCompanyDetail(EVENT_ID, companyType, companyId);
+  } catch {
+    return null;
+  }
+}

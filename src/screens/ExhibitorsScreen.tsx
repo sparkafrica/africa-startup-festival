@@ -3,6 +3,7 @@ import { View, ScrollView, Pressable, Text, RefreshControl } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
+import { useCompanyDeeplinkHighlight } from "../hooks/useCompanyDeeplinkHighlight";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef } from "../navigation/navigationRef";
 import {
@@ -124,6 +125,13 @@ export default function ExhibitorsScreen() {
       )
     );
   }, [exhibitors, selectedFilterIds, filterCategories]);
+
+  const pulseCompanyId = useCompanyDeeplinkHighlight(
+    "Exhibitors",
+    "exhibitor",
+    exhibitors,
+    isLoading,
+  );
 
   const bottomNavItems = [
     {
@@ -285,7 +293,12 @@ export default function ExhibitorsScreen() {
                 <View
                   key={exhibitor.id}
                   className="px-1.5 mb-3"
-                  style={{ width: "50%" }}
+                  style={{
+                    width: "50%",
+                    borderWidth: pulseCompanyId === exhibitor.id ? 2 : 0,
+                    borderColor: "#2762C7",
+                    borderRadius: 8,
+                  }}
                 >
                   <ExhibitorCard
                     name={exhibitor.name}

@@ -3,6 +3,7 @@ import { View, ScrollView, Pressable, Text, RefreshControl } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
+import { useCompanyDeeplinkHighlight } from "../hooks/useCompanyDeeplinkHighlight";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef } from "../navigation/navigationRef";
 import {
@@ -120,6 +121,13 @@ export default function PartnersScreen() {
       directoryCompanyMatchesFilters(selectedFilterIds, filterCategories, row)
     );
   }, [partners, selectedFilterIds, filterCategories]);
+
+  const pulseCompanyId = useCompanyDeeplinkHighlight(
+    "Partners",
+    "partner",
+    partners,
+    isLoading,
+  );
 
   const bottomNavItems = [
     {
@@ -281,7 +289,12 @@ export default function PartnersScreen() {
                 <View
                   key={partner.id}
                   className="px-1.5 mb-3"
-                  style={{ width: "50%" }}
+                  style={{
+                    width: "50%",
+                    borderWidth: pulseCompanyId === partner.id ? 2 : 0,
+                    borderColor: "#2762C7",
+                    borderRadius: 8,
+                  }}
                 >
                   <PartnerCard
                     name={partner.name}

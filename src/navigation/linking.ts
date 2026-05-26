@@ -27,9 +27,39 @@ export function createLinkingConfig(enabled: boolean): LinkingOptions<RootStackP
               value ? decodeURIComponent(value) : undefined,
           },
         },
-        Schedule: "schedule",
+        Schedule: {
+          path: "schedule/:highlightScheduleId?",
+          parse: {
+            highlightScheduleId: (value: string) => {
+              const n = parseInt(value, 10);
+              return Number.isFinite(n) && n > 0 ? n : undefined;
+            },
+          },
+        },
         Profile: "profile",
-        Connections: "connections",
+        Connections: {
+          path: "connections/:highlightConnectionId?",
+          parse: {
+            highlightConnectionId: (value: string) => {
+              const n = parseInt(value, 10);
+              return Number.isFinite(n) && n > 0 ? n : undefined;
+            },
+          },
+        },
+        Exhibitors: {
+          path: "exhibitors/:highlightCompanyId?",
+          parse: {
+            highlightCompanyId: (value: string) =>
+              value ? decodeURIComponent(value) : undefined,
+          },
+        },
+        Partners: {
+          path: "partners/:highlightCompanyId?",
+          parse: {
+            highlightCompanyId: (value: string) =>
+              value ? decodeURIComponent(value) : undefined,
+          },
+        },
         Meetings: {
           path: "meetings/:segment?",
           parse: {

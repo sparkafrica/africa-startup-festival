@@ -33,6 +33,22 @@ export function paramsForDeepLinkTarget(
         };
       }
       return { screen: "Attendees" };
+    case "Exhibitors":
+      if ("companyId" in target && target.companyId != null) {
+        return {
+          screen: "Exhibitors",
+          params: { highlightCompanyId: String(target.companyId) },
+        };
+      }
+      return { screen: "Exhibitors" };
+    case "Partners":
+      if ("companyId" in target && target.companyId != null) {
+        return {
+          screen: "Partners",
+          params: { highlightCompanyId: String(target.companyId) },
+        };
+      }
+      return { screen: "Partners" };
     case "Meetings":
       if ("meetingId" in target && target.meetingId != null) {
         return {
