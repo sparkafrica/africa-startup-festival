@@ -352,7 +352,7 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
       onPress={() => {
         onOpen(item);
       }}
-      className="bg-white rounded-xl mb-3 mx-4"
+      className="bg-white rounded-xl"
       style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
@@ -1162,9 +1162,11 @@ export default function AttendeesScreen() {
 
   const onAttendeeListLayout = useCallback(
     (e: LayoutChangeEvent) => {
-      listLayoutHeightSV.value = e.nativeEvent.layout.height;
+      const h = e.nativeEvent.layout.height;
+      listLayoutHeightSV.value = h;
+      listHighlight.scrollViewportHeightRef.current = h;
     },
-    [listLayoutHeightSV]
+    [listLayoutHeightSV, listHighlight]
   );
 
   const { toast, showToast, hideToast } = useToast();
@@ -2105,7 +2107,27 @@ export default function AttendeesScreen() {
     ({ item }: ListRenderItemInfo<Attendee>) => {
       const highlighted = listHighlight.isHighlighted(item.id);
       return (
-        <View style={{ position: "relative", marginBottom: 4 }}>
+        <View
+          ref={(node) => {
+            if (node) {
+              listHighlight.rowViewRefs.current.set(item.id, node);
+              listHighlight.measureRowLayout(item.id, node);
+            } else {
+              listHighlight.rowViewRefs.current.delete(item.id);
+            }
+          }}
+          onLayout={() => {
+            const node = listHighlight.rowViewRefs.current.get(item.id);
+            if (node) listHighlight.measureRowLayout(item.id, node);
+          }}
+          style={{
+            position: "relative",
+            marginHorizontal: 16,
+            marginBottom: 12,
+            borderRadius: 12,
+            overflow: "hidden",
+          }}
+        >
           <AttendeeListRow
             item={item}
             skipped={skippedAttendeeIds.has(item.id)}

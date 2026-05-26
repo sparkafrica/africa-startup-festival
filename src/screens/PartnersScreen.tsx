@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import { useCompanyDeeplinkHighlight } from "../hooks/useCompanyDeeplinkHighlight";
+import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef } from "../navigation/navigationRef";
 import {
@@ -122,10 +123,10 @@ export default function PartnersScreen() {
     );
   }, [partners, selectedFilterIds, filterCategories]);
 
-  const pulseCompanyId = useCompanyDeeplinkHighlight(
+  const companyHighlight = useCompanyDeeplinkHighlight(
     "Partners",
     "partner",
-    partners,
+    displayedPartners,
     isLoading,
   );
 
@@ -201,9 +202,13 @@ export default function PartnersScreen() {
       />
 
       <ScrollView
+        ref={companyHighlight.scrollRef}
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
+        onLayout={(e) =>
+          companyHighlight.registerScrollViewport(e.nativeEvent.layout.height)
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -213,6 +218,7 @@ export default function PartnersScreen() {
           />
         }
       >
+        <View ref={companyHighlight.bindScrollContent} collapsable={false}>
         {/* Screen Title Section */}
         <View className="flex-row items-center px-4 pt-2 pb-4">
           <Pressable
@@ -285,36 +291,47 @@ export default function PartnersScreen() {
             </View>
           ) : (
             <View className="flex-row flex-wrap -mx-1.5">
-              {displayedPartners.map((partner) => (
-                <View
-                  key={partner.id}
-                  className="px-1.5 mb-3"
-                  style={{
-                    width: "50%",
-                    borderWidth: pulseCompanyId === partner.id ? 2 : 0,
-                    borderColor: "#2762C7",
-                    borderRadius: 8,
-                  }}
-                >
-                  <PartnerCard
-                    name={partner.name}
-                    logo={partner.logo ? { uri: partner.logo } : undefined}
-                    logoColor={partner.logoColor}
-                    onPress={() =>
-                      navigation.navigate("CompanyDetail", {
-                        exhibitorId: partner.id.toString(),
-                        type: "partner",
-                        name: partner.name,
-                      })
-                    }
-                  />
-                  <Text className="text-xs text-neutral-600 text-center mt-2">
-                    {partner.name}
-                  </Text>
-                </View>
-              ))}
+              {displayedPartners.map((partner) => {
+                const highlighted = companyHighlight.isHighlighted(partner.id);
+                return (
+                  <View
+                    key={partner.id}
+                    ref={(node) => companyHighlight.bindCell(partner.id, node)}
+                    onLayout={() => companyHighlight.remeasureCell(partner.id)}
+                    className="px-1.5 mb-3"
+                    style={{
+                      width: "50%",
+                      position: "relative",
+                      borderRadius: 12,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <PartnerCard
+                      name={partner.name}
+                      logo={partner.logo ? { uri: partner.logo } : undefined}
+                      logoColor={partner.logoColor}
+                      onPress={() => {
+                        companyHighlight.clearHighlight();
+                        navigation.navigate("CompanyDetail", {
+                          exhibitorId: partner.id.toString(),
+                          type: "partner",
+                          name: partner.name,
+                        });
+                      }}
+                    />
+                    <Text className="text-xs text-neutral-600 text-center mt-2">
+                      {partner.name}
+                    </Text>
+                    <ListRowHighlightOverlay
+                      visible={highlighted}
+                      opacity={companyHighlight.highlightOpacity}
+                    />
+                  </View>
+                );
+              })}
             </View>
           )}
+        </View>
         </View>
       </ScrollView>
 

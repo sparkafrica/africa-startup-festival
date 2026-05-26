@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import { useCompanyDeeplinkHighlight } from "../hooks/useCompanyDeeplinkHighlight";
+import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef } from "../navigation/navigationRef";
 import {
@@ -126,10 +127,10 @@ export default function ExhibitorsScreen() {
     );
   }, [exhibitors, selectedFilterIds, filterCategories]);
 
-  const pulseCompanyId = useCompanyDeeplinkHighlight(
+  const companyHighlight = useCompanyDeeplinkHighlight(
     "Exhibitors",
     "exhibitor",
-    exhibitors,
+    displayedExhibitors,
     isLoading,
   );
 
@@ -205,9 +206,13 @@ export default function ExhibitorsScreen() {
       />
 
       <ScrollView
+        ref={companyHighlight.scrollRef}
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
+        onLayout={(e) =>
+          companyHighlight.registerScrollViewport(e.nativeEvent.layout.height)
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -217,6 +222,7 @@ export default function ExhibitorsScreen() {
           />
         }
       >
+        <View ref={companyHighlight.bindScrollContent} collapsable={false}>
         {/* Screen Title Section */}
         <View className="flex-row items-center px-4 pt-2 pb-4">
           <Pressable
@@ -289,36 +295,47 @@ export default function ExhibitorsScreen() {
             </View>
           ) : (
             <View className="flex-row flex-wrap -mx-1.5">
-              {displayedExhibitors.map((exhibitor) => (
-                <View
-                  key={exhibitor.id}
-                  className="px-1.5 mb-3"
-                  style={{
-                    width: "50%",
-                    borderWidth: pulseCompanyId === exhibitor.id ? 2 : 0,
-                    borderColor: "#2762C7",
-                    borderRadius: 8,
-                  }}
-                >
-                  <ExhibitorCard
-                    name={exhibitor.name}
-                    logo={exhibitor.logo}
-                    logoColor={exhibitor.logoColor}
-                    onPress={() =>
-                      navigation.navigate("CompanyDetail", {
-                        exhibitorId: exhibitor.id.toString(),
-                        type: "exhibitor",
-                        name: exhibitor.name,
-                      })
-                    }
-                  />
-                  <Text className="text-xs text-neutral-600 text-center mt-2">
-                    {exhibitor.name}
-                  </Text>
-                </View>
-              ))}
+              {displayedExhibitors.map((exhibitor) => {
+                const highlighted = companyHighlight.isHighlighted(exhibitor.id);
+                return (
+                  <View
+                    key={exhibitor.id}
+                    ref={(node) => companyHighlight.bindCell(exhibitor.id, node)}
+                    onLayout={() => companyHighlight.remeasureCell(exhibitor.id)}
+                    className="px-1.5 mb-3"
+                    style={{
+                      width: "50%",
+                      position: "relative",
+                      borderRadius: 12,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <ExhibitorCard
+                      name={exhibitor.name}
+                      logo={exhibitor.logo}
+                      logoColor={exhibitor.logoColor}
+                      onPress={() => {
+                        companyHighlight.clearHighlight();
+                        navigation.navigate("CompanyDetail", {
+                          exhibitorId: exhibitor.id.toString(),
+                          type: "exhibitor",
+                          name: exhibitor.name,
+                        });
+                      }}
+                    />
+                    <Text className="text-xs text-neutral-600 text-center mt-2">
+                      {exhibitor.name}
+                    </Text>
+                    <ListRowHighlightOverlay
+                      visible={highlighted}
+                      opacity={companyHighlight.highlightOpacity}
+                    />
+                  </View>
+                );
+              })}
             </View>
           )}
+        </View>
         </View>
       </ScrollView>
 

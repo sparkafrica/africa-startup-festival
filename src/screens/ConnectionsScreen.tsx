@@ -187,7 +187,7 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
   return (
     <Pressable
       onPress={onPress}
-      className="bg-white rounded-xl mb-3 mx-4"
+      className="bg-white rounded-xl"
       style={{
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
@@ -259,6 +259,7 @@ export default function ConnectionsScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "Connections">>();
   const flatListRef = useRef<FlatList<Connection>>(null);
   const listHighlight = useListRowHighlight<number>();
+  const { clearHighlight } = listHighlight;
   const meetingsBadgeCount = useMeetingsBadgeCount();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
@@ -1019,8 +1020,8 @@ export default function ConnectionsScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      return () => listHighlight.clearHighlight();
-    }, [listHighlight]),
+      return () => clearHighlight();
+    }, [clearHighlight]),
   );
 
   // Bottom sheet drag handler
@@ -1086,7 +1087,13 @@ export default function ConnectionsScreen() {
           const node = listHighlight.rowViewRefs.current.get(connectionId);
           if (node) listHighlight.measureRowLayout(connectionId, node);
         }}
-        style={{ position: "relative", marginBottom: 4 }}
+        style={{
+          position: "relative",
+          marginHorizontal: 16,
+          marginBottom: 12,
+          borderRadius: 12,
+          overflow: "hidden",
+        }}
       >
         <ConnectionCard
           connection={item}
