@@ -20,7 +20,12 @@ export type RootStackParamList = {
         };
       }
     | undefined;
-  Attendees: undefined;
+  Attendees:
+    | {
+        /** Deeplink: open attendee profile sheet and highlight list row. */
+        highlightUserId?: string;
+      }
+    | undefined;
   EventDetails: { eventId: string };
   Ticket: { ticketId: string };
   Favorites: undefined;
@@ -61,6 +66,8 @@ export type RootStackParamList = {
     | {
         primaryTab?: "requests" | "scheduled" | "cancelled";
         secondaryTab?: "inbound" | "outbound";
+        /** Deeplink: scroll to and highlight this meeting row (~3s). */
+        highlightMeetingId?: number;
       }
     | undefined;
   Messages:
@@ -71,7 +78,12 @@ export type RootStackParamList = {
         otherPartyName?: string;
       }
     | undefined;
-  Connections: undefined;
+  Connections:
+    | {
+        /** Deeplink: scroll to and highlight this connection row (~3s). */
+        highlightConnectionId?: number;
+      }
+    | undefined;
   Conversation: {
     eventId: number;
     conversationId: number;

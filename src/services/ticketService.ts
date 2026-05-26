@@ -203,7 +203,7 @@ export interface UpgradeTicketRequest {
   event_id: number;
   ticket_id: number;
   new_ticket_class_id: number;
-  /** Backend enum: e.g. "KORAPAY", "PAYAYA" */
+  /** Backend enum: e.g. "PAYSTACK", "KORAPAY" */
   payment_method: string;
   currency: string;
 }
@@ -220,9 +220,9 @@ export interface UpgradeTicketResponse {
 }
 
 /** Payment method enum for upgrade-ticket (backend). Must match backend TicketUpgradeRequest.payment_method enum. */
-/** ATE2026: Korapay only. Re-add others here if needed: PAYSTACK, PAYAZA, STRIPE, INVOICE, OTHER, FREE. */
+/** ATE2026: Paystack only. Re-add others here if needed: KORAPAY, PAYAZA, STRIPE, INVOICE, OTHER, FREE. */
 export const UPGRADE_PAYMENT_METHODS = [
-  { value: "KORAPAY", label: "Korapay" },
+  { value: "PAYSTACK", label: "Paystack" },
 ] as const;
 
 /**
@@ -695,7 +695,7 @@ export const ticketService = {
    * @param eventId - Event ID
    * @param ticketId - User's ticket ID (personal ticket)
    * @param newTicketClassId - Ticket class ID (from GET /tickets/classes/)
-   * @param paymentMethod - Backend enum: "KORAPAY" | "NGN FOR TESTING" (others may be added)
+   * @param paymentMethod - Backend enum: "PAYSTACK" (others may be added)
    * @param currency - e.g. "NGN", "USD"
    * @returns UpgradeTicketResponse with payment_url and amount for redirect
    *

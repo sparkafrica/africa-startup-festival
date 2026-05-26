@@ -77,6 +77,16 @@ export function scheduleVenue(schedule: EventSchedule): string {
   );
 }
 
+/** Map programme venue label to Schedule screen stage filter key. */
+export function scheduleVenueToStageKey(
+  venue: string,
+): "main-stage" | "enterprise-stage" {
+  if (venue.toLowerCase().includes("enterprise")) {
+    return "enterprise-stage";
+  }
+  return "main-stage";
+}
+
 export function matchesVenue(
   schedule: EventSchedule,
   selectedVenue: string,

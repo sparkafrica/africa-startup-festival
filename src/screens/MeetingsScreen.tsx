@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, ScrollView, RefreshControl, Text, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -63,6 +63,9 @@ import { trackMeetingEvent } from "../utils/analytics";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
+import { resolveMeetingById } from "../services/deepLinkResolveService";
+import { useListRowHighlight } from "../hooks/useListRowHighlight";
+import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 
 type PrimaryTab = "requests" | "scheduled";
 // DEPRECATED for production: "cancelled" tab commented out - users get email notifications for cancelled meetings
@@ -130,7 +133,7 @@ interface UIMeeting {
 
 export default function MeetingsScreen({ route }: Props) {
   const navigation =
-    useNavigation<NavigationProp<RootStackParamList, "Home">>();
+    useNavigation<NavigationProp<RootStackParamList, "Meetings">>();
   const { user } = useAuth();
   const { markRequestMeetingComplete } = useChecklist();
   const meetingsBadgeCount = useMeetingsBadgeCount();
@@ -170,19 +173,38 @@ export default function MeetingsScreen({ route }: Props) {
     return () => clearInterval(id);
   }, [meetings]);
 
-  // Handle navigation params to set tabs when navigating from notifications
+  const meetingsScrollRef = useRef<ScrollView>(null);
+  const listHighlight = useListRowHighlight<number>();
+
+  // Handle navigation params to set tabs when navigating from notifications / deeplinks
   useEffect(() => {
     if (route.params) {
       if (route.params.primaryTab) {
-        // DEPRECATED: Redirect "cancelled" to "requests" (cancelled tab removed for production)
-        const tab = route.params.primaryTab === "cancelled" ? "requests" : route.params.primaryTab;
+        const tab =
+          route.params.primaryTab === "cancelled"
+            ? "requests"
+            : route.params.primaryTab;
         setPrimaryTab(tab);
       }
       if (route.params.secondaryTab) {
         setSecondaryTab(route.params.secondaryTab);
       }
+      if (route.params.highlightMeetingId != null) {
+        listHighlight.setHighlightTargetId(route.params.highlightMeetingId);
+        navigation.setParams({ highlightMeetingId: undefined });
+      }
     }
-  }, [route.params]);
+  }, [route.params, navigation, listHighlight]);
+
+  listHighlight.scrollToOffsetRef.current = useCallback((y = 0) => {
+    meetingsScrollRef.current?.scrollTo({ y, animated: true });
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => listHighlight.clearHighlight();
+    }, [listHighlight]),
+  );
 
   // DEPRECATED: isTerminated was for Cancelled tab - kept for potential future use
   // const isTerminated = useCallback((m: UIMeeting) => m.status === "cancelled" || m.status === "rejected", []);
@@ -734,6 +756,49 @@ export default function MeetingsScreen({ route }: Props) {
     return mappedMeeting;
   };
 
+  React.useEffect(() => {
+    const targetId = listHighlight.highlightTargetId;
+    if (targetId == null || isLoading || !user?.user_id) return;
+
+    const index = meetings.findIndex((m) => m.backendMeetingId === targetId);
+    if (index < 0) {
+      let cancelled = false;
+      void (async () => {
+        const backend = await resolveMeetingById(targetId);
+        if (cancelled || !backend) return;
+        const mapped = mapBackendMeetingToUI(backend, user.user_id);
+        setAllMeetingsForCounts((prev) => {
+          if (prev.some((m) => m.backendMeetingId === targetId)) return prev;
+          return [mapped, ...prev];
+        });
+        if (mapped.status === "accepted") {
+          setPrimaryTab("scheduled");
+        } else {
+          setPrimaryTab("requests");
+        }
+        setSecondaryTab(mapped.isInbound ? "inbound" : "outbound");
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    listHighlight.clearHighlightTimers();
+    const capturedId = targetId;
+    const timer = setTimeout(() => {
+      listHighlight.setHighlightTargetId(null);
+      listHighlight.tryScrollAndHighlight(capturedId, index);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [
+    listHighlight.highlightTargetId,
+    meetings,
+    isLoading,
+    user?.user_id,
+    mapBackendMeetingToUI,
+    listHighlight,
+  ]);
+
   const bottomNavItems = [
     {
       icon: (active: boolean) =>
@@ -1273,9 +1338,14 @@ export default function MeetingsScreen({ route }: Props) {
 
       {/* Scrollable Meeting Cards */}
       <ScrollView
+        ref={meetingsScrollRef}
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 20 }}
         showsVerticalScrollIndicator={false}
+        onLayout={(e) => {
+          listHighlight.scrollViewportHeightRef.current =
+            e.nativeEvent.layout.height;
+        }}
         refreshControl={
           <RefreshControl
             refreshing={false}
@@ -1285,7 +1355,11 @@ export default function MeetingsScreen({ route }: Props) {
           />
         }
       >
-        <View className="px-4 pt-4 flex-1">
+        <View
+          ref={listHighlight.listContentRef}
+          className="px-4 pt-4 flex-1"
+          collapsable={false}
+        >
           {isLoading ? (
             <View className="flex-1 items-center justify-center py-12">
               <LoadingSpinner size="large" />
@@ -1312,54 +1386,110 @@ export default function MeetingsScreen({ route }: Props) {
               </Text>
             </View>
           ) : primaryTab === "scheduled" ? (
-            meetings.map((meeting) => (
-              <ScheduledMeetingCard
-                key={meeting.id}
-                title={meeting.title}
-                participantName={meeting.participantName}
-                company={meeting.company}
-                date={meeting.date}
-                startTime={meeting.startTime}
-                endTime={meeting.endTime}
-                meetingType={meeting.meetingType || "physical"}
-                timeUntil={meeting.timeUntil || "Soon"}
-                location={meeting.location}
-                tableNumber={meeting.tableNumber}
-                onPress={() => {
-                  setIsParticipantModalVisible(false); // Reset participant modal
-                  setSelectedMeeting(meeting);
-                  setIsModalVisible(true);
-                }}
-              />
-            ))
+            meetings.map((meeting, index) => {
+              const mid = meeting.backendMeetingId;
+              const highlighted = listHighlight.isHighlighted(mid);
+              return (
+                <View
+                  key={meeting.id}
+                  ref={(node) => {
+                    if (node) {
+                      listHighlight.rowViewRefs.current.set(mid, node);
+                      listHighlight.measureRowLayout(mid, node);
+                    } else {
+                      listHighlight.rowViewRefs.current.delete(mid);
+                    }
+                  }}
+                  onLayout={() => {
+                    const node = listHighlight.rowViewRefs.current.get(mid);
+                    if (node) listHighlight.measureRowLayout(mid, node);
+                  }}
+                  style={{ position: "relative", marginBottom: 4 }}
+                >
+                  <ScheduledMeetingCard
+                    title={meeting.title}
+                    participantName={meeting.participantName}
+                    company={meeting.company}
+                    date={meeting.date}
+                    startTime={meeting.startTime}
+                    endTime={meeting.endTime}
+                    meetingType={meeting.meetingType || "physical"}
+                    timeUntil={meeting.timeUntil || "Soon"}
+                    location={meeting.location}
+                    tableNumber={meeting.tableNumber}
+                    onPress={() => {
+                      listHighlight.clearHighlight();
+                      setIsParticipantModalVisible(false);
+                      setSelectedMeeting(meeting);
+                      setIsModalVisible(true);
+                    }}
+                  />
+                  <ListRowHighlightOverlay
+                    visible={highlighted}
+                    opacity={listHighlight.highlightOpacity}
+                  />
+                </View>
+              );
+            })
           ) : (
-            meetings.map((meeting) => (
-              <MeetingCard
-                key={meeting.id}
-                title={meeting.title}
-                participantName={meeting.participantName}
-                company={meeting.company}
-                date={meeting.date}
-                startTime={meeting.startTime}
-                endTime={meeting.endTime}
-                location={meeting.location}
-                tableNumber={meeting.tableNumber}
-                meetingType={meeting.meetingType || "physical"}
-                meetingLink={meeting.meetingLink}
-                status={meeting.status === "pending" ? "pending" : meeting.status === "accepted" ? "approved" : "cancelled"}
-                approvalMessage={meeting.approvalMessage}
-                expiresIn={
-                  meeting.status === "pending"
-                    ? formatExpiresIn(meeting.createdAt)
-                    : undefined
-                }
-                onPress={() => {
-                  setIsParticipantModalVisible(false); // Reset participant modal
-                  setSelectedMeeting(meeting);
-                  setIsModalVisible(true);
-                }}
-              />
-            ))
+            meetings.map((meeting) => {
+              const mid = meeting.backendMeetingId;
+              const highlighted = listHighlight.isHighlighted(mid);
+              return (
+                <View
+                  key={meeting.id}
+                  ref={(node) => {
+                    if (node) {
+                      listHighlight.rowViewRefs.current.set(mid, node);
+                      listHighlight.measureRowLayout(mid, node);
+                    } else {
+                      listHighlight.rowViewRefs.current.delete(mid);
+                    }
+                  }}
+                  onLayout={() => {
+                    const node = listHighlight.rowViewRefs.current.get(mid);
+                    if (node) listHighlight.measureRowLayout(mid, node);
+                  }}
+                  style={{ position: "relative", marginBottom: 4 }}
+                >
+                  <MeetingCard
+                    title={meeting.title}
+                    participantName={meeting.participantName}
+                    company={meeting.company}
+                    date={meeting.date}
+                    startTime={meeting.startTime}
+                    endTime={meeting.endTime}
+                    location={meeting.location}
+                    tableNumber={meeting.tableNumber}
+                    meetingType={meeting.meetingType || "physical"}
+                    meetingLink={meeting.meetingLink}
+                    status={
+                      meeting.status === "pending"
+                        ? "pending"
+                        : meeting.status === "accepted"
+                          ? "approved"
+                          : "cancelled"
+                    }
+                    approvalMessage={meeting.approvalMessage}
+                    expiresIn={
+                      meeting.status === "pending"
+                        ? formatExpiresIn(meeting.createdAt)
+                        : undefined
+                    }
+                    onPress={() => {
+                      listHighlight.clearHighlight();
+                      setIsParticipantModalVisible(false);
+                      setSelectedMeeting(meeting);
+                      setIsModalVisible(true);
+                    }}
+                  />
+                  <ListRowHighlightOverlay
+                    visible={highlighted}
+                    opacity={listHighlight.highlightOpacity}
+                  />
+                </View>
+              );
+            })
           )}
         </View>
       </ScrollView>

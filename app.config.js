@@ -26,8 +26,8 @@ module.exports = {
         ? parseInt(process.env.EXPO_PUBLIC_UPGRADE_CLASS_ID_CHAIRPERSON, 10)
         : undefined,
       UPGRADE_PAYMENT_METHOD:
-        process.env.EXPO_PUBLIC_UPGRADE_PAYMENT_METHOD || "free",
-      UPGRADE_CURRENCY: process.env.EXPO_PUBLIC_UPGRADE_CURRENCY || "USD",
+        process.env.EXPO_PUBLIC_UPGRADE_PAYMENT_METHOD || "PAYSTACK",
+      UPGRADE_CURRENCY: process.env.EXPO_PUBLIC_UPGRADE_CURRENCY || "NGN",
       /** Africa Technology Expo on the App Store — override with EXPO_PUBLIC_IOS_APP_STORE_ID if needed. */
       iosAppStoreId:
         process.env.EXPO_PUBLIC_IOS_APP_STORE_ID || "6757281613",

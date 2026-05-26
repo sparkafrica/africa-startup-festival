@@ -233,6 +233,79 @@ export const attendeeService = {
    *
    * Backend Endpoint: GET /attendees/{event_id}/{attendee_type}/{ticket_pk}/
    */
+  /**
+   * Resolve an attendee by Spark user id (deeplinks, push).
+   * Tries dedicated lookup endpoints, then scans paginated directory list.
+   */
+  async getAttendeeByUserId(
+    eventId: number,
+    userId: string,
+  ): Promise<Attendee | null> {
+    const normalizedUserId = userId.trim();
+    if (!normalizedUserId) return null;
+
+    const parseAttendeePayload = (res: unknown): Attendee | null => {
+      const root = res as Record<string, unknown>;
+      const data =
+        root?.status === "success" && root.data && typeof root.data === "object"
+          ? (root.data as Record<string, unknown>)
+          : root;
+      if (data?.ticket && data?.user) {
+        return data as unknown as Attendee;
+      }
+      if (root?.ticket && root?.user) {
+        return root as unknown as Attendee;
+      }
+      return null;
+    };
+
+    const primaryPath = `/events/${eventId}/attendees/user/${encodeURIComponent(normalizedUserId)}/`;
+
+    try {
+      const response = await api.get<unknown>(primaryPath);
+      const attendee = parseAttendeePayload(response);
+      if (attendee) return attendee;
+    } catch {
+      // try fallbacks / list scan
+    }
+
+    const fallbackPaths = [
+      `/attendees/${eventId}/user/${encodeURIComponent(normalizedUserId)}/`,
+      `/events/${eventId}/users/${encodeURIComponent(normalizedUserId)}/attendee/`,
+    ];
+
+    for (const path of fallbackPaths) {
+      try {
+        const response = await api.get<unknown>(path);
+        const attendee = parseAttendeePayload(response);
+        if (attendee) return attendee;
+      } catch (error: unknown) {
+        const err = error as { responseCode?: number; response_code?: number };
+        if (err?.responseCode === 404 || err?.response_code === 404) {
+          continue;
+        }
+      }
+    }
+
+    let page = 1;
+    const pageSize = 100;
+    for (let i = 0; i < 20; i++) {
+      const { attendees, pagination } = await this.getEventAttendees(
+        eventId,
+        "all",
+        { page, page_size: pageSize, ordering: "id" },
+      );
+      const match = attendees.find(
+        (row) => String(row.user.id) === String(normalizedUserId),
+      );
+      if (match) return match;
+      if (!pagination.next) break;
+      page += 1;
+    }
+
+    return null;
+  },
+
   async getAttendeeDetails(
     eventId: number,
     attendeeType: AttendeeType,

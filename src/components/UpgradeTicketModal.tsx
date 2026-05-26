@@ -1,7 +1,7 @@
 /**
- * Upgrade Ticket Modal – single step for ATE2026 (Korapay only).
- * 1) Select new ticket tier, tap "Upgrade to [tier]" → upgrade runs with Korapay and user is redirected to payment link.
- * Other payment methods have been removed; only Korapay is used.
+ * Upgrade Ticket Modal – single step for ATE2026 (Paystack only).
+ * 1) Select new ticket tier, tap "Upgrade to [tier]" → upgrade runs with Paystack and user is redirected to payment link.
+ * Other payment methods have been removed; only Paystack is used.
  */
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -19,8 +19,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ticketService, type TicketClass } from "../services/ticketService";
 
-/** ATE2026: Korapay only. Value sent to backend as payment_method. */
-const KORAPAY_METHOD = "KORAPAY";
+/** ATE2026: Paystack only. Value sent to backend as payment_method. */
+const PAYSTACK_METHOD = "PAYSTACK";
 import { ApiClientError } from "../services/api";
 import { getTicketBackgroundColor, getTicketGradientColors } from "../utils/ticketColors";
 import { colors, typography, spacing, borderRadius } from "../theme/theme";
@@ -336,7 +336,7 @@ export default function UpgradeTicketModal({
                 showsVerticalScrollIndicator={false}
               >
                 <Pressable
-                  onPress={() => handleUpgrade(KORAPAY_METHOD)}
+                  onPress={() => handleUpgrade(PAYSTACK_METHOD)}
                   disabled={classesLoading || upgradeOptions.length === 0}
                   style={({ pressed }) => [
                     styles.primaryButton,

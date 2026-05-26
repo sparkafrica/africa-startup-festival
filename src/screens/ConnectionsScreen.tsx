@@ -43,8 +43,8 @@ import {
 import { SearchIcon, ChevronRightIcon, SpeechBubbleIcon } from "../components/icons";
 import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import type { NavigationProp } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef } from "../navigation/navigationRef";
 import type { MeetingFormData } from "../components";
@@ -62,6 +62,9 @@ import {
 } from "../utils/eventDataCache";
 import { useChat } from "../context/ChatContext";
 import { useToast } from "../hooks/useToast";
+import { useListRowHighlight } from "../hooks/useListRowHighlight";
+import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
+import { resolveConnectionById } from "../services/deepLinkResolveService";
 import {
   useMeetingsBadgeCount,
   useMessagesBadgeCount,
@@ -252,7 +255,10 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
 
 export default function ConnectionsScreen() {
   const navigation =
-    useNavigation<NavigationProp<RootStackParamList, "Home">>();
+    useNavigation<NavigationProp<RootStackParamList, "Connections">>();
+  const route = useRoute<RouteProp<RootStackParamList, "Connections">>();
+  const flatListRef = useRef<FlatList<Connection>>(null);
+  const listHighlight = useListRowHighlight<number>();
   const meetingsBadgeCount = useMeetingsBadgeCount();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
@@ -941,6 +947,82 @@ export default function ConnectionsScreen() {
     [user?.user_id]
   );
 
+  const highlightListIndexRef = useRef(0);
+  listHighlight.scrollToOffsetRef.current = useCallback(() => {
+    try {
+      flatListRef.current?.scrollToIndex({
+        index: highlightListIndexRef.current,
+        animated: true,
+        viewPosition: 0.5,
+      });
+    } catch {
+      flatListRef.current?.scrollToOffset({
+        offset: highlightListIndexRef.current * 120,
+        animated: true,
+      });
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const connectionId = route.params?.highlightConnectionId;
+    if (connectionId == null) return;
+    listHighlight.rowLayoutRef.current.clear();
+    listHighlight.setHighlightTargetId(connectionId);
+    navigation.setParams({ highlightConnectionId: undefined });
+  }, [route.params?.highlightConnectionId, navigation, listHighlight]);
+
+  React.useEffect(() => {
+    const targetId = listHighlight.highlightTargetId;
+    if (targetId == null || isLoading) return;
+
+    const index = connections.findIndex(
+      (c) => c.backendConnectionId === targetId,
+    );
+    if (index < 0) {
+      let cancelled = false;
+      void (async () => {
+        const raw = await resolveConnectionById(targetId);
+        if (cancelled || !raw) return;
+        const mapped = mapBackendConnectionToUI(raw);
+        setConnections((prev) => {
+          if (prev.some((c) => c.backendConnectionId === targetId)) {
+            return prev;
+          }
+          return [mapped, ...prev];
+        });
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    listHighlight.clearHighlightTimers();
+    const capturedId = targetId;
+    highlightListIndexRef.current = index;
+    const timer = setTimeout(() => {
+      listHighlight.setHighlightTargetId(null);
+      listHighlight.tryScrollAndHighlight(capturedId, index);
+      const row = connections.find((c) => c.backendConnectionId === capturedId);
+      if (row) {
+        setTimeout(() => openBottomSheet(row), 400);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [
+    listHighlight.highlightTargetId,
+    connections,
+    isLoading,
+    mapBackendConnectionToUI,
+    listHighlight,
+    openBottomSheet,
+  ]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => listHighlight.clearHighlight();
+    }, [listHighlight]),
+  );
+
   // Bottom sheet drag handler
   const bottomSheetPanResponder = useRef(
     PanResponder.create({
@@ -981,14 +1063,45 @@ export default function ConnectionsScreen() {
     })
   ).current;
 
-  const renderConnectionItem = ({ item }: { item: Connection }) => (
-    <ConnectionCard
-      connection={item}
-      onPress={() => {
-        openBottomSheet(item);
-      }}
-    />
-  );
+  const renderConnectionItem = ({
+    item,
+    index,
+  }: {
+    item: Connection;
+    index: number;
+  }) => {
+    const connectionId = item.backendConnectionId;
+    const highlighted = listHighlight.isHighlighted(connectionId);
+    return (
+      <View
+        ref={(node) => {
+          if (node) {
+            listHighlight.rowViewRefs.current.set(connectionId, node);
+            listHighlight.measureRowLayout(connectionId, node);
+          } else {
+            listHighlight.rowViewRefs.current.delete(connectionId);
+          }
+        }}
+        onLayout={() => {
+          const node = listHighlight.rowViewRefs.current.get(connectionId);
+          if (node) listHighlight.measureRowLayout(connectionId, node);
+        }}
+        style={{ position: "relative", marginBottom: 4 }}
+      >
+        <ConnectionCard
+          connection={item}
+          onPress={() => {
+            listHighlight.clearHighlight();
+            openBottomSheet(item);
+          }}
+        />
+        <ListRowHighlightOverlay
+          visible={highlighted}
+          opacity={listHighlight.highlightOpacity}
+        />
+      </View>
+    );
+  };
 
   return (
     <View className="flex-1 bg-white">
@@ -1063,10 +1176,15 @@ export default function ConnectionsScreen() {
           </View>
         ) : (
           <FlatList
+            ref={flatListRef}
             data={filteredConnections}
             renderItem={renderConnectionItem}
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ paddingTop: 16, paddingBottom: 16 }}
+            onLayout={(e) => {
+              listHighlight.scrollViewportHeightRef.current =
+                e.nativeEvent.layout.height;
+            }}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl

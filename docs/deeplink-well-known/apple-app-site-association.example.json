@@ -8,7 +8,10 @@
           { "/": "/meetings/*" },
           { "/": "/connections" },
           { "/": "/attendees" },
+          { "/": "/attendees/*" },
           { "/": "/schedule" },
+          { "/": "/schedule/*" },
+          { "/": "/connections/*" },
           { "/": "/profile" },
           { "/": "/download", "exclude": true },
           { "/": "/", "exclude": true }

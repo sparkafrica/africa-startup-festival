@@ -104,6 +104,18 @@ export const DIGEST_DEEP_LINKS: readonly DigestDeepLink[] = [
   },
 ] as const;
 
+/**
+ * Entity deeplinks (OTA-safe; add matching AASA paths on the host):
+ *
+ * - /schedule/{scheduleId}
+ * - /connections/{connectionId}
+ * - /attendees/{userId}
+ * - /meetings/inbound/{meetingId}
+ * - /meetings/outbound/{meetingId}
+ * - /meetings/scheduled/{meetingId}
+ * - /meetings/{meetingId} (defaults to requests/inbound)
+ */
+
 export function getDigestDeepLinkByPath(path: string): DigestDeepLink | undefined {
   const normalized = path.replace(/^\/+/, "").toLowerCase();
   return DIGEST_DEEP_LINKS.find((l) => l.path.replace(/^\/+/, "") === normalized);

@@ -73,8 +73,10 @@ import {
   filterEventSchedules,
   scheduleStartDateIso,
   scheduleVenue,
+  scheduleVenueToStageKey,
   setExpoEventDates,
 } from "../utils/scheduleFilters";
+import { resolveEventScheduleById } from "../services/deepLinkResolveService";
 import {
   clearCachedEventSchedules,
   clearCachedEventSpeakers,
@@ -159,7 +161,7 @@ export const MOCK_SCHEDULE_EVENT = {
 //
 // ============================================================================
 
-const HIGHLIGHT_PULSE_MS = 2000;
+const HIGHLIGHT_PULSE_MS = 3000;
 const HIGHLIGHT_FADE_MS = 350;
 const ESTIMATED_EVENT_CARD_HEIGHT = 150;
 
@@ -618,7 +620,25 @@ export default function ScheduleScreen() {
     if (targetId == null || scheduleView !== "all" || isLoading) return;
 
     const index = events.findIndex((e) => e.eventScheduleId === targetId);
-    if (index < 0) return;
+    if (index < 0) {
+      let cancelled = false;
+      void (async () => {
+        const schedule = await resolveEventScheduleById(targetId);
+        if (cancelled || !schedule) return;
+        setSelectedStage(scheduleVenueToStageKey(scheduleVenue(schedule)));
+        setSelectedFilters([]);
+        const row = mapEventScheduleToEventData(schedule);
+        setEvents((prev) => {
+          if (prev.some((e) => e.eventScheduleId === row.eventScheduleId)) {
+            return prev;
+          }
+          return sortEventsByStartTime([...prev, row]);
+        });
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
 
     clearHighlightTimers();
     const capturedId = targetId;

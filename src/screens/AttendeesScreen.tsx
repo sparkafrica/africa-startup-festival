@@ -29,8 +29,8 @@ import Animated, {
   interpolate,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import type { NavigationProp } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef } from "../navigation/navigationRef";
 import { useChecklist } from "../context/ChecklistContext";
@@ -39,6 +39,9 @@ import { useChat } from "../context/ChatContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { attendeeService, type Attendee as BackendAttendee, type MatchInfo } from "../services/attendeeService";
+import { resolveAttendeeByUserId } from "../services/deepLinkResolveService";
+import { useListRowHighlight } from "../hooks/useListRowHighlight";
+import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
@@ -1030,7 +1033,18 @@ function AttendeeCard({
 
 export default function AttendeesScreen() {
   const navigation =
-    useNavigation<NavigationProp<RootStackParamList, "Home">>();
+    useNavigation<NavigationProp<RootStackParamList, "Attendees">>();
+  const route = useRoute<RouteProp<RootStackParamList, "Attendees">>();
+  const attendeeListRef = useRef<Animated.FlatList<Attendee>>(null);
+  const listHighlight = useListRowHighlight<string>();
+  const {
+    highlightTargetId,
+    setHighlightTargetId,
+    clearHighlight,
+    clearHighlightTimers,
+    tryScrollAndHighlight,
+  } = listHighlight;
+  const attendeeHighlightIndexRef = useRef(0);
   const meetingsBadgeCount = useMeetingsBadgeCount();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
@@ -1393,14 +1407,6 @@ export default function AttendeesScreen() {
       name: nameFilter as string,
     });
 
-    if (__DEV__) {
-      const mode = isServerNameSearch
-        ? `search · page=1 · page_size=${ATTENDEE_LIST_PAGE_SIZE}`
-        : `full list · page=1 · page_size=${ATTENDEE_LIST_PAGE_SIZE} · ordering=${ATTENDEE_LIST_ORDERING}`;
-      console.log(
-        `[AttendeesFetch] ${reason ?? "?"} · ${mode} · event ${EVENT_ID}`
-      );
-    }
     listEndReachAllowedAfterRef.current = Date.now() + 800;
     setIsLoading(true);
     setError(null);
@@ -1460,23 +1466,11 @@ export default function AttendeesScreen() {
         batch.length > 0 &&
         (hasNext || partialPage);
 
-      if (__DEV__) {
-        console.log(
-          `[AttendeesFetch] page 1 · batch=${batch.length} · API count=${totalCount || "—"} · hasMore=${hasMorePages}`
-        );
-      }
-
       if (batch.length > 0) {
         mergeBatch(batch);
       }
 
       if (fetchGen !== attendeesFetchGenRef.current) return;
-      if (__DEV__) {
-        const tag = nameFilter ? ` · name="${nameFilter}"` : "";
-        console.log(
-          `[AttendeesFetch] ready · ${allMapped.length} unique in UI · API count=${totalCount || "—"} · hasMore=${hasMorePages}${tag}`
-        );
-      }
       connectionsSyncedForListRef.current = true;
       if (!nameFilter) {
         attendeeFullListSessionCache = {
@@ -1578,11 +1572,6 @@ export default function AttendeesScreen() {
       });
       setAttendeePage(nextPage);
       setHasMoreAttendees(hasNext);
-      if (__DEV__) {
-        console.log(
-          `[AttendeesFetch] load more · page=${nextPage} · +${mapped.length} rows · hasNext=${hasNext}`
-        );
-      }
     } catch (err) {
       // Keep list; optional toast could go here
     } finally {
@@ -1969,6 +1958,89 @@ export default function AttendeesScreen() {
     setShowBottomSheet(true);
   }, []);
 
+  listHighlight.scrollToOffsetRef.current = useCallback(() => {
+    try {
+      attendeeListRef.current?.scrollToIndex({
+        index: attendeeHighlightIndexRef.current,
+        animated: true,
+        viewPosition: 0.5,
+      });
+    } catch {
+      attendeeListRef.current?.scrollToOffset({
+        offset: attendeeHighlightIndexRef.current * 120,
+        animated: true,
+      });
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const userId = route.params?.highlightUserId;
+    if (!userId) return;
+    setHighlightTargetId(userId);
+    setActiveTab("All");
+    navigation.setParams({ highlightUserId: undefined });
+  }, [route.params?.highlightUserId, navigation, setHighlightTargetId]);
+
+  React.useEffect(() => {
+    const userId = highlightTargetId;
+    if (!userId) return;
+    if (isLoading) return;
+
+    const index = displayedAttendees.findIndex((a) => a.id === userId);
+
+    if (index < 0) {
+      let cancelled = false;
+      void (async () => {
+        const backend = await resolveAttendeeByUserId(userId);
+        if (cancelled) return;
+        if (!backend) {
+          showToast(
+            "Could not find this attendee. Check the link or try again.",
+            "error",
+          );
+          return;
+        }
+        const mapped = mapBackendAttendeeToUI(backend);
+        setAllAttendeesBackend((prev) => {
+          if (prev.some((a) => a.id === mapped.id)) return prev;
+          return [mapped, ...prev];
+        });
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    clearHighlightTimers();
+    attendeeHighlightIndexRef.current = index;
+    const capturedId = userId;
+    const timer = setTimeout(() => {
+      setHighlightTargetId(null);
+      tryScrollAndHighlight(capturedId, index);
+      const row = displayedAttendees.find((a) => a.id === capturedId);
+      if (row) {
+        setTimeout(() => openBottomSheet(row), 400);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [
+    highlightTargetId,
+    displayedAttendees,
+    isLoading,
+    mapBackendAttendeeToUI,
+    clearHighlightTimers,
+    setHighlightTargetId,
+    tryScrollAndHighlight,
+    openBottomSheet,
+    showToast,
+  ]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => clearHighlight();
+    }, [clearHighlight]),
+  );
+
   // Close bottom sheet with animation
   const closeBottomSheet = () => {
     RNAnimated.parallel([
@@ -2030,15 +2102,32 @@ export default function AttendeesScreen() {
   ).current;
 
   const renderAttendeeListItem = useCallback(
-    ({ item }: ListRenderItemInfo<Attendee>) => (
-      <AttendeeListRow
-        item={item}
-        skipped={skippedAttendeeIds.has(item.id)}
-        onOpen={openBottomSheet}
-        onConnect={handleConnect}
-      />
-    ),
-    [skippedAttendeeIds, openBottomSheet, handleConnect]
+    ({ item }: ListRenderItemInfo<Attendee>) => {
+      const highlighted = listHighlight.isHighlighted(item.id);
+      return (
+        <View style={{ position: "relative", marginBottom: 4 }}>
+          <AttendeeListRow
+            item={item}
+            skipped={skippedAttendeeIds.has(item.id)}
+            onOpen={() => {
+              listHighlight.clearHighlight();
+              openBottomSheet(item);
+            }}
+            onConnect={handleConnect}
+          />
+          <ListRowHighlightOverlay
+            visible={highlighted}
+            opacity={listHighlight.highlightOpacity}
+          />
+        </View>
+      );
+    },
+    [
+      skippedAttendeeIds,
+      openBottomSheet,
+      handleConnect,
+      listHighlight,
+    ],
   );
 
   const attendeeListKeyExtractor = useCallback((item: Attendee) => item.id, []);
@@ -2396,6 +2485,7 @@ export default function AttendeesScreen() {
             {displayedAttendees.length > 0 ? (
               <View className="flex-1 flex-row" style={{ minHeight: 0 }}>
                 <Animated.FlatList
+                  ref={attendeeListRef}
                   style={{ flex: 1, minWidth: 0 }}
                   data={displayedAttendees}
                   renderItem={renderAttendeeListItem}

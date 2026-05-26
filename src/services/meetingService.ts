@@ -239,6 +239,28 @@ export const meetingService = {
    * Backend Endpoint: GET /meetings/
    * Returns array of Meeting objects
    */
+  /**
+   * Fetch a single meeting by id (deeplinks when list is not loaded).
+   *
+   * Backend Endpoint: GET /meetings/{id}/
+   */
+  async getMeetingById(meetingId: number): Promise<Meeting | null> {
+    try {
+      const response = await api.get<any>(`/meetings/${meetingId}/`);
+      const data = response as any;
+      const raw = data?.data ?? data;
+      if (raw && typeof raw === "object" && raw.id != null) {
+        return raw as Meeting;
+      }
+      return null;
+    } catch (error: any) {
+      if (error?.responseCode === 404 || error?.response_code === 404) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
   async getMeetings(): Promise<Meeting[]> {
     try {
       const response = await api.get<any>("/meetings/");

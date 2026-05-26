@@ -20,7 +20,13 @@ export function createLinkingConfig(enabled: boolean): LinkingOptions<RootStackP
     config: {
       screens: {
         Home: "",
-        Attendees: "attendees",
+        Attendees: {
+          path: "attendees/:highlightUserId?",
+          parse: {
+            highlightUserId: (value: string) =>
+              value ? decodeURIComponent(value) : undefined,
+          },
+        },
         Schedule: "schedule",
         Profile: "profile",
         Connections: "connections",

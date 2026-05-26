@@ -15,6 +15,17 @@ import {
   isBookMeetingPromptNotificationType,
   routeFirstSegmentIsAttendees,
 } from "../utils/notificationUtils";
+import {
+  isHandledDeepLinkPath,
+  normalizePathSegments,
+  parseDeepLinkTarget,
+} from "./deepLinkParse";
+import {
+  navigateDeepLinkTarget,
+  paramsForDeepLinkTarget,
+} from "./deepLinkNavigation";
+
+export { isHandledDeepLinkPath, parseDeepLinkTarget } from "./deepLinkParse";
 
 export interface RouteNavigationInput {
   route?: string;
@@ -29,6 +40,8 @@ export interface RouteNavigationInput {
   description?: string;
   notification_type?: string;
   store_url?: string;
+  user_id?: string;
+  schedule_id?: string;
 }
 
 function isAppUpdateRoute(data: RouteNavigationInput): boolean {
@@ -55,7 +68,7 @@ function isAppUpdateRoute(data: RouteNavigationInput): boolean {
  * Supported paths: meetings, meetings/inbound, meetings/outbound, meetings/scheduled
  */
 function meetingsParamsFromRouteString(
-  routeLower: string
+  routeLower: string,
 ): RootStackParamList["Meetings"] {
   const isScheduled =
     routeLower === "meetings/scheduled" ||
@@ -108,48 +121,24 @@ export function isDeepLinkUrl(url: string): boolean {
   return trimmed.startsWith(DEEP_LINK_HTTPS_PREFIX);
 }
 
-/** Paths handled in-app; `/download` stays on web (excluded in AASA). */
-export function isHandledDeepLinkPath(path: string | null): boolean {
-  if (!path) return false;
-  if (path === "download") return false;
-  return (
-    path === "meetings" ||
-    path.startsWith("meetings/") ||
-    path === "connections" ||
-    path === "attendees" ||
-    path === "schedule" ||
-    path === "profile"
-  );
-}
-
 export function getNavigationStateFromDeepLinkPath(
   path: string,
-  options?: Parameters<typeof defaultGetStateFromPath>[1]
+  options?: Parameters<typeof defaultGetStateFromPath>[1],
 ): PartialState<NavigationState> | undefined {
   const normalized = normalizeDeepLinkPath(path);
   if (!normalized || !isHandledDeepLinkPath(normalized)) {
     return defaultGetStateFromPath(path, options);
   }
 
-  if (normalized === "connections") {
-    return { routes: [{ name: "Connections" }] };
-  }
-  if (normalized === "attendees") {
-    return { routes: [{ name: "Attendees" }] };
-  }
-  if (normalized === "schedule") {
-    return { routes: [{ name: "Schedule" }] };
-  }
-  if (normalized === "profile") {
-    return { routes: [{ name: "Profile" }] };
-  }
-  if (normalized === "meetings" || normalized.startsWith("meetings/")) {
-    const routeKey = normalized === "meetings" ? "meetings" : normalized;
-    const params = meetingsParamsFromRouteString(routeKey);
-    return { routes: [{ name: "Meetings", params }] };
+  const target = parseDeepLinkTarget(normalized);
+  if (!target) {
+    return defaultGetStateFromPath(path, options);
   }
 
-  return defaultGetStateFromPath(path, options);
+  const { screen, params } = paramsForDeepLinkTarget(target);
+  return {
+    routes: [{ name: screen, params }],
+  };
 }
 
 /**
@@ -164,29 +153,10 @@ export function navigateFromDeepLinkPath(urlOrPath: string): boolean {
     return false;
   }
 
-  if (normalized === "connections") {
-    navigate("Connections");
-    return true;
-  }
-  if (normalized === "attendees") {
-    navigate("Attendees");
-    return true;
-  }
-  if (normalized === "schedule") {
-    navigate("Schedule");
-    return true;
-  }
-  if (normalized === "profile") {
-    navigate("Profile");
-    return true;
-  }
-  if (normalized === "meetings" || normalized.startsWith("meetings/")) {
-    const routeKey = normalized === "meetings" ? "meetings" : normalized;
-    navigate("Meetings", meetingsParamsFromRouteString(routeKey));
-    return true;
-  }
+  const target = parseDeepLinkTarget(normalized);
+  if (!target) return false;
 
-  return false;
+  return navigateDeepLinkTarget(target);
 }
 
 export function navigateFromDeepLinkUrl(url: string): boolean {
@@ -231,40 +201,43 @@ export function applyRouteNavigation(data: RouteNavigationInput | null): void {
       return;
     }
   }
-  if (data.connection_id) {
-    navigate("Connections");
+
+  if (data.user_id?.trim()) {
+    navigate("Attendees", { highlightUserId: data.user_id.trim() });
     return;
   }
-  if (data.meeting_id) {
+
+  if (data.schedule_id && /^\d+$/.test(data.schedule_id)) {
+    navigate("Schedule", {
+      highlightScheduleId: parseInt(data.schedule_id, 10),
+    });
+    return;
+  }
+
+  if (data.connection_id && /^\d+$/.test(data.connection_id)) {
+    navigate("Connections", {
+      highlightConnectionId: parseInt(data.connection_id, 10),
+    });
+    return;
+  }
+
+  if (data.meeting_id && /^\d+$/.test(data.meeting_id)) {
     const routeLower = (data.route || "").toLowerCase();
-    navigate("Meetings", meetingsParamsFromRouteString(routeLower));
+    const tabParams = meetingsParamsFromRouteString(routeLower);
+    navigate("Meetings", {
+      ...tabParams,
+      highlightMeetingId: parseInt(data.meeting_id, 10),
+    });
     return;
   }
 
   const routeLower = (data.route || "").toLowerCase();
   if (routeLower) {
-    if (routeLower === "connections" || routeLower.startsWith("connections")) {
-      navigate("Connections");
-      return;
-    }
-    if (routeLower === "attendees" || routeLower.startsWith("attendees")) {
-      navigate("Attendees");
-      return;
-    }
-    if (routeLower === "schedule" || routeLower.startsWith("schedule")) {
-      navigate("Schedule");
-      return;
-    }
-    if (routeLower === "profile" || routeLower.startsWith("profile")) {
-      navigate("Profile");
-      return;
-    }
-    if (
-      routeLower === "meetings" ||
-      routeLower.startsWith("meetings/") ||
-      routeLower.startsWith("meetings")
-    ) {
-      navigate("Meetings", meetingsParamsFromRouteString(routeLower));
+    const segments = normalizePathSegments(routeLower);
+    const path = segments.join("/");
+    const target = parseDeepLinkTarget(path);
+    if (target) {
+      navigateDeepLinkTarget(target);
       return;
     }
   }
