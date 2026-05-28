@@ -101,10 +101,32 @@ export default function PartnersOffersScreen() {
     if (isRefresh) setRefreshing(true);
     else setIsLoading(true);
     setError(null);
+    console.warn("[PartnerOffers] fetchOffers start", { isRefresh });
     try {
       const list = await offerService.getOffersForEvent();
+      console.warn("[PartnerOffers] fetchOffers success", {
+        count: list?.length ?? 0,
+      });
       setOffers(list);
     } catch (err: unknown) {
+      const status =
+        (err as any)?.response?.status ??
+        (err as any)?.response_code ??
+        (err as any)?.responseCode;
+      const responseData = (err as any)?.response?.data ?? (err as any)?.data;
+      console.warn("[PartnerOffers] fetchOffers error", {
+        message: (err as any)?.message,
+        status,
+        response_code: (err as any)?.response_code ?? (err as any)?.responseCode,
+        responseData:
+          typeof responseData === "object"
+            ? JSON.stringify(responseData)
+            : responseData,
+        is401:
+          status === 401 ||
+          (err as any)?.response_code === 401 ||
+          (err as any)?.responseCode === 401,
+      });
       const message =
         err instanceof ApiClientError
           ? err.message

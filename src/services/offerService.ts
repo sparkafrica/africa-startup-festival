@@ -8,9 +8,10 @@
  * Backend contract: see docs/PARTNER_OFFERS_API.md and Spark EMS.yaml Offer schemas.
  */
 
+import axios from "axios";
 import { api } from "./api";
 import { ApiClientError } from "./api";
-import { EVENT_ID, SPARK_API_KEY } from "../config/env";
+import { ENV, EVENT_ID, SPARK_API_KEY } from "../config/env";
 
 // ============================================================================
 // TYPES (frontend contract – backend should return data matching these)
@@ -93,13 +94,23 @@ export const offerService = {
 
       const headers: Record<string, string> = {};
       if (SPARK_API_KEY) headers["X-SPARK-KEY"] = SPARK_API_KEY;
-
-      const response = await api.get<any>(
-        url,
-        headers ? { headers } : undefined,
+    if (__DEV__ && !SPARK_API_KEY) {
+      console.warn(
+        "[PartnerOffers offerService] X-SPARK-KEY is missing. Set EXPO_PUBLIC_SPARK_API_KEY (.env) or app.json extra / EAS secret for offers.",
       );
+    }
 
-      const data = response as any;
+      // Use direct axios call (no auth token/interceptor) so 401 from public endpoint
+      // does not trigger global session-expired logout.
+      const axiosResponse = await axios.get<any>(`${ENV.BASE_URL}${url}`, {
+        timeout: ENV.TIMEOUT,
+        headers: {
+          Accept: "application/json",
+          ...headers,
+        },
+      });
+
+      const data = axiosResponse?.data as any;
 
       if (Array.isArray(data)) {
         return data as PartnerOffer[];
@@ -113,11 +124,27 @@ export const offerService = {
 
       return [];
     } catch (error: any) {
+      const status =
+        error?.response?.status ?? error?.response_code ?? error?.responseCode;
+      const responseData = error?.response?.data ?? error?.data;
+      if (__DEV__) {
+        console.warn("[PartnerOffers offerService] GET error", {
+          message: error?.message,
+          status,
+          responseData:
+            typeof responseData === "object"
+              ? JSON.stringify(responseData)
+              : responseData,
+        });
+      }
       if (error instanceof ApiClientError) throw error;
       throw new ApiClientError({
         status: "error",
-        message: error?.message || "Failed to fetch offers",
-        response_code: error?.response_code ?? 500,
+        message:
+          status === 401
+            ? "Invalid request try again later"
+            : error?.message || "Failed to fetch offers",
+        response_code: status ?? 500,
         data: {},
       });
     }

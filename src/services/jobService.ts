@@ -102,9 +102,11 @@ export const jobService = {
       throw new ApiClientError({
         status: "error",
         message:
-          error?.response?.data?.message ??
-          error?.message ??
-          "Failed to fetch job listings",
+          status === 401
+            ? "Invalid request try again later"
+            : error?.response?.data?.message ??
+              error?.message ??
+              "Failed to fetch job listings",
         response_code: status ?? 500,
         data: {},
       });
