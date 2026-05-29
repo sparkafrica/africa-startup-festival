@@ -8,7 +8,8 @@
 
 import axios from "axios";
 import { ApiClientError } from "./api";
-import { ENV, EVENT_ID, SPARK_API_KEY } from "../config/env";
+import { ENV, EVENT_ID, SPARK_API_KEY, getSparkKeyDiagnostics } from "../config/env";
+import { trackEvent } from "../utils/analytics";
 
 // ============================================================================
 // TYPES (from Spark EMS.yaml - Public Job Listings)
@@ -88,6 +89,23 @@ export const jobService = {
       const status =
         error?.response?.status ?? error?.response_code ?? error?.responseCode;
       const responseData = error?.response?.data ?? error?.data;
+      const keyMeta = getSparkKeyDiagnostics();
+      void trackEvent("public_endpoint_failed", {
+        source: "talent_board",
+        feature: "jobs",
+        endpoint: "/jobs/",
+        status: status ?? 0,
+        message:
+          status === 401
+            ? "Invalid request try again later"
+            : error?.response?.data?.message ??
+              error?.message ??
+              "Failed to fetch job listings",
+        key_source: keyMeta.source,
+        key_length: keyMeta.length,
+        key_fingerprint: keyMeta.fingerprint,
+        app_env: keyMeta.env,
+      });
       if (__DEV__) {
         console.warn("[TalentBoard jobService] GET error", {
           message: error?.message,

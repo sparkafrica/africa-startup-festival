@@ -90,6 +90,14 @@ export const SPARK_API_KEY =
   (environment === "production" ? PRODUCTION_SPARK_API_KEY : "") ||
   "";
 
+const SPARK_KEY_SOURCE = ENV_SPARK_KEY
+  ? "process.env"
+  : EXTRA_SPARK_KEY
+    ? "expo.extra"
+    : environment === "production" && PRODUCTION_SPARK_API_KEY
+      ? "production_fallback"
+      : "none";
+
 // Upgrade ticket: backend requires new_ticket_class_id (per tier), payment_method, currency.
 // Set EXPO_PUBLIC_UPGRADE_CLASS_ID_OASIS etc. in .env (get IDs from backend for the event).
 type Extra = Record<string, unknown> & {
@@ -118,4 +126,34 @@ export function getUpgradePaymentDefaults(): {
     payment_method: extra.UPGRADE_PAYMENT_METHOD ?? "free",
     currency: extra.UPGRADE_CURRENCY ?? "USD",
   };
+}
+
+
+/** One-time runtime fingerprint log (masked) to compare app key vs backend logs safely. */
+let didLogSparkKeyFingerprint = false;
+
+const maskKeyFingerprint = (value: string): string => {
+  if (!value) return "(empty)";
+  if (value.length <= 10) return `${value.slice(0, 2)}...${value.slice(-2)}`;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+};
+
+if (!didLogSparkKeyFingerprint) {
+  didLogSparkKeyFingerprint = true;
+  console.warn("[SPARK_KEY] runtime fingerprint", {
+    env: environment,
+    source: SPARK_KEY_SOURCE,
+    length: SPARK_API_KEY.length,
+    fingerprint: maskKeyFingerprint(SPARK_API_KEY),
+  });
+}
+
+/** Safe diagnostics for telemetry/debugging (never exposes full key). */
+export function getSparkKeyDiagnostics() {
+  return {
+    env: environment,
+    source: SPARK_KEY_SOURCE,
+    length: SPARK_API_KEY.length,
+    fingerprint: maskKeyFingerprint(SPARK_API_KEY),
+  } as const;
 }

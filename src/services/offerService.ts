@@ -11,7 +11,8 @@
 import axios from "axios";
 import { api } from "./api";
 import { ApiClientError } from "./api";
-import { ENV, EVENT_ID, SPARK_API_KEY } from "../config/env";
+import { ENV, EVENT_ID, SPARK_API_KEY, getSparkKeyDiagnostics } from "../config/env";
+import { trackEvent } from "../utils/analytics";
 
 // ============================================================================
 // TYPES (frontend contract – backend should return data matching these)
@@ -127,6 +128,21 @@ export const offerService = {
       const status =
         error?.response?.status ?? error?.response_code ?? error?.responseCode;
       const responseData = error?.response?.data ?? error?.data;
+      const keyMeta = getSparkKeyDiagnostics();
+      void trackEvent("public_endpoint_failed", {
+        source: "partner_offers",
+        feature: "offers",
+        endpoint: "/offers/",
+        status: status ?? 0,
+        message:
+          status === 401
+            ? "Invalid request try again later"
+            : error?.message || "Failed to fetch offers",
+        key_source: keyMeta.source,
+        key_length: keyMeta.length,
+        key_fingerprint: keyMeta.fingerprint,
+        app_env: keyMeta.env,
+      });
       if (__DEV__) {
         console.warn("[PartnerOffers offerService] GET error", {
           message: error?.message,
