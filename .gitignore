@@ -3,6 +3,7 @@
 # dependencies
 node_modules/
 Figma Design
+/docs
 
 # .md files
 AUTH_ARCHITECTURE.md

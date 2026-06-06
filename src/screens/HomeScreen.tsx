@@ -351,7 +351,7 @@ export default function HomeScreen() {
           className="px-4 pt-3 pb-3"
           contentContainerStyle={{ paddingRight: 20, paddingVertical: 4 }}
         >
-          <BannerCard
+          {/* <BannerCard
             // badge="GET YOUR TICKET FOR THE EVENT LIVE IN LAGOS"
             title="Here's your ATE2026 Pass"
             description="Please show this pass at the check-in counter to collect your tag."
@@ -364,8 +364,8 @@ export default function HomeScreen() {
                 openPersonalTicketQr: true,
               })
             }
-          />
-          <BannerCard
+          /> */}
+          {/* <BannerCard
             // badge="EVENT LIVE IN LAGOS"
             title="Welcome to ATE 2026"
             description="Complete your checklist and start booking 1:1 meetings with attendees and partners."
@@ -373,15 +373,22 @@ export default function HomeScreen() {
             gradient={gradients.partnerGreen}
             backgroundImage={require("../assets/images/2nd-card.jpg")}
             onPress={() => navigation.navigate("Attendees")}
+          /> */}
+          <BannerCard
+            title="Build your personal schedule"
+            description="Add sessions to your schedule so you never miss a talk."
+            buttonText="See schedule"
+            gradient={gradients.partnerGreen}
+            backgroundImage={require("../assets/images/4th-card.jpg")}
+            onPress={() => navigation.navigate("Schedule")}
           />
           <BannerCard
-            // badge="PARTNER OFFERS"
-            title="Review event schedule"
-            description="Get your ATE 2026 itinerary ready ahead of the event day"
-            buttonText="See schedule"
-            gradient={gradients.ocean}
+            title="Popular slots filling up"
+            description="Book focused 20-minute meetings with people you want to do tech business with."
+            buttonText="Book Meetings"
+            gradient={gradients.sparkBlack}
             backgroundImage={require("../assets/images/3rd-card.jpg")}
-            onPress={() => navigation.navigate("Schedule")}
+            onPress={() => navigation.navigate("Attendees")}
           />
         </ScrollView>
 

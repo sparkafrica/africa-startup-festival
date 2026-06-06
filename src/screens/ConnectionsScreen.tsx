@@ -366,11 +366,8 @@ export default function ConnectionsScreen() {
     // Extract LinkedIn URL from metadata
     const linkedInUrl = metadata.linkedIn || metadata.linkedin_url || undefined;
 
-    // Build tags - show country and industry/sector (not interests, to avoid duplication)
+    // Build tags — industry/sector only (country omitted from cards; interests shown separately)
     const tags: ConnectionTag[] = [];
-    if (otherUser.country) {
-      tags.push({ label: otherUser.country, borderColor: "#90EE90" });
-    }
     // Check for sector/industry in company object or metadata
     const sector =
       (otherUser as any).company?.company_sector ||

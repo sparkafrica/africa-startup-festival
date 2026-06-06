@@ -1317,11 +1317,8 @@ export default function AttendeesScreen() {
     // Extract avatar
     const avatar = user.profile_pic ? { uri: user.profile_pic } : undefined;
 
-    // Extract tags (country and industry/sector)
+    // Extract tags (industry/sector only — country omitted from cards)
     const tags: string[] = [];
-    if (user.country) {
-      tags.push(user.country);
-    }
     const industry = metadata?.industry || metadata?.sector || (user as any).company?.company_sector;
     if (industry) {
       tags.push(industry);
@@ -1662,86 +1659,22 @@ export default function AttendeesScreen() {
     void fetchAttendees("card-view-full-list", { name: undefined });
   }, [viewMode, fetchAttendees]);
 
-  // Mock data - remove after full integration
-  const allAttendeesMock: Attendee[] = [
-    {
-      id: "1",
-      name: "Ada Okafor",
-      role: "VC Partner",
-      company: "Skyline Ventures",
-      tags: ["Fintech", "Nigeria"],
-      bio: "Early-stage investor focused on African fintech and infrastructure.",
-      interests: ["Fintech", "Infrastructure", "Developer Tools"],
-      linkedInUrl: "https://linkedin.com/in/ada-okafor",
-    },
-    {
-      id: "2",
-      name: "John Mensah",
-      role: "Founder",
-      company: "TechStart Africa",
-      tags: ["Startups", "Ghana"],
-      bio: "Building the next generation of African tech companies.",
-      interests: ["Startups", "Technology", "Innovation"],
-      linkedInUrl: "https://linkedin.com/in/john-mensah",
-    },
-    {
-      id: "3",
-      name: "Sara Ibrahim",
-      role: "Product Manager",
-      company: "Innovate Labs",
-      tags: ["Product", "Egypt"],
-      bio: "Passionate about creating products that make a difference.",
-      interests: ["Product Design", "User Experience", "Strategy"],
-      linkedInUrl: "https://linkedin.com/in/sara-ibrahim",
-    },
-    {
-      id: "4",
-      name: "David Kim",
-      role: "Speaker",
-      company: "Cloud Solutions",
-      tags: ["Cloud", "DevOps"],
-      bio: "Cloud architecture expert helping companies scale efficiently.",
-      interests: ["Cloud Computing", "DevOps", "Architecture"],
-      linkedInUrl: "https://linkedin.com/in/david-kim",
-    },
-    {
-      id: "5",
-      name: "Lisa Anderson",
-      role: "Attendee",
-      company: "Design Studio",
-      tags: ["UX/UI", "Product Design"],
-      bio: "Designer focused on creating beautiful and functional interfaces.",
-      interests: ["UI Design", "UX Research", "Design Systems"],
-      linkedInUrl: "https://linkedin.com/in/lisa-anderson",
-    },
-    {
-      id: "6",
-      name: "Michael Chen",
-      role: "CTO",
-      company: "DataFlow Inc",
-      tags: ["AI/ML", "Singapore"],
-      bio: "Leading AI innovation in Southeast Asia with a focus on machine learning solutions.",
-      interests: [
-        "Artificial Intelligence",
-        "Machine Learning",
-        "Data Science",
-      ],
-      linkedInUrl: "https://linkedin.com/in/michael-chen",
-    },
-    {
-      id: "7",
-      name: "Amina Hassan",
-      role: "Marketing Director",
-      company: "Growth Partners",
-      tags: ["Marketing", "Kenya"],
-      bio: "Expert in growth marketing and brand strategy for African markets.",
-      interests: ["Digital Marketing", "Brand Strategy", "Growth Hacking"],
-      linkedInUrl: "https://linkedin.com/in/amina-hassan",
-    },
-  ];
+  // Mock data — disabled; API is the sole source (re-enable for local UI dev only)
+  // const allAttendeesMock: Attendee[] = [
+  //   {
+  //     id: "1",
+  //     name: "Ada Okafor",
+  //     role: "VC Partner",
+  //     company: "Skyline Ventures",
+  //     tags: ["Fintech"],
+  //     bio: "Early-stage investor focused on African fintech and infrastructure.",
+  //     interests: ["Fintech", "Infrastructure", "Developer Tools"],
+  //     linkedInUrl: "https://linkedin.com/in/ada-okafor",
+  //   },
+  //   ...
+  // ];
 
-  // Use backend data if available, otherwise fall back to mock (for development)
-  const allAttendees = allAttendeesBackend.length > 0 ? allAttendeesBackend : allAttendeesMock;
+  const allAttendees = allAttendeesBackend;
 
   const currentUserId = user?.user_id ? String(user.user_id) : null;
 
