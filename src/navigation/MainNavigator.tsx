@@ -27,6 +27,7 @@ import ContactScreen from "../screens/ContactScreen";
 import TalentBoardScreen from "../screens/TalentBoardScreen";
 import PartnersOffersScreen from "../screens/PartnersOffersScreen";
 import AppGuideScreen from "../screens/AppGuideScreen";
+import TagPickupScreen from "../screens/TagPickupScreen";
 import { runEarlyOtaCheckOnly } from "../utils/otaUpdateFlow";
 
 // // Work around occasional TS module-resolution lag for newly added screens on Windows.
@@ -225,6 +226,14 @@ export default function MainNavigator() {
       <Stack.Screen
         name="AppGuide"
         component={AppGuideScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="TagPickup"
+        component={TagPickupScreen}
         options={{
           headerShown: false,
           animation: "slide_from_right",

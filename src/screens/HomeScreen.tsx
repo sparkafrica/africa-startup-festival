@@ -375,6 +375,14 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate("Attendees")}
           /> */}
           <BannerCard
+            title="Tag Pickup!"
+            description="Visit any Cafe One branch near you to pick up your tag and skip event day queues."
+            buttonText="View branches"
+            gradient={gradients.ocean}
+            backgroundImage={require("../assets/images/5th-card.jpg")}
+            onPress={() => navigation.navigate("TagPickup")}
+          />
+          <BannerCard
             title="Build your personal schedule"
             description="Add sessions to your schedule so you never miss a talk."
             buttonText="See schedule"
@@ -385,7 +393,7 @@ export default function HomeScreen() {
           <BannerCard
             title="Popular slots filling up"
             description="Book focused 20-minute meetings with people you want to do tech business with."
-            buttonText="Book Meetings"
+            buttonText="Book meetings"
             gradient={gradients.sparkBlack}
             backgroundImage={require("../assets/images/3rd-card.jpg")}
             onPress={() => navigation.navigate("Attendees")}
