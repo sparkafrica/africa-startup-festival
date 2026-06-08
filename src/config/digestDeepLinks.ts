@@ -14,7 +14,8 @@ export type DigestDeepLinkId =
   | "connections"
   | "attendees"
   | "schedule"
-  | "profile";
+  | "profile"
+  | "tag_pickup";
 
 export interface DigestDeepLink {
   id: DigestDeepLinkId;
@@ -100,6 +101,14 @@ export const DIGEST_DEEP_LINKS: readonly DigestDeepLink[] = [
     path: "/profile",
     url: `${BASE}/profile`,
     purpose: "Profile — manage / update your profile",
+    opensApp: true,
+  },
+  {
+    id: "tag_pickup",
+    number: 10,
+    path: "/tag-pickup",
+    url: `${BASE}/tag-pickup`,
+    purpose: "Tag pickup — Café One branch list with Maps directions (push route: tag-pickup)",
     opensApp: true,
   },
 ] as const;
@@ -231,6 +240,7 @@ export const BACKEND_EMAIL_DEEP_LINK_LINES: readonly string[] = [
   `${BASE}/attendees`,
   `${BASE}/schedule`,
   `${BASE}/profile`,
+  `${BASE}/tag-pickup`,
   "— Entity links (replace id in path) —",
   `${BASE}/schedule/{scheduleId}`,
   `${BASE}/connections/{connectionId}`,

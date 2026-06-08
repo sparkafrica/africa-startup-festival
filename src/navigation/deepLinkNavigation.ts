@@ -72,6 +72,8 @@ export function paramsForDeepLinkTarget(
       };
     case "Profile":
       return { screen: "Profile" };
+    case "TagPickup":
+      return { screen: "TagPickup" };
     default:
       return { screen: "Home" };
   }

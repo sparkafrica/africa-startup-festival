@@ -37,6 +37,7 @@ export function createLinkingConfig(enabled: boolean): LinkingOptions<RootStackP
           },
         },
         Profile: "profile",
+        TagPickup: "tag-pickup",
         Connections: {
           path: "connections/:highlightConnectionId?",
           parse: {

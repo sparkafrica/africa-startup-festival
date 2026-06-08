@@ -25,7 +25,8 @@ export type DeepLinkTarget =
   | { screen: "Attendees" }
   | { screen: "Schedule" }
   | { screen: "Exhibitors" }
-  | { screen: "Partners" };
+  | { screen: "Partners" }
+  | { screen: "TagPickup" };
 
 function parsePositiveInt(value: string | undefined): number | null {
   if (!value) return null;
@@ -73,6 +74,10 @@ export function parseDeepLinkTarget(path: string): DeepLinkTarget | null {
     const scheduleId = parsePositiveInt(parts[1]);
     if (scheduleId != null) return { screen: "Schedule", scheduleId };
     return parts.length === 1 ? { screen: "Schedule" } : null;
+  }
+
+  if (parts[0] === "tag-pickup") {
+    return parts.length === 1 ? { screen: "TagPickup" } : null;
   }
 
   if (parts[0] === "connections") {

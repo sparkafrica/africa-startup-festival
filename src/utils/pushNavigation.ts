@@ -5,7 +5,7 @@
  * Backend: When sending FCM, mirror the /notifications/ API fields in the data payload (all strings):
  * - id: backend notification id
  * - title, description: display text
- * - route: e.g. "meetings", "connections", "meetings/requests/inbound", "meetings/scheduled/outbound"
+ * - route: e.g. "meetings", "connections", "schedule", "tag-pickup", "meetings/requests/inbound"
  * - meeting_id: non-empty for meeting notifications
  * - connection_id: non-empty for connection notifications
  *

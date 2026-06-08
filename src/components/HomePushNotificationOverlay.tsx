@@ -173,6 +173,14 @@ export default function HomePushNotificationOverlay() {
               routeName === "Attendees"
             ) {
               navigation.navigate("Attendees");
+            } else if (
+              routeName.toLowerCase() === "schedule"
+            ) {
+              navigation.navigate("Schedule");
+            } else if (
+              routeName.toLowerCase() === "tag-pickup"
+            ) {
+              navigation.navigate("TagPickup");
             }
           }
         } else {
