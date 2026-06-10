@@ -92,6 +92,7 @@ export default function TagPickupScreen() {
                 <Text style={styles.hoursValue}>{row.hours}</Text>
               </View>
             ))}
+            <Text>Note: No pickups on weekends.</Text>
           </View>
         </ScrollView>
       </SafeAreaView>

@@ -4,6 +4,7 @@ import {
   type PusherChannel,
   type PusherEvent,
 } from "@pusher/pusher-websocket-react-native";
+import { Platform } from "react-native";
 import * as Sentry from "@sentry/react-native";
 import { PUSHER_API_KEY, PUSHER_CLUSTER } from "../config/env";
 import { pusherAuth } from "./chatService";
@@ -11,7 +12,7 @@ import { pusherAuth } from "./chatService";
 const pusher = Pusher.getInstance();
 
 let isInitialized = false;
-let isConnecting = false;
+let connectPromise: Promise<void> | null = null;
 const subscribedChannelNames = new Set<string>();
 /** Multiple RN listeners per conversation channel (inbox + thread) — Pusher RN only stores one `onEvent` on the channel object. */
 const conversationListeners = new Map<
@@ -25,13 +26,12 @@ type ConnectionStateListener = (
 ) => void;
 const connectionStateListeners = new Set<ConnectionStateListener>();
 
-function dispatchConversationChannelEvent(
-  channelName: string,
+function invokeConversationListener(
+  fn: (event: PusherEvent) => void,
   event: PusherEvent,
+  channelName: string,
 ) {
-  const listeners = conversationListeners.get(channelName);
-  if (!listeners) return;
-  listeners.forEach((fn) => {
+  const run = () => {
     try {
       fn(event);
     } catch (err) {
@@ -41,16 +41,31 @@ function dispatchConversationChannelEvent(
         { channelName, listenerError: true },
       );
     }
+  };
+  // Native Pusher callbacks on Android can land off the RN render path.
+  if (Platform.OS === "android") {
+    queueMicrotask(run);
+  } else {
+    run();
+  }
+}
+
+function dispatchConversationChannelEvent(
+  channelName: string,
+  event: PusherEvent,
+) {
+  const listeners = conversationListeners.get(channelName);
+  if (!listeners || listeners.size === 0) return;
+  listeners.forEach((fn) => {
+    invokeConversationListener(fn, event, channelName);
   });
 }
 
-function setChannelMergedOnEvent(channelName: string) {
-  const ch = pusher.getChannel(channelName) as
-    | (PusherChannel & { onEvent?: (e: PusherEvent) => void })
-    | undefined;
-  if (!ch) return;
-  ch.onEvent = (event: PusherEvent) =>
-    dispatchConversationChannelEvent(channelName, event);
+function isConversationChannelEvent(event: PusherEvent): boolean {
+  return (
+    typeof event.channelName === "string" &&
+    event.channelName.startsWith("private-conversation-")
+  );
 }
 
 function captureRealtimeError(
@@ -71,6 +86,11 @@ export function getConversationChannelName(conversationId: number): string {
   return `private-conversation-${conversationId}`;
 }
 
+export function isChatNewMessageEvent(eventName: string | undefined): boolean {
+  const normalized = (eventName ?? "").trim().toLowerCase();
+  return normalized === "new-message" || normalized === "new_message";
+}
+
 export function getUserChannelName(userId: string): string {
   return `private-user-${userId}`;
 }
@@ -83,6 +103,11 @@ export async function initPusherChat(): Promise<void> {
       apiKey: PUSHER_API_KEY,
       cluster: PUSHER_CLUSTER,
       useTLS: true,
+      /** Route all conversation events here — Pusher RN reuses channel objects and can drop per-channel onEvent updates (especially on Android). */
+      onEvent: (event: PusherEvent) => {
+        if (!isConversationChannelEvent(event)) return;
+        dispatchConversationChannelEvent(event.channelName, event);
+      },
       onAuthorizer: async (channelName: string, socketId: string) => {
         const payload = await pusherAuth(socketId, channelName);
         const out: PusherAuthorizerResult = { auth: payload.auth };
@@ -119,20 +144,25 @@ export async function initPusherChat(): Promise<void> {
 export async function connectPusherChat(): Promise<void> {
   await initPusherChat();
 
-  if (pusher.connectionState === "CONNECTED" || isConnecting) return;
+  if (pusher.connectionState === "CONNECTED") return;
 
-  isConnecting = true;
-  try {
-    await pusher.connect();
-  } catch (err: any) {
-    captureRealtimeError("connect", err, {
-      message: err?.message,
-      connectionState: pusher.connectionState,
-    });
-    throw err;
-  } finally {
-    isConnecting = false;
+  if (!connectPromise) {
+    connectPromise = (async () => {
+      try {
+        await pusher.connect();
+      } catch (err: any) {
+        captureRealtimeError("connect", err, {
+          message: err?.message,
+          connectionState: pusher.connectionState,
+        });
+        throw err;
+      } finally {
+        connectPromise = null;
+      }
+    })();
   }
+
+  await connectPromise;
 }
 
 export async function disconnectPusherChat(): Promise<void> {
@@ -181,12 +211,8 @@ export async function subscribeToConversationChannel(
   }
   bucket.set(listenerKey, onEvent);
 
-  const mergedOnEvent = (event: PusherEvent) =>
-    dispatchConversationChannelEvent(channelName, event);
-
   const existing = pusher.getChannel(channelName);
   if (existing) {
-    setChannelMergedOnEvent(channelName);
     subscribedChannelNames.add(channelName);
     return existing;
   }
@@ -205,7 +231,6 @@ export async function subscribeToConversationChannel(
         });
         opts?.onSubscriptionError?.(failedChannelName, message, e);
       },
-      onEvent: mergedOnEvent,
     });
 
   const rollbackListener = () => {
@@ -269,7 +294,6 @@ export async function unsubscribeFromConversationChannel(
   const stillHasListeners =
     (conversationListeners.get(channelName)?.size ?? 0) > 0;
   if (stillHasListeners) {
-    setChannelMergedOnEvent(channelName);
     return;
   }
 

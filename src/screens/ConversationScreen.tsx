@@ -3,28 +3,34 @@
  * Route params: eventId, conversationId, otherPartyName.
  */
 
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   FlatList,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
   Image,
+  Dimensions,
+  type KeyboardEvent,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
 import { LoadingSpinner } from "../components";
+import ChatMessageBubble from "../components/ChatMessageBubble";
+import ChatWatermark from "../components/ChatWatermark";
 import { useChat, type LocalChatMessage } from "../context/ChatContext";
 import { useAuth } from "../context/AuthContext";
 import { useMessagesBadgeContext } from "../context/MessagesBadgeContext";
+import { markConversationRead } from "../services/chatService";
+import type { MessageReplyTo } from "../services/chatService";
 import { addPusherConnectionStateListener } from "../services/pusherChatService";
+import { emitInboxRead } from "../utils/chatInboxSync";
 import Svg, { Path } from "react-native-svg";
 
 function formatMessageTime(iso: string): string {
@@ -49,22 +55,34 @@ function formatMessageTime(iso: string): string {
   }
 }
 
-/** API may return newest-first or oldest-first; normalize for inverted FlatList (newest near composer). */
 function sortMessagesForInvertedChat(list: LocalChatMessage[]): LocalChatMessage[] {
   if (list.length <= 1) return [...list];
-  return [...list].sort((a, b) => {
-    const ta = new Date(a.timestamp).getTime();
-    const tb = new Date(b.timestamp).getTime();
-    const na = Number.isFinite(ta) ? ta : 0;
-    const nb = Number.isFinite(tb) ? tb : 0;
-    if (na !== nb) return na - nb;
-    return a.id - b.id;
-  }).reverse();
+  return [...list]
+    .sort((a, b) => {
+      const ta = new Date(a.timestamp).getTime();
+      const tb = new Date(b.timestamp).getTime();
+      const na = Number.isFinite(ta) ? ta : 0;
+      const nb = Number.isFinite(tb) ? tb : 0;
+      if (na !== nb) return na - nb;
+      return a.id - b.id;
+    })
+    .reverse();
+}
+
+/** iOS: lift composer flush to keyboard top. */
+function iosComposerInsetFromEvent(e: KeyboardEvent): number {
+  const screenY = e.endCoordinates?.screenY;
+  if (typeof screenY === "number" && screenY > 0) {
+    const windowH = Dimensions.get("window").height;
+    return Math.max(0, windowH - screenY);
+  }
+  return Math.max(0, e.endCoordinates?.height ?? 0);
 }
 
 export default function ConversationScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList, "Conversation">>();
   const route = useRoute<RouteProp<RootStackParamList, "Conversation">>();
+  const insets = useSafeAreaInsets();
   const { eventId, conversationId, otherPartyName, otherPartyAvatarUri } =
     route.params;
   const { user } = useAuth();
@@ -75,18 +93,44 @@ export default function ConversationScreen() {
     error,
     clearError,
     loadConversation,
+    refreshConversation,
     sendMessage,
     bindConversationRealtime,
     unbindConversationRealtime,
   } = useChat();
 
   const [inputText, setInputText] = useState("");
+  const [replyingTo, setReplyingTo] = useState<MessageReplyTo | null>(null);
+  const [iosComposerInset, setIosComposerInset] = useState(0);
   const listRef = useRef<FlatList>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const markedReadThisVisitRef = useRef(false);
 
   const messages = messagesByConversationId[conversationId] ?? [];
-  /** Newest first — with inverted FlatList, index 0 sits above the composer (WhatsApp-style). */
   const listData = useMemo(() => sortMessagesForInvertedChat(messages), [messages]);
+  /** Android inverted FlatList needs extraData or new rows may not paint until remount. */
+  const listExtraData = useMemo(() => {
+    const head = listData[0];
+    return head
+      ? `${listData.length}-${head.id}-${head.timestamp}`
+      : String(listData.length);
+  }, [listData]);
+
+  const composerBottomPad =
+    Platform.OS === "ios"
+      ? iosComposerInset > 0
+        ? iosComposerInset + 6
+        : Math.max(insets.bottom, 8)
+      : Math.max(insets.bottom, 10);
+
+  const markThreadRead = useCallback(async () => {
+    try {
+      await markConversationRead(eventId, conversationId);
+      emitInboxRead({ conversationId });
+      void refreshMessagesBadge({ force: true });
+    } catch {
+      /* badge reconciles on next inbox refresh */
+    }
+  }, [eventId, conversationId, refreshMessagesBadge]);
 
   useEffect(() => {
     if (listData.length === 0) return;
@@ -96,13 +140,17 @@ export default function ConversationScreen() {
   }, [listData.length, conversationId]);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       let isActive = true;
+      markedReadThisVisitRef.current = false;
 
       (async () => {
         await loadConversation(eventId, conversationId);
         if (!isActive) return;
         await bindConversationRealtime(eventId, conversationId);
+        if (!isActive) return;
+        markedReadThisVisitRef.current = true;
+        await markThreadRead();
       })();
 
       return () => {
@@ -116,15 +164,28 @@ export default function ConversationScreen() {
       loadConversation,
       bindConversationRealtime,
       unbindConversationRealtime,
+      markThreadRead,
       refreshMessagesBadge,
-    ])
+    ]),
+  );
+
+  /** Android: Pusher delivery is flaky — poll while thread is open so DMs stay live. */
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return undefined;
+      const intervalId = setInterval(() => {
+        void refreshConversation(eventId, conversationId).then(() => {
+          void markThreadRead();
+        });
+      }, 3000);
+      return () => clearInterval(intervalId);
+    }, [eventId, conversationId, refreshConversation, markThreadRead]),
   );
 
   useEffect(() => {
     if (error) clearError();
   }, [conversationId, error, clearError]);
 
-  // Auto-reload after websocket reconnect to catch messages possibly missed while offline/backgrounded.
   useEffect(() => {
     const removeListener = addPusherConnectionStateListener((current, previous) => {
       if (current !== "CONNECTED") return;
@@ -134,23 +195,20 @@ export default function ConversationScreen() {
     return removeListener;
   }, [eventId, conversationId, loadConversation]);
 
-  // Option B (Android): measure actual keyboard height so we can pad
-  // the composer/list above it instead of relying on OS pan behavior.
+  // iOS only — Android uses native `pan` (app.json); no JS keyboard compensation.
   useEffect(() => {
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    if (Platform.OS !== "ios") return;
 
-    const keyboardShow = Keyboard.addListener(showEvent, (e) => {
-      setKeyboardHeight(e.endCoordinates?.height ?? 0);
-    });
+    const onShow = (e: KeyboardEvent) => {
+      setIosComposerInset(iosComposerInsetFromEvent(e));
+    };
+    const onHide = () => setIosComposerInset(0);
 
-    const keyboardHide = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
-    });
-
+    const showSub = Keyboard.addListener("keyboardWillShow", onShow);
+    const hideSub = Keyboard.addListener("keyboardWillHide", onHide);
     return () => {
-      keyboardShow.remove();
-      keyboardHide.remove();
+      showSub.remove();
+      hideSub.remove();
     };
   }, []);
 
@@ -159,44 +217,41 @@ export default function ConversationScreen() {
     if (!trimmed) return;
 
     setInputText("");
-    void sendMessage(eventId, conversationId, trimmed);
+    const reply = replyingTo ?? undefined;
+    setReplyingTo(null);
+    void sendMessage(eventId, conversationId, trimmed, { replyTo: reply });
+    void markThreadRead();
   };
 
   const isMine = (msg: LocalChatMessage): boolean => {
     return user?.email != null && msg.sender_email === user.email;
   };
 
+  const handleReply = useCallback((message: LocalChatMessage) => {
+    setReplyingTo({
+      id: message.id,
+      content: message.content,
+      sender_name: message.sender_name || "Message",
+    });
+  }, []);
+
   const renderMessage = ({ item }: { item: LocalChatMessage }) => {
     const mine = isMine(item);
+    const timeLabel = mine
+      ? item.client_status === "pending"
+        ? `${formatMessageTime(item.timestamp)}  •  Sending...`
+        : item.client_status === "failed"
+          ? `${formatMessageTime(item.timestamp)}  •  Failed`
+          : formatMessageTime(item.timestamp)
+      : formatMessageTime(item.timestamp);
+
     return (
-      <View
-        className={`mb-3 ${mine ? "items-end" : "items-start"}`}
-        style={{ paddingHorizontal: 16 }}
-      >
-        <View
-          className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-            mine ? "bg-neutral-900" : "bg-neutral-100"
-          }`}
-        >
-          <Text
-            className={`text-base ${mine ? "text-white" : "text-neutral-900"}`}
-            selectable
-          >
-            {item.content}
-          </Text>
-          <Text
-            className={`text-xs mt-1 ${mine ? "text-neutral-400" : "text-neutral-500"}`}
-          >
-            {mine
-              ? item.client_status === "pending"
-                ? `${formatMessageTime(item.timestamp)}  •  Sending...`
-                : item.client_status === "failed"
-                  ? `${formatMessageTime(item.timestamp)}  •  Failed`
-                  : formatMessageTime(item.timestamp)
-              : formatMessageTime(item.timestamp)}
-          </Text>
-        </View>
-      </View>
+      <ChatMessageBubble
+        item={item}
+        mine={mine}
+        timeLabel={timeLabel}
+        onReply={handleReply}
+      />
     );
   };
 
@@ -214,7 +269,6 @@ export default function ConversationScreen() {
 
   return (
     <View className="flex-1 bg-white">
-      {/* Header: back + title */}
       <SafeAreaView edges={["top"]} className="bg-white border-b border-neutral-100">
         <View className="flex-row items-center px-4 py-3">
           <Pressable
@@ -253,72 +307,79 @@ export default function ConversationScreen() {
           <Text className="text-neutral-500 mt-3">Loading messages...</Text>
         </View>
       ) : (
-        <>
+        <View className="flex-1">
           {error ? (
             <View className="px-4 py-2 bg-red-50">
               <Text className="text-red-600 text-sm">{error}</Text>
             </View>
           ) : null}
 
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={0}
-            className="flex-1"
-          >
-            <View className="flex-1">
-              <FlatList
-                ref={listRef}
-                inverted
-                data={listData}
-                renderItem={renderMessage}
-                keyExtractor={(item) => String(item.id)}
-                contentContainerStyle={{
-                  flexGrow: listData.length === 0 ? 1 : undefined,
-                  // Inverted list: paddingTop is the gap toward the composer / keyboard.
-                  paddingTop:
-                    Platform.OS === "android" && keyboardHeight > 0
-                      ? keyboardHeight + 10
-                      : 16,
-                  paddingBottom: 16,
-                }}
-                ListEmptyComponent={
-                  <View className="flex-1 justify-center py-12 px-4 items-center min-h-[200px]">
-                    <Text className="text-neutral-500 text-center">
-                      No messages yet. Say hello!
-                    </Text>
-                  </View>
-                }
-              />
-            </View>
-
-            <View className="flex-row items-end px-4 py-4 bg-white border-t border-neutral-100"
-              style={{
-                paddingBottom:
-                  Platform.OS === "android"
-                    ? keyboardHeight > 0
-                      ? keyboardHeight + 30
-                      : 25
-                    : 22,
+          <View className="flex-1">
+            <ChatWatermark />
+            <FlatList
+              ref={listRef}
+              inverted
+              data={listData}
+              extraData={listExtraData}
+              removeClippedSubviews={Platform.OS !== "android"}
+              renderItem={renderMessage}
+              keyExtractor={(item) => item.client_temp_id ?? String(item.id)}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              contentContainerStyle={{
+                flexGrow: listData.length === 0 ? 1 : undefined,
+                paddingTop: 12,
+                paddingBottom: 12,
               }}
-            >
-              <TextInput
-                className="flex-1 bg-neutral-100 rounded-xl px-4 py-4 text-base text-neutral-900 max-h-32"
-                placeholder="Message..."
-                placeholderTextColor="#A3A3A3"
-                value={inputText}
-                onChangeText={setInputText}
-                multiline
-              />
-              <Pressable
-                onPress={handleSend}
-                disabled={!inputText.trim()}
-                className="ml-2 w-11 h-11 rounded-full bg-neutral-900 items-center justify-center"
-              >
-                <SendIcon size={22} color="#FFFFFF" />
-              </Pressable>
+              ListEmptyComponent={
+                <View className="flex-1 justify-center py-12 px-4 items-center min-h-[200px]">
+                  <Text className="text-neutral-500 text-center">
+                    No messages yet. Say hello!
+                  </Text>
+                </View>
+              }
+            />
+          </View>
+
+          {replyingTo ? (
+            <View className="px-4 pt-2 pb-1 bg-white border-t border-neutral-100">
+              <View className="flex-row items-center bg-neutral-50 rounded-xl px-3 py-2 border-l-4 border-[#1BB273]">
+                <View className="flex-1 mr-2">
+                  <Text className="text-xs font-semibold text-[#059669]" numberOfLines={1}>
+                    Replying to {replyingTo.sender_name}
+                  </Text>
+                  <Text className="text-sm text-neutral-600 mt-0.5" numberOfLines={2}>
+                    {replyingTo.content}
+                  </Text>
+                </View>
+                <Pressable onPress={() => setReplyingTo(null)} hitSlop={8}>
+                  <Text className="text-neutral-500 text-lg px-1">×</Text>
+                </Pressable>
+              </View>
             </View>
-          </KeyboardAvoidingView>
-        </>
+          ) : null}
+
+          <View
+            className="flex-row items-end px-4 pt-2 bg-white border-t border-neutral-100"
+            style={{ paddingBottom: composerBottomPad }}
+          >
+            <TextInput
+              className="flex-1 bg-neutral-100 rounded-xl px-4 py-3 text-base text-neutral-900 max-h-32"
+              placeholder="Message..."
+              placeholderTextColor="#A3A3A3"
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+            />
+            <Pressable
+              onPress={handleSend}
+              disabled={!inputText.trim()}
+              className="ml-2 w-11 h-11 rounded-full bg-neutral-900 items-center justify-center"
+            >
+              <SendIcon size={22} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        </View>
       )}
     </View>
   );

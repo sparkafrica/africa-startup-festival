@@ -17,7 +17,7 @@ import { ChevronLeftIcon } from "../components/HeaderIcons";
 import { APP_GUIDE_CONTENT } from "../constants/appGuideContent";
 import { searchGuide, getTopicPrimarySection } from "../constants/appGuideIndex";
 
-const WATERMARK_IMG = require("../assets/images/Africa Tech Expo watermark.png");
+const WATERMARK_IMG = require("../assets/images/ate-watermark.png");
 
 type Props = RootStackScreenProps<"AppGuide">;
 

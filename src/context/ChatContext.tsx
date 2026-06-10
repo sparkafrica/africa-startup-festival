@@ -11,19 +11,28 @@ import React, {
   useRef,
   ReactNode,
 } from "react";
+import { Platform } from "react-native";
 import * as Sentry from "@sentry/react-native";
 import { useAuth } from "./AuthContext";
 import {
   getRecentMessages,
   sendMessage as sendChatMessage,
   getOrCreateConversation as getOrCreateConversationApi,
+  markConversationRead,
   type ChatMessage,
   type ConversationDetail,
+  type MessageReplyTo,
 } from "../services/chatService";
+import { emitInboxBump, emitInboxRead } from "../utils/chatInboxSync";
+import {
+  enrichMessagesWithLocalReplies,
+  rememberLocalReply,
+} from "../utils/chatReplyCache";
 import { ApiClientError } from "../services/api";
 import {
   subscribeToConversationChannel,
   unsubscribeFromConversationChannel,
+  isChatNewMessageEvent,
 } from "../services/pusherChatService";
 
 // -----------------------------------------------------------------------------
@@ -41,11 +50,14 @@ interface ChatContextType {
   clearError: () => void;
   /** Load messages for a conversation (fetches and stores in state) */
   loadConversation: (eventId: number, conversationId: number) => Promise<void>;
+  /** Silent refresh — no loading spinner (Android poll / Pusher fallback). */
+  refreshConversation: (eventId: number, conversationId: number) => Promise<void>;
   /** Send a text message and append to state on success */
   sendMessage: (
     eventId: number,
     conversationId: number,
-    content: string
+    content: string,
+    options?: { replyTo?: MessageReplyTo },
   ) => Promise<void>;
   /** Get or create a 1:1 conversation; returns conversation id and detail (does not load messages) */
   getOrCreateConversation: (
@@ -74,6 +86,70 @@ interface OutboxItem {
   conversationId: number;
   content: string;
   attempts: number;
+  replyToMessageId?: number;
+  replyTo?: MessageReplyTo;
+}
+
+function parseNewMessageFromPusher(raw: unknown): ChatMessage | null {
+  let parsed: Record<string, unknown> | null = null;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  } else if (raw && typeof raw === "object") {
+    parsed = raw as Record<string, unknown>;
+  }
+  if (!parsed) return null;
+
+  const msgId = Number(parsed.id);
+  const content = typeof parsed.content === "string" ? parsed.content : "";
+  const timestamp =
+    typeof parsed.timestamp === "string"
+      ? parsed.timestamp
+      : new Date().toISOString();
+
+  if (!Number.isFinite(msgId) || !content) return null;
+
+  let reply_to: MessageReplyTo | undefined;
+  const rawReply = parsed.reply_to;
+  if (rawReply && typeof rawReply === "object") {
+    const replyObj = rawReply as Record<string, unknown>;
+    const rid = Number(replyObj.id);
+    const rcontent =
+      typeof replyObj.content === "string" ? replyObj.content : "";
+    const rname =
+      typeof replyObj.sender_name === "string" ? replyObj.sender_name : "";
+    if (Number.isFinite(rid) && rcontent) {
+      reply_to = { id: rid, content: rcontent, sender_name: rname };
+    }
+  }
+
+  return {
+    id: msgId,
+    content,
+    timestamp,
+    is_read: Boolean(parsed.is_read),
+    sender_name:
+      typeof parsed.sender_name === "string" ? parsed.sender_name : "",
+    sender_email:
+      typeof parsed.sender_email === "string" ? parsed.sender_email : "",
+    sender_profile_pic:
+      typeof parsed.sender_profile_pic === "string"
+        ? parsed.sender_profile_pic
+        : "",
+    file_attachments: Array.isArray(parsed.file_attachments)
+      ? parsed.file_attachments
+      : [],
+    file_type:
+      typeof parsed.file_type === "string" ? parsed.file_type : undefined,
+    reply_to,
+    reply_to_message_id:
+      typeof parsed.reply_to_message_id === "number"
+        ? parsed.reply_to_message_id
+        : reply_to?.id,
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -92,6 +168,9 @@ export function ChatProvider({ children }: ChatProviderProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const activeRealtimeConversationIdsRef = useRef<Set<number>>(new Set());
+  const androidThreadRefetchTimersRef = useRef<
+    Map<number, ReturnType<typeof setTimeout>>
+  >(new Map());
   const outboxRef = useRef<Record<number, OutboxItem[]>>({});
   const processingConversationIdsRef = useRef<Set<number>>(new Set());
 
@@ -99,6 +178,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
   const upsertIncomingMessage = useCallback(
     (conversationId: number, incoming: LocalChatMessage) => {
+      let isNew = false;
       setMessagesByConversationId((prev) => {
         const current = prev[conversationId] ?? [];
         const idx = current.findIndex((m) => m.id === incoming.id);
@@ -107,8 +187,16 @@ export function ChatProvider({ children }: ChatProviderProps) {
           copy[idx] = { ...copy[idx], ...incoming };
           return { ...prev, [conversationId]: copy };
         }
+        isNew = true;
         return { ...prev, [conversationId]: [...current, incoming] };
       });
+      if (isNew) {
+        emitInboxBump({
+          conversationId,
+          content: incoming.content,
+          timestamp: incoming.timestamp,
+        });
+      }
     },
     []
   );
@@ -144,18 +232,22 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
   const mergeServerMessagesPreservingLocal = useCallback(
     (conversationId: number, serverMessages: ChatMessage[]) => {
+      const enriched = enrichMessagesWithLocalReplies(
+        conversationId,
+        serverMessages,
+      );
       setMessagesByConversationId((prev) => {
         const current = prev[conversationId] ?? [];
         const localPendingOrFailed = current.filter(
-          (m) => m.client_status === "pending" || m.client_status === "failed"
+          (m) => m.client_status === "pending" || m.client_status === "failed",
         );
         return {
           ...prev,
-          [conversationId]: [...serverMessages, ...localPendingOrFailed],
+          [conversationId]: [...enriched, ...localPendingOrFailed],
         };
       });
     },
-    []
+    [],
   );
 
   const processOutboxForConversation = useCallback(
@@ -169,7 +261,9 @@ export function ChatProvider({ children }: ChatProviderProps) {
         while (outboxRef.current[conversationId]?.length) {
           const item = outboxRef.current[conversationId][0];
           try {
-            await sendChatMessage(item.eventId, item.conversationId, item.content);
+            await sendChatMessage(item.eventId, item.conversationId, item.content, {
+              replyToMessageId: item.replyToMessageId,
+            });
             outboxRef.current[conversationId].shift();
             removeTempMessage(conversationId, item.tempMessageId);
 
@@ -215,12 +309,16 @@ export function ChatProvider({ children }: ChatProviderProps) {
       setError(null);
       try {
         const messages = await getRecentMessages(eventId, conversationId);
+        const enriched = enrichMessagesWithLocalReplies(
+          conversationId,
+          messages,
+        );
         setMessagesByConversationId((prev) => ({
           ...prev,
           [conversationId]: [
-            ...messages,
+            ...enriched,
             ...(prev[conversationId] ?? []).filter(
-              (m) => m.client_status === "pending" || m.client_status === "failed"
+              (m) => m.client_status === "pending" || m.client_status === "failed",
             ),
           ],
         }));
@@ -241,11 +339,55 @@ export function ChatProvider({ children }: ChatProviderProps) {
     []
   );
 
+  /** Background merge for Android realtime fallback — no loading spinner. */
+  const refreshConversationMessages = useCallback(
+    async (eventId: number, conversationId: number) => {
+      try {
+        const messages = await getRecentMessages(eventId, conversationId);
+        const enriched = enrichMessagesWithLocalReplies(
+          conversationId,
+          messages,
+        );
+        setMessagesByConversationId((prev) => ({
+          ...prev,
+          [conversationId]: [
+            ...enriched,
+            ...(prev[conversationId] ?? []).filter(
+              (m) =>
+                m.client_status === "pending" || m.client_status === "failed",
+            ),
+          ],
+        }));
+      } catch {
+        /* optimistic upsert remains; next focus load reconciles */
+      }
+    },
+    [],
+  );
+
+  const scheduleAndroidThreadRefetch = useCallback(
+    (eventId: number, conversationId: number) => {
+      if (Platform.OS !== "android") return;
+      const timers = androidThreadRefetchTimersRef.current;
+      const pending = timers.get(conversationId);
+      if (pending) clearTimeout(pending);
+      timers.set(
+        conversationId,
+        setTimeout(() => {
+          timers.delete(conversationId);
+          void refreshConversationMessages(eventId, conversationId);
+        }, 400),
+      );
+    },
+    [refreshConversationMessages],
+  );
+
   const sendMessage = useCallback(
     async (
       eventId: number,
       conversationId: number,
-      content: string
+      content: string,
+      options?: { replyTo?: MessageReplyTo },
     ) => {
       setError(null);
       const trimmed = content.trim();
@@ -254,10 +396,11 @@ export function ChatProvider({ children }: ChatProviderProps) {
       const now = Date.now();
       const tempMessageId = -now;
       const tempId = `temp_${conversationId}_${now}`;
+      const timestamp = new Date(now).toISOString();
       const optimisticMessage: LocalChatMessage = {
         id: tempMessageId,
         content: trimmed,
-        timestamp: new Date(now).toISOString(),
+        timestamp,
         is_read: false,
         sender_name:
           [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim() ||
@@ -267,6 +410,8 @@ export function ChatProvider({ children }: ChatProviderProps) {
         sender_profile_pic: user?.profile_pic || "",
         file_attachments: [],
         file_type: undefined,
+        reply_to: options?.replyTo,
+        reply_to_message_id: options?.replyTo?.id,
         client_status: "pending",
         client_temp_id: tempId,
       };
@@ -276,6 +421,17 @@ export function ChatProvider({ children }: ChatProviderProps) {
         [conversationId]: [...(prev[conversationId] ?? []), optimisticMessage],
       }));
 
+      if (options?.replyTo) {
+        rememberLocalReply(conversationId, trimmed, options.replyTo);
+      }
+
+      emitInboxBump({
+        conversationId,
+        content: trimmed,
+        timestamp,
+        fromSelf: true,
+      });
+
       const queue = outboxRef.current[conversationId] ?? [];
       queue.push({
         tempId,
@@ -284,6 +440,8 @@ export function ChatProvider({ children }: ChatProviderProps) {
         conversationId,
         content: trimmed,
         attempts: 0,
+        replyToMessageId: options?.replyTo?.id,
+        replyTo: options?.replyTo,
       });
       outboxRef.current[conversationId] = queue;
       void processOutboxForConversation(conversationId);
@@ -304,58 +462,34 @@ export function ChatProvider({ children }: ChatProviderProps) {
   );
 
   const bindConversationRealtime = useCallback(
-    async (_eventId: number, conversationId: number) => {
-      if (activeRealtimeConversationIdsRef.current.has(conversationId)) return;
+    async (eventId: number, conversationId: number) => {
+      const listenerKey = `thread-${conversationId}`;
 
       try {
         await subscribeToConversationChannel(
           conversationId,
           (event) => {
-          if (!event || event.eventName !== "new-message") return;
-          const raw = event.data as any;
-          let parsed: any = raw;
-          if (typeof raw === "string") {
-            try {
-              parsed = JSON.parse(raw);
-            } catch {
-              parsed = raw;
+            if (!event || !isChatNewMessageEvent(event.eventName)) return;
+            const message = parseNewMessageFromPusher(event.data);
+            if (!message) return;
+
+            upsertIncomingMessage(conversationId, message);
+            scheduleAndroidThreadRefetch(eventId, conversationId);
+
+            const myEmail = user?.email?.trim();
+            const senderEmail = message.sender_email?.trim();
+            if (
+              myEmail &&
+              senderEmail &&
+              senderEmail.toLowerCase() !== myEmail.toLowerCase()
+            ) {
+              void markConversationRead(eventId, conversationId).then(() => {
+                emitInboxRead({ conversationId });
+              });
             }
-          }
-          if (!parsed || typeof parsed !== "object") return;
-
-          const msgId = Number(parsed.id);
-          const content = typeof parsed.content === "string" ? parsed.content : "";
-          const timestamp =
-            typeof parsed.timestamp === "string"
-              ? parsed.timestamp
-              : new Date().toISOString();
-
-          if (!Number.isFinite(msgId) || !content) return;
-
-          const message: ChatMessage = {
-            id: msgId,
-            content,
-            timestamp,
-            is_read: Boolean(parsed.is_read),
-            sender_name:
-              typeof parsed.sender_name === "string" ? parsed.sender_name : "",
-            sender_email:
-              typeof parsed.sender_email === "string" ? parsed.sender_email : "",
-            sender_profile_pic:
-              typeof parsed.sender_profile_pic === "string"
-                ? parsed.sender_profile_pic
-                : "",
-            file_attachments: Array.isArray(parsed.file_attachments)
-              ? parsed.file_attachments
-              : [],
-            file_type:
-              typeof parsed.file_type === "string" ? parsed.file_type : undefined,
-          };
-
-          upsertIncomingMessage(conversationId, message);
-        },
+          },
           undefined,
-          `thread-${conversationId}`
+          listenerKey,
         );
         activeRealtimeConversationIdsRef.current.add(conversationId);
       } catch (err: any) {
@@ -371,10 +505,16 @@ export function ChatProvider({ children }: ChatProviderProps) {
         });
       }
     },
-    [upsertIncomingMessage]
+    [scheduleAndroidThreadRefetch, upsertIncomingMessage, user?.email],
   );
 
   const unbindConversationRealtime = useCallback(async (conversationId: number) => {
+    const pending = androidThreadRefetchTimersRef.current.get(conversationId);
+    if (pending) {
+      clearTimeout(pending);
+      androidThreadRefetchTimersRef.current.delete(conversationId);
+    }
+
     if (!activeRealtimeConversationIdsRef.current.has(conversationId)) return;
     try {
       await unsubscribeFromConversationChannel(
@@ -402,6 +542,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
     error,
     clearError,
     loadConversation,
+    refreshConversation: refreshConversationMessages,
     sendMessage,
     getOrCreateConversation,
     bindConversationRealtime,

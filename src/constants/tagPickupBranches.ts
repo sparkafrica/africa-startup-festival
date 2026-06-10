@@ -7,7 +7,7 @@ export type TagPickupBranch = {
 };
 
 export const TAG_PICKUP_INTRO =
-  "To skip the registration queue on event day, collect your ATE 2026 event tag from any of the designated Café One locations below.";
+  "To skip the registration queue on event day, collect your ATE 2026 event tag from any of the designated Café One locations below. Ends on the 23rd of June 2026.";
 
 export const TAG_PICKUP_BRANCHES: readonly TagPickupBranch[] = [
   {
@@ -65,6 +65,6 @@ export const TAG_PICKUP_BRANCHES: readonly TagPickupBranch[] = [
 
 export const TAG_PICKUP_OPENING_HOURS = [
   { label: "Weekdays", hours: "8:00am – 8:00pm" },
-  { label: "Saturdays", hours: "10:00am – 8:00pm" },
-  { label: "Sundays", hours: "11:00am – 8:00pm" },
+  // { label: "Saturdays", hours: "10:00am – 8:00pm" },
+  // { label: "Sundays", hours: "11:00am – 8:00pm" },
 ] as const;

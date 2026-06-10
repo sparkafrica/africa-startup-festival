@@ -27,6 +27,13 @@ import { ApiClientError } from "./api";
 // TYPES (aligned with Spark EMS.yaml)
 // ============================================================================
 
+/** Quoted message when replying (client + optional backend field). */
+export interface MessageReplyTo {
+  id: number;
+  content: string;
+  sender_name: string;
+}
+
 /** Message – backend schema Message */
 export interface ChatMessage {
   id: number;
@@ -38,6 +45,9 @@ export interface ChatMessage {
   sender_profile_pic: string;
   file_attachments?: unknown[];
   file_type?: string;
+  /** Present when message is a reply; backend may add `reply_to` or `reply_to_message_id`. */
+  reply_to?: MessageReplyTo;
+  reply_to_message_id?: number;
 }
 
 /** Conversation list item – backend ConversationList (runtime may send richer shapes). */
@@ -85,6 +95,8 @@ export interface InitiateConversationResponse {
 export interface SendMessageRequest {
   content: string;
   file_attachments?: unknown[];
+  /** Optional — ask backend to accept when enabling swipe-to-reply. */
+  reply_to_message_id?: number;
 }
 
 /** Send message response – backend SendMessage */
@@ -523,11 +535,20 @@ export async function getRecentMessages(
 export async function sendMessage(
   eventId: number,
   conversationId: number,
-  content: string
+  content: string,
+  options?: { replyToMessageId?: number },
 ): Promise<SendMessageResponse> {
+  const body: SendMessageRequest = { content };
+  if (
+    options?.replyToMessageId != null &&
+    Number.isFinite(options.replyToMessageId) &&
+    options.replyToMessageId > 0
+  ) {
+    body.reply_to_message_id = options.replyToMessageId;
+  }
   const response = await api.post<any>(
     `/events/${eventId}/conversations/${conversationId}/send_message/`,
-    { content } as SendMessageRequest
+    body,
   );
   return unwrapData<SendMessageResponse>(response);
 }

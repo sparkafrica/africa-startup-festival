@@ -6,6 +6,7 @@ import {
   Pressable,
   RefreshControl,
   Image,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -33,7 +34,17 @@ import * as Sentry from "@sentry/react-native";
 import {
   subscribeToConversationChannel,
   unsubscribeFromConversationChannel,
+  isChatNewMessageEvent,
 } from "../services/pusherChatService";
+import {
+  bumpConversationInList,
+  getConversationRowTimestamp,
+  sortConversationsByRecent,
+} from "../utils/conversationListUtils";
+import {
+  subscribeInboxBump,
+  subscribeInboxRead,
+} from "../utils/chatInboxSync";
 
 /** Cap how many threads we subscribe on the inbox (each = one private channel). */
 const MAX_INBOX_CONVERSATION_SUBS = 50;
@@ -148,19 +159,6 @@ function getLastMessagePreview(raw: unknown): string {
   return "No messages yet";
 }
 
-/** Prefer `last_message.timestamp` when valid; else `updated_at`. */
-function getConversationRowTimestamp(item: ConversationListItem): string {
-  const lm = item.last_message;
-  if (lm && typeof lm === "object") {
-    const ts = (lm as Record<string, unknown>).timestamp;
-    if (typeof ts === "string" && ts.trim()) {
-      const d = new Date(ts);
-      if (!Number.isNaN(d.getTime())) return ts.trim();
-    }
-  }
-  return item.updated_at;
-}
-
 export default function MessagesScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Messages">>();
@@ -226,7 +224,7 @@ export default function MessagesScreen() {
           });
         }
 
-        setConversations(filteredConversations);
+        setConversations(sortConversationsByRecent(filteredConversations));
         inboxHasLoadedOnceRef.current = true;
         void refreshMessagesBadge({ force: true });
         return filteredConversations;
@@ -254,6 +252,44 @@ export default function MessagesScreen() {
       );
     }, [fetchConversations])
   );
+
+  /** Android: keep inbox rows fresh when Pusher events do not repaint the list. */
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return undefined;
+      const intervalId = setInterval(() => {
+        void fetchConversations({ silent: true });
+      }, 3000);
+      return () => clearInterval(intervalId);
+    }, [fetchConversations]),
+  );
+
+  /** Optimistic reorder when a thread gets new activity while inbox is mounted. */
+  useEffect(() => {
+    const unsubBump = subscribeInboxBump((event) => {
+      const ts = event.timestamp ?? new Date().toISOString();
+      setConversations((prev) =>
+        bumpConversationInList(prev, event.conversationId, {
+          updated_at: ts,
+          last_message: {
+            content: event.content,
+            timestamp: ts,
+          },
+        }),
+      );
+    });
+    const unsubRead = subscribeInboxRead(({ conversationId }) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...c, unread_count: "0" } : c,
+        ),
+      );
+    });
+    return () => {
+      unsubBump();
+      unsubRead();
+    };
+  }, []);
 
   const conversationIds = useMemo(
     () => conversations.map((c) => c.id),
@@ -286,7 +322,7 @@ export default function MessagesScreen() {
           await subscribeToConversationChannel(
             id,
             (event) => {
-              if (event.eventName !== "new-message") return;
+              if (!isChatNewMessageEvent(event.eventName)) return;
               scheduleRefetch();
             },
             undefined,
@@ -337,12 +373,11 @@ export default function MessagesScreen() {
         target = loaded.find((c) => c.id === cid);
       }
 
-      // Mirror row-tap behavior: clear unread immediately when opening via deep link.
-      if (target && getUnreadCount(target.unread_count) > 0) {
+      if (target) {
         setConversations((prev) =>
           prev.map((c) =>
-            c.id === cid ? { ...c, unread_count: "0" } : c
-          )
+            c.id === cid ? { ...c, unread_count: "0" } : c,
+          ),
         );
       }
       try {
@@ -384,20 +419,28 @@ export default function MessagesScreen() {
     [conversations]
   );
 
+  const inboxExtraData = useMemo(
+    () =>
+      conversations
+        .map(
+          (c) =>
+            `${c.id}:${c.unread_count}:${getConversationRowTimestamp(c)}`,
+        )
+        .join("|"),
+    [conversations],
+  );
+
   const openConversation = useCallback(
     async (item: ConversationListItem) => {
-      const unread = getUnreadCount(item.unread_count);
-      if (unread > 0) {
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === item.id ? { ...c, unread_count: "0" } : c
-          )
-        );
-        try {
-          await markConversationRead(EVENT_ID, item.id);
-        } catch {
-          /* reconcile on next refresh */
-        }
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === item.id ? { ...c, unread_count: "0" } : c,
+        ),
+      );
+      try {
+        await markConversationRead(EVENT_ID, item.id);
+      } catch {
+        /* reconcile on next refresh */
       }
 
       navigation.navigate("Conversation", {
@@ -448,6 +491,8 @@ export default function MessagesScreen() {
       ) : (
         <FlatList
           data={conversations}
+          extraData={inboxExtraData}
+          removeClippedSubviews={Platform.OS !== "android"}
           keyExtractor={(item) => String(item.id)}
           refreshControl={
             <RefreshControl
