@@ -437,17 +437,19 @@ function CompanyDetailScreenInner({ route }: Props) {
           {/* Company Header */}
           <View className="px-4 mb-6" style={{ marginTop: 8 }}>
           <View className="flex-row items-center mb-4">
-            {/* Logo — contain + grey bg so wide/light logos aren't cropped or washed out */}
+            {/* Logo — contain on tile; no inner fill so mark sits on page background */}
             <View
-              className="w-16 h-16 rounded-xl items-center justify-center mr-3 overflow-hidden border border-neutral-200"
+              className="w-16 h-16 rounded-xl items-center justify-center mr-3 overflow-hidden"
               style={{
-                backgroundColor: companyData.logo ? "#E8EAED" : companyData.logoColor,
+                backgroundColor: companyData.logo
+                  ? "transparent"
+                  : companyData.logoColor,
               }}
             >
               {companyData.logo ? (
                 <Image
                   source={companyData.logo}
-                  style={{ width: 64, height: 64 }}
+                  style={{ width: 64, height: 64, borderRadius: 12 }}
                   resizeMode="contain"
                 />
               ) : (
