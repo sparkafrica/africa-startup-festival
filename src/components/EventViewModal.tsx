@@ -1,4 +1,4 @@
-import React, { useRef, useLayoutEffect } from "react";
+import React, { useRef, useLayoutEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   PanResponder,
   Animated,
   Image,
+  Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ClockIcon } from "./BottomNavIcons";
@@ -22,6 +23,7 @@ import type { ScheduleBadgeColor } from "../utils/scheduleMetadata";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
+const SHEET_MS = 220;
 
 export interface Speaker {
   id: string;
@@ -38,6 +40,8 @@ export interface Speaker {
 export interface EventViewModalProps {
   visible: boolean;
   onClose: () => void;
+  /** Fired when dismiss slide-out begins — use to block reopen races */
+  onDismissStart?: () => void;
   title: string;
   startTime: string;
   endTime: string;
@@ -60,11 +64,14 @@ export interface EventViewModalProps {
   onRemoveFromSchedule?: () => void; // For My Schedule tab
   isInMySchedule?: boolean;
   isAddingToSchedule?: boolean;
+  /** Changes when a different session is shown — resets sheet position if still open */
+  contentKey?: string | number;
 }
 
 export default function EventViewModal({
   visible,
   onClose,
+  onDismissStart,
   title,
   startTime,
   endTime,
@@ -80,6 +87,7 @@ export default function EventViewModal({
   onRemoveFromSchedule,
   isInMySchedule,
   isAddingToSchedule = false,
+  contentKey,
 }: EventViewModalProps) {
   const showActions =
     !!onRemoveFromSchedule ||
@@ -89,56 +97,105 @@ export default function EventViewModal({
 
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const isAnimating = useRef(false);
+  const isClosing = useRef(false);
+  const wasVisibleRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  const onDismissStartRef = useRef(onDismissStart);
+  onCloseRef.current = onClose;
+  onDismissStartRef.current = onDismissStart;
+
+  const runDismissAnimation = useCallback(() => {
+    if (isClosing.current || isAnimating.current) return;
+    isClosing.current = true;
+    isAnimating.current = true;
+    onDismissStartRef.current?.();
+    translateY.stopAnimation();
+    Animated.timing(translateY, {
+      toValue: SCREEN_HEIGHT,
+      duration: SHEET_MS,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      isAnimating.current = false;
+      isClosing.current = false;
+      onCloseRef.current();
+    });
+  }, [translateY]);
 
   useLayoutEffect(() => {
-    if (visible) {
+    if (!visible) {
+      wasVisibleRef.current = false;
       translateY.stopAnimation();
+      isAnimating.current = false;
+      isClosing.current = false;
+      return;
+    }
+
+    const openingFresh = !wasVisibleRef.current;
+    wasVisibleRef.current = true;
+    translateY.stopAnimation();
+    isClosing.current = false;
+
+    if (openingFresh) {
+      isAnimating.current = true;
+      translateY.setValue(SCREEN_HEIGHT);
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: SHEET_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        isAnimating.current = false;
+      });
+    } else {
+      // contentKey swap while modal flag stayed true — snap sheet back on screen
       translateY.setValue(0);
       isAnimating.current = false;
-    } else {
-      translateY.stopAnimation();
-      translateY.setValue(SCREEN_HEIGHT);
-      isAnimating.current = false;
     }
-  }, [visible, translateY]);
+  }, [visible, contentKey, translateY]);
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !isAnimating.current,
+      onStartShouldSetPanResponder: () =>
+        !isAnimating.current && !isClosing.current,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return (
           !isAnimating.current &&
+          !isClosing.current &&
           Math.abs(gestureState.dy) > 5 &&
           gestureState.dy > 0
         );
       },
       onPanResponderGrant: () => {
-        if (isAnimating.current) return;
+        if (isAnimating.current || isClosing.current) return;
         translateY.stopAnimation();
         translateY.setOffset((translateY as any)._value || 0);
         translateY.setValue(0);
       },
       onPanResponderMove: (_, gestureState) => {
-        if (isAnimating.current) return;
+        if (isAnimating.current || isClosing.current) return;
         if (gestureState.dy > 0) {
           translateY.setValue(gestureState.dy);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (isAnimating.current) return;
+        if (isAnimating.current || isClosing.current) return;
         translateY.flattenOffset();
         const currentValue = (translateY as any)._value || 0;
 
         if (currentValue > DRAG_THRESHOLD || gestureState.vy > 0.5) {
+          isClosing.current = true;
           isAnimating.current = true;
+          onDismissStartRef.current?.();
           Animated.timing(translateY, {
             toValue: SCREEN_HEIGHT,
-            duration: 250,
+            duration: SHEET_MS,
+            easing: Easing.in(Easing.cubic),
             useNativeDriver: true,
           }).start(() => {
-            translateY.setValue(SCREEN_HEIGHT);
             isAnimating.current = false;
-            onClose();
+            isClosing.current = false;
+            onCloseRef.current();
           });
         } else {
           isAnimating.current = true;
@@ -155,16 +212,21 @@ export default function EventViewModal({
     })
   ).current;
 
+  const handleBackdropPress = useCallback(() => {
+    if (isClosing.current || isAnimating.current) return;
+    runDismissAnimation();
+  }, [runDismissAnimation]);
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="none"
-      onRequestClose={onClose}
+      onRequestClose={runDismissAnimation}
     >
       <View style={styles.modalContainer}>
         {/* Semi-transparent Backdrop */}
-        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Pressable style={styles.backdrop} onPress={handleBackdropPress} />
 
         {/* Bottom Sheet */}
         <Animated.View

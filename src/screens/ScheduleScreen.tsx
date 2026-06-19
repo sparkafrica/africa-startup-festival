@@ -300,6 +300,7 @@ export default function ScheduleScreen() {
   );
   const [isEventViewModalVisible, setIsEventViewModalVisible] =
     React.useState(false);
+  const isEventModalClosingRef = React.useRef(false);
   const [isLeaveFeedbackModalVisible, setIsLeaveFeedbackModalVisible] =
     React.useState(false);
   const [isFeedbackSentModalVisible, setIsFeedbackSentModalVisible] =
@@ -784,14 +785,20 @@ export default function ScheduleScreen() {
   };
 
   const openEventDetail = useCallback((event: EventData) => {
+    if (isEventModalClosingRef.current) return;
     setSelectedEvent(event);
     setIsEventViewModalVisible(true);
   }, []);
 
   const closeEventViewModal = useCallback(() => {
+    isEventModalClosingRef.current = false;
     setIsEventViewModalVisible(false);
     clearScheduleHighlight();
   }, [clearScheduleHighlight]);
+
+  const handleEventViewModalDismissStart = useCallback(() => {
+    isEventModalClosingRef.current = true;
+  }, []);
 
   const handleSpeakerPressFromEvent = useCallback(
     (speakerId: string, speakerName: string) => {
@@ -1141,6 +1148,10 @@ export default function ScheduleScreen() {
 
       <EventViewModal
         visible={isEventViewModalVisible}
+        contentKey={
+          selectedEvent?.eventScheduleId ?? selectedEvent?.id ?? "none"
+        }
+        onDismissStart={handleEventViewModalDismissStart}
         onClose={closeEventViewModal}
         title={selectedEvent?.title ?? ""}
         startTime={selectedEvent?.startTime ?? ""}
