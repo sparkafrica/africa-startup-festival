@@ -29,10 +29,10 @@ export const APP_ENVIRONMENT = environment;
 // API Configuration
 export const API_CONFIG = {
   development: {
-    // BASE_URL: "https://api.sparkafrica.co",
+    BASE_URL: "https://api.sparkafrica.co",
     //  Development server
     // TIMEOUT: 30000,
-    BASE_URL: "https://dev-api.sparkafrica.co/", // Development server
+    // BASE_URL: "https://dev-api.sparkafrica.co/", // Development server
     TIMEOUT: 30000, // 30 seconds
     WS_URL: "wss://dev-api.sparkafrica.co/",
   },

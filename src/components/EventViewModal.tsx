@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -52,6 +52,9 @@ export interface EventViewModalProps {
   };
   speakers?: Speaker[];
   description?: string;
+  /** AMA / Slido — detail sheet only; opens app.sli.do in browser */
+  slidoUrl?: string;
+  onOpenSlido?: () => void;
   onAddToSchedule?: () => void;
   onLeaveFeedback?: () => void;
   onRemoveFromSchedule?: () => void; // For My Schedule tab
@@ -70,6 +73,8 @@ export default function EventViewModal({
   sponsoredBy,
   speakers = [],
   description,
+  slidoUrl,
+  onOpenSlido,
   onAddToSchedule,
   onLeaveFeedback,
   onRemoveFromSchedule,
@@ -85,19 +90,13 @@ export default function EventViewModal({
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const isAnimating = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (visible) {
-      isAnimating.current = true;
-      translateY.setValue(SCREEN_HEIGHT);
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start(() => {
-        isAnimating.current = false;
-      });
+      translateY.stopAnimation();
+      translateY.setValue(0);
+      isAnimating.current = false;
     } else {
+      translateY.stopAnimation();
       translateY.setValue(SCREEN_HEIGHT);
       isAnimating.current = false;
     }
@@ -189,7 +188,9 @@ export default function EventViewModal({
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled={true}
             bounces={true}
-            scrollEnabled={true}
+            scrollEnabled={visible}
+            removeClippedSubviews
+            pointerEvents={visible ? "auto" : "none"}
           >
             {(sessionBadge || sponsoredBy) && (
               <View style={styles.badgeStack}>
@@ -213,16 +214,32 @@ export default function EventViewModal({
             {/* Event Title */}
             <Text style={styles.title}>{title}</Text>
 
-            {/* Time and Location */}
-            <View style={styles.infoRow}>
-              <ClockIcon size={18} color="#000000" />
-              <Text style={styles.infoText}>
-                {startTime} - {endTime}
-              </Text>
-            </View>
-            <View style={styles.infoRow}>
-              <LocationPinIcon size={18} color="#000000" />
-              <Text style={styles.infoText}>{stage}</Text>
+            {/* Time, location, optional AMA Q&A link */}
+            <View style={styles.timeLocationRow}>
+              <View style={styles.timeLocationCol}>
+                <View style={styles.infoRow}>
+                  <ClockIcon size={18} color="#000000" />
+                  <Text style={styles.infoText}>
+                    {startTime} - {endTime}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <LocationPinIcon size={18} color="#000000" />
+                  <Text style={styles.infoText}>{stage}</Text>
+                </View>
+              </View>
+              {slidoUrl && onOpenSlido ? (
+                <Pressable
+                  onPress={onOpenSlido}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.slidoBox,
+                    pressed && styles.slidoBoxPressed,
+                  ]}
+                >
+                  <Text style={styles.slidoLinkText}>Q&A</Text>
+                </Pressable>
+              ) : null}
             </View>
 
             {/* Speakers Section */}
@@ -277,7 +294,11 @@ export default function EventViewModal({
 
           {/* Action Buttons */}
           {showActions ? (
-          <SafeAreaView edges={["bottom"]} style={styles.actionsContainer}>
+          <SafeAreaView
+            edges={["bottom"]}
+            style={styles.actionsContainer}
+            pointerEvents={visible ? "auto" : "none"}
+          >
             {onRemoveFromSchedule ? (
               <Pressable style={styles.removeButton} onPress={onRemoveFromSchedule}>
                 <Text style={styles.removeButtonText}>Remove from schedule</Text>
@@ -377,10 +398,36 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 32,
   },
+  timeLocationRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  timeLocationCol: {
+    flex: 1,
+    paddingRight: 12,
+  },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
+  },
+  slidoBox: {
+    backgroundColor: "#E8F8F0",
+    borderWidth: 1,
+    borderColor: "#1BB273",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  slidoBoxPressed: {
+    opacity: 0.88,
+  },
+  slidoLinkText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1BB273",
   },
   infoText: {
     fontSize: 16,

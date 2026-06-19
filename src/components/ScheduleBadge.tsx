@@ -16,6 +16,11 @@ const BADGE_COLORS: Record<
     dot: "bg-purple-700",
     text: "text-purple-700",
   },
+  green: {
+    bg: "bg-green-100",
+    dot: "bg-green-700",
+    text: "text-green-700",
+  },
 };
 
 type ScheduleBadgeProps = {

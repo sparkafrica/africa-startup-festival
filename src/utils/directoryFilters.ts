@@ -8,15 +8,10 @@ export type FilterCategoryLike = {
   options: { id: string; label: string }[];
 };
 
+import { coerceMetadataStringArray } from "./metadataCoerce";
+
 function coerceStringArray(value: unknown): string[] {
-  if (value == null) return [];
-  if (Array.isArray(value)) {
-    return value.filter((x): x is string => typeof x === "string");
-  }
-  if (typeof value === "string") {
-    return value.split(",").map((s) => s.trim()).filter(Boolean);
-  }
-  return [];
+  return coerceMetadataStringArray(value);
 }
 
 function normalize(s: string): string {

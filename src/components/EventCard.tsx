@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { View, Text, Pressable } from "react-native";
 import { CalendarIconWhite } from "./SocialIcons";
 import LoadingSpinner from "./LoadingSpinner";
@@ -22,11 +22,13 @@ export interface EventCardProps {
   onAddToSchedule?: () => void;
   onLeaveFeedback?: () => void;
   onRemoveFromSchedule?: () => void; // For My Schedule tab
+  /** Tap title / meta to open session detail — keeps CTAs separate (no nested press). */
+  onOpenDetail?: () => void;
   isInMySchedule?: boolean; // Show "Added" when true
   isAddingToSchedule?: boolean;
 }
 
-export default function EventCard({
+function EventCard({
   title,
   stage,
   day,
@@ -37,6 +39,7 @@ export default function EventCard({
   onAddToSchedule,
   onLeaveFeedback,
   onRemoveFromSchedule,
+  onOpenDetail,
   isInMySchedule,
   isAddingToSchedule = false,
 }: EventCardProps) {
@@ -48,30 +51,38 @@ export default function EventCard({
 
   return (
     <View className="bg-white rounded-xl p-4 mb-4 border border-gray-100">
-      {(sessionBadge || sponsoredBy) && (
-        <View className="mb-3 gap-2">
-          {sessionBadge ? (
-            <ScheduleBadge
-              text={sessionBadge.label}
-              color={sessionBadge.color}
-              className="mb-0"
-            />
-          ) : null}
-          {sponsoredBy ? (
-            <ScheduleBadge
-              text={`Sponsored by ${sponsoredBy.name}`}
-              color={sponsoredBy.color}
-              className="mb-0"
-            />
-          ) : null}
-        </View>
-      )}
+      <Pressable
+        onPress={onOpenDetail}
+        disabled={!onOpenDetail}
+        accessibilityRole={onOpenDetail ? "button" : undefined}
+        style={({ pressed }) => ({
+          opacity: onOpenDetail && pressed ? 0.75 : 1,
+        })}
+      >
+        {(sessionBadge || sponsoredBy) && (
+          <View className="mb-3 gap-2">
+            {sessionBadge ? (
+              <ScheduleBadge
+                text={sessionBadge.label}
+                color={sessionBadge.color}
+                className="mb-0"
+              />
+            ) : null}
+            {sponsoredBy ? (
+              <ScheduleBadge
+                text={`Sponsored by ${sponsoredBy.name}`}
+                color={sponsoredBy.color}
+                className="mb-0"
+              />
+            ) : null}
+          </View>
+        )}
 
-      <Text className="text-lg font-bold text-gray-900 mb-2">{title}</Text>
-
-      <Text className="text-sm text-gray-500 mb-4">
-        {stage} · {day} · {startTime} - {endTime}
-      </Text>
+        <Text className="text-lg font-bold text-gray-900 mb-2">{title}</Text>
+        <Text className="text-sm text-gray-500 mb-4">
+          {stage} · {day} · {startTime} - {endTime}
+        </Text>
+      </Pressable>
 
       {showActions ? (
       <View className="flex-row items-center gap-3">
@@ -116,3 +127,5 @@ export default function EventCard({
     </View>
   );
 }
+
+export default memo(EventCard);

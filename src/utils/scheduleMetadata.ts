@@ -3,7 +3,7 @@
  * Keep sponsor and session-format badges separate — never put session labels in sponsoredBy.
  */
 
-export type ScheduleBadgeColor = "blue" | "purple";
+export type ScheduleBadgeColor = "blue" | "purple" | "green";
 
 export interface ScheduleSponsorBadge {
   name: string;
@@ -21,7 +21,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function parseBadgeColor(value: unknown): ScheduleBadgeColor | undefined {
-  return value === "blue" || value === "purple" ? value : undefined;
+  return value === "blue" || value === "purple" || value === "green"
+    ? value
+    : undefined;
+}
+
+function parseHttpUrl(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+    return undefined;
+  }
+  return trimmed;
 }
 
 function parseSponsoredBy(raw: unknown): ScheduleSponsorBadge | undefined {
@@ -49,13 +60,20 @@ function parseSessionBadge(raw: unknown): ScheduleSessionBadge | undefined {
   };
 }
 
-/** Read sponsor + session badges from schedule or nested event metadata. */
+export interface ScheduleSlidoLinks {
+  slidoUrl?: string;
+  slidoPollUrl?: string;
+}
+
+/** Read sponsor, session badges, and optional Slido links from schedule metadata. */
 export function parseScheduleCardMetadata(
   scheduleMetadata: unknown,
   eventMetadata?: unknown,
 ): {
   sponsoredBy?: ScheduleSponsorBadge;
   sessionBadge?: ScheduleSessionBadge;
+  slidoUrl?: string;
+  slidoPollUrl?: string;
 } {
   const scheduleMeta = isRecord(scheduleMetadata) ? scheduleMetadata : {};
   const eventMeta = isRecord(eventMetadata) ? eventMetadata : {};
@@ -68,8 +86,16 @@ export function parseScheduleCardMetadata(
     parseSessionBadge(scheduleMeta.sessionBadge) ??
     parseSessionBadge(eventMeta.sessionBadge);
 
+  const slidoUrl =
+    parseHttpUrl(scheduleMeta.slidoUrl) ?? parseHttpUrl(eventMeta.slidoUrl);
+  const slidoPollUrl =
+    parseHttpUrl(scheduleMeta.slidoPollUrl) ??
+    parseHttpUrl(eventMeta.slidoPollUrl);
+
   return {
     sponsoredBy,
     sessionBadge,
+    slidoUrl,
+    slidoPollUrl,
   };
 }

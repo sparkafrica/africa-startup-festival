@@ -34,9 +34,7 @@ export default function MenuScreen() {
           navigation.navigate("Profile");
           break;
         case "Map":
-          Linking.openURL("https://africatechnologyexpo.com/floor-plan").catch(() => {
-            Alert.alert("Cannot Open Link", "The venue map could not be opened.");
-          });
+          navigation.navigate("VenueMap");
           break;
         case "Offers":
           navigation.navigate("PartnersOffers");

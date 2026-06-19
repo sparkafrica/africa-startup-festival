@@ -29,6 +29,10 @@ import {
 } from "../utils/meetingRestrictions";
 import { trackMeetingEvent, trackConnectionEvent } from "../utils/analytics";
 import {
+  coerceMetadataLabel,
+  coerceMetadataStringArray,
+} from "../utils/metadataCoerce";
+import {
   HomeIcon,
   HomeIconFilled,
   PeopleIcon,
@@ -356,9 +360,8 @@ export default function ConnectionsScreen() {
           })()
         : (typeof rawMeta === "object" && rawMeta !== null ? rawMeta : {});
 
-    // Extract interests from metadata
-    const interests = metadata.interests || [];
-    const interestsArray = Array.isArray(interests) ? interests : [];
+    // Interests may be strings or `{ label, value }` from registration forms.
+    const interestsArray = coerceMetadataStringArray(metadata.interests);
 
     // Extract bio from metadata
     const bio = metadata.bio || "";
@@ -368,12 +371,11 @@ export default function ConnectionsScreen() {
 
     // Build tags — industry/sector only (country omitted from cards; interests shown separately)
     const tags: ConnectionTag[] = [];
-    // Check for sector/industry in company object or metadata
-    const sector =
+    const sector = coerceMetadataLabel(
       (otherUser as any).company?.company_sector ||
-      metadata.sector ||
-      metadata.industry ||
-      undefined;
+        metadata.sector ||
+        metadata.industry
+    );
     if (sector) {
       tags.push({ label: sector, borderColor: "#ADD8E6" });
     }

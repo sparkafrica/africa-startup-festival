@@ -25,4 +25,15 @@ export const SESSION_FEEDBACK_FORM_URL =
  *     "sponsoredBy": { "name": "Layer 3", "color": "blue" } }
  *
  * Do not put session titles in sponsoredBy.name — the app prefixes that field with "Sponsored by".
+ *
+ * AMA session (badge on card + Slido Q&A in session detail only):
+ *   {
+ *     "sessionBadge": { "label": "AMA Session", "color": "green" },
+ *     "slidoUrl": "https://app.sli.do/event/your-room-code",
+ *     "slidoPollUrl": "https://app.sli.do/event/your-room-code/live/polls"
+ *   }
+ *
+ * slidoUrl — required for the green "Q&A" link in the full session sheet (opens in browser).
+ * slidoPollUrl — optional; reserved for a future polls link (not shown in UI yet).
+ * Non-AMA rows omit slidoUrl / slidoPollUrl.
  */

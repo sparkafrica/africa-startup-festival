@@ -105,6 +105,7 @@ export type RootStackParamList = {
   PartnersOffers: undefined;
   AppGuide: undefined;
   TagPickup: undefined;
+  VenueMap: undefined;
   ApiTest: undefined; // Temporary test screen - remove before production
 };
 

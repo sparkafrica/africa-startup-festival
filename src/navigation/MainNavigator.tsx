@@ -28,6 +28,7 @@ import TalentBoardScreen from "../screens/TalentBoardScreen";
 import PartnersOffersScreen from "../screens/PartnersOffersScreen";
 import AppGuideScreen from "../screens/AppGuideScreen";
 import TagPickupScreen from "../screens/TagPickupScreen";
+import VenueMapScreen from "../screens/VenueMapScreen";
 import { runEarlyOtaCheckOnly } from "../utils/otaUpdateFlow";
 
 // // Work around occasional TS module-resolution lag for newly added screens on Windows.
@@ -237,6 +238,14 @@ export default function MainNavigator() {
         options={{
           headerShown: false,
           animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="VenueMap"
+        component={VenueMapScreen}
+        options={{
+          headerShown: false,
+          animation: "fade",
         }}
       />
     </Stack.Navigator>

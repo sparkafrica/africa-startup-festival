@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, ScrollView, Pressable, Text, RefreshControl } from "react-native";
+import { View, ScrollView, Pressable, Text, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -32,10 +32,14 @@ import {
 import HomePushNotificationOverlay from "../components/HomePushNotificationOverlay";
 import EventChecklist from "../components/EventChecklist";
 import { ArrowUpRightIcon } from "../components/icons";
+import { ArrowRightIcon } from "../components/icons";
 import {
   checkFetchAndReloadOta,
   OTA_HOME_STABLE_DELAY_MS,
 } from "../utils/otaUpdateFlow";
+import {
+  VENUE_FLOOR_PLAN_IMAGE,
+} from "../constants/venueMap";
 import {
   HomeIcon,
   HomeIconFilled,
@@ -48,6 +52,10 @@ import {
   HeartIcon,
   HeartIconFilled,
 } from "../components/BottomNavIcons";
+
+/** Portrait preview box — image uses contain (no crop offsets). */
+const VENUE_MAP_THUMB_WIDTH = 60;
+const VENUE_MAP_THUMB_HEIGHT = 65;
 
 export default function HomeScreen() {
   const navigation =
@@ -402,6 +410,54 @@ export default function HomeScreen() {
 
         {/* Body sections */}
         <View className="px-4">
+          {/* Venue map teaser — compact preview; full zoom on VenueMap screen */}
+          <Pressable
+            onPress={() => navigation.navigate("VenueMap")}
+            className="mb-4 bg-white rounded-xl border border-neutral-200 overflow-hidden flex-row items-center px-4 py-3"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.06,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <View className="flex-1 min-w-0 pr-3">
+              <Text className="text-base font-bold text-black mb-1">
+                Venue map
+              </Text>
+              <Text
+                className="text-xs text-neutral-600"
+                numberOfLines={2}
+              >
+                Tap to open the floor plan and find exhibitor booths.
+              </Text>
+              <View className="flex-row items-center mt-2">
+                <Text className="text-xs font-semibold text-[#1BB273] mr-1">
+                  View map
+                </Text>
+                <ArrowRightIcon size={14} color="#1BB273" />
+              </View>
+            </View>
+            <View
+              className="rounded-lg overflow-hidden border border-neutral-200 items-center justify-center"
+              style={{
+                width: VENUE_MAP_THUMB_WIDTH,
+                height: VENUE_MAP_THUMB_HEIGHT,
+              }}
+            >
+              <Image
+                source={VENUE_FLOOR_PLAN_IMAGE}
+                style={{
+                  width: VENUE_MAP_THUMB_WIDTH,
+                  height: VENUE_MAP_THUMB_HEIGHT,
+                }}
+                resizeMode="cover"
+                accessibilityLabel="Venue map preview"
+              />
+            </View>
+          </Pressable>
+
           {/* Event Checklist Section */}
           <EventChecklist
             title="Event Checklist"

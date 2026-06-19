@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   View,
   ScrollView,
@@ -65,6 +65,7 @@ import {
   SESSION_FEEDBACK_FORM_URL,
 } from "../config/scheduleFeatures";
 import { parseScheduleCardMetadata } from "../utils/scheduleMetadata";
+import type { ScheduleBadgeColor } from "../utils/scheduleMetadata";
 import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
 import {
@@ -129,36 +130,11 @@ export const MOCK_SCHEDULE_EVENT = {
 };
 
 // ============================================================================
-// EXTERNAL LINKS INTEGRATION POINTS - ScheduleScreen
+// SCHEDULE EXTERNAL LINKS
 // ============================================================================
-// This screen handles external links in the following areas:
-//
-// 1. "ASK A QUESTION" BUTTON
-//    - Location: EventCard component & EventViewModal component
-//    - Action: Click button → Open external question form URL
-//    - Implementation: handleAskQuestion() uses Linking.openURL(QUESTION_FORM_URL)
-//    - URL Source Options:
-//      a) From event metadata: schedule.metadata.questionUrl
-//      b) From event config: event.metadata.questionUrl
-//      c) From global config: QUESTION_FORM_URL constant
-//    - Status: ✅ Implemented, ready for backend URL integration
-//
-// 2. "LEAVE FEEDBACK" BUTTON
-//    - Location: EventCard component & EventViewModal component
-//    - Action: Click button → Open external feedback form URL
-//    - Implementation: handleLeaveFeedback() opens SESSION_FEEDBACK_FORM_URL (Typeform)
-//    - URL Source Options:
-//      a) From event metadata: schedule.metadata.feedbackUrl
-//      b) From event config: event.metadata.feedbackUrl
-//      c) From global config: FEEDBACK_FORM_URL constant
-//    - Status: ✅ Implemented, ready for backend URL integration
-//
-// 3. LINKEDIN PROFILE LINKS (Future)
-//    - Location: EventViewModal → Speaker cards (if speakers have LinkedIn)
-//    - Action: Click speaker LinkedIn → Open speaker's LinkedIn profile
-//    - Implementation: Would use Linking.openURL() with speaker.linkedInUrl
-//    - Status: ⚠️ Not yet implemented (waiting for backend speaker data with LinkedIn URLs)
-//
+// - Leave a Feedback → SESSION_FEEDBACK_FORM_URL (Typeform), cards + detail sheet
+// - AMA Q&A → schedule.metadata.slidoUrl, detail sheet only (EventViewModal)
+// - sessionBadge (e.g. "AMA Session") → schedule.metadata, cards + detail sheet
 // ============================================================================
 
 const HIGHLIGHT_PULSE_MS = 3000;
@@ -304,8 +280,9 @@ export default function ScheduleScreen() {
     day: string;
     startTime: string;
     endTime: string;
-    sessionBadge?: { label: string; color?: "blue" | "purple" };
-    sponsoredBy?: { name: string; color?: "blue" | "purple" };
+    sessionBadge?: { label: string; color?: ScheduleBadgeColor };
+    sponsoredBy?: { name: string; color?: ScheduleBadgeColor };
+    slidoUrl?: string;
     speakers?: Speaker[];
     description?: string;
     personalScheduleId?: number; // For My Schedule tab: backend personal schedule id (remove from schedule)
@@ -352,24 +329,6 @@ export default function ScheduleScreen() {
   );
   const allSchedulesRef = React.useRef<EventSchedule[]>([]);
   const speakerCacheRef = React.useRef<Map<number, ApiSpeaker>>(new Map());
-
-  // ============================================================================
-  // EXTERNAL LINKS CONFIGURATION
-  // ============================================================================
-  // These URLs will be used for external link buttons in the ScheduleScreen.
-  // Integration points:
-  // 1. "Ask a question" button (EventCard & EventViewModal) → QUESTION_FORM_URL
-  // 2. "Leave feedback" button (EventCard & EventViewModal) → SESSION_FEEDBACK_FORM_URL
-  //
-  // TODO: Backend Integration Options:
-  // - Option A: Store URLs in event metadata (schedule.metadata.questionUrl, schedule.metadata.feedbackUrl)
-  // - Option B: Store URLs in event config (event.metadata.questionUrl, event.metadata.feedbackUrl)
-  // - Option C: Use global config/env variables for default URLs
-  // - Option D: Fetch from dedicated API endpoint (e.g., GET /events/{id}/links/)
-  //
-  // Current implementation: Uses placeholder URLs, will be replaced with backend data
-  // ============================================================================
-  const QUESTION_FORM_URL = "https://example.com/ask-question"; // TODO: Replace with backend URL
 
   const stageMapping: Record<string, string> = {
     "main-stage": "Main Stage",
@@ -434,7 +393,7 @@ export default function ScheduleScreen() {
       typeof scheduleRow.event === "object" ? scheduleRow.event : null;
     const stage = scheduleVenue(scheduleRow);
 
-    const { sponsoredBy, sessionBadge } = parseScheduleCardMetadata(
+    const { sponsoredBy, sessionBadge, slidoUrl } = parseScheduleCardMetadata(
       scheduleRow.metadata,
       eventObj?.metadata,
     );
@@ -476,6 +435,7 @@ export default function ScheduleScreen() {
             color: sponsoredBy.color ?? "blue",
           }
         : undefined,
+      slidoUrl,
       speakers: speakers,
       description:
         scheduleRow.description ||
@@ -804,6 +764,56 @@ export default function ScheduleScreen() {
     }
   };
 
+  const handleOpenSlido = async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (error) {
+      if (__DEV__) {
+        console.error("Error opening Slido:", error);
+      }
+      Alert.alert(
+        "Cannot open Q&A",
+        "Please try again or open the link in your browser.",
+      );
+    }
+  };
+
+  const openEventDetail = useCallback((event: EventData) => {
+    setSelectedEvent(event);
+    setIsEventViewModalVisible(true);
+  }, []);
+
+  const closeEventViewModal = useCallback(() => {
+    setIsEventViewModalVisible(false);
+    clearScheduleHighlight();
+  }, [clearScheduleHighlight]);
+
+  const handleSpeakerPressFromEvent = useCallback(
+    (speakerId: string, speakerName: string) => {
+      setIsEventViewModalVisible(false);
+      setSelectedSpeakerId(speakerId);
+      setSelectedSpeakerName(speakerName);
+      setSpeakerModalVisible(true);
+    },
+    [],
+  );
+
+  const eventViewSpeakers = useMemo(() => {
+    if (!selectedEvent?.speakers?.length) return [];
+    return selectedEvent.speakers.map((speaker) => ({
+      ...speaker,
+      onPress: speaker.id
+        ? () =>
+            handleSpeakerPressFromEvent(String(speaker.id), speaker.name)
+        : undefined,
+    }));
+  }, [selectedEvent?.speakers, handleSpeakerPressFromEvent]);
+
   const stageOptions = [
     { label: "Main Stage", value: "main-stage" },
     { label: "Enterprise Stage", value: "enterprise-stage" },
@@ -1017,18 +1027,6 @@ export default function ScheduleScreen() {
                     position: "relative",
                   }}
                 >
-                <Pressable
-                  onPress={() => {
-                    if (event) {
-                      clearScheduleHighlight();
-                      setSelectedEvent(event);
-                      setIsEventViewModalVisible(true);
-                    }
-                  }}
-                  style={({ pressed }) => ({
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
                   <EventCard
                     title={event?.title || ""}
                     stage={event?.stage || ""}
@@ -1037,6 +1035,9 @@ export default function ScheduleScreen() {
                     endTime={event?.endTime || ""}
                     sessionBadge={event?.sessionBadge}
                     sponsoredBy={event?.sponsoredBy}
+                    onOpenDetail={
+                      event ? () => openEventDetail(event) : undefined
+                    }
                     onAddToSchedule={
                       SCHEDULE_SESSION_CTAS_ENABLED
                         ? () => handleAddToSchedule(event)
@@ -1055,7 +1056,6 @@ export default function ScheduleScreen() {
                       addingScheduleId === event?.eventScheduleId
                     }
                   />
-                </Pressable>
                 {isHighlighted ? (
                   <Animated.View
                     pointerEvents="none"
@@ -1103,38 +1103,27 @@ export default function ScheduleScreen() {
             </View>
           ) : (
             filteredMySchedules.map((event) => (
-              <Pressable
+              <EventCard
                 key={event?.id || `my-${event?.personalScheduleId ?? Math.random()}`}
-                onPress={() => {
-                  if (event) {
-                    setSelectedEvent(event);
-                    setIsEventViewModalVisible(true);
-                  }
-                }}
-                style={({ pressed }) => ({
-                  opacity: pressed ? 0.7 : 1,
-                })}
-              >
-                <EventCard
-                  title={event?.title || ""}
-                  stage={event?.stage || ""}
-                  day={event?.day || ""}
-                  startTime={event?.startTime || ""}
-                  endTime={event?.endTime || ""}
-                  sessionBadge={event?.sessionBadge}
-                  sponsoredBy={event?.sponsoredBy}
-                  onRemoveFromSchedule={
-                    SCHEDULE_SESSION_CTAS_ENABLED
-                      ? () => handleRemoveFromSchedule(event)
-                      : undefined
-                  }
-                  onLeaveFeedback={
-                    SCHEDULE_SESSION_CTAS_ENABLED
-                      ? () => void handleLeaveFeedback()
-                      : undefined
-                  }
-                />
-              </Pressable>
+                title={event?.title || ""}
+                stage={event?.stage || ""}
+                day={event?.day || ""}
+                startTime={event?.startTime || ""}
+                endTime={event?.endTime || ""}
+                sessionBadge={event?.sessionBadge}
+                sponsoredBy={event?.sponsoredBy}
+                onOpenDetail={event ? () => openEventDetail(event) : undefined}
+                onRemoveFromSchedule={
+                  SCHEDULE_SESSION_CTAS_ENABLED
+                    ? () => handleRemoveFromSchedule(event)
+                    : undefined
+                }
+                onLeaveFeedback={
+                  SCHEDULE_SESSION_CTAS_ENABLED
+                    ? () => void handleLeaveFeedback()
+                    : undefined
+                }
+              />
             ))
           )}
         </View>
@@ -1150,69 +1139,55 @@ export default function ScheduleScreen() {
         initialSelected={selectedFilters}
       />
 
-      {selectedEvent && (
-        <EventViewModal
-          visible={isEventViewModalVisible}
-          onClose={() => {
-            setIsEventViewModalVisible(false);
-            setSelectedEvent(null);
-            clearScheduleHighlight();
-          }}
-          title={selectedEvent?.title || ""}
-          startTime={selectedEvent?.startTime || ""}
-          endTime={selectedEvent?.endTime || ""}
-          stage={selectedEvent?.stage || ""}
-          sessionBadge={selectedEvent?.sessionBadge}
-          sponsoredBy={selectedEvent?.sponsoredBy}
-          speakers={(selectedEvent?.speakers || []).map((speaker: Speaker) => {
-            return {
-              ...speaker,
-                  onPress: () => {
-                if (speaker?.id) {
-                  setIsEventViewModalVisible(false);
-                  setSelectedEvent(null);
-                  setSelectedSpeakerId(String(speaker.id));
-                  setSelectedSpeakerName(speaker.name);
-                  setSpeakerModalVisible(true);
-                }
-              },
-            };
-          })}
-          description={selectedEvent?.description}
-          onAddToSchedule={
-            !SCHEDULE_SESSION_CTAS_ENABLED
+      <EventViewModal
+        visible={isEventViewModalVisible}
+        onClose={closeEventViewModal}
+        title={selectedEvent?.title ?? ""}
+        startTime={selectedEvent?.startTime ?? ""}
+        endTime={selectedEvent?.endTime ?? ""}
+        stage={selectedEvent?.stage ?? ""}
+        sessionBadge={selectedEvent?.sessionBadge}
+        sponsoredBy={selectedEvent?.sponsoredBy}
+        speakers={eventViewSpeakers}
+        description={selectedEvent?.description}
+        slidoUrl={selectedEvent?.slidoUrl}
+        onOpenSlido={
+          selectedEvent?.slidoUrl
+            ? () => void handleOpenSlido(selectedEvent.slidoUrl!)
+            : undefined
+        }
+        onAddToSchedule={
+          !SCHEDULE_SESSION_CTAS_ENABLED || !selectedEvent
+            ? undefined
+            : selectedEvent.personalScheduleId ||
+                addedScheduleIds.has(selectedEvent.eventScheduleId)
               ? undefined
-              : selectedEvent?.personalScheduleId ||
-                  (selectedEvent &&
-                    addedScheduleIds.has(selectedEvent.eventScheduleId))
-                ? undefined
-                : () => handleAddToSchedule(selectedEvent)
-          }
-          onRemoveFromSchedule={
-            SCHEDULE_SESSION_CTAS_ENABLED && selectedEvent?.personalScheduleId
-              ? () => handleRemoveFromSchedule(selectedEvent)
-              : undefined
-          }
-          isInMySchedule={
-            SCHEDULE_SESSION_CTAS_ENABLED &&
-            (!!selectedEvent?.personalScheduleId ||
-              (!!selectedEvent &&
-                addedScheduleIds.has(selectedEvent.eventScheduleId)))
-          }
-          onLeaveFeedback={
-            SCHEDULE_SESSION_CTAS_ENABLED
-              ? () => {
-                  void handleLeaveFeedback();
-                  setIsEventViewModalVisible(false);
-                }
-              : undefined
-          }
-          isAddingToSchedule={
-            !!selectedEvent &&
-            addingScheduleId === selectedEvent.eventScheduleId
-          }
-        />
-      )}
+              : () => handleAddToSchedule(selectedEvent)
+        }
+        onRemoveFromSchedule={
+          SCHEDULE_SESSION_CTAS_ENABLED && selectedEvent?.personalScheduleId
+            ? () => handleRemoveFromSchedule(selectedEvent)
+            : undefined
+        }
+        isInMySchedule={
+          !!selectedEvent &&
+          SCHEDULE_SESSION_CTAS_ENABLED &&
+          (!!selectedEvent.personalScheduleId ||
+            addedScheduleIds.has(selectedEvent.eventScheduleId))
+        }
+        onLeaveFeedback={
+          SCHEDULE_SESSION_CTAS_ENABLED
+            ? () => {
+                void handleLeaveFeedback();
+                closeEventViewModal();
+              }
+            : undefined
+        }
+        isAddingToSchedule={
+          !!selectedEvent &&
+          addingScheduleId === selectedEvent.eventScheduleId
+        }
+      />
 
       {/* Note: LeaveFeedbackModal is kept for UI consistency, but feedback is handled via external link */}
       <LeaveFeedbackModal
