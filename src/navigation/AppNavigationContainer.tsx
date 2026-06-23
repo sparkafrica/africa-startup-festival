@@ -11,6 +11,7 @@ import { createNavigationAnalyticsHandlers } from "../utils/analytics";
 import { createLinkingConfig } from "./linking";
 import DeeplinkReplayHandler from "../components/DeeplinkReplayHandler";
 import PushTapHandler from "../components/PushTapHandler";
+import FloatingBottomNavHost from "./FloatingBottomNavHost";
 
 export default function AppNavigationContainer() {
   const { isAuthenticated, hasCompletedProfile, isLoading } = useAuth();
@@ -42,6 +43,7 @@ export default function AppNavigationContainer() {
         onStateChange={onNavigationAnalyticsStateChange}
       >
         <AppNavigator />
+        <FloatingBottomNavHost />
         <StatusBar style="auto" />
       </NavigationContainer>
     </>

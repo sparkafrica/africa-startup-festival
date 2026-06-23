@@ -276,7 +276,7 @@ export default function EventViewModal({
             {/* Event Title */}
             <Text style={styles.title}>{title}</Text>
 
-            {/* Time, location, optional AMA Q&A link */}
+            {/* Time and location */}
             <View style={styles.timeLocationRow}>
               <View style={styles.timeLocationCol}>
                 <View style={styles.infoRow}>
@@ -290,6 +290,7 @@ export default function EventViewModal({
                   <Text style={styles.infoText}>{stage}</Text>
                 </View>
               </View>
+              {/* Q&A pill — kept for reference; lead chose "Ask a question" below
               {slidoUrl && onOpenSlido ? (
                 <Pressable
                   onPress={onOpenSlido}
@@ -302,7 +303,22 @@ export default function EventViewModal({
                   <Text style={styles.slidoLinkText}>Q&A</Text>
                 </Pressable>
               ) : null}
+              */}
             </View>
+
+            {slidoUrl && onOpenSlido ? (
+              <Pressable
+                onPress={onOpenSlido}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.slidoBox,
+                  styles.slidoAskButton,
+                  pressed && styles.slidoBoxPressed,
+                ]}
+              >
+                <Text style={styles.slidoLinkText}>Ask a question</Text>
+              </Pressable>
+            ) : null}
 
             {/* Speakers Section */}
             {speakers.length > 0 && (
@@ -479,7 +495,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8F8F0",
     borderWidth: 1,
     borderColor: "#1BB273",
-    borderRadius: 8,
+    borderRadius: 15,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
@@ -490,6 +506,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#1BB273",
+  },
+  slidoAskButton: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    marginBottom: 8,
   },
   infoText: {
     fontSize: 16,

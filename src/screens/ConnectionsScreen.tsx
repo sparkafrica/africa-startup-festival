@@ -14,14 +14,13 @@ import {
   Alert,
 } from "react-native";
 import {
-  SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import {
   HeaderBar,
-  BottomNavigation,
   LoadingSpinner,
   RequestMeetingModal,
+  FLOATING_NAV_BOTTOM_INSET,
 } from "../components";
 import {
   getCanUserBookMeetings,
@@ -32,25 +31,12 @@ import {
   coerceMetadataLabel,
   coerceMetadataStringArray,
 } from "../utils/metadataCoerce";
-import {
-  HomeIcon,
-  HomeIconFilled,
-  PeopleIcon,
-  PeopleIconFilled,
-  CalendarIcon,
-  CalendarIconFilled,
-  ClockIcon,
-  ClockIconFilled,
-  HeartIcon,
-  HeartIconFilled,
-} from "../components/BottomNavIcons";
 import { SearchIcon, ChevronRightIcon, SpeechBubbleIcon } from "../components/icons";
 import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
-import { navigate as navigateRef } from "../navigation/navigationRef";
 import type { MeetingFormData } from "../components";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
@@ -65,12 +51,12 @@ import {
   shouldRefetchConnectionsOnFocus,
 } from "../utils/eventDataCache";
 import { useChat } from "../context/ChatContext";
+import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContext";
 import { useToast } from "../hooks/useToast";
 import { useListRowHighlight } from "../hooks/useListRowHighlight";
 import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 import { resolveConnectionById } from "../services/deepLinkResolveService";
 import {
-  useMeetingsBadgeCount,
   useMessagesBadgeCount,
   useRefreshMessagesBadgeOnFocus,
 } from "../hooks";
@@ -264,7 +250,6 @@ export default function ConnectionsScreen() {
   const flatListRef = useRef<FlatList<Connection>>(null);
   const listHighlight = useListRowHighlight<number>();
   const { clearHighlight } = listHighlight;
-  const meetingsBadgeCount = useMeetingsBadgeCount();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
@@ -284,6 +269,14 @@ export default function ConnectionsScreen() {
   const [selectedConnection, setSelectedConnection] =
     useState<Connection | null>(null);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
+  const { setFloatingNavSuppressed } = useFloatingNavVisibility();
+
+  useEffect(() => {
+    const detailOpen = showBottomSheet && selectedConnection != null;
+    setFloatingNavSuppressed(detailOpen);
+    return () => setFloatingNavSuppressed(false);
+  }, [showBottomSheet, selectedConnection, setFloatingNavSuppressed]);
+
   const [isRequestMeetingModalVisible, setIsRequestMeetingModalVisible] =
     useState(false);
   const [meetingConnection, setMeetingConnection] = useState<Connection | null>(
@@ -307,6 +300,7 @@ export default function ConnectionsScreen() {
 
   // Close bottom sheet with animation (defined early so handlers can reference it)
   const closeBottomSheet = useCallback(() => {
+    setFloatingNavSuppressed(false);
     detailFetchConnectionIdRef.current = null;
     Animated.parallel([
       Animated.spring(bottomSheetTranslateY, {
@@ -325,7 +319,7 @@ export default function ConnectionsScreen() {
       setSelectedConnection(null);
       setConnectionDetail(null);
     });
-  }, []);
+  }, [setFloatingNavSuppressed]);
 
   /**
    * Map backend Connection to UI-friendly Connection.
@@ -833,60 +827,6 @@ export default function ConnectionsScreen() {
     }
   }, [showToast, fetchConnections, closeBottomSheet]);
 
-  const bottomNavItems = [
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HomeIconFilled size={24} color="#000000" />
-        ) : (
-          <HomeIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Home",
-      route: "Home",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <PeopleIconFilled size={24} color="#000000" />
-        ) : (
-          <PeopleIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Attendees",
-      route: "Attendees",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <CalendarIconFilled size={24} color="#000000" />
-        ) : (
-          <CalendarIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Schedule",
-      route: "Schedule",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <ClockIconFilled size={24} color="#000000" />
-        ) : (
-          <ClockIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Meetings",
-      route: "Meetings",
-      badge: meetingsBadgeCount,
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HeartIconFilled size={24} color="#000000" />
-        ) : (
-          <HeartIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Connections",
-      route: "Connections",
-    },
-  ];
-
   // Handle bottom sheet animation when it opens
   React.useEffect(() => {
     if (showBottomSheet && selectedConnection) {
@@ -919,6 +859,7 @@ export default function ConnectionsScreen() {
   // Open bottom sheet with animation; fetch fresh connection so other user's metadata (country, industry, interests) is current
   const openBottomSheet = useCallback(
     (connection: Connection) => {
+      setFloatingNavSuppressed(true);
       setSelectedConnection(connection);
       setConnectionDetail(null);
       setConnectionDetailLoading(true);
@@ -944,7 +885,7 @@ export default function ConnectionsScreen() {
           setConnectionDetailLoading(false);
         });
     },
-    [user?.user_id]
+    [user?.user_id, setFloatingNavSuppressed],
   );
 
   const highlightListIndexRef = useRef(0);
@@ -1186,7 +1127,10 @@ export default function ConnectionsScreen() {
             data={filteredConnections}
             renderItem={renderConnectionItem}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingTop: 16, paddingBottom: 16 }}
+            contentContainerStyle={{
+              paddingTop: 16,
+              paddingBottom: FLOATING_NAV_BOTTOM_INSET,
+            }}
             onLayout={(e) => {
               listHighlight.scrollViewportHeightRef.current =
                 e.nativeEvent.layout.height;
@@ -1653,26 +1597,6 @@ export default function ConnectionsScreen() {
         </View>
       );
       })()}
-
-      <SafeAreaView edges={["bottom"]}>
-        <BottomNavigation
-          items={bottomNavItems}
-          activeRoute="Connections"
-          onNavigate={(route) => {
-            if (route === "Home") {
-              navigateRef("Home");
-            } else if (route === "Attendees") {
-              navigation.navigate("Attendees");
-            } else if (route === "Schedule") {
-              navigation.navigate("Schedule");
-            } else if (route === "Meetings") {
-              navigation.navigate("Meetings");
-            } else if (route === "Connections") {
-              // Already on Connections screen
-            }
-          }}
-        />
-      </SafeAreaView>
 
       {/* Request Meeting Modal */}
       <RequestMeetingModal

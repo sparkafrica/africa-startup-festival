@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { View, ScrollView, Pressable, Text, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
-import { navigate as navigateRef } from "../navigation/navigationRef";
 import {
-  useMeetingsBadgeCount,
   useMessagesBadgeCount,
   useRefreshMessagesBadgeOnFocus,
 } from "../hooks";
@@ -24,25 +21,13 @@ import {
   HeaderBar,
   SpeakerCard,
   SpeakerDetailModal,
-  BottomNavigation,
   FilterModal,
   LoadingSpinner,
+  FLOATING_NAV_BOTTOM_INSET,
   type FilterCategory,
 } from "../components";
 import { ChevronLeftIcon, FilterIcon } from "../components/HeaderIcons";
 import { ChevronDownIcon } from "../components/icons";
-import {
-  HomeIcon,
-  HomeIconFilled,
-  PeopleIcon,
-  PeopleIconFilled,
-  CalendarIcon,
-  CalendarIconFilled,
-  ClockIcon,
-  ClockIconFilled,
-  HeartIcon,
-  HeartIconFilled,
-} from "../components/BottomNavIcons";
 
 type SpeakerListItem = {
   id: string;
@@ -91,7 +76,6 @@ function mapSpeakersToListItems(list: Speaker[]): SpeakerListItem[] {
 export default function SpeakersScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Speakers">>();
-  const meetingsBadgeCount = useMeetingsBadgeCount();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
   const { hasUnreadNotifications } = useNotifications();
@@ -208,60 +192,6 @@ export default function SpeakersScreen() {
     );
   }, [speakers, selectedFilterIds, filterCategories]);
 
-  const bottomNavItems = [
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HomeIconFilled size={24} color="#000000" />
-        ) : (
-          <HomeIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Home",
-      route: "Home",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <PeopleIconFilled size={24} color="#000000" />
-        ) : (
-          <PeopleIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Attendees",
-      route: "Attendees",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <CalendarIconFilled size={24} color="#000000" />
-        ) : (
-          <CalendarIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Schedule",
-      route: "Schedule",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <ClockIconFilled size={24} color="#000000" />
-        ) : (
-          <ClockIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Meetings",
-      route: "Meetings",
-      badge: meetingsBadgeCount,
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HeartIconFilled size={24} color="#000000" />
-        ) : (
-          <HeartIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Connections",
-      route: "Connections",
-    },
-  ];
-
   return (
     <View className="flex-1 bg-white">
       <HeaderBar
@@ -281,7 +211,7 @@ export default function SpeakersScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: FLOATING_NAV_BOTTOM_INSET }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -399,29 +329,6 @@ export default function SpeakersScreen() {
         speakerId={selectedSpeakerId || ""}
         name={speakers.find((s) => s.id === selectedSpeakerId)?.name}
       />
-
-      {/* Bottom Navigation */}
-      <SafeAreaView edges={["bottom"]}>
-        <BottomNavigation
-          items={bottomNavItems}
-          activeRoute="Home"
-          onNavigate={(route) => {
-            if (route === "Home") {
-              navigateRef("Home");
-            } else if (route === "Attendees") {
-              navigation.navigate("Attendees");
-            } else if (route === "Schedule") {
-              navigation.navigate("Schedule");
-            } else if (route === "Meetings") {
-              navigation.navigate("Meetings");
-            } else if (route === "Connections") {
-              navigation.navigate("Connections");
-            } else {
-              console.log(`Navigate to ${route}`);
-            }
-          }}
-        />
-      </SafeAreaView>
 
       {/* Filter Modal */}
       <FilterModal

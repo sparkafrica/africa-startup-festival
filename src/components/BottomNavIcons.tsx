@@ -1,4 +1,5 @@
 import React from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import Svg, { Path } from "react-native-svg";
 
 interface IconProps {
@@ -7,36 +8,11 @@ interface IconProps {
 }
 
 export function HomeIcon({ size = 24, color = "#000000" }: IconProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M3 12L5 10M5 10L12 3L19 10M5 10V20C5 20.5523 5.44772 21 6 21H9M19 10L21 12M19 10V20C19 20.5523 18.5523 21 18 21H15M9 21C9.55228 21 10 20.5523 10 20V16C10 15.4477 10.4477 15 11 15H13C13.5523 15 14 15.4477 14 16V20C14 20.5523 14.4477 21 15 21M9 21H15"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
+  return <Ionicons name="home-outline" size={size} color={color} />;
 }
 
 export function HomeIconFilled({ size = 24, color = "#000000" }: IconProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M11.47 3.84C11.6 3.94 11.75 4 11.91 4C12.07 4 12.22 3.94 12.35 3.84L20.35 7.84C20.55 7.96 20.7 8.15 20.78 8.37C20.86 8.59 20.86 8.83 20.78 9.05C20.7 9.27 20.55 9.46 20.35 9.58L12.35 13.58C12.22 13.68 12.07 13.74 11.91 13.74C11.75 13.74 11.6 13.68 11.47 13.58L3.47 9.58C3.27 9.46 3.12 9.27 3.04 9.05C2.96 8.83 2.96 8.59 3.04 8.37C3.12 8.15 3.27 7.96 3.47 7.84L11.47 3.84Z"
-        fill={color}
-      />
-      <Path
-        d="M4 12V20C4 20.5523 4.44772 21 5 21H9V15C9 14.4477 9.44772 14 10 14H14C14.5523 14 15 14.4477 15 15V21H19C19.5523 21 20 20.5523 20 20V12"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill={color}
-      />
-    </Svg>
-  );
+  return <Ionicons name="home" size={size} color={color} />;
 }
 
 export function PeopleIcon({ size = 24, color = "#000000" }: IconProps) {

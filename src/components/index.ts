@@ -7,6 +7,8 @@ export { default as TicketCard } from "./TicketCard";
 export { default as ChecklistItem } from "./ChecklistItem";
 export { default as ExhibitorCard } from "./ExhibitorCard";
 export { default as BottomNavigation } from "./BottomNavigation";
+export { default as FloatingBottomNav, FLOATING_NAV_BOTTOM_INSET } from "./FloatingBottomNav";
+export type { FloatingBottomNavItem } from "./FloatingBottomNav";
 export { default as HeaderBar } from "./HeaderBar";
 export { default as Menu } from "./Menu";
 export { default as NotificationItem } from "./NotificationItem";

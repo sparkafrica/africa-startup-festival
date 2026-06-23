@@ -1,14 +1,11 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { View, ScrollView, Pressable, Text, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import { useCompanyDeeplinkHighlight } from "../hooks/useCompanyDeeplinkHighlight";
 import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 import type { RootStackParamList } from "../navigation/types";
-import { navigate as navigateRef } from "../navigation/navigationRef";
 import {
-  useMeetingsBadgeCount,
   useMessagesBadgeCount,
   useRefreshMessagesBadgeOnFocus,
 } from "../hooks";
@@ -16,9 +13,9 @@ import { useNotifications } from "../context/NotificationsContext";
 import {
   HeaderBar,
   ExhibitorCard,
-  BottomNavigation,
   FilterModal,
   LoadingSpinner,
+  FLOATING_NAV_BOTTOM_INSET,
   type FilterCategory,
 } from "../components";
 import { ChevronLeftIcon, FilterIcon } from "../components/HeaderIcons";
@@ -28,23 +25,10 @@ import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
 import { getIndustryAndInterestFilterCategories } from "../constants/industryAndInterests";
 import { directoryCompanyMatchesFilters } from "../utils/directoryFilters";
-import {
-  HomeIcon,
-  HomeIconFilled,
-  PeopleIcon,
-  PeopleIconFilled,
-  CalendarIcon,
-  CalendarIconFilled,
-  ClockIcon,
-  ClockIconFilled,
-  HeartIcon,
-  HeartIconFilled,
-} from "../components/BottomNavIcons";
 
 export default function ExhibitorsScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Exhibitors">>();
-  const meetingsBadgeCount = useMeetingsBadgeCount();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
   const { hasUnreadNotifications } = useNotifications();
@@ -134,60 +118,6 @@ export default function ExhibitorsScreen() {
     isLoading,
   );
 
-  const bottomNavItems = [
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HomeIconFilled size={24} color="#000000" />
-        ) : (
-          <HomeIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Home",
-      route: "Home",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <PeopleIconFilled size={24} color="#000000" />
-        ) : (
-          <PeopleIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Attendees",
-      route: "Attendees",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <CalendarIconFilled size={24} color="#000000" />
-        ) : (
-          <CalendarIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Schedule",
-      route: "Schedule",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <ClockIconFilled size={24} color="#000000" />
-        ) : (
-          <ClockIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Meetings",
-      route: "Meetings",
-      badge: meetingsBadgeCount,
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HeartIconFilled size={24} color="#000000" />
-        ) : (
-          <HeartIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Connections",
-      route: "Connections",
-    },
-  ];
-
   return (
     <View className="flex-1 bg-white">
       <HeaderBar
@@ -208,7 +138,7 @@ export default function ExhibitorsScreen() {
       <ScrollView
         ref={companyHighlight.scrollRef}
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: FLOATING_NAV_BOTTOM_INSET }}
         showsVerticalScrollIndicator={false}
         onLayout={(e) =>
           companyHighlight.registerScrollViewport(e.nativeEvent.layout.height)
@@ -338,29 +268,6 @@ export default function ExhibitorsScreen() {
         </View>
         </View>
       </ScrollView>
-
-      {/* Bottom Navigation */}
-      <SafeAreaView edges={["bottom"]}>
-        <BottomNavigation
-          items={bottomNavItems}
-          activeRoute="Home"
-          onNavigate={(route) => {
-            if (route === "Home") {
-              navigateRef("Home");
-            } else if (route === "Attendees") {
-              navigation.navigate("Attendees");
-            } else if (route === "Schedule") {
-              navigation.navigate("Schedule");
-            } else if (route === "Meetings") {
-              navigation.navigate("Meetings");
-            } else if (route === "Connections") {
-              navigation.navigate("Connections");
-            } else {
-              console.log(`Navigate to ${route}`);
-            }
-          }}
-        />
-      </SafeAreaView>
 
       {/* Filter Modal */}
       <FilterModal

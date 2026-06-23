@@ -28,14 +28,13 @@ import Animated, {
   runOnJS,
   interpolate,
 } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
-import { navigate as navigateRef } from "../navigation/navigationRef";
 import { useChecklist } from "../context/ChecklistContext";
 import { useAuth } from "../context/AuthContext";
 import { useChat } from "../context/ChatContext";
+import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { attendeeService, type Attendee as BackendAttendee, type MatchInfo } from "../services/attendeeService";
@@ -56,34 +55,25 @@ import {
 } from "../utils/meetingRestrictions";
 import { useToast } from "../hooks/useToast";
 import {
-  useMeetingsBadgeCount,
   useMessagesBadgeCount,
   useRefreshMessagesBadgeOnFocus,
 } from "../hooks";
 import Toast from "../components/Toast";
 import {
   HeaderBar,
-  BottomNavigation,
   FilterModal,
   FilterTag,
   LoadingSpinner,
   RequestMeetingModal,
   ConnectMessageModal,
   MeetingRequestMessageModal,
+  FLOATING_NAV_BOTTOM_INSET,
   type FilterCategory,
   type MeetingFormData,
 } from "../components";
 import {
-  HomeIcon,
-  HomeIconFilled,
   PeopleIcon,
-  PeopleIconFilled,
   CalendarIcon,
-  CalendarIconFilled,
-  ClockIcon,
-  ClockIconFilled,
-  HeartIcon,
-  HeartIconFilled,
 } from "../components/BottomNavIcons";
 import { ChevronDownIcon, ListIcon, SearchIcon, SpeechBubbleIcon } from "../components/icons";
 import { LinkedInIcon } from "../components/SocialIcons";
@@ -1058,7 +1048,6 @@ export default function AttendeesScreen() {
     tryScrollAndHighlight,
   } = listHighlight;
   const attendeeHighlightIndexRef = useRef(0);
-  const meetingsBadgeCount = useMeetingsBadgeCount();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
@@ -1074,6 +1063,13 @@ export default function AttendeesScreen() {
     null
   );
   const [showBottomSheet, setShowBottomSheet] = useState(false);
+  const { setFloatingNavSuppressed } = useFloatingNavVisibility();
+
+  useEffect(() => {
+    const detailOpen = showBottomSheet && selectedAttendee != null;
+    setFloatingNavSuppressed(detailOpen);
+    return () => setFloatingNavSuppressed(false);
+  }, [showBottomSheet, selectedAttendee, setFloatingNavSuppressed]);
 
   // Filter state
   const [selectedFilterIds, setSelectedFilterIds] = useState<string[]>([]);
@@ -1919,9 +1915,10 @@ export default function AttendeesScreen() {
   );
 
   const openBottomSheet = useCallback((attendee: Attendee) => {
+    setFloatingNavSuppressed(true);
     setSelectedAttendee(attendee);
     setShowBottomSheet(true);
-  }, []);
+  }, [setFloatingNavSuppressed]);
 
   listHighlight.scrollToOffsetRef.current = useCallback(() => {
     try {
@@ -2008,6 +2005,7 @@ export default function AttendeesScreen() {
 
   // Close bottom sheet with animation
   const closeBottomSheet = () => {
+    setFloatingNavSuppressed(false);
     RNAnimated.parallel([
       RNAnimated.spring(bottomSheetTranslateY, {
         toValue: 1000,
@@ -2116,60 +2114,6 @@ export default function AttendeesScreen() {
   );
 
   const attendeeListKeyExtractor = useCallback((item: Attendee) => item.id, []);
-
-  const bottomNavItems = [
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HomeIconFilled size={24} color="#000000" />
-        ) : (
-          <HomeIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Home",
-      route: "Home",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <PeopleIconFilled size={24} color="#000000" />
-        ) : (
-          <PeopleIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Attendees",
-      route: "Attendees",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <CalendarIconFilled size={24} color="#000000" />
-        ) : (
-          <CalendarIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Schedule",
-      route: "Schedule",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <ClockIconFilled size={24} color="#000000" />
-        ) : (
-          <ClockIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Meetings",
-      route: "Meetings",
-      badge: meetingsBadgeCount,
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HeartIconFilled size={24} color="#000000" />
-        ) : (
-          <HeartIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Connections",
-      route: "Connections",
-    },
-  ];
 
   return (
     <View className="flex-1 bg-white">
@@ -2467,7 +2411,10 @@ export default function AttendeesScreen() {
                   data={displayedAttendees}
                   renderItem={renderAttendeeListItem}
                   keyExtractor={attendeeListKeyExtractor}
-                  contentContainerStyle={{ paddingTop: 8, paddingBottom: 16 }}
+                  contentContainerStyle={{
+                    paddingTop: 8,
+                    paddingBottom: FLOATING_NAV_BOTTOM_INSET,
+                  }}
                   showsVerticalScrollIndicator={false}
                   scrollEventThrottle={16}
                   onScroll={onAttendeeListScroll}
@@ -2908,29 +2855,6 @@ export default function AttendeesScreen() {
           </RNAnimated.View>
         </View>
       )}
-
-      {/* Bottom Navigation */}
-      <SafeAreaView edges={["bottom"]}>
-        <BottomNavigation
-          items={bottomNavItems}
-          activeRoute="Attendees"
-          onNavigate={(route) => {
-            if (route === "Home") {
-              navigateRef("Home");
-            } else if (route === "Attendees") {
-              // Already on Attendees screen
-            } else if (route === "Schedule") {
-              navigation.navigate("Schedule");
-            } else if (route === "Meetings") {
-              navigation.navigate("Meetings");
-            } else if (route === "Connections") {
-              navigation.navigate("Connections");
-            } else {
-              console.log(`Navigate to ${route}`);
-            }
-          }}
-        />
-      </SafeAreaView>
 
       {/* Request Meeting Modal */}
       <RequestMeetingModal

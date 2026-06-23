@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, ScrollView, Pressable, Text, RefreshControl, Image } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  View,
+  ScrollView,
+  Pressable,
+  Text,
+  RefreshControl,
+  Image,
+} from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
@@ -8,10 +14,10 @@ import { useChecklist } from "../context/ChecklistContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
 import {
-  useMeetingsBadgeCount,
   useMessagesBadgeCount,
   useRefreshMessagesBadgeOnFocus,
 } from "../hooks";
+import { useHomeScroll } from "../context/HomeScrollContext";
 import { gradients } from "../theme/theme";
 import { eventService } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
@@ -27,7 +33,7 @@ import {
   PartnerCard,
   SpeakerCard,
   SpeakerDetailModal,
-  BottomNavigation,
+  FLOATING_NAV_BOTTOM_INSET,
 } from "../components";
 import HomePushNotificationOverlay from "../components/HomePushNotificationOverlay";
 import EventChecklist from "../components/EventChecklist";
@@ -40,19 +46,6 @@ import {
 import {
   VENUE_FLOOR_PLAN_IMAGE,
 } from "../constants/venueMap";
-import {
-  HomeIcon,
-  HomeIconFilled,
-  PeopleIcon,
-  PeopleIconFilled,
-  CalendarIcon,
-  CalendarIconFilled,
-  ClockIcon,
-  ClockIconFilled,
-  HeartIcon,
-  HeartIconFilled,
-} from "../components/BottomNavIcons";
-
 /** Portrait preview box — image uses contain (no crop offsets). */
 const VENUE_MAP_THUMB_WIDTH = 60;
 const VENUE_MAP_THUMB_HEIGHT = 65;
@@ -60,12 +53,18 @@ const VENUE_MAP_THUMB_HEIGHT = 65;
 export default function HomeScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
-  const meetingsBadgeCount = useMeetingsBadgeCount();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
+  const { registerScrollToTop } = useHomeScroll();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
   const scrollViewRef = useRef<ScrollView>(null);
   const [checklistExpanded, setChecklistExpanded] = useState(true);
+
+  useEffect(() => {
+    return registerScrollToTop(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    });
+  }, [registerScrollToTop]);
 
   // Get checklist state and methods from context
   const {
@@ -267,60 +266,6 @@ export default function HomeScreen() {
     navigation.navigate("Schedule");
   };
 
-  const bottomNavItems = [
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HomeIconFilled size={24} color="#000000" />
-        ) : (
-          <HomeIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Home",
-      route: "Home",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <PeopleIconFilled size={24} color="#000000" />
-        ) : (
-          <PeopleIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Attendees",
-      route: "Attendees",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <CalendarIconFilled size={24} color="#000000" />
-        ) : (
-          <CalendarIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Schedule",
-      route: "Schedule",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <ClockIconFilled size={24} color="#000000" />
-        ) : (
-          <ClockIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Meetings",
-      route: "Meetings",
-      badge: meetingsBadgeCount,
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HeartIconFilled size={24} color="#000000" />
-        ) : (
-          <HeartIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Connections",
-      route: "Connections",
-    },
-  ];
-
   return (
     <View className="flex-1 bg-surface">
       <HeaderBar
@@ -341,7 +286,7 @@ export default function HomeScreen() {
       <ScrollView
         ref={scrollViewRef}
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: FLOATING_NAV_BOTTOM_INSET }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -387,7 +332,7 @@ export default function HomeScreen() {
             description="Visit any Cafe One branch near you to pick up your tag and skip event day queues."
             buttonText="View branches"
             gradient={gradients.ocean}
-            backgroundImage={require("../assets/images/5th-card.jpg")}
+            backgroundImage={require("../assets/images/6th-card.jpg")}
             onPress={() => navigation.navigate("TagPickup")}
           />
           <BannerCard
@@ -715,30 +660,6 @@ export default function HomeScreen() {
         name={featuredSpeakers.find((s) => s.id.toString() === selectedSpeakerId)?.full_name}
       />
 
-      {/* Bottom Navigation */}
-      <SafeAreaView edges={["bottom"]}>
-        <BottomNavigation
-          items={bottomNavItems}
-          activeRoute="Home"
-          onNavigate={(route) => {
-            if (route === "Home") {
-              scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-            } else if (route === "Attendees") {
-              navigation.navigate("Attendees");
-            } else if (route === "Schedule") {
-              navigation.navigate("Schedule");
-            } else if (route === "Meetings") {
-              navigation.navigate("Meetings");
-            } else if (route === "Connections") {
-              navigation.navigate("Connections");
-            } else {
-              console.log(`Navigate to ${route}`);
-            }
-          }}
-        />
-      </SafeAreaView>
-
-      {/* FCM tap: modal on Home without pushing Notifications screen */}
       <HomePushNotificationOverlay />
     </View>
   );

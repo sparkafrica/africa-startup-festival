@@ -21,12 +21,15 @@ Notifications.setNotificationHandler({
   }),
 });
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/context/AuthContext";
 import { ChecklistProvider } from "./src/context/ChecklistContext";
 import { MeetingsBadgeProvider } from "./src/context/MeetingsBadgeContext";
 import { NotificationsProvider } from "./src/context/NotificationsContext";
 import { MessagesBadgeProvider } from "./src/context/MessagesBadgeContext";
 import { ChatProvider } from "./src/context/ChatContext";
+import { HomeScrollProvider } from "./src/context/HomeScrollContext";
+import { FloatingNavVisibilityProvider } from "./src/context/FloatingNavVisibilityContext";
 import AppNavigationContainer from "./src/navigation/AppNavigationContainer";
 import { LoadingSpinner } from "./src/components";
 
@@ -113,6 +116,7 @@ export default function App() {
   return (
     <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
       <View className="flex-1 font-sans">
         <AuthProvider>
           <ChecklistProvider>
@@ -120,7 +124,11 @@ export default function App() {
               <NotificationsProvider>
                 <MessagesBadgeProvider>
                   <ChatProvider>
-                    <AppNavigationContainer />
+                    <HomeScrollProvider>
+                      <FloatingNavVisibilityProvider>
+                        <AppNavigationContainer />
+                      </FloatingNavVisibilityProvider>
+                    </HomeScrollProvider>
                   </ChatProvider>
                 </MessagesBadgeProvider>
               </NotificationsProvider>
@@ -128,6 +136,7 @@ export default function App() {
           </ChecklistProvider>
         </AuthProvider>
       </View>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
     </Sentry.ErrorBoundary>
   );

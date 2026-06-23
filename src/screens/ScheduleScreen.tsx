@@ -10,10 +10,8 @@ import {
   Animated,
   Dimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import {
   HeaderBar,
-  BottomNavigation,
   EventCard,
   DropdownButton,
   TimeZoneAlertBanner,
@@ -25,22 +23,11 @@ import {
   ScheduleSuccessToast,
   SpeakerDetailModal,
   TabButton,
+  FLOATING_NAV_BOTTOM_INSET,
   type FilterCategory,
   type Speaker,
 } from "../components";
 import Toast from "../components/Toast";
-import {
-  HomeIcon,
-  HomeIconFilled,
-  PeopleIcon,
-  PeopleIconFilled,
-  CalendarIcon,
-  CalendarIconFilled,
-  ClockIcon,
-  ClockIconFilled,
-  HeartIcon,
-  HeartIconFilled,
-} from "../components/BottomNavIcons";
 import {
   useNavigation,
   useFocusEffect,
@@ -48,12 +35,10 @@ import {
 } from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
-import { navigate as navigateRef } from "../navigation/navigationRef";
 import { useChecklist } from "../context/ChecklistContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
 import {
-  useMeetingsBadgeCount,
   useMessagesBadgeCount,
   useRefreshMessagesBadgeOnFocus,
 } from "../hooks";
@@ -262,7 +247,6 @@ export default function ScheduleScreen() {
     },
     [scrollToCenteredSchedule, startScheduleHighlight],
   );
-  const meetingsBadgeCount = useMeetingsBadgeCount();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
@@ -840,60 +824,6 @@ export default function ScheduleScreen() {
     },
   ];
 
-  const bottomNavItems = [
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HomeIconFilled size={24} color="#000000" />
-        ) : (
-          <HomeIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Home",
-      route: "Home",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <PeopleIconFilled size={24} color="#000000" />
-        ) : (
-          <PeopleIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Attendees",
-      route: "Attendees",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <CalendarIconFilled size={24} color="#000000" />
-        ) : (
-          <CalendarIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Schedule",
-      route: "Schedule",
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <ClockIconFilled size={24} color="#000000" />
-        ) : (
-          <ClockIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Meetings",
-      route: "Meetings",
-      badge: meetingsBadgeCount,
-    },
-    {
-      icon: (active: boolean) =>
-        active ? (
-          <HeartIconFilled size={24} color="#000000" />
-        ) : (
-          <HeartIcon size={24} color="#A3A3A3" />
-        ),
-      label: "Connections",
-      route: "Connections",
-    },
-  ];
-
 
   return (
     <View className="flex-1 bg-white">
@@ -964,7 +894,7 @@ export default function ScheduleScreen() {
       <ScrollView
         ref={scrollRef}
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 20 }}
+        contentContainerStyle={{ paddingBottom: FLOATING_NAV_BOTTOM_INSET }}
         showsVerticalScrollIndicator={false}
         onLayout={(e) => {
           scrollViewportHeightRef.current = e.nativeEvent.layout.height;
@@ -1245,26 +1175,6 @@ export default function ScheduleScreen() {
         type={toast.type}
         onHide={hideToast}
       />
-
-      <SafeAreaView edges={["bottom"]}>
-        <BottomNavigation
-          items={bottomNavItems}
-          activeRoute="Schedule"
-          onNavigate={(route) => {
-            if (route === "Home") {
-              navigateRef("Home");
-            } else if (route === "Attendees") {
-              navigation.navigate("Attendees");
-            } else if (route === "Schedule") {
-              // Already on Schedule screen
-            } else if (route === "Meetings") {
-              navigation.navigate("Meetings");
-            } else if (route === "Connections") {
-              navigation.navigate("Connections");
-            }
-          }}
-        />
-      </SafeAreaView>
     </View>
   );
 }
