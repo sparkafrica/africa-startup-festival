@@ -74,7 +74,7 @@ function Header() {
   );
 }
 
-const SUPPORT_EMAIL = "contact@africatechnologyexpo.com";
+const SUPPORT_EMAIL = "contact@africastartupfestival.com";
 
 export default function ContactScreen() {
   const [name, setName] = useState("");

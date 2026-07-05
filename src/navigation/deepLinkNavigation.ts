@@ -1,6 +1,12 @@
 import type { RootStackParamList } from "./types";
 import type { DeepLinkTarget } from "./deepLinkParse";
+import { isPostEventMode } from "../config/eventMode";
 import { navigate } from "./navigationRef";
+
+const POST_EVENT_BLOCKED_SCREENS = new Set<DeepLinkTarget["screen"]>([
+  "Schedule",
+  "TagPickup",
+]);
 
 export function paramsForDeepLinkTarget(
   target: DeepLinkTarget,
@@ -80,6 +86,10 @@ export function paramsForDeepLinkTarget(
 }
 
 export function navigateDeepLinkTarget(target: DeepLinkTarget): boolean {
+  if (isPostEventMode() && POST_EVENT_BLOCKED_SCREENS.has(target.screen)) {
+    navigate("Home");
+    return true;
+  }
   const { screen, params } = paramsForDeepLinkTarget(target);
   navigate(screen, params as never);
   return true;

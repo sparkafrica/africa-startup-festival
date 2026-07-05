@@ -1,7 +1,11 @@
 import * as Sentry from "@sentry/react-native";
 import Constants from "expo-constants";
 
-const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN || "";
+const SENTRY_DSN =
+  (Constants?.expoConfig?.extra as Record<string, string> | undefined)
+    ?.SENTRY_DSN ??
+  process.env.EXPO_PUBLIC_SENTRY_DSN ??
+  "";
 
 /**
  * Response codes from {@link ApiClientError} (and axios no-response → 0).
@@ -55,8 +59,8 @@ export function initSentry() {
     enabled: !__DEV__,
     debug: false,
     environment: __DEV__ ? "development" : "production",
-    release: Constants.expoConfig?.extra?.eas?.projectId
-      ? `spark@${Constants.expoConfig?.version ?? "1.0.0"}`
+    release: Constants.expoConfig?.version
+      ? `africa-startup-festival@${Constants.expoConfig.version}`
       : undefined,
     integrations: [
       // Sentry's default integrations; sentry-expo adds source map support

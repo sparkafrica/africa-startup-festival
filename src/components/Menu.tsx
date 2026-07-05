@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Path, Circle } from "react-native-svg";
 import { useAuth } from "../context/AuthContext";
 import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
@@ -11,13 +10,11 @@ import {
   getTicketGradientColors,
   isExhibitionPass,
 } from "../utils/ticketColors";
-// import PatternOverlay from "./ui/PatternOverlay";
 
 import {
   TicketsIcon,
   MailIcon,
   ProfileIcon,
-  MapIcon,
   OffersIcon,
   TalentIcon,
   LogoutIcon,
@@ -27,26 +24,30 @@ import {
   HelpIcon,
   LightbulbIcon,
 } from "./MenuIcons";
+import { PeopleIcon } from "./BottomNavIcons";
 
 interface MenuProps {
   onClose: () => void;
   refreshTrigger?: number;
   onNavigate?: (route: string) => void;
   onLogout?: () => void;
+  postEventMode?: boolean;
 }
 
-// Slate — badge + gradient when ticket tier is unknown (loading, offline, or API returned no type)
 const LOADING_COLOR = "#475569";
 const NEUTRAL_MENU_GRADIENT: [string, string] = ["#475569", "#64748B"];
 
-export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: MenuProps) {
+export default function Menu({
+  onClose,
+  refreshTrigger,
+  onNavigate,
+  onLogout,
+  postEventMode = false,
+}: MenuProps) {
   const { user } = useAuth();
   const [ticketType, setTicketType] = useState<string | null>(null);
   const [ticketLoading, setTicketLoading] = useState(true);
 
-  // Fetch user's ticket to use its type for Menu card (color + badge)
-  // Prefer type.name (canonical tier) over user_type so colors stay correct when backend updates pass type
-  // bypassCache so we always get fresh pass type on open (avoids stale delegate/exhibitor after backend change)
   useEffect(() => {
     if (!user) {
       setTicketLoading(false);
@@ -68,25 +69,19 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
       .finally(() => setTicketLoading(false));
   }, [user?.user_id, refreshTrigger]);
 
-  // Get user profile data
   const userName =
     user?.first_name && user?.last_name
       ? `${user.first_name} ${user.last_name}`.trim()
       : user?.first_name || user?.email?.split("@")[0] || "User";
 
   const userEmail = user?.email || "";
-
   const companyType = (user?.company?.company_type ?? "").trim();
   const ticketTypeTrimmed = ticketType?.trim() ?? "";
-
-  // After fetch: prefer ticket tier, then company_type (assignees). Never guess "Limited Pass"
-  // when we don't know the tier — that misleads users offline or before the API responds.
   const resolvedTier =
     !ticketLoading && (ticketTypeTrimmed || companyType)
       ? ticketTypeTrimmed || companyType
       : "";
   const tierPending = ticketLoading || resolvedTier === "";
-
   const display = tierPending
     ? { label: "...", color: LOADING_COLOR }
     : getTicketTypeDisplay(resolvedTier);
@@ -95,8 +90,6 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
   const cardGradient = tierPending
     ? NEUTRAL_MENU_GRADIENT
     : getTicketGradientColors(resolvedTier);
-
-  // Get profile picture URL if available
   const profilePicUrl = user?.profile_pic || null;
 
   const menuItems = [
@@ -116,9 +109,24 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
       route: "Profile",
     },
     {
-      label: "Venue Map",
-      icon: <MapIcon size={20} color="#444" />,
-      route: "Map",
+      label: "Startup Directory",
+      icon: <PeopleIcon size={20} color="#444" />,
+      route: "Startups",
+    },
+    {
+      label: "Sponsor Directory",
+      icon: <PeopleIcon size={20} color="#444" />,
+      route: "Sponsors",
+    },
+    {
+      label: "Founders",
+      icon: <PeopleIcon size={20} color="#444" />,
+      route: "Founders",
+    },
+    {
+      label: "Investors",
+      icon: <PeopleIcon size={20} color="#444" />,
+      route: "Investors",
     },
     {
       label: "Partner Offers",
@@ -129,6 +137,11 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
       label: "Talent Board",
       icon: <TalentIcon size={20} color="#444" />,
       route: "Talent",
+    },
+    {
+      label: "Tag Pickup",
+      icon: <TicketsIcon size={20} color="#444" />,
+      route: "TagPickup",
     },
     {
       label: "Contact Us",
@@ -147,13 +160,16 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
     },
   ];
 
+  const hiddenPostEventRoutes = new Set(["Offers", "Talent", "TagPickup"]);
+  const visibleMenuItems = postEventMode
+    ? menuItems.filter((item) => !hiddenPostEventRoutes.has(item.route))
+    : menuItems;
+
   return (
     <View className="flex-1 bg-white">
       <SafeAreaView edges={["top"]} className="flex-1">
-        {/* Header */}
         <View className="flex-row items-center justify-between px-6 py-4 border-b border-neutral-200">
           <Text className="text-[24px] font-bold text-neutral-900">Menu</Text>
-
           <Pressable
             onPress={onClose}
             className="w-10 h-10 rounded-full border border-neutral-300 items-center justify-center"
@@ -167,7 +183,6 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 40 }}
         >
-          {/* Profile Card – all types use left-to-right gradient */}
           <View className="px-6 mt-4">
             <LinearGradient
               colors={cardGradient}
@@ -175,16 +190,18 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
               end={{ x: 1, y: 0 }}
               className="rounded-2xl p-5 overflow-hidden"
             >
-              {/* <PatternOverlay opacity={0.30} /> */}
               <View className="flex-row items-start relative z-10">
                 <View className="w-12 h-12 rounded-full bg-white items-center justify-center mr-4 overflow-hidden flex-shrink-0">
                   {profilePicUrl ? (
-                    <Image source={{ uri: profilePicUrl }} className="w-full h-full" resizeMode="cover" />
+                    <Image
+                      source={{ uri: profilePicUrl }}
+                      className="w-full h-full"
+                      resizeMode="cover"
+                    />
                   ) : (
                     <UserAvatarIcon size={28} color="#1BB273" />
                   )}
                 </View>
-                {/* min-w-0 so long names shrink/wrap instead of pushing the tier pill off-card */}
                 <View className="flex-1 min-w-0">
                   <View className="flex-row items-start">
                     <View className="flex-1 min-w-0 pr-2">
@@ -230,20 +247,14 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
             </LinearGradient>
           </View>
 
-          {/* Menu Items */}
           <View className="mt-6">
-            {menuItems.map((item, idx) => (
+            {visibleMenuItems.map((item, idx) => (
               <Pressable
                 key={idx}
-                onPress={() => {
-                  onNavigate?.(item.route);
-                }}
-                className={`flex-row items-center py-4 border-b border-neutral-100 ${
-                  item.label === "App Guide" ? "px-6" : "px-6"
-                }`}
+                onPress={() => onNavigate?.(item.route)}
+                className="flex-row items-center py-4 border-b border-neutral-100 px-6"
               >
                 <View className="w-8 mr-2 flex-shrink-0">{item.icon}</View>
-
                 <Text
                   className="flex-1 text-[16px] font-normal text-neutral-900"
                   numberOfLines={1}
@@ -251,7 +262,6 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
                 >
                   {item.label}
                 </Text>
-
                 <View className="ml-2 flex-shrink-0">
                   <ChevronRightIcon size={18} color="#C4C4C4" />
                 </View>
@@ -259,11 +269,8 @@ export default function Menu({ onClose, refreshTrigger, onNavigate, onLogout }: 
             ))}
           </View>
 
-          {/* Logout */}
           <Pressable
-            onPress={() => {
-              onLogout?.();
-            }}
+            onPress={() => onLogout?.()}
             className="flex-row items-center px-6 py-5 mt-4"
           >
             <LogoutIcon size={20} color="#FF4D4F" />

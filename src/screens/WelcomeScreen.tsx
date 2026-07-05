@@ -868,13 +868,21 @@ export default function WelcomeScreen() {
 
           {/* Welcome Message */}
           <Text className="text-[30px] font-medium text-neutral-900 text-center mb-2">
-            Welcome to ATE 2026!
+            Welcome to Africa Startup Festival!
           </Text>
           <Text className="text-base text-neutral-600 text-center mb-6">
             {isLoadingQuotas
-              ? "Loading tickets..."
-              : `You have ${ticketQuotaCount} ticket${ticketQuotaCount !== 1 ? "s" : ""} in your quota`}
+              ? "Loading assignable tickets..."
+              : ticketQuotaCount > 0
+                ? `You have ${ticketQuotaCount} extra ticket${ticketQuotaCount !== 1 ? "s" : ""} to assign to others`
+                : "You have no extra tickets to assign to others"}
           </Text>
+          {!isLoadingQuotas && ticketQuotaCount === 0 && (
+            <Text className="text-sm text-neutral-500 text-center mb-6 -mt-4">
+              Your own ticket (if you registered for yourself) is already on
+              this account.
+            </Text>
+          )}
 
           {/* Instructional Banner - Only show if user has tickets */}
           {!isLoadingQuotas && ticketQuotaCount > 0 && (
@@ -901,7 +909,7 @@ export default function WelcomeScreen() {
             <>
               {/* Your Tickets Heading */}
               <Text className="text-[16px] font-semibold text-neutral-900 mb-4">
-                Your Tickets ({ticketQuotaCount})
+                Tickets to assign ({ticketQuotaCount})
               </Text>
 
               {/* Ticket Cards */}
@@ -933,11 +941,20 @@ export default function WelcomeScreen() {
           {/* Empty State - No Tickets */}
           {!isLoadingQuotas && ticketQuotaCount === 0 && (
             <View className="bg-neutral-50 rounded-xl p-6 mb-12 border border-neutral-200">
-              <Text className="text-base text-neutral-600 text-center">
-                You don't have any tickets in your quota to assign, please proceed to logging in to your account to view your tickets.
+              <Text className="text-base font-medium text-neutral-900 text-center mb-3">
+                This step is for assigning tickets to other people
               </Text>
-              <Text className="text-sm text-neutral-500 text-center mt-2">
-                Continue to complete your profile.
+              <Text className="text-base text-neutral-600 text-center">
+                You don&apos;t have any assignable tickets in your quota right
+                now.
+              </Text>
+              <Text className="text-base text-neutral-600 text-center mt-3">
+                That doesn&apos;t mean you don&apos;t have a ticket. If you
+                bought or registered for yourself, your ticket is linked to this
+                account.
+              </Text>
+              <Text className="text-sm text-neutral-500 text-center mt-4">
+                Tap Continue to Profile to finish setup and view your ticket.
               </Text>
             </View>
           )}

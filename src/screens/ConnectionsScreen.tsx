@@ -22,6 +22,7 @@ import {
   RequestMeetingModal,
   FLOATING_NAV_BOTTOM_INSET,
 } from "../components";
+import ConnectionsExportBanner from "../components/ConnectionsExportBanner";
 import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
@@ -62,6 +63,7 @@ import {
 } from "../hooks";
 import Toast from "../components/Toast";
 import { EVENT_ID } from "../config/env";
+import { isPostEventMode } from "../config/eventMode";
 
 // Person Icon Component (for profile placeholder)
 function PersonIcon({
@@ -286,6 +288,7 @@ export default function ConnectionsScreen() {
   const isProcessingActionRef = useRef(false);
   const [isSubmittingMeeting, setIsSubmittingMeeting] = useState(false);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
+  const [isExportingConnections, setIsExportingConnections] = useState(false);
 
   // Fresh connection detail fetched when opening sheet (so metadata is up-to-date without other user re-saving)
   const [connectionDetail, setConnectionDetail] = useState<Connection | null>(null);
@@ -467,6 +470,32 @@ export default function ConnectionsScreen() {
   //   );
   // });
   const filteredConnections = connections;
+  const postEventMode = isPostEventMode();
+
+  const handleDownloadConnections = useCallback(async () => {
+    if (isExportingConnections) return;
+    setIsExportingConnections(true);
+    try {
+      const { url, count } = await connectionService.exportConnections(EVENT_ID);
+      if (count === 0) {
+        showToast("No accepted connections to export yet.", "error");
+        return;
+      }
+      await Linking.openURL(url);
+      showToast(
+        `Opening CSV export (${count} connection${count === 1 ? "" : "s"})…`,
+        "success",
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiClientError
+          ? err.message
+          : "Could not download connections. Please try again.";
+      showToast(message, "error");
+    } finally {
+      setIsExportingConnections(false);
+    }
+  }, [isExportingConnections, showToast]);
 
   /**
    * Handle meeting request submission
@@ -475,6 +504,14 @@ export default function ConnectionsScreen() {
     async (data: MeetingFormData) => {
       if (!meetingConnection || !user?.user_id) {
         showToast("Unable to send meeting request", "error");
+        return;
+      }
+
+      if (isPostEventMode() && data.meetingType === "Physical") {
+        showToast(
+          "Africa Startup Festival has ended — only virtual meetings are available via your connections.",
+          "error",
+        );
         return;
       }
 
@@ -1127,8 +1164,16 @@ export default function ConnectionsScreen() {
             data={filteredConnections}
             renderItem={renderConnectionItem}
             keyExtractor={(item) => item.id}
+            ListHeaderComponent={
+              postEventMode ? (
+                <ConnectionsExportBanner
+                  onDownload={() => void handleDownloadConnections()}
+                  downloading={isExportingConnections}
+                />
+              ) : null
+            }
             contentContainerStyle={{
-              paddingTop: 16,
+              paddingTop: postEventMode ? 8 : 16,
               paddingBottom: FLOATING_NAV_BOTTOM_INSET,
             }}
             onLayout={(e) => {
@@ -1613,6 +1658,7 @@ export default function ConnectionsScreen() {
         attendeeName={meetingConnection?.name}
         requesteeUserId={meetingConnection?.userId}
         eventId={EVENT_ID}
+        virtualOnly={isPostEventMode()}
       />
 
       {/* Toast */}

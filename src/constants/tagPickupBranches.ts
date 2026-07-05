@@ -7,7 +7,7 @@ export type TagPickupBranch = {
 };
 
 export const TAG_PICKUP_INTRO =
-  "To skip the registration queue on event day, collect your ATE 2026 event tag from any of the designated Café One locations below. Ends on the 23rd of June 2026.";
+  "To skip the registration queue on event day, collect your Africa Startup Festival event tag from a designated pickup location below. Pickup details will be confirmed closer to the event.";
 
 export const TAG_PICKUP_BRANCHES: readonly TagPickupBranch[] = [
   {

@@ -65,7 +65,7 @@ export default function LoginScreen() {
         );
         Alert.alert(
           "Error",
-          "You don't have a Valid ATE Ticket. Please purchase one and return to login."
+          "You don't have a valid festival ticket. Please purchase one and return to login."
         );
       } else {
         logError(error, { screen: "Login", email });
@@ -86,7 +86,7 @@ export default function LoginScreen() {
     Alert.alert("Get Ticket", "This will open the ticket purchase page");
   };
 
-  const CONTACT_EMAIL = "contact@africatechnologyexpo.com";
+  const CONTACT_EMAIL = "contact@africastartupfestival.com";
 
   const handleContactUs = async () => {
     const url = `mailto:${CONTACT_EMAIL}`;
@@ -210,7 +210,7 @@ export default function LoginScreen() {
               className="text-neutral-900 underline font-medium"
               onPress={async () => {
                 try {
-                  const url = "https://www.africatechnologyexpo.com";
+                  const url = "https://www.africastartupfestival.com";
                   const canOpen = await Linking.canOpenURL(url);
                   if (canOpen) {
                     await Linking.openURL(url);

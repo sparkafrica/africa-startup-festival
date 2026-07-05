@@ -74,7 +74,7 @@ export default function ExhibitorsScreen() {
         ordering: "-id",
       });
       const list = response.companies.map((c) => {
-        const name = c.name || `Exhibitor ${c.id}`;
+        const name = c.name || `Startup ${c.id}`;
         const logoColor = COLORS[name.length % COLORS.length];
         return {
           id: c.id,
@@ -88,7 +88,7 @@ export default function ExhibitorsScreen() {
       });
       setExhibitors(list);
     } catch (err: any) {
-      const msg = err instanceof ApiClientError ? err.message : err?.message || "Failed to load exhibitors";
+      const msg = err instanceof ApiClientError ? err.message : err?.message || "Failed to load startups";
       setError(msg);
     } finally {
       setIsLoading(false);
@@ -162,7 +162,7 @@ export default function ExhibitorsScreen() {
           >
             <ChevronLeftIcon size={24} color="#404040" />
             <Text className="text-[30px] pl-1 font-bold text-neutral-900">
-              Exhibitors
+              Startups
             </Text>
           </Pressable>
         </View>
@@ -201,7 +201,7 @@ export default function ExhibitorsScreen() {
           {isLoading ? (
             <View className="py-12 items-center">
               <LoadingSpinner size="large" />
-              <Text className="text-neutral-600 mt-3">Loading exhibitors...</Text>
+              <Text className="text-neutral-600 mt-3">Loading startups...</Text>
             </View>
           ) : error ? (
             <View className="py-12 items-center">
@@ -215,12 +215,12 @@ export default function ExhibitorsScreen() {
             </View>
           ) : exhibitors.length === 0 ? (
             <View className="py-12">
-              <Text className="text-neutral-600 text-center">No exhibitors available.</Text>
+              <Text className="text-neutral-600 text-center">No startups available.</Text>
             </View>
           ) : displayedExhibitors.length === 0 ? (
             <View className="py-12">
               <Text className="text-neutral-600 text-center">
-                No exhibitors match your filters.
+                No startups match your filters.
               </Text>
             </View>
           ) : (

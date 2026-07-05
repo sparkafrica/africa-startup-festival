@@ -24,11 +24,10 @@ export type RootStackParamList = {
     | {
         /** Deeplink: open attendee profile sheet and highlight list row. */
         highlightUserId?: string;
+        /** Pre-filter directory by ASF pass role. */
+        roleFilter?: "founder" | "investor" | "all";
       }
     | undefined;
-  EventDetails: { eventId: string };
-  Ticket: { ticketId: string };
-  Favorites: undefined;
   Profile: undefined;
   Search: undefined;
   Menu: undefined;
@@ -69,6 +68,10 @@ export type RootStackParamList = {
         /** Scroll to and pulse this programme row (from Speakers → session tap). */
         highlightScheduleId?: number;
         highlightStage?: "main-stage" | "enterprise-stage";
+        /** Pre-select day filter chips (e.g. Day 2 welcome CTA). */
+        dayFilterIds?: string[];
+        /** Open programme on Main or Enterprise Stage tab. */
+        initialStage?: "main-stage" | "enterprise-stage";
       }
     | undefined;
   Meetings:
@@ -105,8 +108,6 @@ export type RootStackParamList = {
   PartnersOffers: undefined;
   AppGuide: undefined;
   TagPickup: undefined;
-  VenueMap: undefined;
-  ApiTest: undefined; // Temporary test screen - remove before production
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> =

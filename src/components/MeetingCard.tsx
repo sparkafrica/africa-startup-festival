@@ -3,6 +3,7 @@ import { View, Text, Pressable } from "react-native";
 import StatusTag from "./StatusTag";
 import { PersonProfileIcon, ClockIcon, LocationPinIcon, TableIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
+import MeetingLinkPressable from "./MeetingLinkPressable";
 
 export interface MeetingCardProps {
   title: string;
@@ -82,9 +83,9 @@ export default function MeetingCard({
       {isVirtual && meetingLink ? (
         <View className="flex-row items-center mb-3">
           <VideoIcon size={16} color="#404040" />
-          <Text className="text-sm text-black ml-2" numberOfLines={1} ellipsizeMode="middle">
-            {meetingLink}
-          </Text>
+          <View className="flex-1 ml-2">
+            <MeetingLinkPressable url={meetingLink} />
+          </View>
         </View>
       ) : (
         <>

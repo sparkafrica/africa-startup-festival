@@ -25,6 +25,7 @@ import {
   SpeechBubbleIcon,
 } from "./icons";
 import { VideoIcon } from "./MenuIcons";
+import MeetingLinkPressable from "./MeetingLinkPressable";
 import { LinkedInIcon } from "./SocialIcons";
 import LeaveFeedbackModal from "./LeaveFeedbackModal";
 import MeetingCancelModal from "./MeetingCancelModal";
@@ -419,46 +420,11 @@ export default function ScheduledMeetingModal({
                 Current: Displays as text only
                 TODO: Make clickable to open meeting URL using Linking.openURL()
                 ============================================================================ */}
-            {meetingType === "virtual" && meetingLink && (
-              <Pressable
-                onPress={async () => {
-                  try {
-                    // Ensure URL has protocol
-                    const formattedUrl = meetingLink.startsWith("http://") || meetingLink.startsWith("https://")
-                      ? meetingLink
-                      : `https://${meetingLink}`;
-                    
-                    const supported = await Linking.canOpenURL(formattedUrl);
-                    if (supported) {
-                      await Linking.openURL(formattedUrl);
-                    } else {
-                      // Still try to open - might work even if canOpenURL returns false
-                      try {
-                        await Linking.openURL(formattedUrl);
-                      } catch (openError) {
-                        Alert.alert(
-                          "Cannot Open Meeting Link",
-                          "Please check the meeting link and try again.",
-                          [{ text: "OK" }]
-                        );
-                      }
-                    }
-                  } catch (error) {
-                    if (__DEV__) {
-                      console.error("Error opening meeting link:", error);
-                    }
-                    Alert.alert(
-                      "Error",
-                      "Failed to open meeting link. Please try again.",
-                      [{ text: "OK" }]
-                    );
-                  }
-                }}
-                style={styles.linkContainer}
-              >
-                <Text style={styles.linkText}>{meetingLink}</Text>
-              </Pressable>
-            )}
+            {meetingType === "virtual" && meetingLink ? (
+              <View style={styles.linkContainer}>
+                <MeetingLinkPressable url={meetingLink} />
+              </View>
+            ) : null}
 
             {/* Location (for physical meetings) */}
             {meetingType === "physical" && location && (

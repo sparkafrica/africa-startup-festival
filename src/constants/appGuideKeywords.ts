@@ -3,7 +3,7 @@
  * Maps keywords to FAQ section numbers (1–21).
  */
 export const SECTION_TITLES: Record<number, string> = {
-  1: "What is the ATE Event App?",
+  1: "What is the Africa Startup Festival app?",
   2: "How do I log in to the app?",
   3: "What happens the first time I log in?",
   4: "What information is required on my profile?",
@@ -183,9 +183,9 @@ export const KEYWORD_TO_SECTIONS: Record<string, number[]> = {
   "outbound tab": [10],
   event: [1],
   expo: [1],
-  "africa technology expo": [1],
-  "ate event": [1],
-  "ate app": [1],
+  "africa startup festival": [1],
+  "asf event": [1],
+  "asf app": [1],
   "event networking": [1],
   "event attendees": [8],
   help: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],

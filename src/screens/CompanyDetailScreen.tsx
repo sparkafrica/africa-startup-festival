@@ -36,6 +36,7 @@ import { useChecklist } from "../context/ChecklistContext";
 import { meetingService } from "../services/meetingService";
 import { eventService, type Company } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
+import { isPostEventMode } from "../config/eventMode";
 import { ApiClientError } from "../services/api";
 import {
   getCanUserBookMeetings,
@@ -672,7 +673,15 @@ function CompanyDetailScreenInner({ route }: Props) {
         analyticsSource="company_detail_screen"
         onClose={() => setIsRequestMeetingModalVisible(false)}
         onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
+        virtualOnly={isPostEventMode()}
         onSubmit={async (data: MeetingFormData) => {
+          if (isPostEventMode() && data.meetingType === "Physical") {
+            Alert.alert(
+              "Virtual meetings only",
+              "Africa Startup Festival has ended — only virtual meetings are available.",
+            );
+            return;
+          }
           // Backend: meeting request goes to the admin of the company.
           if (!adminUserId) {
             Alert.alert(

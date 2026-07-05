@@ -19,6 +19,7 @@ import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
 import { LocationPinIcon, TableIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
+import MeetingLinkPressable from "./MeetingLinkPressable";
 import { LinkedInIcon } from "./SocialIcons";
 import MeetingAcceptedModal from "./MeetingAcceptedModal";
 import MeetingDeclineModal from "./MeetingDeclineModal";
@@ -398,9 +399,9 @@ export default function InboundMeetingModal({
             {isVirtual && meetingLink ? (
               <View style={styles.infoRow}>
                 <VideoIcon size={18} color="#404040" />
-                <Text style={styles.infoText} numberOfLines={1} ellipsizeMode="middle">
-                  {meetingLink}
-                </Text>
+                <View style={styles.linkWrap}>
+                  <MeetingLinkPressable url={meetingLink} />
+                </View>
               </View>
             ) : (
               <>
@@ -828,6 +829,10 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 16,
     color: "#404040",
+    marginLeft: 8,
+  },
+  linkWrap: {
+    flex: 1,
     marginLeft: 8,
   },
   participantCard: {

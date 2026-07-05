@@ -5,6 +5,7 @@ import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import Menu from "../components/Menu";
+import { getEventFeatures } from "../config/eventFeatures";
 
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -18,10 +19,12 @@ export default function MenuScreen() {
   );
 
   const handleNavigate = (route: string) => {
-    // Close menu first, then navigate
+    const postEvent = getEventFeatures().postEvent;
+    if (postEvent && (route === "Offers" || route === "Talent")) {
+      return;
+    }
     navigation.goBack();
 
-    // Use setTimeout to ensure menu closes before navigation
     setTimeout(() => {
       switch (route) {
         case "Tickets":
@@ -33,14 +36,26 @@ export default function MenuScreen() {
         case "Profile":
           navigation.navigate("Profile");
           break;
-        case "Map":
-          navigation.navigate("VenueMap");
+        case "Startups":
+          navigation.navigate("Exhibitors");
+          break;
+        case "Sponsors":
+          navigation.navigate("Partners");
+          break;
+        case "Founders":
+          navigation.navigate("Attendees", { roleFilter: "founder" });
+          break;
+        case "Investors":
+          navigation.navigate("Attendees", { roleFilter: "investor" });
           break;
         case "Offers":
           navigation.navigate("PartnersOffers");
           break;
         case "Talent":
           navigation.navigate("Talent");
+          break;
+        case "TagPickup":
+          navigation.navigate("TagPickup");
           break;
         case "Contact":
           navigation.navigate("Contact");
@@ -64,18 +79,13 @@ export default function MenuScreen() {
       "Log Out",
       "Are you sure you want to log out?",
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Log Out",
           style: "destructive",
           onPress: async () => {
             try {
               await logout();
-              // Navigation will automatically switch to AuthNavigator
-              // since isAuthenticated is now false
             } catch (error) {
               console.error("Logout error:", error);
               Alert.alert("Error", "Failed to log out. Please try again.");
@@ -93,6 +103,7 @@ export default function MenuScreen() {
       refreshTrigger={refreshTrigger}
       onNavigate={handleNavigate}
       onLogout={handleLogout}
+      postEventMode={getEventFeatures().postEvent}
     />
   );
 }

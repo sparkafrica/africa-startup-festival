@@ -15,6 +15,9 @@
     "global.d.ts"
   ],
   "exclude": [
-    "src/services/api.example.ts"
+    "src/services/api.example.ts",
+    "src/services/api.example.ts",
+  "src/deeplinks/**",
+  "src/screens/HomeScreen.tsx"
   ]
 }

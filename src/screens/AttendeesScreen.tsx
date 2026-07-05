@@ -37,6 +37,7 @@ import { useChat } from "../context/ChatContext";
 import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
+import { attendeeMatchesRoleFilter, type AttendeeRoleFilter } from "../utils/attendeeRole";
 import { attendeeService, type Attendee as BackendAttendee, type MatchInfo } from "../services/attendeeService";
 import { resolveAttendeeByUserId } from "../services/deepLinkResolveService";
 import { useListRowHighlight } from "../hooks/useListRowHighlight";
@@ -44,6 +45,7 @@ import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
+import { isPostEventMode } from "../config/eventMode";
 import { getIndustryAndInterestFilterCategories } from "../constants/industryAndInterests";
 import { ApiClientError } from "../services/api";
 import { trackConnectionEvent, trackMeetingEvent } from "../utils/analytics";
@@ -1038,6 +1040,9 @@ export default function AttendeesScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Attendees">>();
   const route = useRoute<RouteProp<RootStackParamList, "Attendees">>();
+  const [roleFilter, setRoleFilter] = useState<AttendeeRoleFilter>(
+    route.params?.roleFilter ?? "all",
+  );
   const attendeeListRef = useRef<Animated.FlatList<Attendee>>(null);
   const listHighlight = useListRowHighlight<string>();
   const {
@@ -1064,6 +1069,12 @@ export default function AttendeesScreen() {
   );
   const [showBottomSheet, setShowBottomSheet] = useState(false);
   const { setFloatingNavSuppressed } = useFloatingNavVisibility();
+
+  useEffect(() => {
+    if (route.params?.roleFilter) {
+      setRoleFilter(route.params.roleFilter);
+    }
+  }, [route.params?.roleFilter]);
 
   useEffect(() => {
     const detailOpen = showBottomSheet && selectedAttendee != null;
@@ -1720,6 +1731,11 @@ export default function AttendeesScreen() {
   let displayedAttendees =
     activeTab === "Recommended" ? recommendedAttendees : filteredAttendees;
 
+  // Apply ASF role filter (founder / investor / all)
+  displayedAttendees = displayedAttendees.filter((a) =>
+    attendeeMatchesRoleFilter(a.backendData, roleFilter),
+  );
+
   // Apply client-side filters (industry, interests, job title)
   if (selectedFilterIds.length > 0) {
     displayedAttendees = displayedAttendees.filter((a) =>
@@ -2133,8 +2149,42 @@ export default function AttendeesScreen() {
       />
 
       <View className="flex-1">
+        {/* Role filter chips */}
+        <View className="px-4 pt-4 pb-2">
+          <View className="flex-row gap-2">
+            {(
+              [
+                { id: "all", label: "All" },
+                { id: "founder", label: "Founders" },
+                { id: "investor", label: "Investors" },
+              ] as const
+            ).map((chip) => {
+              const active = roleFilter === chip.id;
+              return (
+                <Pressable
+                  key={chip.id}
+                  onPress={() => setRoleFilter(chip.id)}
+                  className={`px-4 py-2 rounded-full border ${
+                    active
+                      ? "bg-black border-black"
+                      : "bg-white border-neutral-200"
+                  }`}
+                >
+                  <Text
+                    className={`text-sm font-medium ${
+                      active ? "text-white" : "text-neutral-700"
+                    }`}
+                  >
+                    {chip.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
         {/* Tabs: All attendees (left, default) and Recommended (right) */}
-        <View className="px-4 pt-4 pb-3">
+        <View className="px-4 pt-2 pb-3">
           <View className="flex-row border border-neutral-200 rounded-2xl bg-neutral-100">
             <Pressable
               onPress={() => setActiveTab("All")}
@@ -2865,10 +2915,18 @@ export default function AttendeesScreen() {
           setMeetingAttendee(null);
         }}
         onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
+        virtualOnly={isPostEventMode()}
         onSubmit={async (data: MeetingFormData) => {
           if (!meetingAttendee) {
             showToast("No attendee selected", "error");
             throw new Error("No attendee");
+          }
+          if (isPostEventMode() && data.meetingType === "Physical") {
+            showToast(
+              "Africa Startup Festival has ended — only virtual meetings are available.",
+              "error",
+            );
+            return;
           }
           try {
             await meetingService.submitMeetingRequestFromForm(

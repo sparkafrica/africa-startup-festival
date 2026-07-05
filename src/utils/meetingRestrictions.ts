@@ -6,8 +6,7 @@
  *   They can accept incoming connections, then message those users (reactive-only networking).
  * - Expo: cannot book meetings, but can connect and message like other non-Limited tiers.
  *
- * Restricted flows show an "Upgrade ticket" CTA that navigates to My Ticket
- * (ScanQR with initialTab "My Ticket").
+ * Restricted flows show an informational alert (upgrade ticket flow retired).
  */
 
 import { Alert } from "react-native";
@@ -18,10 +17,10 @@ import { EVENT_ID } from "../config/env";
 import { isExhibitionPass, isExpoPass } from "./ticketColors";
 
 const MEETING_BLOCK_MESSAGE =
-  "You cannot book meetings with your current ticket. Please upgrade your ticket to book meetings.";
+  "You cannot book meetings with your current ticket.";
 
 const EXHIBITION_INITIATE_CONNECTION_MESSAGE =
-  "Your Limited Pass cannot send connection requests. Accept incoming connections in Connections, then you can message. Upgrade your ticket to start connections yourself.";
+  "Your Limited Pass cannot send connection requests. Accept incoming connections in Connections, then you can message.";
 
 /**
  * Resolve ticket type the same way as Menu and My Ticket (single source of truth).
@@ -53,26 +52,14 @@ export async function getCanUserBookMeetings(): Promise<boolean> {
 }
 
 /**
- * Show the Expo "cannot book meetings" popup with an "Upgrade ticket" button
- * that navigates to My Ticket (ScanQR with initialTab "My Ticket").
+ * Show the Expo "cannot book meetings" popup.
  */
 export function showExpoCannotBookMeetingAlert(
-  navigation: NavigationProp<RootStackParamList>
+  _navigation: NavigationProp<RootStackParamList>
 ): void {
-  Alert.alert(
-    "Upgrade required",
-    MEETING_BLOCK_MESSAGE,
-    [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Upgrade ticket",
-        onPress: () => {
-          navigation.navigate("ScanQR", { initialTab: "My Ticket" });
-        },
-      },
-    ],
-    { cancelable: true }
-  );
+  Alert.alert("Access restricted", MEETING_BLOCK_MESSAGE, [{ text: "OK" }], {
+    cancelable: true,
+  });
 }
 
 /**
@@ -93,20 +80,12 @@ export async function getCanUserInitiateConnection(): Promise<boolean> {
  * Shown when Limited Pass user taps Connect from scan / attendees (outbound request blocked).
  */
 export function showExhibitionCannotInitiateConnectionAlert(
-  navigation: NavigationProp<RootStackParamList>
+  _navigation: NavigationProp<RootStackParamList>
 ): void {
   Alert.alert(
-    "Upgrade required",
+    "Access restricted",
     EXHIBITION_INITIATE_CONNECTION_MESSAGE,
-    [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Upgrade ticket",
-        onPress: () => {
-          navigation.navigate("ScanQR", { initialTab: "My Ticket" });
-        },
-      },
-    ],
-    { cancelable: true }
+    [{ text: "OK" }],
+    { cancelable: true },
   );
 }

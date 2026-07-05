@@ -26,8 +26,6 @@ import { useAuth } from "../context/AuthContext";
 import { EVENT_ID } from "../config/env";
 import { authService, type UserProfile } from "../services/authService";
 import { companyService } from "../services/companyService";
-import { offerService } from "../services/offerService";
-import { boothService } from "../services/boothService";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
 import { getSafeMetadataObjectForMerge } from "../utils/sanitizeUserMetadata";
 import {
@@ -2550,52 +2548,26 @@ function CompanyProfileForm({
         x: sl.x ?? "",
       });
     }
-    const loadOffers = async () => {
-      try {
-        const list = await offerService.listMyCompanyOffers();
-        if (list.length > 0) {
-          setOffers(
-            list.map((o) => ({
-              id: o.id as number,
-              title: o.title ?? "",
-              color: "purple",
-              link: o.link ?? "",
-            }))
-          );
-          return;
-        }
-      } catch (_) {
-        /* fall back to metadata */
-      }
-      if (Array.isArray(meta.offers) && meta.offers.length > 0) {
-        setOffers(
-          (
-            meta.offers as Array<{
-              id?: string | number;
-              title: string;
-              color: string;
-              link?: string;
-            }>
-          ).map((o, i) => ({
-            id: (o as any).id ?? `offer-${i}`,
-            title: o.title ?? "",
-            color: o.color ?? "purple",
-            link: (o as any).link ?? "",
-          }))
-        );
-      }
-    };
-    loadOffers();
-    const loadBooth = async () => {
-      try {
-        const { booth_number } = await boothService.getMyBooth(EVENT_ID);
-        setBoothNumber(booth_number ?? "");
-      } catch (_) {
-        const fallback = typeof meta.boothNumber === "string" ? meta.boothNumber : "";
-        setBoothNumber(fallback);
-      }
-    };
-    loadBooth();
+    if (Array.isArray(meta.offers) && meta.offers.length > 0) {
+      setOffers(
+        (
+          meta.offers as Array<{
+            id?: string | number;
+            title: string;
+            color: string;
+            link?: string;
+          }>
+        ).map((o, i) => ({
+          id: (o as any).id ?? `offer-${i}`,
+          title: o.title ?? "",
+          color: o.color ?? "purple",
+          link: (o as any).link ?? "",
+        }))
+      );
+    }
+    if (typeof meta.boothNumber === "string") {
+      setBoothNumber(meta.boothNumber);
+    }
     if (meta.isRecruiting === true) setIsRecruiting(true);
     if (Array.isArray(meta.positions) && meta.positions.length > 0) {
       setPositions(
@@ -2846,13 +2818,6 @@ function CompanyProfileForm({
       }
     });
 
-    // Validate each offer has a valid link
-    offers.forEach((offer, index) => {
-      const linkValidation = validateOfferLink(offer.link);
-      if (!linkValidation.valid) {
-        errors[`offer_link_${index}`] = `Offer "${offer.title}": ${linkValidation.error}`;
-      }
-    });
 
     const companyLogoOk = hasRequiredImage({
       selectedUri: selectedImageUri,
@@ -2963,13 +2928,6 @@ function CompanyProfileForm({
         logoUpdateFailed = true;
       } finally {
         setIsUploadingImage(false);
-      }
-
-      try {
-        await offerService.syncCompanyOffers(companyId, EVENT_ID, offers);
-      } catch (syncErr: any) {
-        console.warn("Offer sync failed:", syncErr);
-        showToast("Profile saved. Offers may not appear on Partner Offers yet.", "warning");
       }
 
       if (logoUpdateFailed) {
@@ -3132,21 +3090,6 @@ function CompanyProfileForm({
               )}
             </View>
 
-            {/* Booth Number (read-only from backend: GET /booths/{event_id}/user/) */}
-            <View className="mb-4">
-              <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Booth Number
-              </Text>
-              <View className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
-                <Text className="text-base text-neutral-900">
-                  {boothNumber ? `Booth ${boothNumber}` : "No booth assigned"}
-                </Text>
-                <Text className="text-xs text-neutral-500 mt-1">
-                  Assigned by event organisers
-                </Text>
-              </View>
-            </View>
-
             {/* Website */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
@@ -3261,123 +3204,6 @@ function CompanyProfileForm({
                   {validationErrors.companyDescription}
                 </Text>
               )}
-            </View>
-          </View>
-
-          {/* Event Offers Section */}
-          <View className="mb-6 rounded-2xl border border-neutral-200 p-4">
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-sm font-medium text-neutral-700">
-                Event Offers
-              </Text>
-              <Pressable onPress={() => setShowAddOffer(!showAddOffer)}>
-                <Text className="text-blue-600 text-sm font-medium">
-                  + Add Offer
-                </Text>
-              </Pressable>
-            </View>
-
-            {showAddOffer && (
-              <View className="mb-4 gap-3">
-                <TextInput
-                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
-                  value={newOfferTitle}
-                  onChangeText={(t) => {
-                    setNewOfferTitle(t);
-                    if (offerErrors.newOfferTitle)
-                      setOfferErrors((e) => ({ ...e, newOfferTitle: "" }));
-                  }}
-                  placeholder="Offer title (e.g., Free Consultation)"
-                  placeholderTextColor="#9CA3AF"
-                />
-                {offerErrors.newOfferTitle && (
-                  <Text className="text-red-500 text-xs">
-                    {offerErrors.newOfferTitle}
-                  </Text>
-                )}
-                <TextInput
-                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
-                  value={newOfferLink}
-                  onChangeText={(t) => {
-                    setNewOfferLink(t);
-                    if (offerErrors.newOfferLink)
-                      setOfferErrors((e) => ({ ...e, newOfferLink: "" }));
-                  }}
-                  placeholder="Offer link (e.g., https://example.com/offer)"
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                />
-                {offerErrors.newOfferLink && (
-                  <Text className="text-red-500 text-xs">
-                    {offerErrors.newOfferLink}
-                  </Text>
-                )}
-                <Pressable
-                  onPress={() => setShowColorModal(true)}
-                  className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
-                >
-                  <View className="flex-row items-center gap-2">
-                    <View
-                      className="w-6 h-6 rounded"
-                      style={{
-                        backgroundColor:
-                          OFFER_COLORS.find((c) => c.id === newOfferColor)
-                            ?.color || "#9333EA",
-                      }}
-                    />
-                    <Text className="text-base text-neutral-900">
-                      {OFFER_COLORS.find((c) => c.id === newOfferColor)
-                        ?.label || "Purple"}
-                    </Text>
-                  </View>
-                  <ChevronDownIcon size={20} color="#404040" />
-                </Pressable>
-                <View className="flex-row gap-2">
-                  <Pressable
-                    onPress={handleAddOffer}
-                    className="flex-1 bg-neutral-800 rounded-xl py-3 items-center"
-                  >
-                    <Text className="text-white text-sm font-medium">Add</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      setShowAddOffer(false);
-                      setNewOfferTitle("");
-                      setNewOfferLink("");
-                    }}
-                    className="flex-1 bg-white border border-neutral-300 rounded-xl py-3 items-center"
-                  >
-                    <Text className="text-black text-sm font-medium">
-                      Cancel
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-
-            {/* Existing Offers */}
-            <View className="flex-row flex-wrap gap-2 py-2">
-              {offers.map((offer) => {
-                const colorData = OFFER_COLORS.find(
-                  (c) => c.id === offer.color
-                );
-                return (
-                  <View
-                    key={offer.id}
-                    className="flex-row items-center rounded-full px-4 py-2"
-                    style={{ backgroundColor: colorData?.color || "#9333EA" }}
-                  >
-                    <Text className="text-white text-sm font-medium mr-2">
-                      {offer.title}
-                    </Text>
-                    <Pressable onPress={() => handleRemoveOffer(offer.id)}>
-                      <CloseXIcon size={14} color="#FFFFFF" />
-                    </Pressable>
-                  </View>
-                );
-              })}
             </View>
           </View>
 

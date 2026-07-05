@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -27,6 +27,13 @@ import { EVENT_ID } from "../config/env";
 import { getCanUserBookMeetings } from "../utils/meetingRestrictions";
 import { filterPhysicalSlotsExcludingRequesteeBusyWindows } from "../utils/meetingRequesteeAvailability";
 import { trackMeetingEvent } from "../utils/analytics";
+import MeetingCalendarPicker from "./MeetingCalendarPicker";
+import MeetingTimePicker from "./MeetingTimePicker";
+import {
+  addDaysToIso,
+  formatDateLong,
+  todayIsoLocal,
+} from "../utils/meetingDateTime";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -49,6 +56,8 @@ interface RequestMeetingModalProps {
   eventId?: number; // Allow override, defaults to EVENT_ID
   /** For analytics (meeting_request_started). */
   analyticsSource?: string;
+  /** Post-event: virtual meetings only (via connections). */
+  virtualOnly?: boolean;
 }
 
 export interface MeetingFormData {
@@ -58,6 +67,8 @@ export interface MeetingFormData {
   meetingLink?: string;
   date?: string;
   time?: string;
+  /** Virtual: HH:MM:SS for API (avoids re-parsing display labels). */
+  timeApi?: string;
   description: string;
   // Backend-specific fields
   meeting_slot_id?: number; // The actual slot ID from backend
@@ -73,9 +84,10 @@ export default function RequestMeetingModal({
   requesteeUserId,
   eventId = EVENT_ID,
   analyticsSource = "unknown",
+  virtualOnly = false,
 }: RequestMeetingModalProps) {
   const [meetingType, setMeetingType] = useState<"Physical" | "Virtual">(
-    "Physical"
+    virtualOnly ? "Virtual" : "Physical",
   );
   const [title, setTitle] = useState("");
   const [tableNumber, setTableNumber] = useState("");
@@ -83,7 +95,8 @@ export default function RequestMeetingModal({
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedDateValue, setSelectedDateValue] = useState<string | null>(null); // Store YYYY-MM-DD format
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [selectedTimeKey, setSelectedTimeKey] = useState<string | null>(null); // Store timeKey for filtering
+  const [selectedTimeApi, setSelectedTimeApi] = useState<string | null>(null);
+  const [selectedTimeKey, setSelectedTimeKey] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<MeetingSlot | null>(null);
   const [description, setDescription] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -154,6 +167,24 @@ export default function RequestMeetingModal({
   ).current;
 
   // Fetch meeting slots when modal opens
+  useEffect(() => {
+    if (visible && virtualOnly) {
+      setMeetingType("Virtual");
+    }
+  }, [visible, virtualOnly]);
+
+  useEffect(() => {
+    setSelectedDate(null);
+    setSelectedDateValue(null);
+    setSelectedTime(null);
+    setSelectedTimeApi(null);
+    setSelectedTimeKey(null);
+    setTableNumber("");
+    setSelectedSlot(null);
+    setShowDatePicker(false);
+    setShowTimePicker(false);
+  }, [meetingType]);
+
   // Strict Expo pass enforcement: when modal opens, re-verify user can book meetings; if not, close and notify.
   useEffect(() => {
     if (!visible) return;
@@ -186,6 +217,7 @@ export default function RequestMeetingModal({
       setSelectedDate(null);
       setSelectedDateValue(null);
       setSelectedTime(null);
+      setSelectedTimeApi(null);
       setSelectedTimeKey(null);
       setSelectedSlot(null);
       setDescription("");
@@ -320,12 +352,16 @@ export default function RequestMeetingModal({
     }
 
     // Validate Date
-    if (!selectedDate) {
+    if (!selectedDateValue) {
       newErrors.date = "Date is required";
     }
 
     // Validate Time
-    if (!selectedTime) {
+    if (meetingType === "Virtual") {
+      if (!selectedTimeApi) {
+        newErrors.time = "Start time is required";
+      }
+    } else if (!selectedTime) {
       newErrors.time = "Time is required";
     }
 
@@ -345,8 +381,11 @@ export default function RequestMeetingModal({
       meetingType === "Physical"
         ? tableNumber.trim().length > 0
         : meetingLink.trim().length > 0;
-    const hasDate = selectedDate !== null;
-    const hasTime = selectedTime !== null;
+    const hasDate = selectedDateValue !== null;
+    const hasTime =
+      meetingType === "Virtual"
+        ? selectedTimeApi !== null
+        : selectedTime !== null;
     const hasDescription = description.trim().length > 0;
 
     return hasTitle && hasTableOrLink && hasDate && hasTime && hasDescription;
@@ -354,21 +393,23 @@ export default function RequestMeetingModal({
 
   const handleSubmit = async () => {
     if (!validateForm() || isSubmitting) return;
-    let dateToSend = selectedDateValue;
-    if (!dateToSend && selectedDate) {
-      const matchedDate = availableDates.find((d) => d.label === selectedDate);
-      if (matchedDate) dateToSend = matchedDate.value;
-    }
+    const dateToSend = selectedDateValue || undefined;
+    const timeToSend =
+      meetingType === "Virtual"
+        ? selectedTime || undefined
+        : selectedTime || undefined;
     const formData: MeetingFormData = {
       title,
       meetingType,
       tableNumber: meetingType === "Physical" ? tableNumber : undefined,
       meetingLink: meetingType === "Virtual" ? meetingLink : undefined,
-      date: dateToSend || undefined,
-      time: selectedTime || undefined,
+      date: dateToSend,
+      time: timeToSend,
       description,
       meeting_slot_id: selectedSlot?.id,
       slot: selectedSlot || undefined,
+      timeApi:
+        meetingType === "Virtual" ? selectedTimeApi || undefined : undefined,
     };
     try {
       setIsSubmitting(true);
@@ -379,6 +420,7 @@ export default function RequestMeetingModal({
       setSelectedDate(null);
       setSelectedDateValue(null);
       setSelectedTime(null);
+      setSelectedTimeApi(null);
       setSelectedTimeKey(null);
       setSelectedSlot(null);
       setDescription("");
@@ -410,16 +452,26 @@ export default function RequestMeetingModal({
     return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
   };
 
-  // Available dates for the event (26th and 27th June, 2026)
-  // Show dates regardless of slot loading status - slots will be filtered by date selection
-  const availableDates = [
-    { id: "1", label: "26th June, 2026", value: "2026-06-26" },
-    { id: "2", label: "27th June, 2026", value: "2026-06-27" },
-  ];
-
   // Normalize slot date to YYYY-MM-DD for comparison (backend may send date or datetime)
   const slotDateNorm = (slot: MeetingSlot): string | null =>
     slot.date ? slot.date.slice(0, 10) : null;
+
+  const isVirtualMeeting = meetingType === "Virtual";
+  const virtualMinDateIso = todayIsoLocal();
+  const virtualMaxDateIso = addDaysToIso(virtualMinDateIso, 90);
+
+  const physicalEnabledDates = useMemo(() => {
+    const set = new Set<string>();
+    meetingSlots.forEach((slot) => {
+      const d = slotDateNorm(slot);
+      if (d) set.add(d);
+    });
+    if (set.size === 0) {
+      set.add("2026-06-26");
+      set.add("2026-06-27");
+    }
+    return set;
+  }, [meetingSlots]);
 
   // Get slots for selected date only (so we don't mix 26th and 27th — each day has its own slots)
   const getAvailableSlotsForDate = (): MeetingSlot[] => {
@@ -511,10 +563,20 @@ export default function RequestMeetingModal({
                       nestedScrollEnabled
                     >
                       {showTimePicker &&
-                        (availableTimes.length === 0 ? (
+                        (isVirtualMeeting ? (
+                          <MeetingTimePicker
+                            selectedTimeApi={selectedTimeApi}
+                            onSelectTime={(display, apiValue) => {
+                              setSelectedTime(display);
+                              setSelectedTimeApi(apiValue);
+                              setShowTimePicker(false);
+                              clearError("time");
+                            }}
+                          />
+                        ) : availableTimes.length === 0 ? (
                           <View style={styles.emptyState}>
                             <Text style={styles.emptyStateText}>
-                              {selectedDate
+                              {selectedDateValue
                                 ? "No available times for this date"
                                 : "Please select a date first"}
                             </Text>
@@ -531,7 +593,6 @@ export default function RequestMeetingModal({
                                 setShowTimePicker(false);
                                 clearError("time");
                                 if (
-                                  meetingType === "Virtual" ||
                                   availableTimes.filter((t) => t.value === time.value).length === 1
                                 ) {
                                   const slot = meetingSlots.find(
@@ -654,6 +715,7 @@ export default function RequestMeetingModal({
               </View>
 
               {/* Meeting Type - SegmentedControl */}
+              {!virtualOnly ? (
               <View style={styles.fieldContainer}>
                 <Text style={styles.label}>Meeting Type</Text>
                 <View style={styles.segmentedControl}>
@@ -691,8 +753,16 @@ export default function RequestMeetingModal({
                   </Pressable>
                 </View>
               </View>
+              ) : (
+              <View style={styles.fieldContainer}>
+                <Text style={styles.label}>Meeting type</Text>
+                <Text style={styles.virtualOnlyHint}>
+                  Virtual meeting — schedule with a connection after the festival.
+                </Text>
+              </View>
+              )}
 
-              {/* Date Picker */}
+              {/* Date */}
               <View style={styles.fieldContainer}>
                 <Text style={styles.label}>Date</Text>
                 <Pressable
@@ -709,10 +779,12 @@ export default function RequestMeetingModal({
                     style={[
                       styles.inputText,
                       { marginLeft: 12 },
-                      !selectedDate && styles.placeholderText,
+                      !selectedDateValue && styles.placeholderText,
                     ]}
                   >
-                    {selectedDate || "Select date"}
+                    {selectedDateValue
+                      ? formatDateLong(selectedDateValue)
+                      : "Select date"}
                   </Text>
                   {showDatePicker ? (
                     <ChevronUpIcon size={20} color="#A3A3A3" />
@@ -721,54 +793,55 @@ export default function RequestMeetingModal({
                   )}
                 </Pressable>
 
-                {/* Date Options */}
-                {showDatePicker && (
-                  <View style={styles.pickerOptions}>
-                    {availableDates.length === 0 ? (
-                      <View style={styles.emptyState}>
-                        <Text style={styles.emptyStateText}>
-                          No available dates
-                        </Text>
-                      </View>
-                    ) : (
-                      availableDates.map((date) => (
-                        <Pressable
-                          key={date.id}
-                          style={styles.pickerOption}
-                          onPress={() => {
-                            setSelectedDate(date.label);
-                            setSelectedDateValue(date.value); // Store YYYY-MM-DD format
-                            setSelectedTime(null); // Reset time when date changes
-                            setSelectedTimeKey(null); // Reset timeKey
-                            setTableNumber(""); // Reset table
-                            setSelectedSlot(null);
-                            setShowDatePicker(false);
-                            clearError("date");
-                          }}
-                        >
-                          <CalendarIcon size={20} active={true} />
-                          <Text style={styles.pickerOptionText}>
-                            {date.label}
-                          </Text>
-                          {selectedDate === date.label && (
-                            <Text style={styles.checkmark}>✓</Text>
-                          )}
-                        </Pressable>
-                      ))
-                    )}
+                {showDatePicker ? (
+                  <View style={styles.calendarWrap}>
+                    <MeetingCalendarPicker
+                      selectedDateIso={selectedDateValue}
+                      minDateIso={
+                        isVirtualMeeting
+                          ? virtualMinDateIso
+                          : virtualMinDateIso
+                      }
+                      maxDateIso={
+                        isVirtualMeeting ? virtualMaxDateIso : undefined
+                      }
+                      enabledDatesIso={
+                        isVirtualMeeting ? null : physicalEnabledDates
+                      }
+                      onSelectDate={(iso) => {
+                        setSelectedDateValue(iso);
+                        setSelectedDate(formatDateLong(iso));
+                        setSelectedTime(null);
+                        setSelectedTimeApi(null);
+                        setSelectedTimeKey(null);
+                        setTableNumber("");
+                        setSelectedSlot(null);
+                        setShowDatePicker(false);
+                        clearError("date");
+                      }}
+                    />
                   </View>
-                )}
+                ) : null}
                 {errors.date && (
                   <Text style={styles.errorText}>{errors.date}</Text>
                 )}
               </View>
 
-              {/* Time Picker */}
+              {/* Time */}
               <View style={styles.fieldContainer}>
-                <Text style={styles.label}>Time</Text>
+                <Text style={styles.label}>
+                  {isVirtualMeeting ? "Start time" : "Time"}
+                </Text>
                 <Pressable
                   style={[styles.input, errors.time && styles.inputError]}
                   onPress={() => {
+                    if (!selectedDateValue) {
+                      setErrors((prev) => ({
+                        ...prev,
+                        date: "Select a date first",
+                      }));
+                      return;
+                    }
                     setShowTimePicker(!showTimePicker);
                     setShowDatePicker(false);
                     setShowTablePicker(false);
@@ -783,7 +856,8 @@ export default function RequestMeetingModal({
                       !selectedTime && styles.placeholderText,
                     ]}
                   >
-                    {selectedTime || "Select time"}
+                    {selectedTime ||
+                      (isVirtualMeeting ? "Select start time" : "Select time")}
                   </Text>
                   {showTimePicker ? (
                     <ChevronUpIcon size={20} color="#A3A3A3" />
@@ -834,13 +908,16 @@ export default function RequestMeetingModal({
                 </View>
               ) : (
                 <View style={styles.fieldContainer}>
-                  <Text style={styles.label}>Meeting Link</Text>
+                  <Text style={styles.label}>Meeting link</Text>
+                  <Text style={styles.fieldHint}>
+                    Paste a Zoom, Google Meet, or Microsoft Teams link.
+                  </Text>
                   <TextInput
                     style={[
                       styles.linkInputFull,
                       errors.meetingLink && styles.inputError,
                     ]}
-                    placeholder="Paste your meeting link"
+                    placeholder="https://meet.google.com/..."
                     placeholderTextColor="#A3A3A3"
                     value={meetingLink}
                     onChangeText={(text) => {
@@ -1034,6 +1111,25 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#171717",
     marginBottom: 8,
+  },
+  virtualOnlyHint: {
+    fontSize: 14,
+    color: "#525252",
+    lineHeight: 20,
+  },
+  fieldHint: {
+    fontSize: 12,
+    color: "#737373",
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  calendarWrap: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: "#FAFAFA",
   },
   input: {
     flexDirection: "row",

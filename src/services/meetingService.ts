@@ -7,6 +7,7 @@
 import { api, ApiResponse, PaginationMeta } from "./api";
 import { ApiClientError } from "./api";
 import { EVENT_ID } from "../config/env";
+import { parseDisplayTimeToApi } from "../utils/meetingDateTime";
 
 // ============================================================================
 // REQUEST/RESPONSE TYPES
@@ -567,31 +568,22 @@ export const meetingService = {
       meetingLink?: string;
       date?: string;
       time?: string;
+      timeApi?: string;
       description: string;
       meeting_slot_id?: number;
     },
     requesteeId: string
   ): Promise<void> {
     if (formData.meetingType === "Virtual") {
-      const parseTime = (timeDisplay: string): string => {
-        try {
-          const startStr = timeDisplay.split(" - ")[0].trim();
-          const [timePart, period] = startStr.split(" ");
-          const [hours, minutes] = timePart.split(":");
-          let h = parseInt(hours, 10);
-          if (period?.toUpperCase() === "PM" && h !== 12) h += 12;
-          else if (period?.toUpperCase() === "AM" && h === 12) h = 0;
-          return `${h.toString().padStart(2, "0")}:${minutes}:00`;
-        } catch {
-          return "10:00:00";
-        }
-      };
+      const scheduledTime =
+        formData.timeApi?.trim() ||
+        (formData.time ? parseDisplayTimeToApi(formData.time) : "10:00:00");
       const virtualRequest: VirtualMeetingRequest = {
         requestee_id: requesteeId,
         reason: formData.description,
         meeting_link: formData.meetingLink!,
         scheduled_date: formData.date!,
-        scheduled_time: parseTime(formData.time!),
+        scheduled_time: scheduledTime,
         duration_minutes: 20,
         metadata: {
           title: formData.title,

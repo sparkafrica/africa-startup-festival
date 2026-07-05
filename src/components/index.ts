@@ -2,6 +2,7 @@
 export { default as IconButton } from "./IconButton";
 export { default as LoadingSpinner } from "./LoadingSpinner";
 export { default as BannerCard } from "./BannerCard";
+export { default as NowAndNextStrip } from "./NowAndNextStrip";
 export { default as Card } from "./Card";
 export { default as TicketCard } from "./TicketCard";
 export { default as ChecklistItem } from "./ChecklistItem";
@@ -73,9 +74,6 @@ export {
   CloseIcon,
   TicketsIcon,
   ProfileIcon,
-  MapIcon,
-  OffersIcon,
-  TalentIcon,
   MailIcon,
   LogoutIcon,
   UserAvatarIcon,

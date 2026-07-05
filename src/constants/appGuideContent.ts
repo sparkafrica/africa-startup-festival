@@ -1,14 +1,14 @@
 /**
- * Africa Technology Expo (ATE) Event App – Official User Guide
- * Source: Africa Technology Expo (ATE) Event App Official User Guide.txt
+ * Africa Startup Festival Event App – User Guide
+ * TODO: Replace with full ASF guide content when PRD copy is ready.
  */
-export const APP_GUIDE_CONTENT = `Africa Technology Expo (ATE) Event App Guide
+export const APP_GUIDE_CONTENT = `Africa Startup Festival Event App Guide
 Frequently Asked Questions (FAQ)
 ________________
 
 
-1. What is the ATE Event App?
-The ATE Event App is your all-in-one digital companion for the event. It allows you to:
+1. What is the Africa Startup Festival app?
+The Africa Startup Festival app is your all-in-one digital companion for the event. It allows you to:
 * Manage your tickets
 * Connect with attendees and speakers
 * Schedule meetings

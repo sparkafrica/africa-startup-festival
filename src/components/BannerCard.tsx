@@ -11,12 +11,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ArrowRightIcon } from "./icons";
 
 interface BannerCardProps {
-  title: string;
+  title: string | React.ReactNode;
   description: string;
   buttonText: string;
   gradient: string[];
   backgroundImage?: ImageSourcePropType;
   onPress?: () => void;
+  /** Full-width vertical stack (post-event home). Default: horizontal carousel card. */
+  stacked?: boolean;
 }
 
 export default function BannerCard({
@@ -26,17 +28,23 @@ export default function BannerCard({
   gradient,
   backgroundImage,
   onPress,
+  stacked = false,
 }: BannerCardProps) {
   const { width: windowWidth } = useWindowDimensions();
-  const cardWidth = Math.min(320, Math.round(windowWidth * 0.85));
+  const cardWidth = stacked
+    ? windowWidth - 32
+    : Math.min(320, Math.round(windowWidth * 0.85));
   /** Tall hero — same 180px as original w-80 design; not tied to narrow %-of-width. */
   const imageHeight = 180;
 
   return (
     <Pressable
       onPress={onPress}
-      className="mr-3 rounded-3xl overflow-hidden"
-      style={{ width: cardWidth }}
+      className={`rounded-3xl overflow-hidden ${stacked ? "" : "mr-3"}`}
+      style={[
+        { width: cardWidth, flexDirection: "column" },
+        !stacked ? { alignSelf: "stretch" } : null,
+      ]}
     >
       {backgroundImage && (
         <Image
@@ -52,13 +60,17 @@ export default function BannerCard({
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         className="px-4 pt-4 pb-4 rounded-b-3xl"
-        style={{ minHeight: 156 }}
+        style={{ flex: 1, minHeight: 156 }}
       >
         <View style={{ flex: 1, justifyContent: "space-between" }}>
           <View>
-            <Text className="text-lg text-white font-inter-semibold leading-snug mb-1.5">
-              {title}
-            </Text>
+            {typeof title === "string" ? (
+              <Text className="text-lg text-white font-inter-semibold leading-snug mb-1.5">
+                {title}
+              </Text>
+            ) : (
+              <View className="mb-1.5">{title}</View>
+            )}
 
             <Text className="text-[14px] text-white/90 font-inter-normal leading-5">
               {description}

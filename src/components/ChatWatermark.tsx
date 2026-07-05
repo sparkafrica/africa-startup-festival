@@ -3,7 +3,7 @@ import { View, Image, StyleSheet, useWindowDimensions } from "react-native";
 
 const WATERMARK_IMG = require("../assets/images/ate-watermark.png");
 
-/** Single centered ATE watermark — subtle, not tiled. */
+/** Single centered ASF watermark — subtle, not tiled. */
 export default function ChatWatermark() {
   const { width, height } = useWindowDimensions();
   const logoWidth = Math.min(width * 0.92, 320);

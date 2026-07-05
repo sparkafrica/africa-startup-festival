@@ -68,6 +68,54 @@ export interface ConnectionActionRequest {
   action: "accept" | "reject" | "block";
 }
 
+/**
+ * Connections CSV export — accepted connections for an event.
+ * Endpoint: GET /connections/export-csv/?event_id={id}
+ */
+export interface ConnectionsExportResponse {
+  url: string;
+  count: number;
+  event_id: number;
+}
+
+function parseConnectionsExportResponse(
+  response: unknown,
+): ConnectionsExportResponse {
+  if (typeof response !== "object" || response === null) {
+    throw new ApiClientError({
+      status: "error",
+      message: "Invalid export response",
+      response_code: 500,
+      data: {},
+    });
+  }
+
+  const root = response as Record<string, unknown>;
+  const nested =
+    typeof root.data === "object" && root.data !== null
+      ? (root.data as Record<string, unknown>)
+      : root;
+
+  const url =
+    (typeof nested.url === "string" && nested.url) ||
+    (typeof nested.download_url === "string" && nested.download_url) ||
+    "";
+  if (!url.trim()) {
+    throw new ApiClientError({
+      status: "error",
+      message: "Export link was not returned by the server",
+      response_code: 500,
+      data: nested,
+    });
+  }
+
+  return {
+    url: url.trim(),
+    count: typeof nested.count === "number" ? nested.count : 0,
+    event_id: typeof nested.event_id === "number" ? nested.event_id : 0,
+  };
+}
+
 /** POST may return ApiResponse<Connection> or a raw Connection body depending on backend. */
 function isConnectionEntityPayload(value: unknown): value is Connection {
   if (typeof value !== "object" || value === null) return false;
@@ -357,6 +405,50 @@ export const connectionService = {
       }
       
       throw error;
+    }
+  },
+
+  /**
+   * Export accepted connections as CSV for an event.
+   * Backend returns a public URL to the generated file.
+   *
+   * Backend Endpoint: GET /connections/export-csv/?event_id={event_id}
+   */
+  async exportConnections(eventId: number): Promise<ConnectionsExportResponse> {
+    try {
+      const response = await api.get<{
+        url: string;
+        count: number;
+        event_id: number;
+      }>(`/connections/export-csv/?event_id=${eventId}`);
+
+      if (response.status === "success" && response.data) {
+        return parseConnectionsExportResponse(response);
+      }
+
+      if (response.response_code === 200 && response.data) {
+        return parseConnectionsExportResponse(response);
+      }
+
+      throw new ApiClientError({
+        status: "error",
+        message: response.message || "Failed to export connections",
+        response_code: response.response_code || 500,
+        data: response.data || {},
+      });
+    } catch (error: unknown) {
+      if (error instanceof ApiClientError) {
+        throw error;
+      }
+      throw new ApiClientError({
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to export connections",
+        response_code: 500,
+        data: {},
+      });
     }
   },
 };

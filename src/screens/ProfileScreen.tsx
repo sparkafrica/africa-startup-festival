@@ -22,8 +22,6 @@ import { navigate as navigateRef, hasHomeScreen } from "../navigation/navigation
 import { useAuth } from "../context/AuthContext";
 import { authService, type UserProfile } from "../services/authService";
 import { companyService } from "../services/companyService";
-import { offerService } from "../services/offerService";
-import { boothService } from "../services/boothService";
 import { EVENT_ID } from "../config/env";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
 import { getSafeMetadataObjectForMerge } from "../utils/sanitizeUserMetadata";
@@ -2387,53 +2385,26 @@ function CompanyProfileSection({
     if (typeof (meta.xHandle ?? meta.twitter) === "string") {
       setXHandle((meta.xHandle ?? meta.twitter) as string);
     }
-    // Load offers from GET /company-offers/ first (so Partner Offers page shows them); fallback to metadata
-    const loadOffers = async () => {
-      try {
-        const list = await offerService.listMyCompanyOffers();
-        if (list.length > 0) {
-          setOffers(
-            list.map((o) => ({
-              id: o.id as number,
-              title: o.title ?? "",
-              color: "#4CAF50",
-              link: o.link ?? "",
-            }))
-          );
-          return;
-        }
-      } catch (_) {
-        // ignore; fall back to metadata
-      }
-      if (Array.isArray(meta.offers) && meta.offers.length > 0) {
-        setOffers(
-          (
-            meta.offers as Array<{
-              id?: string | number;
-              title: string;
-              color?: string;
-              link?: string;
-            }>
-          ).map((o, i) => ({
-            id: (o as any).id ?? `offer-${i}`,
-            title: o.title ?? "",
-            color: o.color ?? "#4CAF50",
-            link: (o as any).link ?? "",
-          }))
-        );
-      }
-    };
-    loadOffers();
-    const loadBooth = async () => {
-      try {
-        const { booth_number } = await boothService.getMyBooth(EVENT_ID);
-        setBoothNumber(booth_number ?? "");
-      } catch (_) {
-        const fallback = typeof meta.boothNumber === "string" ? meta.boothNumber : "";
-        setBoothNumber(fallback);
-      }
-    };
-    loadBooth();
+    if (Array.isArray(meta.offers) && meta.offers.length > 0) {
+      setOffers(
+        (
+          meta.offers as Array<{
+            id?: string | number;
+            title: string;
+            color?: string;
+            link?: string;
+          }>
+        ).map((o, i) => ({
+          id: (o as any).id ?? `offer-${i}`,
+          title: o.title ?? "",
+          color: o.color ?? "#4CAF50",
+          link: (o as any).link ?? "",
+        }))
+      );
+    }
+    if (typeof meta.boothNumber === "string") {
+      setBoothNumber(meta.boothNumber);
+    }
     if (typeof meta.isRecruiting === "boolean") setIsRecruiting(meta.isRecruiting);
     if (Array.isArray(meta.positions) && meta.positions.length > 0) {
       setPositions(
@@ -2671,13 +2642,6 @@ function CompanyProfileSection({
       }
     });
 
-    // Validate offers - each must have a valid link
-    offers.forEach((o, i) => {
-      const linkVal = validateOfferLink(o.link);
-      if (!linkVal.valid) {
-        errors[`offer_link_${i}`] = `Offer "${o.title}": ${linkVal.error}`;
-      }
-    });
 
     if (
       !hasRequiredImage({
@@ -2782,23 +2746,6 @@ function CompanyProfileSection({
         logoUpdateFailed = true;
       } finally {
         setIsUploadingImage(false);
-      }
-
-      // Sync Event Offers to /company-offers/ so GET /offers/ (Partner Offers page) shows them
-      try {
-        await offerService.syncCompanyOffers(companySource.id, EVENT_ID, offers);
-        const list = await offerService.listMyCompanyOffers();
-        setOffers(
-          list.map((o) => ({
-            id: o.id as number,
-            title: o.title ?? "",
-            color: "#4CAF50",
-            link: o.link ?? "",
-          }))
-        );
-      } catch (syncErr: any) {
-        console.warn("Offer sync failed:", syncErr);
-        showToast("Profile saved. Offers may not appear on Partner Offers yet.", "warning");
       }
 
       if (logoUpdateFailed) {
@@ -2926,9 +2873,6 @@ function CompanyProfileSection({
                 <Text className="text-[18px] font-bold text-black">
                   {companyName || "Company Name"}
                 </Text>
-                <Text className="text-sm text-neutral-600 mt-1">
-                  {boothNumber ? `Booth ${boothNumber}` : "No booth assigned"}
-                </Text>
               </View>
             </View>
             <Text className="text-xs text-neutral-600 mb-1 px-1">
@@ -2993,21 +2937,6 @@ function CompanyProfileSection({
                   {validationErrors.companyName}
                 </Text>
               )}
-            </View>
-
-            {/* Booth Number (read-only from backend: GET /booths/{event_id}/user/) */}
-            <View className="mb-4">
-              <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
-                Booth Number
-              </Text>
-              <View className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
-                <Text className="text-base text-neutral-700">
-                  {boothNumber ? `Booth ${boothNumber}` : "No booth assigned"}
-                </Text>
-                <Text className="text-xs text-neutral-500 mt-1">
-                  Assigned by event organisers
-                </Text>
-              </View>
             </View>
 
             {/* Website */}
@@ -3124,161 +3053,6 @@ function CompanyProfileSection({
                   {validationErrors.companyDescription}
                 </Text>
               )}
-            </View>
-          </View>
-
-          {/* Event Offers */}
-          <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
-            <View className="flex-row items-center justify-between mb-3 pt-4">
-              <Text className="text-[14px] font-semibold text-neutral-700">
-                Event Offers
-              </Text>
-              <Pressable
-                onPress={() => setShowAddOffer(!showAddOffer)}
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-3 py-1.5"
-              >
-                <Text className="text-sm font-medium text-black">
-                  + Add Offer
-                </Text>
-              </Pressable>
-            </View>
-
-            {showAddOffer && (
-              <View className="mb-3 p-4 bg-neutral-50 rounded-xl border border-neutral-200">
-                <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
-                  value={newOfferTitle}
-                  onChangeText={(t) => {
-                    setNewOfferTitle(t);
-                    if (validationErrors.newOfferTitle)
-                      setValidationErrors((e) => ({ ...e, newOfferTitle: "" }));
-                  }}
-                  placeholder="Offer title (e.g., Free Consultation)"
-                  placeholderTextColor="#9CA3AF"
-                />
-                {validationErrors.newOfferTitle && (
-                  <Text className="text-red-500 text-xs mb-2">
-                    {validationErrors.newOfferTitle}
-                  </Text>
-                )}
-                <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
-                  value={newOfferLink}
-                  onChangeText={(t) => {
-                    setNewOfferLink(t);
-                    if (validationErrors.newOfferLink)
-                      setValidationErrors((e) => ({ ...e, newOfferLink: "" }));
-                  }}
-                  placeholder="Offer link (e.g., https://example.com/offer)"
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                />
-                {validationErrors.newOfferLink && (
-                  <Text className="text-red-500 text-xs mb-3">
-                    {validationErrors.newOfferLink}
-                  </Text>
-                )}
-
-                {/* Offer color picker (ROYGBIV) */}
-                <View className="mb-3">
-                  <Text className="text-sm font-medium text-neutral-700 mb-2">
-                    Select Color
-                  </Text>
-                  <View className="flex-row items-center gap-2">
-                    {/* Color palette */}
-                    {[
-                      { name: "Red", val: "#F44336" },
-                      { name: "Orange", val: "#FF9800" },
-                      { name: "Yellow", val: "#FFEB3B" },
-                      { name: "Green", val: "#4CAF50" },
-                      { name: "Blue", val: "#2196F3" },
-                      { name: "Indigo", val: "#3F51B5" },
-                      { name: "Violet", val: "#9C27B0" },
-                    ].map((colorOption) => (
-                      <Pressable
-                        key={colorOption.name}
-                        onPress={() => setNewOfferColor(colorOption.val)}
-                        className={`w-7 h-7 rounded-full items-center justify-center border ${
-                          newOfferColor === colorOption.val
-                            ? "border-black"
-                            : "border-white"
-                        }`}
-                        style={{ backgroundColor: colorOption.val }}
-                        accessibilityLabel={colorOption.name}
-                      >
-                        {newOfferColor === colorOption.val && (
-                          <Svg
-                            width={14}
-                            height={14}
-                            viewBox="0 0 14 14"
-                            fill="none"
-                          >
-                            <Path
-                              d="M3 7.5L6 10L11 4"
-                              stroke="#fff"
-                              strokeWidth={2}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </Svg>
-                        )}
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-
-                <View className="flex-row gap-2">
-                  <Pressable
-                    onPress={addOffer}
-                    className="flex-1 bg-black rounded-xl py-3 items-center"
-                  >
-                    <Text className="text-white text-sm font-medium">Add</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      setShowAddOffer(false);
-                      setNewOfferTitle("");
-                      setNewOfferLink("");
-                      setNewOfferColor(undefined);
-                    }}
-                    className="flex-1 bg-white border border-neutral-300 rounded-xl py-3 items-center"
-                  >
-                    <Text className="text-black text-sm font-medium">
-                      Cancel
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-
-            {/* Event Offers List */}
-            <View className="flex-row flex-wrap gap-2 pb-4">
-              {offers.map((offer) => (
-                <View
-                  key={offer.id}
-                  className="flex-row items-center px-4 py-2 rounded-full"
-                  style={{
-                    backgroundColor: offer.color || "#4CAF50",
-                  }}
-                >
-                  <Text className="text-sm font-medium text-white mr-2">
-                    {offer.title}
-                  </Text>
-                  <Pressable onPress={() => removeOffer(offer)}>
-                    <Svg width={14} height={14} viewBox="0 0 14 14" fill="none">
-                      <Path
-                        d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5"
-                        stroke="white"
-                        strokeWidth={1.5}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </Svg>
-                  </Pressable>
-                </View>
-              ))}
             </View>
           </View>
 

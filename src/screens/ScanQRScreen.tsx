@@ -41,12 +41,13 @@ import { meetingService } from "../services/meetingService";
 import { useAuth } from "../context/AuthContext";
 import { useChecklist } from "../context/ChecklistContext";
 import { EVENT_ID } from "../config/env";
+import { isPostEventMode } from "../config/eventMode";
+import { getEventFeatures } from "../config/eventFeatures";
 import {
   getTicketBackgroundColor,
   getTicketTypeDisplay,
   getTicketGradientColors,
   isExhibitionPass,
-  isUpgradeableAttendeeTier,
 } from "../utils/ticketColors";
 import { ApiClientError } from "../services/api";
 import {
@@ -63,15 +64,21 @@ import RequestMeetingModal, {
   type MeetingFormData,
 } from "../components/RequestMeetingModal";
 import { LoadingSpinner } from "../components";
-import UpgradeTicketModal from "../components/UpgradeTicketModal";
 import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
   getCanUserInitiateConnection,
   showExhibitionCannotInitiateConnectionAlert,
 } from "../utils/meetingRestrictions";
+import {
+  isTicketTransferBlockedForEvent,
+  showTicketTransferDeadlineAlert,
+} from "../utils/ticketTransferRestrictions";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import { logError, ERROR_TAGS } from "../utils/logError";
+import { attendeeService } from "../services/attendeeService";
+import { mergeAttendeeProfiles, type AttendeeLike } from "../utils/normalizeAttendee";
+import ScannedAttendeeProfileContent from "../components/ScannedAttendeeProfileContent";
 // import PatternOverlay from "../components/ui/PatternOverlay";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -234,10 +241,16 @@ function ConnectIcon({ size = 24, color = "#000000" }: IconProps) {
 function SegmentedControl({
   activeTab,
   onTabChange,
+  hideScanTab = false,
 }: {
   activeTab: "My Ticket" | "Scan Ticket";
   onTabChange: (tab: "My Ticket" | "Scan Ticket") => void;
+  hideScanTab?: boolean;
 }) {
+  if (hideScanTab) {
+    return null;
+  }
+
   return (
     <View className="px-4 pb-2">
       <View className="flex-row bg-neutral-100 rounded-2xl p-1">
@@ -3186,153 +3199,7 @@ function ScannedTicketProfileModal({
             contentContainerStyle={{ paddingBottom: 24 }}
           >
             {attendee ? (
-              <>
-                <View className="flex-row items-start mb-4">
-                  <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center mr-4 overflow-hidden">
-                    {attendee.user.profile_pic ? (
-                      <Image
-                        source={{ uri: attendee.user.profile_pic }}
-                        className="w-full h-full"
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <Svg
-                        width={40}
-                        height={40}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <Circle cx="12" cy="8" r="4" fill="#000000" />
-                        <Path
-                          d="M6 21C6 17.134 9.13401 14 13 14C16.866 14 20 17.134 20 21"
-                          stroke="#000000"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                        />
-                      </Svg>
-                    )}
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-2xl font-bold text-black mb-1">
-                      {attendee.user.first_name || ""}{" "}
-                      {attendee.user.last_name || ""}
-                      {!attendee.user.first_name && !attendee.user.last_name
-                        ? "Unknown User"
-                        : ""}
-                    </Text>
-                    <Text className="text-base text-neutral-600 mb-3">
-                      {attendee.user.job_title || ""}
-                      {attendee.user.job_title &&
-                      (attendee.user.organisation ||
-                        attendee.user.company?.name)
-                        ? " · "
-                        : ""}
-                      {attendee.user.company?.name ||
-                        attendee.user.organisation ||
-                        ""}
-                    </Text>
-                    <View className="flex-row flex-wrap gap-2">
-                      {attendee.ticket.type?.name && (
-                        <View className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full">
-                          <Text className="text-sm text-black">
-                            {attendee.ticket.type.name}
-                          </Text>
-                        </View>
-                      )}
-                      {attendee.user.country && (
-                        <View className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full">
-                          <Text className="text-sm text-black">
-                            {attendee.user.country}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                </View>
-
-                {attendee.user.metadata?.bio && (
-                  <Text className="text-base text-black leading-6 mb-6">
-                    {attendee.user.metadata.bio}
-                  </Text>
-                )}
-
-                {attendee.user.metadata?.interests &&
-                  Array.isArray(attendee.user.metadata.interests) &&
-                  attendee.user.metadata.interests.length > 0 && (
-                    <View className="mb-6">
-                      <Text className="text-lg font-semibold text-black mb-3">
-                        Interests
-                      </Text>
-                      <View className="flex-row flex-wrap gap-2">
-                        {attendee.user.metadata.interests.map(
-                          (interest: string, index: number) => (
-                            <View
-                              key={index}
-                              className="px-3 py-1.5 bg-white border border-neutral-300 rounded-full"
-                            >
-                              <Text className="text-sm text-black">
-                                {interest}
-                              </Text>
-                            </View>
-                          ),
-                        )}
-                      </View>
-                    </View>
-                  )}
-
-                {/* Social Links - LinkedIn pill (display username, open full URL) */}
-                {(() => {
-                  const linkedInRaw =
-                    attendee.user.metadata?.linkedIn ??
-                    attendee.user.metadata?.linkedin_url;
-                  const linkedIn = getLinkedInDisplayInfo(linkedInRaw);
-                  if (!linkedIn) return null;
-                  return (
-                    <View className="mb-6">
-                      <Text className="text-lg font-semibold text-black mb-3">
-                        Social Links
-                      </Text>
-                      <Pressable
-                        onPress={async () => {
-                          try {
-                            const supported = await Linking.canOpenURL(
-                              linkedIn.url,
-                            );
-                            if (supported) {
-                              await Linking.openURL(linkedIn.url);
-                            } else {
-                              try {
-                                await Linking.openURL(linkedIn.url);
-                              } catch {
-                                Alert.alert(
-                                  "Cannot Open LinkedIn",
-                                  "Please try opening the link in your browser.",
-                                );
-                              }
-                            }
-                          } catch (error) {
-                            if (__DEV__)
-                              console.error(
-                                "Error opening LinkedIn URL:",
-                                error,
-                              );
-                            Alert.alert(
-                              "Error",
-                              "Failed to open LinkedIn profile. Please try again.",
-                            );
-                          }
-                        }}
-                        className="flex-row items-center bg-neutral-100 rounded-full px-4 py-2.5 self-start"
-                      >
-                        <LinkedInIcon size={18} color="#0A66C2" />
-                        <Text className="text-sm font-medium text-neutral-900 ml-2">
-                          {linkedIn.displayLabel}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  );
-                })()}
-              </>
+              <ScannedAttendeeProfileContent attendee={attendee} variant="modal" />
             ) : (
               <View className="items-center justify-center py-8">
                 <Text className="text-base text-neutral-500">
@@ -3957,9 +3824,9 @@ function isExhibitorOrPartnerType(typeOrCompany?: string | null): boolean {
   return t.includes("exhibitor") || t.includes("partner");
 }
 
-// Helper function to check if event is ATE (event_id = 10)
-function isATEEvent(eventId: number): boolean {
-  return eventId === 10;
+// Event-scoped transfer rules for the active ASF event.
+function isCurrentSparkEvent(eventId: number): boolean {
+  return eventId === EVENT_ID;
 }
 
 // Helper function to determine if personal ticket can be transferred
@@ -3972,8 +3839,7 @@ function canTransferPersonalTicket(
   } | null,
   tickets: Ticket[],
 ): { canTransfer: boolean; reason?: string; isAdminBlocked?: boolean } {
-  // For ATE (event_id = 10)
-  if (isATEEvent(eventId)) {
+  if (isCurrentSparkEvent(eventId)) {
     // Rule 1: Block only when user is company admin AND their pass/company is exhibitor or partner
     // (Chairperson/delegate/etc with admin_user still set can transfer — backend may not have cleared admin)
     const personalTicket = tickets.find((t) => t.isPersonal);
@@ -4168,9 +4034,6 @@ function MyTicketView({
           My Ticket
         </Text>
         {myPersonalTickets.map((ticket) => {
-          const upgradeable =
-            isUpgradeableAttendeeTier(ticket.ticketType) &&
-            ticket.backendTicketId != null;
           const benefits = getTicketBenefits(ticket.ticketType ?? ticket.title);
           return (
             <View
@@ -4197,7 +4060,7 @@ function MyTicketView({
                 availableToAssignCount={availableToAssignSlots}
                 isAdminBlocked={isAdminBlocked}
                 eventId={eventId}
-                canUpgrade={upgradeable}
+                canUpgrade={false}
                 onViewQR={() =>
                   onViewQR(
                     ticket.title,
@@ -4218,9 +4081,7 @@ function MyTicketView({
                       )
                     : undefined
                 }
-                onUpgrade={
-                  upgradeable && onUpgrade ? () => onUpgrade(ticket) : undefined
-                }
+                onUpgrade={undefined}
                 onViewBenefits={
                   benefits
                     ? () => {
@@ -4382,7 +4243,9 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
   const { user, logout } = useAuth();
-  const initialTab = route.params?.initialTab || "Scan Ticket";
+  const postEventMode = isPostEventMode();
+  const initialTab =
+    route.params?.initialTab || (postEventMode ? "My Ticket" : "Scan Ticket");
   const [activeTab, setActiveTab] = useState<"My Ticket" | "Scan Ticket">(
     initialTab,
   );
@@ -4455,10 +4318,6 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const [qrScannerModalVisible, setQrScannerModalVisible] = useState(false);
   const [requestMeetingModalVisible, setRequestMeetingModalVisible] =
     useState(false);
-  const [upgradeTicketModalVisible, setUpgradeTicketModalVisible] =
-    useState(false);
-  const [upgradeTicketModalTicket, setUpgradeTicketModalTicket] =
-    useState<Ticket | null>(null);
   const [recipientData, setRecipientData] = useState<{
     firstName: string;
     lastName: string;
@@ -4616,6 +4475,12 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   }, [route.params?.initialTab]);
 
   useEffect(() => {
+    if (postEventMode && activeTab === "Scan Ticket") {
+      setActiveTab("My Ticket");
+    }
+  }, [postEventMode, activeTab]);
+
+  useEffect(() => {
     if (activeTab === "My Ticket") {
       void trackTicketEvent("viewed", { source: "scan_qr_screen" });
     }
@@ -4735,6 +4600,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     isUnassigned?: boolean,
     ticket?: Ticket,
   ) => {
+    if (isTicketTransferBlockedForEvent(EVENT_ID)) {
+      showTicketTransferDeadlineAlert();
+      return;
+    }
+
     setTransferModalData({
       title,
       ticketNumber,
@@ -5062,10 +4932,21 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     setIsScanning(true);
 
     try {
-      const attendee = await ticketService.scanTicketByCode(
+      const scanned = await ticketService.scanTicketByCode(
         EVENT_ID,
         trimmedData,
       );
+
+      let attendee = scanned;
+      try {
+        const enriched = await attendeeService.getAttendeeByUserId(
+          EVENT_ID,
+          String(scanned.user.id),
+        );
+        attendee = mergeAttendeeProfiles(scanned, enriched as AttendeeLike);
+      } catch {
+        // scan payload is enough when directory lookup fails
+      }
 
       setScannedAttendee(attendee);
       setQrScannerModalVisible(false);
@@ -5258,7 +5139,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       <SafeAreaView edges={["top"]} className="flex-1">
         <StatusBar style="dark" />
         <Header />
-        <SegmentedControl activeTab={activeTab} onTabChange={setActiveTab} />
+        <SegmentedControl
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          hideScanTab={postEventMode}
+        />
         {activeTab === "My Ticket" ? (
           <MyTicketView
             tickets={tickets}
@@ -5266,10 +5151,6 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
             error={ticketsError}
             onViewQR={handleViewQR}
             onTransfer={handleTransfer}
-            onUpgrade={(ticket) => {
-              setUpgradeTicketModalTicket(ticket);
-              setUpgradeTicketModalVisible(true);
-            }}
             onEditAssignment={handleEditAssignment}
             user={user}
             eventId={EVENT_ID}
@@ -5309,25 +5190,6 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           onTransfer={handleRecipientTransfer}
           isSubmitting={isAllocating}
         />
-        <UpgradeTicketModal
-          visible={
-            upgradeTicketModalVisible &&
-            upgradeTicketModalTicket != null &&
-            upgradeTicketModalTicket.backendTicketId != null
-          }
-          onClose={() => {
-            setUpgradeTicketModalVisible(false);
-            setUpgradeTicketModalTicket(null);
-          }}
-          currentTierLabel={
-            upgradeTicketModalTicket
-              ? getTicketTypeDisplay(upgradeTicketModalTicket.ticketType).label
-              : "Expo"
-          }
-          ticketId={upgradeTicketModalTicket?.backendTicketId ?? 0}
-          eventId={EVENT_ID}
-          onSuccess={() => fetchTickets()}
-        />
         <AssigningTicketsModal
           visible={assigningTicketsModalVisible}
           onClose={() => {
@@ -5337,7 +5199,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           recipientName={recipientData?.fullName || ""}
           availableTickets={[
             {
-              title: "Exhibitor Pass",
+              title: "Startup Pass",
               ticketNumber: "223e4567-e89b-12d3-a456-426614174001",
               backgroundColor: "#7C3AED",
               ticketType: "exhibitor",

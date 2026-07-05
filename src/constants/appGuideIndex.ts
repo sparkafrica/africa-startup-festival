@@ -19,11 +19,11 @@ export interface FAQEntry {
 export const FAQ_INDEX: FAQEntry[] = [
   {
     id: 1,
-    question: "What is the ATE Event App?",
+    question: "What is the Africa Startup Festival app?",
     keywords: [
-      "ate app",
+      "asf app",
       "event app",
-      "africa technology expo app",
+      "africa startup festival app",
       "event networking app",
       "expo app",
       "event companion app",

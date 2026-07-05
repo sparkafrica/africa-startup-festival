@@ -6,6 +6,7 @@
  */
 
 import { api } from "./api";
+import { normalizeAttendee } from "../utils/normalizeAttendee";
 
 // In-memory cache for user ticket (Menu prefetch) - TTL 5 min
 const USER_TICKET_CACHE: Map<number, { ticket: any; ts: number }> = new Map();
@@ -440,7 +441,7 @@ export const ticketService = {
       const data = response.data as any;
       // Check if data has the expected structure (ticket and user properties)
       if (data && typeof data === "object" && (data.ticket || data.user)) {
-        return data as Attendee;
+        return normalizeAttendee(data as Attendee);
       }
     }
 

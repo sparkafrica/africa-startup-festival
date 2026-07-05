@@ -5,9 +5,6 @@ import type { RootStackParamList } from "./types";
 // Main App Screens
 import HomeScreen from "../screens/HomeScreen";
 import AttendeesScreen from "../screens/AttendeesScreen";
-import EventDetailsScreen from "../screens/EventDetailsScreen";
-import TicketScreen from "../screens/TicketScreen";
-import FavoritesScreen from "../screens/FavoritesScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import SearchScreen from "../screens/SearchScreen";
 import MenuScreen from "../screens/MenuScreen";
@@ -28,11 +25,7 @@ import TalentBoardScreen from "../screens/TalentBoardScreen";
 import PartnersOffersScreen from "../screens/PartnersOffersScreen";
 import AppGuideScreen from "../screens/AppGuideScreen";
 import TagPickupScreen from "../screens/TagPickupScreen";
-import VenueMapScreen from "../screens/VenueMapScreen";
 import { runEarlyOtaCheckOnly } from "../utils/otaUpdateFlow";
-
-// // Work around occasional TS module-resolution lag for newly added screens on Windows.
-// const MessagesScreen = require("../screens/MessagesScreen").default as React.ComponentType<any>;
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -55,7 +48,6 @@ export default function MainNavigator() {
         component={HomeScreen}
         options={{
           headerShown: false,
-          // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
           animation: "none",
         }}
       />
@@ -64,24 +56,8 @@ export default function MainNavigator() {
         component={AttendeesScreen}
         options={{
           headerShown: false,
-          // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
           animation: "none",
         }}
-      />
-      <Stack.Screen
-        name="EventDetails"
-        component={EventDetailsScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Ticket"
-        component={TicketScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Favorites"
-        component={FavoritesScreen}
-        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Profile"
@@ -165,7 +141,6 @@ export default function MainNavigator() {
         component={ScheduleScreen}
         options={{
           headerShown: false,
-          // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
           animation: "none",
         }}
       />
@@ -174,7 +149,6 @@ export default function MainNavigator() {
         component={MeetingsScreen}
         options={{
           headerShown: false,
-          // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
           animation: "none",
         }}
       />
@@ -191,7 +165,6 @@ export default function MainNavigator() {
         component={ConnectionsScreen}
         options={{
           headerShown: false,
-          // animation: "slide_from_right", // Commented out - instant render per project lead (no L/R slide)
           animation: "none",
         }}
       />
@@ -238,14 +211,6 @@ export default function MainNavigator() {
         options={{
           headerShown: false,
           animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="VenueMap"
-        component={VenueMapScreen}
-        options={{
-          headerShown: false,
-          animation: "fade",
         }}
       />
     </Stack.Navigator>

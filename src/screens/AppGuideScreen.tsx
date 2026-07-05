@@ -117,7 +117,7 @@ function GuideContent({
   );
 }
 
-/** Faded ATE logo watermark running diagonally across the background */
+/** Faded ASF logo watermark running diagonally across the background */
 function FadedWatermarkPattern() {
   const { width, height } = useWindowDimensions();
   const cell = 100;

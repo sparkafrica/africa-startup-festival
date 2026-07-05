@@ -74,7 +74,7 @@ export default function PartnersScreen() {
         ordering: "-id",
       });
       const list = response.companies.map((c) => {
-        const name = c.name || `Partner ${c.id}`;
+        const name = c.name || `Sponsor ${c.id}`;
         const logoColor = COLORS[name.length % COLORS.length];
         return {
           id: c.id,
@@ -88,7 +88,7 @@ export default function PartnersScreen() {
       });
       setPartners(list);
     } catch (err: any) {
-      const msg = err instanceof ApiClientError ? err.message : err?.message || "Failed to load partners";
+      const msg = err instanceof ApiClientError ? err.message : err?.message || "Failed to load sponsors";
       setError(msg);
     } finally {
       setIsLoading(false);
@@ -158,7 +158,7 @@ export default function PartnersScreen() {
           >
             <ChevronLeftIcon size={24} color="#404040" />
             <Text className="text-[30px] pl-1 font-bold text-neutral-900">
-              Partners
+              Sponsors
             </Text>
           </Pressable>
         </View>
@@ -197,7 +197,7 @@ export default function PartnersScreen() {
           {isLoading ? (
             <View className="py-12 items-center">
               <LoadingSpinner size="large" />
-              <Text className="text-neutral-600 mt-3">Loading partners...</Text>
+              <Text className="text-neutral-600 mt-3">Loading sponsors...</Text>
             </View>
           ) : error ? (
             <View className="py-12 items-center">
@@ -211,12 +211,12 @@ export default function PartnersScreen() {
             </View>
           ) : partners.length === 0 ? (
             <View className="py-12">
-              <Text className="text-neutral-600 text-center">No partners available.</Text>
+              <Text className="text-neutral-600 text-center">No sponsors available.</Text>
             </View>
           ) : displayedPartners.length === 0 ? (
             <View className="py-12">
               <Text className="text-neutral-600 text-center">
-                No partners match your filters.
+                No sponsors match your filters.
               </Text>
             </View>
           ) : (

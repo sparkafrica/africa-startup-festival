@@ -38,22 +38,18 @@ import {
 import HomePushNotificationOverlay from "../components/HomePushNotificationOverlay";
 import EventChecklist from "../components/EventChecklist";
 import { ArrowUpRightIcon } from "../components/icons";
-import { ArrowRightIcon } from "../components/icons";
+// import { ArrowRightIcon } from "../components/icons";
 import {
   checkFetchAndReloadOta,
   OTA_HOME_STABLE_DELAY_MS,
 } from "../utils/otaUpdateFlow";
-import {
-  VENUE_FLOOR_PLAN_IMAGE,
-} from "../constants/venueMap";
-/** Portrait preview box — image uses contain (no crop offsets). */
-const VENUE_MAP_THUMB_WIDTH = 60;
-const VENUE_MAP_THUMB_HEIGHT = 65;
+import { getEventFeatures } from "../config/eventFeatures";
 
 export default function HomeScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
+  const eventFeatures = getEventFeatures();
   const { registerScrollToTop } = useHomeScroll();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
@@ -70,7 +66,6 @@ export default function HomeScreen() {
   const {
     isConnectAttendeesComplete,
     isRequestMeetingComplete,
-    isAddSessionsComplete,
   } = useChecklist();
 
   // Track if checklist has been auto-collapsed (to prevent re-collapsing on manual opens)
@@ -98,33 +93,32 @@ export default function HomeScreen() {
   // Refresh state
   const [refreshing, setRefreshing] = useState(false);
 
-  // "All completed" = only visible tasks (Connect + Request meeting). addSessions ignored until re-enabled.
-  const allVisibleTasksComplete =
+  // "All completed" = only visible tasks (Connect + Request meeting).
+  const allChecklistComplete =
     isConnectAttendeesComplete && isRequestMeetingComplete;
 
   // Auto-collapse checklist when all visible items are completed (once per session)
   useEffect(() => {
-    if (allVisibleTasksComplete && checklistExpanded && !hasAutoCollapsed) {
+    if (allChecklistComplete && checklistExpanded && !hasAutoCollapsed) {
       setTimeout(() => {
         setChecklistExpanded(false);
         setHasAutoCollapsed(true);
       }, 500);
     }
-  }, [
-    allVisibleTasksComplete,
-    checklistExpanded,
-    hasAutoCollapsed,
-  ]);
+  }, [allChecklistComplete, checklistExpanded, hasAutoCollapsed]);
 
   // On Home focus: scroll to top, refresh badge, and if all tasks done keep checklist closed
   useFocusEffect(
     useCallback(() => {
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       refreshMeetingsBadge();
-      if (allVisibleTasksComplete) {
+      if (allChecklistComplete) {
         setChecklistExpanded(false);
       }
-    }, [refreshMeetingsBadge, allVisibleTasksComplete])
+    }, [
+      refreshMeetingsBadge,
+      allChecklistComplete,
+    ]),
   );
 
   // Fetch featured speakers
@@ -262,14 +256,72 @@ export default function HomeScreen() {
     navigation.navigate("Attendees");
   };
 
-  const handleAddSessions = () => {
-    navigation.navigate("Schedule");
-  };
+  const renderChecklist = () => (
+    <EventChecklist
+      title="Event Checklist"
+      description="Complete these to get the most out of the festival."
+      expanded={checklistExpanded}
+      onToggle={() => setChecklistExpanded(!checklistExpanded)}
+      className="mb-4"
+    >
+      <ChecklistItem
+        title="Connect with attendees"
+        description="Swipe or search attendees that match your goals."
+        completed={isConnectAttendeesComplete}
+        onPress={handleConnectAttendees}
+      />
+      <ChecklistItem
+        title="Request a meeting"
+        description="Book focused meetings with founders, investors, and operators."
+        completed={isRequestMeetingComplete}
+        onPress={handleRequestMeeting}
+      />
+    </EventChecklist>
+  );
+
+  const renderHeroBanners = () => (
+    <>
+      <BannerCard
+        title="Explore the programme"
+        description="Sessions, panels, and keynotes across Africa Startup Festival."
+        buttonText="See schedule"
+        gradient={gradients.sparkBlack}
+        backgroundImage={require("../assets/images/8th-card.jpeg")}
+        onPress={() => navigation.navigate("Schedule")}
+      />
+      <BannerCard
+        title="Discover startups"
+        description="Browse the startup directory and connect with founders on the floor."
+        buttonText="View startups"
+        gradient={gradients.partnerGreen}
+        backgroundImage={require("../assets/images/9th-card.jpeg")}
+        onPress={() => navigation.navigate("Exhibitors")}
+      />
+      <BannerCard
+        title="Meet investors"
+        description="Find investors attending ASF and book focused meetings."
+        buttonText="Find investors"
+        gradient={gradients.sparkBlack}
+        backgroundImage={require("../assets/images/7th-card.jpeg")}
+        onPress={() => navigation.navigate("Attendees", { roleFilter: "investor" })}
+      />
+      <BannerCard
+        title="Book meetings"
+        description="Schedule time with founders, investors, and operators."
+        buttonText="Open meetings"
+        gradient={gradients.partnerGreen}
+        backgroundImage={require("../assets/images/11th-card.jpeg")}
+        onPress={() => navigation.navigate("Meetings")}
+      />
+    </>
+  );
 
   return (
     <View className="flex-1 bg-surface">
       <HeaderBar
-        onScanPress={() => navigation.navigate("ScanQR")}
+        onScanPress={() =>
+          navigation.navigate("ScanQR", { initialTab: "Scan Ticket" })
+        }
         onMyTicketPress={() =>
           navigation.navigate("ScanQR", {
             initialTab: "My Ticket",
@@ -297,145 +349,27 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* Event Banners - Horizontal Scrollable */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           className="px-4 pt-3 pb-3"
-          contentContainerStyle={{ paddingRight: 20, paddingVertical: 4 }}
+          contentContainerStyle={{
+            paddingRight: 20,
+            paddingVertical: 4,
+            alignItems: "stretch",
+          }}
         >
-          {/* <BannerCard
-            // badge="GET YOUR TICKET FOR THE EVENT LIVE IN LAGOS"
-            title="Here's your ATE2026 Pass"
-            description="Please show this pass at the check-in counter to collect your tag."
-            buttonText="View Your Ticket"
-            gradient={gradients.sparkBlack}
-            backgroundImage={require("../assets/images/1st-card.jpeg")}
-            onPress={() =>
-              navigation.navigate("ScanQR", {
-                initialTab: "My Ticket",
-                openPersonalTicketQr: true,
-              })
-            }
-          /> */}
-          {/* <BannerCard
-            // badge="EVENT LIVE IN LAGOS"
-            title="Welcome to ATE 2026"
-            description="Complete your checklist and start booking 1:1 meetings with attendees and partners."
-            buttonText="View attendees"
-            gradient={gradients.partnerGreen}
-            backgroundImage={require("../assets/images/2nd-card.jpg")}
-            onPress={() => navigation.navigate("Attendees")}
-          /> */}
-          <BannerCard
-            title="Tag Pickup!"
-            description="Visit any Cafe One branch near you to pick up your tag and skip event day queues."
-            buttonText="View branches"
-            gradient={gradients.ocean}
-            backgroundImage={require("../assets/images/6th-card.jpg")}
-            onPress={() => navigation.navigate("TagPickup")}
-          />
-          <BannerCard
-            title="Build your personal schedule"
-            description="Add sessions to your schedule so you never miss a talk."
-            buttonText="See schedule"
-            gradient={gradients.partnerGreen}
-            backgroundImage={require("../assets/images/4th-card.jpg")}
-            onPress={() => navigation.navigate("Schedule")}
-          />
-          <BannerCard
-            title="Popular slots filling up"
-            description="Book focused 20-minute meetings with people you want to do tech business with."
-            buttonText="Book meetings"
-            gradient={gradients.sparkBlack}
-            backgroundImage={require("../assets/images/3rd-card.jpg")}
-            onPress={() => navigation.navigate("Attendees")}
-          />
+          {renderHeroBanners()}
         </ScrollView>
 
-        {/* Body sections */}
+        {eventFeatures.showEventDirectoryOnHome ? (
         <View className="px-4">
-          {/* Venue map teaser — compact preview; full zoom on VenueMap screen */}
-          <Pressable
-            onPress={() => navigation.navigate("VenueMap")}
-            className="mb-4 bg-white rounded-xl border border-neutral-200 overflow-hidden flex-row items-center px-4 py-3"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.06,
-              shadowRadius: 4,
-              elevation: 2,
-            }}
-          >
-            <View className="flex-1 min-w-0 pr-3">
-              <Text className="text-base font-bold text-black mb-1">
-                Venue map
-              </Text>
-              <Text
-                className="text-xs text-neutral-600"
-                numberOfLines={2}
-              >
-                Tap to open the floor plan and find exhibitor booths.
-              </Text>
-              <View className="flex-row items-center mt-2">
-                <Text className="text-xs font-semibold text-[#1BB273] mr-1">
-                  View map
-                </Text>
-                <ArrowRightIcon size={14} color="#1BB273" />
-              </View>
-            </View>
-            <View
-              className="rounded-lg overflow-hidden border border-neutral-200 items-center justify-center"
-              style={{
-                width: VENUE_MAP_THUMB_WIDTH,
-                height: VENUE_MAP_THUMB_HEIGHT,
-              }}
-            >
-              <Image
-                source={VENUE_FLOOR_PLAN_IMAGE}
-                style={{
-                  width: VENUE_MAP_THUMB_WIDTH,
-                  height: VENUE_MAP_THUMB_HEIGHT,
-                }}
-                resizeMode="cover"
-                accessibilityLabel="Venue map preview"
-              />
-            </View>
-          </Pressable>
+          {renderChecklist()}
 
-          {/* Event Checklist Section */}
-          <EventChecklist
-            title="Event Checklist"
-            description="Complete these to get the most out of the event."
-            expanded={checklistExpanded}
-            onToggle={() => setChecklistExpanded(!checklistExpanded)}
-            className="mb-4"
-          >
-            <ChecklistItem
-              title="Connect with attendees"
-              description="Swipe or search attendees that match your goals."
-              completed={isConnectAttendeesComplete}
-              onPress={handleConnectAttendees}
-            />
-            <ChecklistItem
-              title="Request a meeting"
-              description="Book focused 20-minute meetings with people you care about."
-              completed={isRequestMeetingComplete}
-              onPress={handleRequestMeeting}
-            />
-            {/* TODO: Re-enable in next update — Add sessions to your schedule */}
-            {/* <ChecklistItem
-              title="Add sessions to your schedule"
-              description="Add sessions so you never miss a talk."
-              completed={isAddSessionsComplete}
-              onPress={handleAddSessions}
-            /> */}
-          </EventChecklist>
-
-          {/* Exhibitors Section */}
+          {/* Startups Section */}
           <Card
-            title="Exhibitors"
-            description="Tap a logo to view full profile, perks and job opportunities."
+            title="Startups"
+            description="Tap a logo to view startup profile, team, and pitch details."
             expandable={false}
             expanded={true}
             className="mb-4"
@@ -443,7 +377,7 @@ export default function HomeScreen() {
             {exhibitorsLoading ? (
               <View className="py-8 items-center">
                 <LoadingSpinner size="large" />
-                <Text className="text-gray-500 mt-2">Loading exhibitors...</Text>
+                <Text className="text-gray-500 mt-2">Loading startups...</Text>
               </View>
             ) : exhibitorsError ? (
               <View className="py-4">
@@ -461,19 +395,19 @@ export default function HomeScreen() {
                     return (
                       <View key={exhibitor.id} className="px-1.5 mb-2" style={{ width: "50%" }}>
                         <ExhibitorCard
-                          name={exhibitor.organisation || "Exhibitor"}
+                          name={exhibitor.organisation || "Startup"}
                           logo={(exhibitor as any).logo}
                           logoColor={logoColor}
                           onPress={() =>
                             navigation.navigate("CompanyDetail", {
                               exhibitorId: exhibitor.id.toString(),
                               type: "exhibitor",
-                              name: exhibitor.organisation || "Exhibitor",
+                              name: exhibitor.organisation || "Startup",
                             })
                           }
                         />
                         <Text className="text-xs text-neutral-600 text-center mt-2">
-                          {exhibitor.organisation || "Exhibitor"}
+                          {exhibitor.organisation || "Startup"}
                         </Text>
                       </View>
                     );
@@ -491,7 +425,7 @@ export default function HomeScreen() {
                   }}
                 >
                   <Text className="text-white font-semibold text-base px-2">
-                    View all Exhibitors
+                    View all startups
                   </Text>
                   <ArrowUpRightIcon size={18} color="#FFFFFF" />
                 </Pressable>
@@ -499,16 +433,16 @@ export default function HomeScreen() {
             ) : (
               <View className="py-4">
                 <Text className="text-gray-500 text-center">
-                  No featured exhibitors available.
+                  No featured startups available.
                 </Text>
               </View>
             )}
           </Card>
 
-          {/* Partners Section */}
+          {/* Sponsors Section */}
           <Card
-            title="Partners"
-            description="Tap a logo to view full profile, perks and job opportunities."
+            title="Sponsors"
+            description="Tap a logo to view sponsor profile and partnership details."
             expandable={false}
             expanded={true}
             className="mb-4"
@@ -516,7 +450,7 @@ export default function HomeScreen() {
             {partnersLoading ? (
               <View className="py-8 items-center">
                 <LoadingSpinner size="large" />
-                <Text className="text-gray-500 mt-2">Loading partners...</Text>
+                <Text className="text-gray-500 mt-2">Loading sponsors...</Text>
               </View>
             ) : partnersError ? (
               <View className="py-4">
@@ -534,19 +468,19 @@ export default function HomeScreen() {
                     return (
                       <View key={partner.id} className="px-1.5 mb-2" style={{ width: "50%" }}>
                         <PartnerCard
-                          name={partner.organisation || "Partner"}
+                          name={partner.organisation || "Sponsor"}
                           logo={(partner as any).logo ? { uri: (partner as any).logo } : undefined}
                           logoColor={logoColor}
                           onPress={() =>
                             navigation.navigate("CompanyDetail", {
                               exhibitorId: partner.id.toString(),
                               type: "partner",
-                              name: partner.organisation || "Partner",
+                              name: partner.organisation || "Sponsor",
                             })
                           }
                         />
                         <Text className="text-xs text-neutral-600 text-center mt-2">
-                          {partner.organisation || "Partner"}
+                          {partner.organisation || "Sponsor"}
                         </Text>
                       </View>
                     );
@@ -564,7 +498,7 @@ export default function HomeScreen() {
                   }}
                 >
                   <Text className="text-white font-semibold text-base px-2">
-                    View all Partners
+                    View all sponsors
                   </Text>
                   <ArrowUpRightIcon size={18} color="#FFFFFF" />
                 </Pressable>
@@ -572,7 +506,7 @@ export default function HomeScreen() {
             ) : (
               <View className="py-4">
                 <Text className="text-gray-500 text-center">
-                  No featured partners available.
+                  No featured sponsors available.
                 </Text>
               </View>
             )}
@@ -648,6 +582,7 @@ export default function HomeScreen() {
             )}
           </Card>
         </View>
+        ) : null}
       </ScrollView>
 
       <SpeakerDetailModal

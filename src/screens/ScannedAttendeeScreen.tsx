@@ -5,25 +5,21 @@
  * to avoid modal presentation issues; Android can keep using the modal on ScanQR).
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   Pressable,
   ScrollView,
-  Image,
-  Linking,
-  Alert,
 } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { useRoute, useNavigation } from "@react-navigation/native";
+import { useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { RootStackScreenProps } from "../navigation/types";
-import Svg, { Path, Circle } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 import { CalendarIcon } from "../components/BottomNavIcons";
-import { LinkedInIcon } from "../components/SocialIcons";
 import { LoadingSpinner } from "../components";
 import RequestMeetingModal, {
   type MeetingFormData,
@@ -36,7 +32,6 @@ import { useChecklist } from "../context/ChecklistContext";
 import { trackConnectionEvent, trackMeetingEvent } from "../utils/analytics";
 import { useToast } from "../hooks/useToast";
 import { EVENT_ID } from "../config/env";
-import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
@@ -45,6 +40,13 @@ import {
 } from "../utils/meetingRestrictions";
 import { ApiClientError } from "../services/api";
 import Toast from "../components/Toast";
+import { attendeeService } from "../services/attendeeService";
+import {
+  mergeAttendeeProfiles,
+  normalizeAttendee,
+  type AttendeeLike,
+} from "../utils/normalizeAttendee";
+import ScannedAttendeeProfileContent from "../components/ScannedAttendeeProfileContent";
 
 function ConnectIcon({
   size = 24,
@@ -112,16 +114,43 @@ export default function ScannedAttendeeScreen() {
     useNavigation<RootStackScreenProps<"ScannedAttendee">["navigation"]>();
   const { attendee: routeAttendee } = route.params ?? {};
   const { user } = useAuth();
-  const { markRequestMeetingComplete, markConnectAttendeesComplete } =
+  const { markRequestMeetingComplete, markConnectAttendeesComplete, markDay2ScanAttendeeComplete } =
     useChecklist();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      markDay2ScanAttendeeComplete();
+    }, [markDay2ScanAttendeeComplete]),
+  );
   const { toast, showToast, hideToast } = useToast();
 
   const insets = useSafeAreaInsets();
+  const [attendee, setAttendee] = useState<Attendee | null>(
+    routeAttendee ? normalizeAttendee(routeAttendee) : null,
+  );
   const [requestMeetingModalVisible, setRequestMeetingModalVisible] =
     useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
-  const attendee = routeAttendee ?? null;
+  useEffect(() => {
+    const initial = routeAttendee ? normalizeAttendee(routeAttendee) : null;
+    if (!initial?.user?.id) return;
+
+    let cancelled = false;
+    void attendeeService
+      .getAttendeeByUserId(EVENT_ID, String(initial.user.id))
+      .then((enriched) => {
+        if (cancelled) return;
+        setAttendee(mergeAttendeeProfiles(initial, enriched as AttendeeLike));
+      })
+      .catch(() => {
+        if (!cancelled) setAttendee(initial);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [routeAttendee]);
 
   const handleRequestMeeting = async () => {
     const canBook = await getCanUserBookMeetings();
@@ -257,135 +286,9 @@ export default function ScannedAttendeeScreen() {
           }}
           showsVerticalScrollIndicator={false}
         >
-          <View className="flex-row items-start mb-4 pt-12">
-            <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center mr-4 overflow-hidden">
-              {attendee.user.profile_pic ? (
-                <Image
-                  source={{ uri: attendee.user.profile_pic }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
-              ) : (
-                <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
-                  <Circle cx="12" cy="8" r="4" fill="#000000" />
-                  <Path
-                    d="M6 21C6 17.134 9.13401 14 13 14C16.866 14 20 17.134 20 21"
-                    stroke="#000000"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                  />
-                </Svg>
-              )}
-            </View>
-            <View className="flex-1">
-              <Text className="text-2xl font-bold text-black mb-1">
-                {attendee.user.first_name ?? ""} {attendee.user.last_name ?? ""}
-                {!attendee.user.first_name && !attendee.user.last_name
-                  ? " Unknown User"
-                  : ""}
-              </Text>
-              <Text className="text-base text-neutral-600 mb-3">
-                {attendee.user.job_title ?? ""}
-                {attendee.user.job_title &&
-                (attendee.user.organisation ?? attendee.user.company?.name)
-                  ? " · "
-                  : ""}
-                {attendee.user.company?.name ??
-                  attendee.user.organisation ??
-                  ""}
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {attendee.ticket?.type?.name && (
-                  <View className="px-3 py-1.5 bg-neutral-100 rounded-full">
-                    <Text className="text-sm text-black">
-                      {attendee.ticket.type.name}
-                    </Text>
-                  </View>
-                )}
-                {attendee.user.country && (
-                  <View className="px-3 py-1.5 bg-neutral-100 rounded-full">
-                    <Text className="text-sm text-black">
-                      {attendee.user.country}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
+          <View className="pt-12">
+            <ScannedAttendeeProfileContent attendee={attendee} variant="screen" />
           </View>
-
-          {attendee.user.metadata?.bio && (
-            <Text className="text-base text-black leading-6 mb-6">
-              {attendee.user.metadata.bio}
-            </Text>
-          )}
-
-          {attendee.user.metadata?.interests &&
-            Array.isArray(attendee.user.metadata.interests) &&
-            attendee.user.metadata.interests.length > 0 && (
-              <View className="mb-6">
-                <Text className="text-lg font-semibold text-black mb-3">
-                  Interests
-                </Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {attendee.user.metadata.interests.map(
-                    (interest: string, index: number) => (
-                      <View
-                        key={index}
-                        className="px-3 py-1.5 bg-neutral-100 rounded-full"
-                      >
-                        <Text className="text-sm text-black">{interest}</Text>
-                      </View>
-                    ),
-                  )}
-                </View>
-              </View>
-            )}
-
-          {/* LinkedIn pill */}
-          {(() => {
-            const linkedInRaw =
-              attendee.user.metadata?.linkedIn ??
-              attendee.user.metadata?.linkedin_url;
-            const linkedIn = getLinkedInDisplayInfo(linkedInRaw);
-            if (!linkedIn) return null;
-            return (
-              <View className="mb-6">
-                <Text className="text-lg font-semibold text-black mb-3">
-                  Social Links
-                </Text>
-                <Pressable
-                  onPress={async () => {
-                    try {
-                      const supported = await Linking.canOpenURL(linkedIn.url);
-                      if (supported) {
-                        await Linking.openURL(linkedIn.url);
-                      } else {
-                        try {
-                          await Linking.openURL(linkedIn.url);
-                        } catch {
-                          Alert.alert(
-                            "Cannot Open LinkedIn",
-                            "Please try opening the link in your browser.",
-                          );
-                        }
-                      }
-                    } catch (error) {
-                      Alert.alert(
-                        "Error",
-                        "Failed to open LinkedIn profile. Please try again.",
-                      );
-                    }
-                  }}
-                  className="flex-row items-center bg-neutral-100 rounded-full px-4 py-2.5 self-start"
-                >
-                  <LinkedInIcon size={18} color="#0A66C2" />
-                  <Text className="text-sm font-medium text-neutral-900 ml-2">
-                    {linkedIn.displayLabel}
-                  </Text>
-                </Pressable>
-              </View>
-            );
-          })()}
 
           <Pressable
             onPress={handleRequestMeeting}

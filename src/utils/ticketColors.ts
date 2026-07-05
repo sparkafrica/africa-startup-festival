@@ -1,51 +1,51 @@
 /**
- * Ticket color and label mapping.
- * Pass types: Exhibition, Expo, Oasis, Delegate, Chairperson, Partner, Exhibitor, Media, Speaker.
- * All types use a left-to-right gradient for cards/badges.
+ * Ticket color and label mapping — ASF Africa Startup Festival.
+ * Pass types from backend are mapped to founder / investor / attendee / startup / sponsor labels.
  */
 
 // Solid (left) color per pass type – used for fallbacks and badge text
 const TICKET_COLORS: Record<string, string> = {
-  chairperson: "#171717",
   founder: "#171717",
-  // Exhibition is the lowest tier. Card background should be light (white) with dark text.
-  exhibition: "#FFFFFF",
-  delegate: "#14B8A6",
-  oasis: "#2563EB",
-  expo: "#059669",
+  investor: "#0F766E",
   attendee: "#059669",
   general: "#059669",
-  partner: "#4F46E5",
+  expo: "#059669",
+  exhibition: "#FFFFFF",
+  startup: "#7C3AED",
   exhibitor: "#7C3AED",
+  sponsor: "#4F46E5",
+  partner: "#4F46E5",
   media: "#EAB308",
   speaker: "#EA580C",
 };
 
 /** Left-to-right gradient [start, end] for each pass type */
 const TICKET_GRADIENTS: Record<string, [string, string]> = {
-  chairperson: ["#171717", "#404040"],
-  // Exhibition card should be white with subtle gray for contrast.
-  exhibition: ["#FFFFFF", "#F3F4F6"],
-  delegate: ["#14B8A6", "#2DD4BF"],
-  oasis: ["#2563EB", "#3B82F6"],
+  founder: ["#171717", "#404040"],
+  investor: ["#0F766E", "#14B8A6"],
+  attendee: ["#059669", "#10B981"],
+  general: ["#059669", "#10B981"],
   expo: ["#059669", "#10B981"],
-  partner: ["#4F46E5", "#6366F1"],
+  exhibition: ["#FFFFFF", "#F3F4F6"],
+  startup: ["#7C3AED", "#8B5CF6"],
   exhibitor: ["#7C3AED", "#8B5CF6"],
+  sponsor: ["#4F46E5", "#6366F1"],
+  partner: ["#4F46E5", "#6366F1"],
   media: ["#EAB308", "#FACC15"],
   speaker: ["#EA580C", "#F97316"],
 };
 
 const TICKET_LABELS: Record<string, string> = {
-  chairperson: "Chairperson",
   founder: "Founder",
-  exhibition: "Limited Pass",
-  delegate: "Delegate",
-  oasis: "Oasis",
-  expo: "Expo",
-  attendee: "Expo",
-  general: "Expo",
-  partner: "Partner",
-  exhibitor: "Exhibitor",
+  investor: "Investor",
+  attendee: "Attendee",
+  general: "Attendee",
+  expo: "Attendee",
+  exhibition: "Attendee",
+  startup: "Startup",
+  exhibitor: "Startup",
+  sponsor: "Sponsor",
+  partner: "Sponsor",
   media: "Media",
   speaker: "Speaker",
 };
@@ -64,73 +64,63 @@ function isLimitedPassAlias(normalized: string): boolean {
  */
 export function getTicketBackgroundColor(ticketTypeOrName?: string): string {
   const t = normalizeType(ticketTypeOrName);
-  // Default to the lowest tier (Limited Pass / exhibition) when type is unknown,
-  // so fallbacks render with the white/neutral palette instead of Expo green.
-  if (!t) return TICKET_COLORS.exhibition;
+  if (!t) return TICKET_COLORS.attendee;
 
-  if (t.includes("chairperson") || t.includes("founder")) return TICKET_COLORS.chairperson;
-  if (isLimitedPassAlias(t)) return TICKET_COLORS.exhibition;
-  if (t.includes("delegate")) return TICKET_COLORS.delegate;
-  if (t.includes("oasis")) return TICKET_COLORS.oasis;
-  if (t.includes("expo") || t.includes("attendee") || t.includes("general")) return TICKET_COLORS.expo;
+  if (t.includes("founder") || t.includes("chairperson")) return TICKET_COLORS.founder;
+  if (t.includes("investor") || t.includes("delegate")) return TICKET_COLORS.investor;
+  if (t.includes("sponsor")) return TICKET_COLORS.sponsor;
   if (t.includes("partner")) return TICKET_COLORS.partner;
-  if (t.includes("exhibitor")) return TICKET_COLORS.exhibitor;
+  if (t.includes("startup") || t.includes("exhibitor")) return TICKET_COLORS.startup;
+  if (isLimitedPassAlias(t) || t.includes("oasis")) return TICKET_COLORS.exhibition;
+  if (t.includes("expo") || t.includes("attendee") || t.includes("general"))
+    return TICKET_COLORS.attendee;
   if (t.includes("media")) return TICKET_COLORS.media;
   if (t.includes("speaker")) return TICKET_COLORS.speaker;
 
-  return TICKET_COLORS.expo;
+  return TICKET_COLORS.attendee;
 }
 
-/**
- * Get display label and color for ticket type (e.g. for Menu badge).
- */
 export function getTicketTypeDisplay(ticketTypeOrName?: string): {
   label: string;
   color: string;
 } {
   const t = normalizeType(ticketTypeOrName);
-  // Default badge to Limited Pass styling when type is unknown.
-  if (!t) return { label: TICKET_LABELS.exhibition, color: TICKET_COLORS.exhibition };
+  if (!t) return { label: TICKET_LABELS.attendee, color: TICKET_COLORS.attendee };
 
-  if (t.includes("chairperson") || t.includes("founder"))
-    return { label: TICKET_LABELS.chairperson, color: TICKET_COLORS.chairperson };
-  if (isLimitedPassAlias(t))
-    return { label: TICKET_LABELS.exhibition, color: TICKET_COLORS.exhibition };
-  if (t.includes("delegate"))
-    return { label: TICKET_LABELS.delegate, color: TICKET_COLORS.delegate };
-  if (t.includes("oasis"))
-    return { label: TICKET_LABELS.oasis, color: TICKET_COLORS.oasis };
-  if (t.includes("expo") || t.includes("attendee") || t.includes("general"))
-    return { label: TICKET_LABELS.expo, color: TICKET_COLORS.expo };
+  if (t.includes("founder") || t.includes("chairperson"))
+    return { label: TICKET_LABELS.founder, color: TICKET_COLORS.founder };
+  if (t.includes("investor") || t.includes("delegate"))
+    return { label: TICKET_LABELS.investor, color: TICKET_COLORS.investor };
+  if (t.includes("sponsor"))
+    return { label: TICKET_LABELS.sponsor, color: TICKET_COLORS.sponsor };
   if (t.includes("partner"))
     return { label: TICKET_LABELS.partner, color: TICKET_COLORS.partner };
-  if (t.includes("exhibitor"))
-    return { label: TICKET_LABELS.exhibitor, color: TICKET_COLORS.exhibitor };
+  if (t.includes("startup") || t.includes("exhibitor"))
+    return { label: TICKET_LABELS.startup, color: TICKET_COLORS.startup };
+  if (isLimitedPassAlias(t) || t.includes("oasis"))
+    return { label: TICKET_LABELS.attendee, color: TICKET_COLORS.exhibition };
+  if (t.includes("expo") || t.includes("attendee") || t.includes("general"))
+    return { label: TICKET_LABELS.attendee, color: TICKET_COLORS.attendee };
   if (t.includes("media"))
     return { label: TICKET_LABELS.media, color: TICKET_COLORS.media };
   if (t.includes("speaker"))
     return { label: TICKET_LABELS.speaker, color: TICKET_COLORS.speaker };
 
-  return { label: TICKET_LABELS.expo, color: TICKET_COLORS.expo };
+  return { label: TICKET_LABELS.attendee, color: TICKET_COLORS.attendee };
 }
 
-/**
- * Get left-to-right gradient colors for a ticket type. All types have a gradient.
- */
 export function getTicketGradientColors(ticketTypeOrName?: string): [string, string] {
   const t = normalizeType(ticketTypeOrName);
-  // Default gradient to Limited Pass (exhibition) when type is unknown.
-  if (!t) return TICKET_GRADIENTS.exhibition;
-  if (t.includes("chairperson") || t.includes("founder")) return TICKET_GRADIENTS.chairperson;
-  if (isLimitedPassAlias(t)) return TICKET_GRADIENTS.exhibition;
-  if (t.includes("delegate")) return TICKET_GRADIENTS.delegate;
-  if (t.includes("oasis")) return TICKET_GRADIENTS.oasis;
-  if (t.includes("expo") || t.includes("attendee") || t.includes("general")) return TICKET_GRADIENTS.expo;
-  if (t.includes("partner")) return TICKET_GRADIENTS.partner;
-  if (t.includes("exhibitor")) return TICKET_GRADIENTS.exhibitor;
+  if (!t) return TICKET_GRADIENTS.attendee;
+  if (t.includes("founder") || t.includes("chairperson")) return TICKET_GRADIENTS.founder;
+  if (t.includes("investor") || t.includes("delegate")) return TICKET_GRADIENTS.investor;
+  if (t.includes("sponsor") || t.includes("partner")) return TICKET_GRADIENTS.sponsor;
+  if (t.includes("startup") || t.includes("exhibitor")) return TICKET_GRADIENTS.startup;
+  if (isLimitedPassAlias(t) || t.includes("oasis")) return TICKET_GRADIENTS.exhibition;
+  if (t.includes("expo") || t.includes("attendee") || t.includes("general")) return TICKET_GRADIENTS.attendee;
   if (t.includes("media")) return TICKET_GRADIENTS.media;
   if (t.includes("speaker")) return TICKET_GRADIENTS.speaker;
-  return TICKET_GRADIENTS.expo;
+  return TICKET_GRADIENTS.attendee;
 }
 
 export function isExhibitionPass(ticketTypeOrName?: string): boolean {

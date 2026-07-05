@@ -26,6 +26,8 @@ export interface EventCardProps {
   onOpenDetail?: () => void;
   isInMySchedule?: boolean; // Show "Added" when true
   isAddingToSchedule?: boolean;
+  /** Session starts within ~60 min or is live now. */
+  happeningSoon?: boolean;
 }
 
 function EventCard({
@@ -42,6 +44,7 @@ function EventCard({
   onOpenDetail,
   isInMySchedule,
   isAddingToSchedule = false,
+  happeningSoon = false,
 }: EventCardProps) {
   const showActions =
     !!onRemoveFromSchedule ||
@@ -49,31 +52,54 @@ function EventCard({
     !!onLeaveFeedback ||
     !!isInMySchedule;
 
+  const hasBadgeAboveSession = happeningSoon;
+  const hasBadgeAboveSponsor = happeningSoon || !!sessionBadge;
+
   return (
     <View className="bg-white rounded-xl p-4 mb-4 border border-gray-100">
       <Pressable
         onPress={onOpenDetail}
         disabled={!onOpenDetail}
         accessibilityRole={onOpenDetail ? "button" : undefined}
+        className="w-full items-start"
         style={({ pressed }) => ({
           opacity: onOpenDetail && pressed ? 0.75 : 1,
         })}
       >
-        {(sessionBadge || sponsoredBy) && (
-          <View className="mb-3 gap-2">
+        {(happeningSoon || sessionBadge || sponsoredBy) && (
+          <View className="mb-2 w-full items-start">
+            {happeningSoon ? (
+              <View className="rounded-full bg-[#1BB273] px-2.5 py-1">
+                <Text className="text-[11px] font-semibold text-white">
+                  Starting soon
+                </Text>
+              </View>
+            ) : null}
             {sessionBadge ? (
-              <ScheduleBadge
-                text={sessionBadge.label}
-                color={sessionBadge.color}
-                className="mb-0"
-              />
+              <View
+                style={
+                  hasBadgeAboveSession ? badgeStackSpacing.afterFirstPill : undefined
+                }
+              >
+                <ScheduleBadge
+                  text={sessionBadge.label}
+                  color={sessionBadge.color}
+                  className="mb-0"
+                />
+              </View>
             ) : null}
             {sponsoredBy ? (
-              <ScheduleBadge
-                text={`Sponsored by ${sponsoredBy.name}`}
-                color={sponsoredBy.color}
-                className="mb-0"
-              />
+              <View
+                style={
+                  hasBadgeAboveSponsor ? badgeStackSpacing.afterFirstPill : undefined
+                }
+              >
+                <ScheduleBadge
+                  text={`Sponsored by ${sponsoredBy.name}`}
+                  color={sponsoredBy.color}
+                  className="mb-0"
+                />
+              </View>
             ) : null}
           </View>
         )}
@@ -127,5 +153,10 @@ function EventCard({
     </View>
   );
 }
+
+/** Gap between stacked schedule pills (Starting soon + sponsor/session badges). */
+const badgeStackSpacing = {
+  afterFirstPill: { marginTop: 4 },
+} as const;
 
 export default memo(EventCard);

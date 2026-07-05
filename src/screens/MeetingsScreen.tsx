@@ -49,6 +49,12 @@ import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import { resolveMeetingById } from "../services/deepLinkResolveService";
+import { isPostEventMode } from "../config/eventMode";
+import {
+  parseDisplayTimeToApi,
+  parseFlexibleDateToIso,
+} from "../utils/meetingDateTime";
+import { resolveVirtualMeetingLink } from "../utils/meetingLink";
 import { useListRowHighlight } from "../hooks/useListRowHighlight";
 import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 
@@ -557,7 +563,10 @@ export default function MeetingsScreen({ route }: Props) {
       endTime,
       location: undefined, // Virtual meetings don't have location
       meetingType: "virtual",
-      meetingLink: virtualMeeting.meeting_link,
+      meetingLink: resolveVirtualMeetingLink(
+        virtualMeeting.meeting_link,
+        virtualMeeting.metadata,
+      ),
       status: virtualMeeting.status,
       approvalMessage:
         virtualMeeting.status === "pending"
@@ -806,12 +815,15 @@ export default function MeetingsScreen({ route }: Props) {
       }
       setError(null);
       const currentUserId = user.user_id;
+      const postEventVirtualOnly = isPostEventMode();
 
-      // Fetch both physical and virtual meetings in parallel
-      const [physicalMeetings, virtualMeetings] = await Promise.all([
-        meetingService.getMeetings(),
-        meetingService.getVirtualMeetings(),
-      ]);
+      // Post-event: virtual meetings only (booked via connections).
+      const [physicalMeetings, virtualMeetings] = postEventVirtualOnly
+        ? [[], await meetingService.getVirtualMeetings()] as const
+        : await Promise.all([
+            meetingService.getMeetings(),
+            meetingService.getVirtualMeetings(),
+          ]);
 
       // Map physical meetings to UI format
       const physicalUIMeetings = physicalMeetings.map((meeting) =>
@@ -984,7 +996,8 @@ export default function MeetingsScreen({ route }: Props) {
         time: string;
         date: string;
         description: string;
-        slotId?: number; // Selected slot ID for rescheduling (for physical) or time selection (for virtual)
+        timeApi?: string;
+        slotId?: number;
       }
     ) => {
       if (isActionLoading) return;
@@ -993,27 +1006,6 @@ export default function MeetingsScreen({ route }: Props) {
         
         // Handle virtual meeting updates
         if (meeting.isVirtual || updateData.meetingType === "virtual") {
-          // Parse time from format "10:00 AM - 10:20 AM" to "10:00:00"
-          const parseTimeFromDisplay = (timeDisplay: string): string => {
-            try {
-              // Extract start time (first part before " - ")
-              const startTimeStr = timeDisplay.split(" - ")[0].trim();
-              // Parse "10:00 AM" format to "10:00:00"
-              const [timePart, period] = startTimeStr.split(" ");
-              const [hours, minutes] = timePart.split(":");
-              let hour24 = parseInt(hours, 10);
-              if (period?.toUpperCase() === "PM" && hour24 !== 12) {
-                hour24 += 12;
-              } else if (period?.toUpperCase() === "AM" && hour24 === 12) {
-                hour24 = 0;
-              }
-              return `${hour24.toString().padStart(2, "0")}:${minutes}:00`;
-            } catch {
-              // Fallback: assume it's already in HH:MM:SS format
-              return "10:00:00";
-            }
-          };
-
           // Calculate duration from time range (default 20 minutes)
           const calculateDuration = (timeDisplay: string): number => {
             try {
@@ -1043,6 +1035,11 @@ export default function MeetingsScreen({ route }: Props) {
             return 20; // Default 20 minutes
           };
 
+          const trimmedLink =
+            updateData.meetingLink?.trim() ||
+            meeting.meetingLink?.trim() ||
+            "";
+
           const virtualUpdateRequest: {
             reason?: string;
             meeting_link?: string;
@@ -1052,38 +1049,68 @@ export default function MeetingsScreen({ route }: Props) {
             metadata?: any;
           } = {
             reason: updateData.description,
+            meeting_link: trimmedLink,
           };
 
-          // Always include meeting_link if provided (for updates)
-          if (updateData.meetingLink !== undefined) {
-            virtualUpdateRequest.meeting_link = updateData.meetingLink.trim() || undefined;
-          }
-
-          // Parse date from label format to YYYY-MM-DD if needed
+          // Parse date to YYYY-MM-DD
           let parsedDate = updateData.date;
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(updateData.date)) {
-            const parsed = parseDateLabel(updateData.date);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(parsedDate)) {
+            const parsed =
+              parseDateLabel(updateData.date) ||
+              parseFlexibleDateToIso(updateData.date);
             if (parsed) {
               parsedDate = parsed;
             }
           }
 
-          // Always include scheduled_date and scheduled_time for virtual meetings (required fields)
-          // Parse date from label format to YYYY-MM-DD if needed
-          virtualUpdateRequest.scheduled_date = parsedDate; // Should be YYYY-MM-DD
-          virtualUpdateRequest.scheduled_time = parseTimeFromDisplay(updateData.time);
-          virtualUpdateRequest.duration_minutes = calculateDuration(updateData.time);
+          virtualUpdateRequest.scheduled_date = parsedDate;
+          virtualUpdateRequest.scheduled_time =
+            updateData.timeApi ||
+            parseDisplayTimeToApi(updateData.time);
+          virtualUpdateRequest.duration_minutes = updateData.time.includes(
+            " - ",
+          )
+            ? calculateDuration(updateData.time)
+            : 20;
 
           // Build complete metadata object - backend requires all metadata fields to be sent together
           // This matches the structure used when creating meetings (see ConnectionsScreen)
           virtualUpdateRequest.metadata = {
             title: updateData.title,
             meetingType: "Virtual",
-            selectedDate: parsedDate, // Use parsed date in YYYY-MM-DD format
-            selectedTime: updateData.time, // Keep original time format "8:00 AM - 8:20 AM"
+            selectedDate: parsedDate,
+            selectedTime: updateData.time,
+            meetingLink: trimmedLink,
           };
 
-          const updatedMeeting = await meetingService.updateVirtualMeeting(meeting.backendMeetingId, virtualUpdateRequest);
+          const updatedMeeting = await meetingService.updateVirtualMeeting(
+            meeting.backendMeetingId,
+            virtualUpdateRequest,
+          );
+
+          if (user?.user_id) {
+            const remapped = mapVirtualMeetingToUI(
+              updatedMeeting,
+              user.user_id,
+            );
+            const meetingLink =
+              remapped.meetingLink || trimmedLink || meeting.meetingLink;
+            const patched = { ...remapped, meetingLink, id: meeting.id };
+            setAllMeetingsForCounts((prev) =>
+              prev.map((m) =>
+                m.backendMeetingId === meeting.backendMeetingId && m.isVirtual
+                  ? patched
+                  : m,
+              ),
+            );
+            setSelectedMeeting((prev) =>
+              prev &&
+              prev.backendMeetingId === meeting.backendMeetingId &&
+              prev.isVirtual
+                ? { ...prev, ...patched }
+                : prev,
+            );
+          }
         } else {
           // Handle physical meeting updates
           const updateRequest: { reason?: string; slot_id?: number; metadata?: any } = {
@@ -1111,17 +1138,18 @@ export default function MeetingsScreen({ route }: Props) {
             title: updateData.title,
             meetingType: "Physical",
             selectedDate: (() => {
-              // Parse date from display format back to YYYY-MM-DD if needed
               let parsedDate = updateData.date;
               if (!/^\d{4}-\d{2}-\d{2}$/.test(updateData.date)) {
-                const parsed = parseDateLabel(updateData.date);
+                const parsed =
+                  parseDateLabel(updateData.date) ||
+                  parseFlexibleDateToIso(updateData.date);
                 if (parsed) {
                   parsedDate = parsed;
                 }
               }
               return parsedDate;
             })(),
-            selectedTime: updateData.time, // Keep original time format "8:00 AM - 8:20 AM"
+            selectedTime: updateData.time,
             ...(tableNumber && {
               tableNumber: tableNumber.startsWith("Table ")
                 ? tableNumber.replace(/^Table\s+/i, "").trim()
@@ -1160,7 +1188,7 @@ export default function MeetingsScreen({ route }: Props) {
         setIsActionLoading(false);
       }
     },
-    [fetchMeetings, isActionLoading, showToast]
+    [fetchMeetings, isActionLoading, showToast, user?.user_id, mapVirtualMeetingToUI]
   );
 
   // Calculate counts for each tab
@@ -1184,11 +1212,16 @@ export default function MeetingsScreen({ route }: Props) {
   }, [primaryTab, allMeetingsForCounts]);
 
   const secondaryTabCounts = getSecondaryTabCounts();
+  const postEventMode = isPostEventMode();
 
   return (
     <View className="flex-1 bg-white">
       <HeaderBar
-        onScanPress={() => navigation.navigate("ScanQR")}
+        onScanPress={() =>
+          navigation.navigate("ScanQR", {
+            initialTab: postEventMode ? "My Ticket" : "Scan Ticket",
+          })
+        }
         onMyTicketPress={() =>
           navigation.navigate("ScanQR", {
             initialTab: "My Ticket",
@@ -1201,6 +1234,24 @@ export default function MeetingsScreen({ route }: Props) {
         hasUnreadNotifications={hasUnreadNotifications}
         unreadMessagesCount={messagesBadgeCount}
       />
+
+      {postEventMode ? (
+        <View className="mx-4 mt-3 mb-1 rounded-xl bg-neutral-100 border border-neutral-200 px-4 py-3">
+          <Text className="text-sm text-neutral-700 leading-5">
+            <Text className="font-semibold text-[#1BB273]">Africa Startup Festival</Text> has
+            ended. This tab shows{" "}
+            <Text className="font-semibold">virtual meetings</Text> only — request
+            new ones from your{" "}
+            <Text
+              className="font-semibold text-[#1BB273]"
+              onPress={() => navigation.navigate("Connections")}
+            >
+              connections
+            </Text>
+            .
+          </Text>
+        </View>
+      ) : null}
 
       {/* Fixed Primary Tab Navigation */}
       <View className="px-4 pt-4 pb-3 bg-white">

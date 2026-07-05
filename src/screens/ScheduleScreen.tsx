@@ -62,6 +62,13 @@ import {
   scheduleVenueToStageKey,
   setExpoEventDates,
 } from "../utils/scheduleFilters";
+import {
+  getDefaultScheduleDayFilterIds,
+} from "../utils/eventDay";
+import {
+  isSessionSoonOrLive,
+  parseScheduleTimes,
+} from "../utils/scheduleUpcoming";
 import { resolveEventScheduleById } from "../services/deepLinkResolveService";
 import {
   clearCachedEventSchedules,
@@ -80,6 +87,11 @@ import {
   parseScheduleSpeakersRaw,
 } from "../utils/scheduleSpeakers";
 import type { Speaker as ApiSpeaker } from "../services/eventService";
+import {
+  getCanUserAddEnterpriseStageToSchedule,
+  isEnterpriseStageSession,
+  showEnterpriseStageScheduleBlockedAlert,
+} from "../utils/scheduleRestrictions";
 
 /**
  * Reference EventData for schedule cards/modals (not loaded into the live list).
@@ -94,6 +106,7 @@ export const MOCK_SCHEDULE_EVENT = {
   startTime: "10:00 AM",
   endTime: "11:00 AM",
   startTimeMs: Date.parse("2026-06-26T10:00:00"),
+  endTimeMs: Date.parse("2026-06-26T11:00:00"),
   scheduleDateIso: "2026-06-26",
   sponsoredBy: {
     name: "Spark Capital",
@@ -250,12 +263,15 @@ export default function ScheduleScreen() {
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
+  const { markDay2SessionFeedbackComplete } = useChecklist();
   const { hasUnreadNotifications } = useNotifications();
   const [scheduleView, setScheduleView] = React.useState<"all" | "my">("all");
   const [selectedStage, setSelectedStage] =
     React.useState<string>("main-stage");
   const [isFilterModalVisible, setIsFilterModalVisible] = React.useState(false);
-  const [selectedFilters, setSelectedFilters] = React.useState<string[]>([]);
+  const [selectedFilters, setSelectedFilters] = React.useState<string[]>(() =>
+    getDefaultScheduleDayFilterIds(),
+  );
   interface EventData {
     id: string;
     eventScheduleId: number; // Backend schedule id for addEventToSchedule
@@ -272,6 +288,8 @@ export default function ScheduleScreen() {
     personalScheduleId?: number; // For My Schedule tab: backend personal schedule id (remove from schedule)
     /** UTC ms from schedule.start_time — used for chronological sort */
     startTimeMs: number;
+    /** UTC ms from schedule.end_time */
+    endTimeMs: number;
     /** YYYY-MM-DD from schedule.start_time — used for day filter matching */
     scheduleDateIso: string;
   }
@@ -407,6 +425,7 @@ export default function ScheduleScreen() {
       startTime: formatTime(startDate),
       endTime: formatTime(endDate),
       startTimeMs: startDate.getTime(),
+      endTimeMs: endDate.getTime(),
       scheduleDateIso: scheduleStartDateIso(scheduleRow.start_time),
       sessionBadge: sessionBadge
         ? {
@@ -561,6 +580,70 @@ export default function ScheduleScreen() {
   }, [route.params?.highlightScheduleId, route.params?.highlightStage, navigation]);
 
   React.useEffect(() => {
+    const dayFilterIds = route.params?.dayFilterIds;
+    if (!dayFilterIds?.length) return;
+    setSelectedFilters(dayFilterIds);
+    setScheduleView("all");
+    navigation.setParams({ dayFilterIds: undefined });
+  }, [route.params?.dayFilterIds, navigation]);
+
+  React.useEffect(() => {
+    const initialStage = route.params?.initialStage;
+    if (!initialStage) return;
+    setSelectedStage(initialStage);
+    setScheduleView("all");
+    navigation.setParams({ initialStage: undefined });
+  }, [route.params?.initialStage, navigation]);
+
+  const soonScheduleIds = React.useMemo(() => {
+    const now = Date.now();
+    const ids = new Set<number>();
+    for (const event of events) {
+      if (
+        isSessionSoonOrLive(event.startTimeMs, event.endTimeMs, now)
+      ) {
+        ids.add(event.eventScheduleId);
+      }
+    }
+    return ids;
+  }, [events]);
+
+  const scrolledSoonRef = React.useRef(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      scrolledSoonRef.current = false;
+    }, []),
+  );
+
+  React.useEffect(() => {
+    if (
+      scheduleView !== "all" ||
+      isLoading ||
+      highlightTargetId != null ||
+      scrolledSoonRef.current
+    ) {
+      return;
+    }
+    const firstSoon = events.find((e) =>
+      soonScheduleIds.has(e.eventScheduleId),
+    );
+    if (!firstSoon) return;
+    scrolledSoonRef.current = true;
+    const timer = setTimeout(() => {
+      scrollToCenteredSchedule(firstSoon.eventScheduleId);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [
+    events,
+    soonScheduleIds,
+    scheduleView,
+    isLoading,
+    highlightTargetId,
+    scrollToCenteredSchedule,
+  ]);
+
+  React.useEffect(() => {
     const targetId = highlightTargetId;
     if (targetId == null || scheduleView !== "all" || isLoading) return;
 
@@ -712,6 +795,14 @@ export default function ScheduleScreen() {
     if (!event?.eventScheduleId || event.eventScheduleId === 0) return;
     if (addingScheduleId !== null) return;
 
+    if (isEnterpriseStageSession(event.stage)) {
+      const canAdd = await getCanUserAddEnterpriseStageToSchedule();
+      if (!canAdd) {
+        showEnterpriseStageScheduleBlockedAlert(navigation);
+        return;
+      }
+    }
+
     setAddingScheduleId(event.eventScheduleId);
     try {
       await eventService.addEventToSchedule(event.eventScheduleId);
@@ -735,9 +826,11 @@ export default function ScheduleScreen() {
       const supported = await Linking.canOpenURL(SESSION_FEEDBACK_FORM_URL);
       if (supported) {
         await Linking.openURL(SESSION_FEEDBACK_FORM_URL);
+        markDay2SessionFeedbackComplete();
         return;
       }
       await Linking.openURL(SESSION_FEEDBACK_FORM_URL);
+      markDay2SessionFeedbackComplete();
     } catch (error) {
       if (__DEV__) {
         console.error("Error opening feedback form:", error);
@@ -894,7 +987,9 @@ export default function ScheduleScreen() {
       <ScrollView
         ref={scrollRef}
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: FLOATING_NAV_BOTTOM_INSET }}
+        contentContainerStyle={{
+          paddingBottom: FLOATING_NAV_BOTTOM_INSET + 28,
+        }}
         showsVerticalScrollIndicator={false}
         onLayout={(e) => {
           scrollViewportHeightRef.current = e.nativeEvent.layout.height;
@@ -992,6 +1087,7 @@ export default function ScheduleScreen() {
                     isAddingToSchedule={
                       addingScheduleId === event?.eventScheduleId
                     }
+                    happeningSoon={soonScheduleIds.has(scheduleId)}
                   />
                 {isHighlighted ? (
                   <Animated.View

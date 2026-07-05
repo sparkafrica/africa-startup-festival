@@ -6,8 +6,10 @@ import { useHomeScroll } from "../context/HomeScrollContext";
 import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContext";
 import { getActiveRouteName } from "../utils/analytics";
 import { navigate } from "./navigationRef";
+import { getEventFeatures } from "../config/eventFeatures";
 import {
   createMainTabItems,
+  createPostEventMainTabItems,
   isNavVisibleRoute,
   resolveActiveTabRoute,
   type MainTabRoute,
@@ -20,13 +22,17 @@ export default function FloatingBottomNavHost() {
   const meetingsBadgeCount = useMeetingsBadgeCount();
   const { scrollHomeToTop } = useHomeScroll();
   const { suppressed } = useFloatingNavVisibility();
+  const postEvent = getEventFeatures().postEvent;
 
   const items = useMemo(
-    () => createMainTabItems(meetingsBadgeCount),
-    [meetingsBadgeCount],
+    () =>
+      postEvent
+        ? createPostEventMainTabItems(meetingsBadgeCount)
+        : createMainTabItems(meetingsBadgeCount),
+    [meetingsBadgeCount, postEvent],
   );
 
-  const activeRoute = resolveActiveTabRoute(routeName);
+  const activeRoute = resolveActiveTabRoute(routeName, postEvent);
   const visible = isNavVisibleRoute(routeName);
 
   const handleNavigate = useCallback(

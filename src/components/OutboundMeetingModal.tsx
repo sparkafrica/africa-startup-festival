@@ -19,6 +19,7 @@ import Svg, { Path } from "react-native-svg";
 import { ClockIcon } from "./BottomNavIcons";
 import { LocationPinIcon, TableIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
+import MeetingLinkPressable from "./MeetingLinkPressable";
 import { LinkedInIcon } from "./SocialIcons";
 import EditMeetingModal, { EditMeetingModalProps } from "./EditMeetingModal";
 import MeetingCancelModal from "./MeetingCancelModal";
@@ -150,8 +151,7 @@ export default function OutboundMeetingModal({
   const resolvedMeetingLink =
     resolvedMeetingType === "virtual"
       ? meetingLink ||
-        (location?.toLowerCase().includes("http") ? location : undefined) ||
-        ""
+        (location?.toLowerCase().includes("http") ? location : undefined)
       : undefined;
   const resolvedTableNumber =
     resolvedMeetingType === "physical"
@@ -416,9 +416,9 @@ export default function OutboundMeetingModal({
             {resolvedMeetingType === "virtual" && resolvedMeetingLink ? (
               <View style={styles.infoRow}>
                 <VideoIcon size={18} color="#404040" />
-                <Text style={styles.infoText} numberOfLines={1} ellipsizeMode="middle">
-                  {resolvedMeetingLink}
-                </Text>
+                <View style={styles.linkWrap}>
+                  <MeetingLinkPressable url={resolvedMeetingLink} />
+                </View>
               </View>
             ) : (
               <>
@@ -857,6 +857,10 @@ const styles = StyleSheet.create({
     color: "#404040",
     marginLeft: 8,
     flex: 1,
+  },
+  linkWrap: {
+    flex: 1,
+    marginLeft: 8,
   },
   participantCard: {
     flexDirection: "row",

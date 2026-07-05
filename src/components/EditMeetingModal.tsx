@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,16 @@ import LoadingSpinner from "./LoadingSpinner";
 import { ChevronDownIcon, ChevronUpIcon } from "./icons";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
+import MeetingCalendarPicker from "./MeetingCalendarPicker";
+import MeetingTimePicker from "./MeetingTimePicker";
+import {
+  addDaysToIso,
+  extractStartTimeDisplay,
+  formatDateLong,
+  parseDisplayTimeToApi,
+  parseFlexibleDateToIso,
+  todayIsoLocal,
+} from "../utils/meetingDateTime";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -37,7 +47,8 @@ export interface EditMeetingModalProps {
     time: string;
     date: string;
     description: string;
-    slotId?: number; // Selected slot ID for rescheduling
+    timeApi?: string;
+    slotId?: number;
   }) => void;
   initialData?: {
     title: string;
@@ -67,7 +78,11 @@ export default function EditMeetingModal({
     initialData?.meetingLink || ""
   );
   const [time, setTime] = useState(initialData?.time || "10:30 AM - 10:50 AM");
+  const [selectedTimeApi, setSelectedTimeApi] = useState<string | null>(null);
   const [date, setDate] = useState(initialData?.date || "");
+  const [selectedDateValue, setSelectedDateValue] = useState<string | null>(
+    null,
+  );
   const [description, setDescription] = useState(
     initialData?.description || ""
   );
@@ -78,6 +93,7 @@ export default function EditMeetingModal({
     tableNumber?: string;
     meetingLink?: string;
     date?: string;
+    time?: string;
     description?: string;
   }>({});
 
@@ -176,19 +192,12 @@ export default function EditMeetingModal({
     return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
   };
 
-  // Available dates for the event (26th and 27th June, 2026)
-  const availableDates = [
-    { id: "1", label: "26th June, 2026", value: "2026-06-26" },
-    { id: "2", label: "27th June, 2026", value: "2026-06-27" },
-  ];
-
-  // Fetch meeting slots
   const fetchMeetingSlots = async () => {
     try {
       setIsLoadingSlots(true);
       setSlotsError(null);
       const response = await meetingService.getMeetingSlots(EVENT_ID);
-      const availableSlots = response.slots.filter(slot => slot.is_available);
+      const availableSlots = response.slots.filter((slot) => slot.is_available);
       setMeetingSlots(availableSlots);
     } catch (error: any) {
       setSlotsError("Failed to load meeting slots");
@@ -200,12 +209,32 @@ export default function EditMeetingModal({
     }
   };
 
-  // Fetch slots when modal opens
+  // Fetch slots when modal opens (physical rescheduling)
   useEffect(() => {
-    if (visible) {
+    if (visible && meetingType === "physical") {
       fetchMeetingSlots();
     }
-  }, [visible]);
+  }, [visible, meetingType]);
+
+  const isVirtualMeeting = meetingType === "virtual";
+  const virtualMinDateIso = todayIsoLocal();
+  const virtualMaxDateIso = addDaysToIso(virtualMinDateIso, 90);
+
+  const slotDateNorm = (slot: MeetingSlot): string | null =>
+    slot.date ? slot.date.slice(0, 10) : null;
+
+  const physicalEnabledDates = useMemo(() => {
+    const set = new Set<string>();
+    meetingSlots.forEach((slot) => {
+      const d = slotDateNorm(slot);
+      if (d) set.add(d);
+    });
+    if (set.size === 0) {
+      set.add("2026-06-26");
+      set.add("2026-06-27");
+    }
+    return set;
+  }, [meetingSlots]);
 
   // Reset form when modal opens with initial data
   useEffect(() => {
@@ -214,88 +243,70 @@ export default function EditMeetingModal({
       setMeetingType(initialData.meetingType || "physical");
       setTableNumber(initialData.tableNumber || "Table 15");
       setMeetingLink(initialData.meetingLink || "");
-      setTime(initialData.time || "10:30 AM - 10:50 AM");
-      setDate(initialData.date || "");
+      const iso = parseFlexibleDateToIso(initialData.date || "");
+      setSelectedDateValue(iso);
+      setDate(iso ? formatDateLong(iso) : initialData.date || "");
+      if (initialData.meetingType === "virtual") {
+        const start = extractStartTimeDisplay(initialData.time || "");
+        setTime(start);
+        setSelectedTimeApi(parseDisplayTimeToApi(start));
+      } else {
+        setTime(initialData.time || "10:30 AM - 10:50 AM");
+        setSelectedTimeApi(null);
+      }
       setDescription(initialData.description || "");
-      setErrors({}); // Clear errors when modal opens
-      // Reset pickers
+      setErrors({});
       setShowDatePicker(false);
       setShowTimePicker(false);
       setShowTablePicker(false);
-      
-      // Find matching timeKey for the initial time (after slots are loaded)
-      // This will be set in a separate effect after meetingSlots are available
       setSelectedTimeKey(null);
       setSelectedSlotId(null);
     } else if (!visible) {
-      setErrors({}); // Clear errors when modal closes
+      setErrors({});
     }
   }, [visible, initialData]);
 
-  // Match initial time to timeKey once slots are loaded (only consider slots for the meeting's date)
+  // Match initial physical time to slot once slots load
   useEffect(() => {
-    if (visible && initialData && meetingSlots.length > 0 && !selectedTimeKey) {
+    if (
+      visible &&
+      initialData &&
+      meetingType === "physical" &&
+      meetingSlots.length > 0 &&
+      !selectedTimeKey
+    ) {
       const initialTime = initialData.time;
-      const initialDate = initialData.date;
-      if (!initialTime) return;
-      const targetDate = ((): string | null => {
-        if (!initialDate) return null;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(initialDate)) return initialDate;
-        const match = initialDate.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(\w+),\s+(\d{4})/i);
-        if (match) {
-          const [, day, monthName, year] = match;
-          const monthMap: { [key: string]: string } = {
-            january: "01", february: "02", march: "03", april: "04", may: "05", june: "06",
-            july: "07", august: "08", september: "09", october: "10", november: "11", december: "12",
-          };
-          const month = monthMap[monthName?.toLowerCase() ?? ""];
-          if (month) return `${year}-${month}-${(day ?? "").padStart(2, "0")}`;
-        }
-        return null;
-      })();
-      const slotsForThisDate = targetDate
-        ? meetingSlots.filter((slot) => slot.date?.slice(0, 10) === targetDate)
-        : meetingSlots;
+      const targetDate =
+        selectedDateValue || parseFlexibleDateToIso(initialData.date || "");
+      if (!initialTime || !targetDate) return;
+      const slotsForThisDate = meetingSlots.filter(
+        (slot) => slotDateNorm(slot) === targetDate,
+      );
       const matchingSlot = slotsForThisDate.find((slot) => {
         const slotLabel = `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`;
         return slotLabel === initialTime;
       });
       if (matchingSlot) {
-        const timeKey = `${matchingSlot.start_time}-${matchingSlot.end_time}`;
-        setSelectedTimeKey(timeKey);
-        if (meetingType === "virtual") {
-          setSelectedSlotId(matchingSlot.id);
-        }
+        setSelectedTimeKey(
+          `${matchingSlot.start_time}-${matchingSlot.end_time}`,
+        );
+        setSelectedSlotId(matchingSlot.id);
       }
     }
-  }, [visible, initialData, meetingSlots, selectedTimeKey, meetingType]);
+  }, [
+    visible,
+    initialData,
+    meetingSlots,
+    selectedTimeKey,
+    meetingType,
+    selectedDateValue,
+  ]);
 
-  // Normalize meeting date to YYYY-MM-DD (initialData.date may be "26th June, 2026" or "2026-06-26")
-  const meetingDateNorm = (): string | null => {
-    const d = initialData?.date;
-    if (!d) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-    const match = d.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(\w+),\s+(\d{4})/i);
-    if (match) {
-      const [, day, monthName, year] = match;
-      const monthMap: { [key: string]: string } = {
-        january: "01", february: "02", march: "03", april: "04", may: "05", june: "06",
-        july: "07", august: "08", september: "09", october: "10", november: "11", december: "12",
-      };
-      const month = monthMap[monthName?.toLowerCase() ?? ""];
-      if (month) return `${year}-${month}-${(day ?? "").padStart(2, "0")}`;
-    }
-    return null;
-  };
-
-  const slotDateNorm = (slot: MeetingSlot): string | null =>
-    slot.date ? slot.date.slice(0, 10) : null;
-
-  // Only show slots for the meeting's date (each day has its own slots)
   const slotsForDate = ((): MeetingSlot[] => {
-    const targetDate = meetingDateNorm();
-    if (!targetDate) return meetingSlots;
-    return meetingSlots.filter((slot) => slotDateNorm(slot) === targetDate);
+    if (!selectedDateValue) return meetingSlots;
+    return meetingSlots.filter(
+      (slot) => slotDateNorm(slot) === selectedDateValue,
+    );
   })();
 
   // Generate time options from available slots (for this date only)
@@ -424,9 +435,18 @@ export default function EditMeetingModal({
     return undefined;
   };
 
-  const validateDate = (value: string): string | undefined => {
-    if (!value || value.trim().length === 0) {
+  const validateDate = (): string | undefined => {
+    if (!selectedDateValue) {
       return "Date is required";
+    }
+    return undefined;
+  };
+
+  const validateTime = (): string | undefined => {
+    if (isVirtualMeeting) {
+      if (!selectedTimeApi) return "Start time is required";
+    } else if (!time.trim()) {
+      return "Time is required";
     }
     return undefined;
   };
@@ -461,9 +481,14 @@ export default function EditMeetingModal({
     }
 
     // Validate date
-    const dateError = validateDate(date);
+    const dateError = validateDate();
     if (dateError) {
       newErrors.date = dateError;
+    }
+
+    const timeError = validateTime();
+    if (timeError) {
+      newErrors.time = timeError;
     }
 
     // Validate description
@@ -481,25 +506,168 @@ export default function EditMeetingModal({
     // Clear errors and save
     setErrors({});
     Keyboard.dismiss();
-    let resolvedSlotId = selectedSlotId || undefined;
-    if (meetingType === "virtual" && !resolvedSlotId && selectedTimeKey) {
-      const matchingSlot = meetingSlots.find(
-        (slot) => `${slot.start_time}-${slot.end_time}` === selectedTimeKey
-      );
-      resolvedSlotId = matchingSlot?.id;
-    }
+    const resolvedSlotId =
+      meetingType === "physical"
+        ? selectedSlotId || undefined
+        : undefined;
 
     onSave({
       title: title.trim(),
       meetingType,
       tableNumber: meetingType === "physical" ? tableNumber.trim() : undefined,
       meetingLink: meetingType === "virtual" ? meetingLink.trim() : undefined,
-      time,
-      date: date.trim(),
+      time: time.trim(),
+      date: selectedDateValue || date.trim(),
       description: description.trim(),
-      slotId: resolvedSlotId, // Include slot ID if selected (for rescheduling)
+      timeApi: isVirtualMeeting ? selectedTimeApi || undefined : undefined,
+      slotId: resolvedSlotId,
     });
   };
+
+  const handleSelectCalendarDate = (iso: string) => {
+    setSelectedDateValue(iso);
+    setDate(formatDateLong(iso));
+    setTime(isVirtualMeeting ? "" : "");
+    setSelectedTimeApi(null);
+    setSelectedTimeKey(null);
+    setTableNumber("");
+    setSelectedSlotId(null);
+    setShowDatePicker(false);
+    clearError("date");
+    clearError("time");
+  };
+
+  const renderDateTimeSection = () => (
+    <View className="mb-4">
+      <Text className="text-sm font-medium text-black mb-2">Date & time</Text>
+
+      <Pressable
+        className={`flex-row items-center bg-white border rounded-xl px-4 py-3.5 mb-3 ${
+          errors.date ? "border-red-500" : "border-neutral-300"
+        }`}
+        onPress={() => {
+          setShowDatePicker(!showDatePicker);
+          setShowTimePicker(false);
+          setShowTablePicker(false);
+          clearError("date");
+        }}
+      >
+        <Text className="text-lg mr-2">📅</Text>
+        <Text
+          className={`flex-1 text-base ${
+            !selectedDateValue ? "text-neutral-500" : "text-black"
+          }`}
+        >
+          {selectedDateValue ? formatDateLong(selectedDateValue) : "Select date"}
+        </Text>
+        {showDatePicker ? (
+          <ChevronUpIcon size={20} color="#6B7280" />
+        ) : (
+          <ChevronDownIcon size={20} color="#6B7280" />
+        )}
+      </Pressable>
+      {showDatePicker ? (
+        <View className="mb-3 bg-neutral-50 border border-neutral-300 rounded-xl p-3">
+          <MeetingCalendarPicker
+            selectedDateIso={selectedDateValue}
+            minDateIso={virtualMinDateIso}
+            maxDateIso={isVirtualMeeting ? virtualMaxDateIso : undefined}
+            enabledDatesIso={isVirtualMeeting ? null : physicalEnabledDates}
+            onSelectDate={handleSelectCalendarDate}
+          />
+        </View>
+      ) : null}
+      {errors.date ? (
+        <Text className="text-red-500 text-xs mt-1 ml-1 mb-2">{errors.date}</Text>
+      ) : null}
+
+      <Pressable
+        className={`flex-row items-center bg-white border rounded-xl px-4 py-3.5 mb-3 ${
+          errors.time ? "border-red-500" : "border-neutral-300"
+        }`}
+        onPress={() => {
+          if (!selectedDateValue) {
+            setErrors((prev) => ({
+              ...prev,
+              date: "Select a date first",
+            }));
+            return;
+          }
+          setShowTimePicker(!showTimePicker);
+          setShowDatePicker(false);
+          setShowTablePicker(false);
+          clearError("time");
+        }}
+      >
+        <View className="mr-2">
+          <ClockIcon size={18} color="#404040" />
+        </View>
+        <Text className="flex-1 text-base font-medium text-black">
+          {time ||
+            (isVirtualMeeting ? "Select start time" : "Select time slot")}
+        </Text>
+        {showTimePicker ? (
+          <ChevronUpIcon size={20} color="#6B7280" />
+        ) : (
+          <ChevronDownIcon size={20} color="#6B7280" />
+        )}
+      </Pressable>
+      {showTimePicker ? (
+        <View className="mb-3 bg-white border border-neutral-300 rounded-xl max-h-52">
+          {isVirtualMeeting ? (
+            <MeetingTimePicker
+              selectedTimeApi={selectedTimeApi}
+              onSelectTime={(display, apiValue) => {
+                setTime(display);
+                setSelectedTimeApi(apiValue);
+                setShowTimePicker(false);
+                clearError("time");
+              }}
+            />
+          ) : (
+            <ScrollView nestedScrollEnabled>
+              {isLoadingSlots ? (
+                <View className="px-4 py-3 items-center">
+                  <LoadingSpinner size="small" />
+                </View>
+              ) : availableTimes.length === 0 ? (
+                <View className="px-4 py-3">
+                  <Text className="text-sm text-neutral-500 text-center">
+                    {slotsError || "No available times for this date"}
+                  </Text>
+                </View>
+              ) : (
+                availableTimes.map((timeOption) => (
+                  <Pressable
+                    key={timeOption.id}
+                    className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
+                    onPress={() => {
+                      setTime(timeOption.label);
+                      setSelectedTimeKey(timeOption.value);
+                      setSelectedSlotId(timeOption.slotId);
+                      setShowTimePicker(false);
+                      setTableNumber("");
+                      clearError("time");
+                    }}
+                  >
+                    <Text className="text-base text-black">
+                      {timeOption.label}
+                    </Text>
+                    {time === timeOption.label ? (
+                      <Text className="text-green-600 font-semibold">✓</Text>
+                    ) : null}
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+          )}
+        </View>
+      ) : null}
+      {errors.time ? (
+        <Text className="text-red-500 text-xs mt-1 ml-1">{errors.time}</Text>
+      ) : null}
+    </View>
+  );
 
   // Keyboard navigation handlers
   const handleTitleSubmit = () => {
@@ -672,7 +840,7 @@ export default function EditMeetingModal({
                         ? "border-red-500"
                         : "border-neutral-300"
                     }`}
-                    placeholder="Paste your meeting link"
+                    placeholder="https://meet.google.com/..."
                     placeholderTextColor="#9CA3AF"
                     value={meetingLink}
                     onChangeText={(text) => {
@@ -699,131 +867,7 @@ export default function EditMeetingModal({
                 </View>
               )}
 
-              {/* Date & Time */}
-              <View className="mb-4">
-                <Text className="text-sm font-medium text-black mb-2">
-                  Date & Time
-                </Text>
-                <Pressable
-                  className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5 mb-3"
-                  onPress={() => {
-                    setShowTimePicker(!showTimePicker);
-                    setShowDatePicker(false);
-                    setShowTablePicker(false);
-                    clearError("date");
-                  }}
-                >
-                  <View className="mr-2">
-                    <ClockIcon size={18} color="#404040" />
-                  </View>
-                  <Text className="flex-1 text-base font-medium text-black">
-                    {time}
-                  </Text>
-                  {showTimePicker ? (
-                    <ChevronUpIcon size={20} color="#6B7280" />
-                  ) : (
-                    <ChevronDownIcon size={20} color="#6B7280" />
-                  )}
-                </Pressable>
-                {showTimePicker && (
-                  <View className="mb-3 bg-white border border-neutral-300 rounded-xl max-h-48">
-                    <ScrollView nestedScrollEnabled={true}>
-                      {isLoadingSlots ? (
-                        <View className="px-4 py-3 items-center">
-                          <LoadingSpinner size="small" />
-                        </View>
-                      ) : availableTimes.length === 0 ? (
-                        <View className="px-4 py-3">
-                          <Text className="text-sm text-neutral-500 text-center">
-                            {slotsError || "No available times"}
-                          </Text>
-                        </View>
-                      ) : (
-                        availableTimes.map((timeOption: any) => (
-                          <Pressable
-                            key={timeOption.id}
-                            className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
-                            onPress={() => {
-                              setTime(timeOption.label);
-                              setSelectedTimeKey(timeOption.value);
-                              setShowTimePicker(false);
-                              clearError("date");
-                              // Reset table when time changes
-                              setTableNumber("");
-                              if (meetingType === "virtual") {
-                                setSelectedSlotId(timeOption.slotId);
-                              }
-                            }}
-                          >
-                            <Text className="text-base text-black">
-                              {timeOption.label}
-                            </Text>
-                            {time === timeOption.label && (
-                              <Text className="text-green-600 font-semibold">✓</Text>
-                            )}
-                          </Pressable>
-                        ))
-                      )}
-                    </ScrollView>
-                  </View>
-                )}
-                <Pressable
-                  className={`flex-row items-center bg-white border rounded-xl px-4 py-3.5 ${
-                    errors.date ? "border-red-500" : "border-neutral-300"
-                  }`}
-                  onPress={() => {
-                    setShowDatePicker(!showDatePicker);
-                    setShowTimePicker(false);
-                    setShowTablePicker(false);
-                    clearError("date");
-                  }}
-                >
-                  <View className="mr-2">
-                    <Text className="text-lg">📅</Text>
-                  </View>
-                  <Text
-                    className={`flex-1 text-base ${
-                      !date ? "text-neutral-500" : "text-black"
-                    }`}
-                  >
-                    {date || "Select date"}
-                  </Text>
-                  {showDatePicker ? (
-                    <ChevronUpIcon size={20} color="#6B7280" />
-                  ) : (
-                    <ChevronDownIcon size={20} color="#6B7280" />
-                  )}
-                </Pressable>
-                {showDatePicker && (
-                  <View className="mt-2 bg-white border border-neutral-300 rounded-xl max-h-48">
-                    <ScrollView nestedScrollEnabled={true}>
-                      {availableDates.map((dateOption) => (
-                        <Pressable
-                          key={dateOption.id}
-                          className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
-                          onPress={() => {
-                            setDate(dateOption.label);
-                            setShowDatePicker(false);
-                            clearError("date");
-                          }}
-                        >
-                          <Text className="text-base text-black">
-                            {dateOption.label}
-                          </Text>
-                          {date === dateOption.label && (
-                            <Text className="text-green-600 font-semibold">✓</Text>
-                          )}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-                {errors.date && (
-                  <Text className="text-red-500 text-xs mt-1 ml-1">
-                    {errors.date}
-                  </Text>
-                )}
-              </View>
+              {renderDateTimeSection()}
 
               {/* Table Number (Physical) - Only for physical meetings, shown AFTER Date & Time */}
               {meetingType === "physical" && (
@@ -1109,7 +1153,7 @@ export default function EditMeetingModal({
                         ? "border-red-500"
                         : "border-neutral-300"
                     }`}
-                    placeholder="Paste your meeting link"
+                    placeholder="https://meet.google.com/..."
                     placeholderTextColor="#9CA3AF"
                     value={meetingLink}
                     onChangeText={(text) => {
@@ -1136,131 +1180,7 @@ export default function EditMeetingModal({
                 </View>
               )}
 
-              {/* Date & Time */}
-              <View className="mb-4">
-                <Text className="text-sm font-medium text-black mb-2">
-                  Date & Time
-                </Text>
-                <Pressable
-                  className="flex-row items-center bg-white border border-neutral-300 rounded-xl px-4 py-3.5 mb-3"
-                  onPress={() => {
-                    setShowTimePicker(!showTimePicker);
-                    setShowDatePicker(false);
-                    setShowTablePicker(false);
-                    clearError("date");
-                  }}
-                >
-                  <View className="mr-2">
-                    <ClockIcon size={18} color="#404040" />
-                  </View>
-                  <Text className="flex-1 text-base font-medium text-black">
-                    {time}
-                  </Text>
-                  {showTimePicker ? (
-                    <ChevronUpIcon size={20} color="#6B7280" />
-                  ) : (
-                    <ChevronDownIcon size={20} color="#6B7280" />
-                  )}
-                </Pressable>
-                {showTimePicker && (
-                  <View className="mb-3 bg-white border border-neutral-300 rounded-xl max-h-48">
-                    <ScrollView nestedScrollEnabled={true}>
-                      {isLoadingSlots ? (
-                        <View className="px-4 py-3 items-center">
-                          <LoadingSpinner size="small" />
-                        </View>
-                      ) : availableTimes.length === 0 ? (
-                        <View className="px-4 py-3">
-                          <Text className="text-sm text-neutral-500 text-center">
-                            {slotsError || "No available times"}
-                          </Text>
-                        </View>
-                      ) : (
-                        availableTimes.map((timeOption: any) => (
-                          <Pressable
-                            key={timeOption.id}
-                            className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
-                            onPress={() => {
-                              setTime(timeOption.label);
-                              setSelectedTimeKey(timeOption.value);
-                              setShowTimePicker(false);
-                              clearError("date");
-                              // Reset table when time changes
-                              setTableNumber("");
-                              if (meetingType === "virtual") {
-                                setSelectedSlotId(timeOption.slotId);
-                              }
-                            }}
-                          >
-                            <Text className="text-base text-black">
-                              {timeOption.label}
-                            </Text>
-                            {time === timeOption.label && (
-                              <Text className="text-green-600 font-semibold">✓</Text>
-                            )}
-                          </Pressable>
-                        ))
-                      )}
-                    </ScrollView>
-                  </View>
-                )}
-                <Pressable
-                  className={`flex-row items-center bg-white border rounded-xl px-4 py-3.5 ${
-                    errors.date ? "border-red-500" : "border-neutral-300"
-                  }`}
-                  onPress={() => {
-                    setShowDatePicker(!showDatePicker);
-                    setShowTimePicker(false);
-                    setShowTablePicker(false);
-                    clearError("date");
-                  }}
-                >
-                  <View className="mr-2">
-                    <Text className="text-lg">📅</Text>
-                  </View>
-                  <Text
-                    className={`flex-1 text-base ${
-                      !date ? "text-neutral-500" : "text-black"
-                    }`}
-                  >
-                    {date || "Select date"}
-                  </Text>
-                  {showDatePicker ? (
-                    <ChevronUpIcon size={20} color="#6B7280" />
-                  ) : (
-                    <ChevronDownIcon size={20} color="#6B7280" />
-                  )}
-                </Pressable>
-                {showDatePicker && (
-                  <View className="mt-2 bg-white border border-neutral-300 rounded-xl max-h-48">
-                    <ScrollView nestedScrollEnabled={true}>
-                      {availableDates.map((dateOption) => (
-                        <Pressable
-                          key={dateOption.id}
-                          className="px-4 py-3 border-b border-neutral-100 flex-row items-center justify-between"
-                          onPress={() => {
-                            setDate(dateOption.label);
-                            setShowDatePicker(false);
-                            clearError("date");
-                          }}
-                        >
-                          <Text className="text-base text-black">
-                            {dateOption.label}
-                          </Text>
-                          {date === dateOption.label && (
-                            <Text className="text-green-600 font-semibold">✓</Text>
-                          )}
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-                {errors.date && (
-                  <Text className="text-red-500 text-xs mt-1 ml-1">
-                    {errors.date}
-                  </Text>
-                )}
-              </View>
+              {renderDateTimeSection()}
 
               {/* Table Number (Physical) - Only for physical meetings, shown AFTER Date & Time */}
               {meetingType === "physical" && (
