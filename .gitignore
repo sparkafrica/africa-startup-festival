@@ -51,7 +51,8 @@ glossy-receiver-353007-910b0426a8e8.json
 .env*.local
 
 # Firebase service account key (upload to EAS, never commit)
-*ate2026-firebase-adminsdk-*.json
+# google-services.json
+# GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo
