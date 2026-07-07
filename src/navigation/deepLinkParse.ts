@@ -20,7 +20,7 @@ export type DeepLinkTarget =
   | { screen: "Meetings"; primaryTab?: MeetingsDeepLinkTab["primaryTab"]; secondaryTab?: MeetingsDeepLinkTab["secondaryTab"] }
   | { screen: "Exhibitors"; companyId: number }
   | { screen: "Partners"; companyId: number }
-  | { screen: "Profile" }
+  | { screen: "Profile"; openStartupTab?: boolean }
   | { screen: "Connections" }
   | { screen: "Attendees" }
   | { screen: "Schedule" }
@@ -67,7 +67,9 @@ export function parseDeepLinkTarget(path: string): DeepLinkTarget | null {
   if (parts[0] === "download") return null;
 
   if (parts[0] === "profile") {
-    return parts.length === 1 ? { screen: "Profile" } : null;
+    if (parts.length === 1) return { screen: "Profile" };
+    if (parts[1] === "startup") return { screen: "Profile", openStartupTab: true };
+    return null;
   }
 
   if (parts[0] === "schedule") {

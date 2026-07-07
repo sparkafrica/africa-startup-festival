@@ -14,6 +14,7 @@ import ScannedAttendeeScreen from "../screens/ScannedAttendeeScreen";
 import ExhibitorsScreen from "../screens/ExhibitorsScreen";
 import CompanyDetailScreen from "../screens/CompanyDetailScreen";
 import PartnersScreen from "../screens/PartnersScreen";
+import StartupsScreen from "../screens/StartupsScreen";
 import SpeakersScreen from "../screens/SpeakersScreen";
 import ScheduleScreen from "../screens/ScheduleScreen";
 import MessagesScreen from "../screens/MessagesScreen";
@@ -29,6 +30,13 @@ import { runEarlyOtaCheckOnly } from "../utils/otaUpdateFlow";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const FADE = { animation: "fade" as const };
+const NONE = { animation: "none" as const };
+const MODAL_BOTTOM = {
+  presentation: "modal" as const,
+  animation: "slide_from_bottom" as const,
+};
+
 export default function MainNavigator() {
   // Returning users skip Verification — same early OTA check here (check only; fetch/reload on Home after delay).
   useEffect(() => {
@@ -40,179 +48,44 @@ export default function MainNavigator() {
       initialRouteName="Home"
       screenOptions={{
         headerShown: false,
-        animation: "slide_from_right",
+        animation: "fade",
       }}
     >
-      <Stack.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{
-          headerShown: false,
-          animation: "none",
-        }}
-      />
-      <Stack.Screen
-        name="Attendees"
-        component={AttendeesScreen}
-        options={{
-          headerShown: false,
-          animation: "none",
-        }}
-      />
-      <Stack.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Search"
-        component={SearchScreen}
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="Home" component={HomeScreen} options={NONE} />
+      <Stack.Screen name="Attendees" component={AttendeesScreen} options={NONE} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={FADE} />
+      <Stack.Screen name="Search" component={SearchScreen} options={FADE} />
       <Stack.Screen
         name="Menu"
         component={MenuScreen}
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_right",
-        }}
+        options={{ ...MODAL_BOTTOM, animation: "fade" }}
       />
       <Stack.Screen
         name="Notifications"
         component={NotificationsScreen}
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_bottom",
-        }}
+        options={MODAL_BOTTOM}
       />
-      <Stack.Screen
-        name="ScanQR"
-        component={ScanQRScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_left",
-        }}
-      />
-      <Stack.Screen
-        name="ScannedAttendee"
-        component={ScannedAttendeeScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="Exhibitors"
-        component={ExhibitorsScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
+      <Stack.Screen name="ScanQR" component={ScanQRScreen} options={FADE} />
+      <Stack.Screen name="ScannedAttendee" component={ScannedAttendeeScreen} options={FADE} />
+      <Stack.Screen name="Exhibitors" component={ExhibitorsScreen} options={FADE} />
       <Stack.Screen
         name="CompanyDetail"
         component={CompanyDetailScreen}
-        options={{
-          headerShown: false,
-          presentation: "modal",
-          animation: "slide_from_bottom",
-        }}
+        options={MODAL_BOTTOM}
       />
-      <Stack.Screen
-        name="Partners"
-        component={PartnersScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="Speakers"
-        component={SpeakersScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="Schedule"
-        component={ScheduleScreen}
-        options={{
-          headerShown: false,
-          animation: "none",
-        }}
-      />
-      <Stack.Screen
-        name="Meetings"
-        component={MeetingsScreen}
-        options={{
-          headerShown: false,
-          animation: "none",
-        }}
-      />
-      <Stack.Screen
-        name="Messages"
-        component={MessagesScreen}
-        options={{
-          headerShown: false,
-          animation: "none",
-        }}
-      />
-      <Stack.Screen
-        name="Connections"
-        component={ConnectionsScreen}
-        options={{
-          headerShown: false,
-          animation: "none",
-        }}
-      />
-      <Stack.Screen
-        name="Conversation"
-        component={ConversationScreen}
-        options={{ headerShown: false, animation: "slide_from_right" }}
-      />
-      <Stack.Screen
-        name="Contact"
-        component={ContactScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="Talent"
-        component={TalentBoardScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="PartnersOffers"
-        component={PartnersOffersScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="AppGuide"
-        component={AppGuideScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
-      <Stack.Screen
-        name="TagPickup"
-        component={TagPickupScreen}
-        options={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      />
+      <Stack.Screen name="Partners" component={PartnersScreen} options={FADE} />
+      <Stack.Screen name="Startups" component={StartupsScreen} options={FADE} />
+      <Stack.Screen name="Speakers" component={SpeakersScreen} options={FADE} />
+      <Stack.Screen name="Schedule" component={ScheduleScreen} options={NONE} />
+      <Stack.Screen name="Meetings" component={MeetingsScreen} options={NONE} />
+      <Stack.Screen name="Messages" component={MessagesScreen} options={NONE} />
+      <Stack.Screen name="Connections" component={ConnectionsScreen} options={NONE} />
+      <Stack.Screen name="Conversation" component={ConversationScreen} options={FADE} />
+      <Stack.Screen name="Contact" component={ContactScreen} options={FADE} />
+      <Stack.Screen name="Talent" component={TalentBoardScreen} options={FADE} />
+      <Stack.Screen name="PartnersOffers" component={PartnersOffersScreen} options={FADE} />
+      <Stack.Screen name="AppGuide" component={AppGuideScreen} options={FADE} />
+      <Stack.Screen name="TagPickup" component={TagPickupScreen} options={FADE} />
     </Stack.Navigator>
   );
 }

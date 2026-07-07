@@ -7,7 +7,6 @@ import LoginScreen from "../screens/LoginScreen";
 import VerificationCodeScreen from "../screens/VerificationCodeScreen";
 import WelcomeScreen from "../screens/WelcomeScreen";
 import CompleteProfileScreen from "../screens/CompleteProfileScreen";
-import ProfileCreatedScreen from "../screens/ProfileCreatedScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 // import ApiTestScreen from "../screens/ApiTestScreen"; // Temporary - remove before production
 
@@ -26,7 +25,7 @@ export default function AuthNavigator() {
       initialRouteName="Login"
       screenOptions={{
         headerShown: false,
-        animation: "slide_from_right",
+        animation: "fade",
       }}
     >
       <Stack.Screen
@@ -47,11 +46,6 @@ export default function AuthNavigator() {
       <Stack.Screen
         name="CompleteProfile"
         component={CompleteProfileScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="ProfileCreated"
-        component={ProfileCreatedScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen

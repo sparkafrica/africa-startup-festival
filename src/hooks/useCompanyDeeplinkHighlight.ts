@@ -17,8 +17,8 @@ type CompanyRow = { id: number; name: string };
 const ESTIMATED_GRID_CELL_HEIGHT = 132;
 
 export function useCompanyDeeplinkHighlight(
-  screen: "Exhibitors" | "Partners",
-  companyType: "exhibitor" | "partner",
+  screen: "Exhibitors" | "Partners" | "Startups",
+  companyType: "exhibitor" | "partner" | "startup",
   displayedCompanies: CompanyRow[],
   isLoading: boolean,
 ) {
@@ -102,7 +102,12 @@ export function useCompanyDeeplinkHighlight(
         const company = await resolveCompanyById(companyId, companyType);
         if (cancelled) return;
         if (!company) {
-          const label = companyType === "exhibitor" ? "exhibitor" : "partner";
+          const label =
+            companyType === "exhibitor"
+              ? "exhibitor"
+              : companyType === "startup"
+                ? "startup"
+                : "partner";
           Alert.alert(
             "Not found",
             `Could not find this ${label}. Check the link or try again.`,

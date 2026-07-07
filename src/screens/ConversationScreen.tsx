@@ -21,7 +21,7 @@ import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/nativ
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
-import { LoadingSpinner } from "../components";
+import { SkeletonMessageList } from "../components";
 import ChatMessageBubble from "../components/ChatMessageBubble";
 import ChatWatermark from "../components/ChatWatermark";
 import { useChat, type LocalChatMessage } from "../context/ChatContext";
@@ -302,10 +302,7 @@ export default function ConversationScreen() {
       </SafeAreaView>
 
       {loading && messages.length === 0 ? (
-        <View className="flex-1 items-center justify-center py-20">
-          <LoadingSpinner size="large" />
-          <Text className="text-neutral-500 mt-3">Loading messages...</Text>
-        </View>
+        <SkeletonMessageList count={6} />
       ) : (
         <View className="flex-1">
           {error ? (

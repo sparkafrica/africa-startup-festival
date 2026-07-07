@@ -23,6 +23,9 @@ import { logError, ERROR_TAGS } from "../utils/logError";
 import { runEarlyOtaCheckOnly } from "../utils/otaUpdateFlow";
 import Svg, { Path, Rect } from "react-native-svg";
 
+const OTP_SUCCESS_TO_BOOTSPLASH_MS = 1250;
+const OTP_SUCCESS_TO_WELCOME_MS = 450;
+
 // Email Icon Component
 function EmailIcon({
   size = 24,
@@ -55,17 +58,27 @@ export default function VerificationCodeScreen() {
   const route = useRoute<RootStackScreenProps<"VerificationCode">["route"]>();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { email } = route.params;
-  const { verifyCode, requestVerificationCode } = useAuth();
+  const { verifyCode, requestVerificationCode, enterMainAppWithBootsplash } =
+    useAuth();
 
   const [code, setCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [verifyStatus, setVerifyStatus] = useState<"idle" | "success" | "error">(
+    "idle",
+  );
 
   const hiddenInputRef = useRef<TextInput>(null);
+  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     void runEarlyOtaCheckOnly();
+    return () => {
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handlePaste = async () => {
@@ -74,6 +87,7 @@ export default function VerificationCodeScreen() {
       const digits = (text || "").replace(/\D/g, "").slice(0, 6);
       if (digits) {
         setCode(digits);
+        setVerifyStatus("idle");
         hiddenInputRef.current?.focus();
       }
     } catch (_) {
@@ -82,9 +96,11 @@ export default function VerificationCodeScreen() {
   };
 
   const handleCodeChange = (value: string) => {
-    // Allow only digits, max 6 characters - paste and autofill work naturally
     const digits = value.replace(/\D/g, "").slice(0, 6);
     setCode(digits);
+    if (verifyStatus !== "idle") {
+      setVerifyStatus("idle");
+    }
   };
 
   const handleSubmit = async () => {
@@ -99,29 +115,26 @@ export default function VerificationCodeScreen() {
 
     try {
       setIsSubmitting(true);
-      // TODO: BACKEND INTEGRATION - verifyCode will call backend API
-      // TODO: BACKEND - Handle API response (success/error)
-      // TODO: BACKEND - Handle rate limiting (too many attempts)
-      // TODO: BACKEND - Handle expired code
-      await verifyCode(email, codeString);
+      const profileComplete = await verifyCode(email, codeString);
 
-      // Navigate to Welcome screen immediately
-      // The navigation should work since Welcome is in the same AuthNavigator stack
-      navigation.navigate("Welcome");
+      setVerifyStatus("success");
+      const delay = profileComplete
+        ? OTP_SUCCESS_TO_BOOTSPLASH_MS
+        : OTP_SUCCESS_TO_WELCOME_MS;
+
+      transitionTimeoutRef.current = setTimeout(() => {
+        if (profileComplete) {
+          enterMainAppWithBootsplash();
+        } else {
+          navigation.navigate("Welcome");
+        }
+        setIsSubmitting(false);
+      }, delay);
     } catch (error) {
       console.error("Error verifying code:", error);
-      setCode("");
-      // Refocus after user dismisses alert so they can type again without using Paste button
-      Alert.alert("Error", "Invalid verification code. Please try again.", [
-        {
-          text: "OK",
-          onPress: () => {
-            setTimeout(() => hiddenInputRef.current?.focus(), 50);
-          },
-        },
-      ]);
-    } finally {
+      setVerifyStatus("error");
       setIsSubmitting(false);
+      setTimeout(() => hiddenInputRef.current?.focus(), 50);
     }
   };
 
@@ -137,6 +150,7 @@ export default function VerificationCodeScreen() {
 
       // Clear current code
       setCode("");
+      setVerifyStatus("idle");
       hiddenInputRef.current?.focus();
     } catch (error) {
       logError(
@@ -159,6 +173,34 @@ export default function VerificationCodeScreen() {
 
   const isCodeComplete = code.length === 6;
   const digits = code.split("");
+
+  const getBoxStyle = (index: number) => {
+    const hasDigit = digits[index] !== undefined;
+    const isActiveCell = isFocused && index === digits.length;
+
+    if (verifyStatus === "error") {
+      return {
+        borderColor: "#EF4444",
+        backgroundColor: "#FEF2F2",
+      };
+    }
+    if (verifyStatus === "success") {
+      return {
+        borderColor: "#16A34A",
+        backgroundColor: "#F0FDF4",
+      };
+    }
+    if (hasDigit || isActiveCell) {
+      return {
+        borderColor: "#000000",
+        backgroundColor: "#FFFFFF",
+      };
+    }
+    return {
+      borderColor: "#D4D4D4",
+      backgroundColor: "#FFFFFF",
+    };
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
@@ -210,14 +252,10 @@ export default function VerificationCodeScreen() {
                 onPress={() => hiddenInputRef.current?.focus()}
                 onLongPress={handlePaste}
                 delayLongPress={400}
-                className="flex-row justify-center gap-2 mb-4 py-2 px-2"
+                className="flex-row justify-center gap-2 mb-2 py-2 px-2"
                 style={({ pressed }) => ({
                   borderRadius: 12,
-                  backgroundColor: isFocused
-                    ? "#F0FDF4"
-                    : pressed
-                      ? "#F5F5F5"
-                      : "transparent",
+                  backgroundColor: pressed ? "#F5F5F5" : "transparent",
                 })}
               >
                 <TextInput
@@ -247,21 +285,27 @@ export default function VerificationCodeScreen() {
                   <View
                     key={index}
                     className="w-11 h-14 border-2 rounded-xl items-center justify-center"
-                    style={{
-                      borderColor:
-                        digits[index] !== undefined
-                          ? "#1BB273"
-                          : isFocused
-                            ? "#1BB273"
-                            : "#D4D4D4",
-                    }}
+                    style={getBoxStyle(index)}
                   >
-                    <Text className="text-2xl font-bold text-neutral-900">
+                    <Text
+                      className="text-2xl font-bold"
+                      style={{
+                        color:
+                          verifyStatus === "error" ? "#991B1B" : "#171717",
+                      }}
+                    >
                       {digits[index] ?? ""}
                     </Text>
                   </View>
                 ))}
               </Pressable>
+              {verifyStatus === "error" ? (
+                <Text className="text-sm text-red-600 text-center mb-4 px-2">
+                  That code doesn't look right. Please try again.
+                </Text>
+              ) : (
+                <View className="mb-4" />
+              )}
               <Pressable
                 onPress={handlePaste}
                 className="mb-8 py-2 px-4 self-center rounded-lg border border-neutral-300"

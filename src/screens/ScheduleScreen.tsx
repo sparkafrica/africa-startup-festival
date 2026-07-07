@@ -16,7 +16,7 @@ import {
   DropdownButton,
   TimeZoneAlertBanner,
   FilterModal,
-  LoadingSpinner,
+  SkeletonScheduleList,
   EventViewModal,
   LeaveFeedbackModal,
   FeedbackSentModal,
@@ -1010,10 +1010,7 @@ export default function ScheduleScreen() {
         <View ref={listContentRef} className="px-4" collapsable={false}>
           {scheduleView === "all" ? (
             isLoading ? (
-              <View className="flex-1 items-center justify-center py-20">
-                <LoadingSpinner size="large" />
-                <Text className="text-gray-500 mt-4">Loading events...</Text>
-              </View>
+              <SkeletonScheduleList count={6} />
             ) : error ? (
               <View className="flex-1 items-center justify-center py-20 px-4">
                 <Text className="text-red-600 text-center mb-4">{error}</Text>
@@ -1112,10 +1109,7 @@ export default function ScheduleScreen() {
               })
             )
           ) : myScheduleLoading ? (
-            <View className="flex-1 items-center justify-center py-20">
-              <LoadingSpinner size="large" />
-              <Text className="text-gray-500 mt-4">Loading your schedule...</Text>
-            </View>
+            <SkeletonScheduleList count={5} />
           ) : mySchedules.length === 0 ? (
             <View className="flex-1 items-center justify-center py-20 px-4">
               <Text className="text-gray-500 text-center text-base mb-2">

@@ -14,7 +14,7 @@ import {
   ArrowDownRedIcon,
   ArrowUpGreenIcon,
   InboundMeetingModal,
-  LoadingSpinner,
+  SkeletonListRows,
   OutboundMeetingModal,
   ParticipantDetailModal,
   FLOATING_NAV_BOTTOM_INSET,
@@ -1342,12 +1342,7 @@ export default function MeetingsScreen({ route }: Props) {
           collapsable={false}
         >
           {isLoading ? (
-            <View className="flex-1 items-center justify-center py-12">
-              <LoadingSpinner size="large" />
-              <Text className="text-base text-neutral-500 mt-4">
-                Loading meetings...
-              </Text>
-            </View>
+            <SkeletonListRows count={6} />
           ) : error ? (
             <View className="flex-1 items-center justify-center px-4 py-12">
               <Text className="text-base text-neutral-500 text-center mb-4">

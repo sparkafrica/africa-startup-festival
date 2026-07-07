@@ -1,12 +1,8 @@
 /**
- * Feature restrictions by ticket tier.
+ * Feature restrictions by ASF pass tier.
  *
- * - Meeting booking: Expo + Limited Pass tickets cannot book meetings.
- * - Initiating connections: Limited Pass cannot send connection requests (scan / attendees).
- *   They can accept incoming connections, then message those users (reactive-only networking).
- * - Expo: cannot book meetings, but can connect and message like other non-Limited tiers.
- *
- * Restricted flows show an informational alert (upgrade ticket flow retired).
+ * - Explorer: main-stage access only — no in-app meeting booking.
+ * - All other passes: standard networking (subject to investor connection rules).
  */
 
 import { Alert } from "react-native";
@@ -14,78 +10,52 @@ import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
-import { isExhibitionPass, isExpoPass } from "./ticketColors";
+import {
+  blocksMeetingBooking,
+  ticketTypeFromTicket,
+} from "./asfTicketClass";
 
 const MEETING_BLOCK_MESSAGE =
-  "You cannot book meetings with your current ticket.";
+  "Explorer passes cannot book meetings in the app. Upgrade your pass or connect at the event.";
 
-const EXHIBITION_INITIATE_CONNECTION_MESSAGE =
-  "Your Limited Pass cannot send connection requests. Accept incoming connections in Connections, then you can message.";
-
-/**
- * Resolve ticket type the same way as Menu and My Ticket (single source of truth).
- * Order: type.name → type.user_type → ticket_class.name → ticket_class.user_type.
- */
-function getTicketTypeForRestrictions(ticket: { type?: { name?: string; user_type?: string }; ticket_class?: { name?: string; user_type?: string } } | null): string {
-  if (!ticket) return "";
-  return (
-    ticket.type?.name ??
-    ticket.type?.user_type ??
-    ticket.ticket_class?.name ??
-    ticket.ticket_class?.user_type ??
-    ""
-  );
+function getTicketTypeForRestrictions(
+  ticket: {
+    type?: { name?: string; user_type?: string };
+    ticket_class?: { name?: string; user_type?: string };
+  } | null,
+): string {
+  return ticketTypeFromTicket(ticket);
 }
 
-/**
- * Returns true if the current user can book meetings (not Expo or Limited Pass).
- * Uses fresh ticket (bypassCache) so we match Menu badge and My Ticket; on error, blocks to be safe.
- */
 export async function getCanUserBookMeetings(): Promise<boolean> {
   try {
-    const ticket = await ticketService.getUserTicket(EVENT_ID, { bypassCache: true });
+    const ticket = await ticketService.getUserTicket(EVENT_ID, {
+      bypassCache: true,
+    });
     const type = getTicketTypeForRestrictions(ticket ?? null);
-    return !(isExpoPass(type) || isExhibitionPass(type));
+    return !blocksMeetingBooking(type);
   } catch {
-    return false; // on error, block to be safe
+    return false;
   }
 }
 
-/**
- * Show the Expo "cannot book meetings" popup.
- */
 export function showExpoCannotBookMeetingAlert(
-  _navigation: NavigationProp<RootStackParamList>
+  _navigation: NavigationProp<RootStackParamList>,
 ): void {
   Alert.alert("Access restricted", MEETING_BLOCK_MESSAGE, [{ text: "OK" }], {
     cancelable: true,
   });
 }
 
-/**
- * Returns true if the current user can send a connection request (initiator).
- * Limited Pass holders cannot initiate; they can only accept incoming connections.
- */
+/** ASF: all pass holders may initiate connections (investor rules handled separately). */
 export async function getCanUserInitiateConnection(): Promise<boolean> {
-  try {
-    const ticket = await ticketService.getUserTicket(EVENT_ID, { bypassCache: true });
-    const type = getTicketTypeForRestrictions(ticket ?? null);
-    return !isExhibitionPass(type);
-  } catch {
-    return false; // on error, block to be safe
-  }
+  return true;
 }
 
-/**
- * Shown when Limited Pass user taps Connect from scan / attendees (outbound request blocked).
- */
 export function showExhibitionCannotInitiateConnectionAlert(
-  _navigation: NavigationProp<RootStackParamList>
+  _navigation: NavigationProp<RootStackParamList>,
 ): void {
-  Alert.alert(
-    "Access restricted",
-    EXHIBITION_INITIATE_CONNECTION_MESSAGE,
-    [{ text: "OK" }],
-    { cancelable: true },
-  );
+  Alert.alert("Access restricted", "You cannot send connection requests.", [
+    { text: "OK" },
+  ]);
 }

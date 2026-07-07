@@ -14,7 +14,7 @@ import {
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import NotificationDetailModal from "./NotificationDetailModal";
-import LoadingSpinner from "./LoadingSpinner";
+import { SkeletonListRows } from "./Skeleton";
 import Toast from "./Toast";
 import { notificationService } from "../services/notificationService";
 import {
@@ -409,7 +409,9 @@ export default function HomePushNotificationOverlay() {
             alignItems: "center",
           }}
         >
-          <LoadingSpinner size="large" color="#FFFFFF" />
+          <View className="bg-white rounded-2xl p-4 w-[85%]">
+            <SkeletonListRows count={2} />
+          </View>
         </View>
       )}
 

@@ -22,7 +22,7 @@ import {
   SpeakerCard,
   SpeakerDetailModal,
   FilterModal,
-  LoadingSpinner,
+  SkeletonSpeakerGrid,
   FLOATING_NAV_BOTTOM_INSET,
   type FilterCategory,
 } from "../components";
@@ -268,10 +268,7 @@ export default function SpeakersScreen() {
         {/* Speakers Grid */}
         <View className="px-4">
           {isLoading ? (
-            <View className="py-20 items-center">
-              <LoadingSpinner size="large" />
-              <Text className="text-gray-500 mt-4">Loading speakers...</Text>
-            </View>
+            <SkeletonSpeakerGrid count={9} />
           ) : error ? (
             <View className="py-20 items-center px-4">
               <Text className="text-red-600 text-center mb-4">{error}</Text>

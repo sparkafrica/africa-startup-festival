@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Image, StyleSheet, useWindowDimensions } from "react-native";
 
-const WATERMARK_IMG = require("../assets/images/ate-watermark.png");
+const WATERMARK_IMG = require("../assets/images/logo.png");
 
 /** Single centered ASF watermark — subtle, not tiled. */
 export default function ChatWatermark() {

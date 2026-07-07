@@ -13,6 +13,7 @@ import { isProfileComplete } from "../utils/profileCompletion";
 import { ticketService, clearTicketCache } from "../services/ticketService";
 import { notificationService } from "../services/notificationService";
 import { registerForPushNotifications } from "../utils/pushRegistration";
+import { clearStartupJoinAdminReminders } from "../utils/startupJoinReminders";
 import { EVENT_ID } from "../config/env";
 import { setAnalyticsUserContext } from "../utils/analytics";
 
@@ -44,9 +45,12 @@ interface AuthContextType {
   hasCompletedOnboarding: boolean;
   hasCompletedProfile: boolean;
   hasSeenWelcome: boolean;
+  showBootsplash: boolean;
+  dismissBootsplash: () => void;
+  enterMainAppWithBootsplash: () => void;
   // Email-based login flow
   requestVerificationCode: (email: string) => Promise<void>;
-  verifyCode: (email: string, code: string) => Promise<void>;
+  verifyCode: (email: string, code: string) => Promise<boolean>;
   logout: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
   completeProfile: () => Promise<void>;
@@ -79,6 +83,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [hasCompletedProfile, setHasCompletedProfile] = useState(false);
   const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
+  const [showBootsplash, setShowBootsplash] = useState(false);
+
+  const dismissBootsplash = useCallback(() => {
+    setShowBootsplash(false);
+  }, []);
+
+  const enterMainAppWithBootsplash = useCallback(() => {
+    setIsAuthenticated(true);
+    setShowBootsplash(true);
+  }, []);
 
   // Development: Set to true to force login every time (clears stored auth)
   // Set to false to allow persistent sessions
@@ -285,7 +299,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * 1. POST /auth/token/ - Verify OTP, returns token (stored by service layer)
    * 2. GET /auth/user/ - Get user profile using stored token
    */
-  const verifyCode = async (email: string, code: string) => {
+  const verifyCode = async (email: string, code: string): Promise<boolean> => {
     // Step 1: Verify OTP and store token (service layer handles storage)
     await authService.verifyOTP(email, code);
 
@@ -310,10 +324,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setHasCompletedProfile(profileComplete);
     if (profileComplete) {
       await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
-      setIsAuthenticated(true);
+      // Returning users: OTP screen shows green success briefly before entering app.
     } else {
       setIsAuthenticated(false);
     }
+
+    return profileComplete;
   };
 
   /**
@@ -350,6 +366,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Clear ticket cache so next user doesn't see previous user's ticket
     clearTicketCache();
+    await clearStartupJoinAdminReminders();
 
     // Clear session data but keep PROFILE_COMPLETE so returning users go straight to app
     await AsyncStorage.multiRemove([
@@ -422,6 +439,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
         setIsAuthenticated(true);
         await clearJustSaved();
+        setShowBootsplash(true);
         return;
       }
 
@@ -434,6 +452,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setHasCompletedProfile(true);
         setIsAuthenticated(true);
         await clearJustSaved();
+        setShowBootsplash(true);
       }
     } catch (error) {
       console.error("Error completing profile:", error);
@@ -452,6 +471,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setHasCompletedProfile(true);
           setIsAuthenticated(true);
           await clearJustSaved();
+          setShowBootsplash(true);
           return;
         } catch (fallbackErr) {
           console.error("Fallback complete failed:", fallbackErr);
@@ -494,6 +514,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     hasCompletedOnboarding,
     hasCompletedProfile,
     hasSeenWelcome,
+    showBootsplash,
+    dismissBootsplash,
+    enterMainAppWithBootsplash,
     requestVerificationCode,
     verifyCode,
     logout,

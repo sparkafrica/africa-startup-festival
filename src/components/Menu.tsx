@@ -2,13 +2,14 @@ import React, { useState, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
 import { useAuth } from "../context/AuthContext";
 import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
 import {
   getTicketTypeDisplay,
   getTicketGradientColors,
-  isExhibitionPass,
+  isLightTicketCard,
 } from "../utils/ticketColors";
 
 import {
@@ -25,6 +26,7 @@ import {
   LightbulbIcon,
 } from "./MenuIcons";
 import { PeopleIcon } from "./BottomNavIcons";
+import { getEventFeatures } from "../config/eventFeatures";
 
 interface MenuProps {
   onClose: () => void;
@@ -86,7 +88,7 @@ export default function Menu({
     ? { label: "...", color: LOADING_COLOR }
     : getTicketTypeDisplay(resolvedTier);
   const { label: userType } = display;
-  const isExhibition = tierPending ? false : isExhibitionPass(resolvedTier);
+  const isLightCard = tierPending ? false : isLightTicketCard(resolvedTier);
   const cardGradient = tierPending
     ? NEUTRAL_MENU_GRADIENT
     : getTicketGradientColors(resolvedTier);
@@ -160,10 +162,13 @@ export default function Menu({
     },
   ];
 
+  const hiddenRoutes = new Set(getEventFeatures().hiddenMenuRoutes);
   const hiddenPostEventRoutes = new Set(["Offers", "Talent", "TagPickup"]);
-  const visibleMenuItems = postEventMode
-    ? menuItems.filter((item) => !hiddenPostEventRoutes.has(item.route))
-    : menuItems;
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (hiddenRoutes.has(item.route)) return false;
+    if (postEventMode && hiddenPostEventRoutes.has(item.route)) return false;
+    return true;
+  });
 
   return (
     <View className="flex-1 bg-white">
@@ -190,6 +195,7 @@ export default function Menu({
               end={{ x: 1, y: 0 }}
               className="rounded-2xl p-5 overflow-hidden"
             >
+              <GuidelinePatternOverlay isLightCard={isLightCard} />
               <View className="flex-row items-start relative z-10">
                 <View className="w-12 h-12 rounded-full bg-white items-center justify-center mr-4 overflow-hidden flex-shrink-0">
                   {profilePicUrl ? (
@@ -207,7 +213,7 @@ export default function Menu({
                     <View className="flex-1 min-w-0 pr-2">
                       <Text
                         className={`text-[18px] font-bold leading-snug ${
-                          isExhibition ? "text-neutral-900" : "text-white"
+                          isLightCard ? "text-neutral-900" : "text-white"
                         }`}
                         numberOfLines={5}
                         ellipsizeMode="tail"
@@ -218,12 +224,12 @@ export default function Menu({
                     <View className="flex-shrink-0 max-w-[38%] pt-0.5">
                       <View
                         className={`px-2 py-[2px] rounded-full self-start ${
-                          isExhibition ? "bg-neutral-900/10" : "bg-white/30"
+                          isLightCard ? "bg-neutral-900/10" : "bg-white/30"
                         }`}
                       >
                         <Text
                           className={`text-[12px] capitalize ${
-                            isExhibition ? "text-neutral-700" : "text-white"
+                            isLightCard ? "text-neutral-700" : "text-white"
                           }`}
                           numberOfLines={1}
                           ellipsizeMode="tail"
@@ -235,7 +241,7 @@ export default function Menu({
                   </View>
                   <Text
                     className={`text-[14px] mt-1.5 ${
-                      isExhibition ? "text-neutral-600" : "text-white/80"
+                      isLightCard ? "text-neutral-600" : "text-white/80"
                     }`}
                     numberOfLines={2}
                     ellipsizeMode="middle"

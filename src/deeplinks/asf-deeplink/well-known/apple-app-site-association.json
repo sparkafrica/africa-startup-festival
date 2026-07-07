@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["6635QUGDA7.com.sparkllc.mobile"],
+        "appIDs": ["6635QUGDA7.com.sparkllc.asf"],
         "components": [
           { "/": "/meetings" },
           { "/": "/meetings/*" },

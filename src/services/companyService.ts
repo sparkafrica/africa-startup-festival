@@ -7,6 +7,7 @@
 import { api } from "./api";
 import { ApiResponse, ApiClientError } from "./api";
 import { Company, readImageAsBase64 } from "./authService";
+import { authService } from "./authService";
 
 // ============================================================================
 // REQUEST/RESPONSE TYPES
@@ -29,6 +30,16 @@ export interface CompanyUpdateRequest {
   metadata?: any;
   company_type?: string;
   event_id?: number;
+}
+
+export interface CreateCompanyRequest {
+  name: string;
+  country?: string;
+  company_sector?: string;
+  company_description?: string;
+  company_type?: "startup" | "exhibitor" | "investor" | "partner" | "organisation";
+  event_id?: number;
+  metadata?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -61,7 +72,10 @@ export const companyService = {
           }
         } catch (e: any) {
           if (__DEV__) {
-            console.warn("PUT with logo failed, trying PATCH with logo:", e?.message ?? e);
+            console.warn(
+              "PUT with logo failed, trying PATCH with logo:",
+              e?.message ?? e,
+            );
           }
         }
         try {
@@ -71,7 +85,10 @@ export const companyService = {
           }
         } catch (e: any) {
           if (__DEV__) {
-            console.warn("PATCH with logo failed, falling back to PATCH FormData:", e?.message ?? e);
+            console.warn(
+              "PATCH with logo failed, falling back to PATCH FormData:",
+              e?.message ?? e,
+            );
           }
         }
       }
@@ -121,7 +138,10 @@ export const companyService = {
   },
 
   /** @deprecated Use updateCompany(companyId, companyData, { imageUri }) instead. Kept for backwards compatibility. */
-  async uploadCompanyLogo(companyId: number, imageUri: string): Promise<Company> {
+  async uploadCompanyLogo(
+    companyId: number,
+    imageUri: string,
+  ): Promise<Company> {
     return this.updateCompany(companyId, {}, { imageUri });
   },
 
@@ -162,5 +182,38 @@ export const companyService = {
       response_code: 0,
       data: {},
     });
+  },
+
+  /**
+   * Create a new startup company. Caller becomes admin.
+   * Backend: POST /companies/
+   */
+  async createCompany(data: CreateCompanyRequest): Promise<Company> {
+    const response = await api.post<CreateCompanyRequest>("/companies/", {
+      ...data,
+      company_type: data.company_type ?? "startup",
+    });
+    if (response.status === "success" && response.data) {
+      return response.data as Company;
+    }
+    const raw = response as unknown as Company;
+    if (raw && typeof raw === "object" && "id" in raw) {
+      return raw;
+    }
+    throw new ApiClientError({
+      status: "error",
+      message: response.message || "Failed to create company",
+      response_code: response.response_code || 500,
+      data: {},
+    });
+  },
+
+  /**
+   * Request to join an existing company (pending until admin approves).
+   * Backend: PATCH /auth/user/ with company_id.
+   */
+  async requestJoinCompany(companyId: number): Promise<void> {
+    const { joinRequestService } = await import("./joinRequestService");
+    await joinRequestService.createJoinRequest(companyId);
   },
 };

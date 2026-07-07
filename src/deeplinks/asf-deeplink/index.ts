@@ -1,10 +1,14 @@
+/// <reference path="./bun-globals.d.ts" />
 import aasa from "./well-known/apple-app-site-association.json";
 import assetlinks from "./well-known/assetlinks.json";
 
+/** Update APP_STORE_URL when the ASF listing is live in App Store Connect. */
 const APP_STORE_URL =
-  "https://apps.apple.com/ng/app/africa-technology-expo/id6757281613";
+  process.env.ASF_APP_STORE_URL ??
+  "https://apps.apple.com/app/africa-startup-festival/id0000000000";
 const PLAY_STORE_URL =
-  "https://play.google.com/store/apps/details?id=com.sparkllc.mobile&pcampaignid=web_share";
+  process.env.ASF_PLAY_STORE_URL ??
+  "https://play.google.com/store/apps/details?id=com.sparkllc.asf";
 
 const fallbackHTML = (title: string) => `<!DOCTYPE html>
 <html lang="en">
@@ -33,16 +37,22 @@ const fallbackHTML = (title: string) => `<!DOCTYPE html>
 </body>
 </html>`;
 
-const port = process.env.PORT ?? 3000;
+const port = Number(process.env.PORT) || 3000;
+
+function htmlFallback(title: string) {
+  return new Response(fallbackHTML(title), {
+    headers: { "Content-Type": "text/html" },
+    status: 200,
+  });
+}
 
 Bun.serve({
   port,
 
-  fetch(req) {
+  fetch(req: Request) {
     const url = new URL(req.url);
     const path = url.pathname;
 
-    // ── Well-known files ──────────────────────────────────────────────
     if (path === "/.well-known/apple-app-site-association") {
       return new Response(JSON.stringify(aasa), {
         headers: {
@@ -61,44 +71,31 @@ Bun.serve({
       });
     }
 
-    // home page
     if (path === "/") {
-      return new Response(fallbackHTML("Home"), {
-        headers: { "Content-Type": "text/html" },
-        status: 200,
-      });
+      return htmlFallback("Home");
     }
 
-    // ── Deep link fallback pages ──────────────────────────────────────
-    if (path === "/meetings") {
-      return new Response(fallbackHTML("Meetings"), {
-        headers: { "Content-Type": "text/html" },
-        status: 200,
-      });
+    if (
+      path === "/meetings" ||
+      path.startsWith("/meetings/") ||
+      path === "/connections" ||
+      path.startsWith("/connections/") ||
+      path === "/attendees" ||
+      path.startsWith("/attendees/") ||
+      path === "/schedule" ||
+      path.startsWith("/schedule/") ||
+      path === "/exhibitors" ||
+      path.startsWith("/exhibitors/") ||
+      path === "/partners" ||
+      path.startsWith("/partners/") ||
+      path === "/profile" ||
+      path.startsWith("/profile/")
+    ) {
+      const segment = path.split("/").filter(Boolean)[0] ?? "Link";
+      const title = segment.charAt(0).toUpperCase() + segment.slice(1);
+      return htmlFallback(title);
     }
 
-    if (path === "/meetings/inbound") {
-      return new Response(fallbackHTML("Meetings"), {
-        headers: { "Content-Type": "text/html" },
-        status: 200,
-      });
-    }
-
-    if (path === "/connections") {
-      return new Response(fallbackHTML("Connections"), {
-        headers: { "Content-Type": "text/html" },
-        status: 200,
-      });
-    }
-
-    if (path === "/profile") {
-      return new Response(fallbackHTML("Profile"), {
-        headers: { "Content-Type": "text/html" },
-        status: 200,
-      });
-    }
-
-    // ── Download redirect ─────────────────────────────────────────────
     if (path === "/download") {
       const ua = req.headers.get("user-agent") ?? "";
       const isIOS = /iphone|ipad|ipod/i.test(ua);
@@ -106,17 +103,15 @@ Bun.serve({
 
       if (isIOS) {
         return Response.redirect(APP_STORE_URL, 302);
-      } else if (isAndroid) {
-        return Response.redirect(PLAY_STORE_URL, 302);
-      } else {
-        // Desktop / unknown: redirect to a web landing page
-        return Response.redirect("/", 302);
       }
+      if (isAndroid) {
+        return Response.redirect(PLAY_STORE_URL, 302);
+      }
+      return Response.redirect("/", 302);
     }
 
-    // ── 404 ───────────────────────────────────────────────────────────
     return new Response("Not found", { status: 404 });
   },
 });
 
-console.log(`Server running on http://localhost:${port}`);
+console.log(`ASF deeplink server on http://localhost:${port}`);

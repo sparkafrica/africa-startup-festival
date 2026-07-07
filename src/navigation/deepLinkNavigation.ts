@@ -77,7 +77,10 @@ export function paramsForDeepLinkTarget(
             : undefined,
       };
     case "Profile":
-      return { screen: "Profile" };
+      return {
+        screen: "Profile",
+        params: target.openStartupTab ? { openStartupTab: true } : undefined,
+      };
     case "TagPickup":
       return { screen: "TagPickup" };
     default:

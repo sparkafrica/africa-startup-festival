@@ -44,8 +44,14 @@ import { attendeeService } from "../services/attendeeService";
 import {
   mergeAttendeeProfiles,
   normalizeAttendee,
+  getAttendeeDisplayFields,
   type AttendeeLike,
 } from "../utils/normalizeAttendee";
+import {
+  canRequestMeetingWithAttendee,
+  currentUserIsInvestor,
+  showInvestorConnectionRequiredAlert,
+} from "../utils/asfNetworking";
 import ScannedAttendeeProfileContent from "../components/ScannedAttendeeProfileContent";
 
 function ConnectIcon({
@@ -153,9 +159,25 @@ export default function ScannedAttendeeScreen() {
   }, [routeAttendee]);
 
   const handleRequestMeeting = async () => {
+    if (!attendee) return;
     const canBook = await getCanUserBookMeetings();
-    if (canBook) setRequestMeetingModalVisible(true);
-    else showExpoCannotBookMeetingAlert(navigation);
+    if (!canBook) {
+      showExpoCannotBookMeetingAlert(navigation);
+      return;
+    }
+    const isInvestor = await currentUserIsInvestor();
+    if (!isInvestor) {
+      const { ticketTypeName } = getAttendeeDisplayFields(attendee);
+      const allowed = await canRequestMeetingWithAttendee({
+        ticketType: ticketTypeName,
+        connectionStatus: null,
+      });
+      if (!allowed) {
+        showInvestorConnectionRequiredAlert();
+        return;
+      }
+    }
+    setRequestMeetingModalVisible(true);
   };
 
   const handleMeetingSubmit = async (formData: MeetingFormData) => {

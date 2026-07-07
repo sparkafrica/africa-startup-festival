@@ -15,7 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { CloseIcon, ChevronRightIcon } from "../components/MenuIcons";
-import { LoadingSpinner } from "../components";
+import { SkeletonListRows } from "../components";
 import { jobService, type CompanyJobs, type JobItem } from "../services/jobService";
 import { ApiClientError } from "../services/api";
 import { colors, borderRadius, shadows, typography, spacing } from "../theme/theme";
@@ -180,10 +180,7 @@ export default function TalentBoardScreen() {
         </View>
 
         {isLoading && !refreshing ? (
-          <View style={styles.centered}>
-            <LoadingSpinner size="large" />
-            <Text style={styles.loadingText}>Loading job listings...</Text>
-          </View>
+          <SkeletonListRows count={8} style={{ paddingTop: 16 }} />
         ) : error ? (
           <View style={styles.centered}>
             <Text style={styles.errorText}>{error}</Text>

@@ -16,7 +16,7 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 
-const BRAND_COLOR = "#1BB273";
+const BRAND_COLOR = "#000000";
 
 function withAlpha(color: string, alphaHex: string): string {
   const c = color.replace(/^#/, "");

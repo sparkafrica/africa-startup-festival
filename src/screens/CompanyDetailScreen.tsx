@@ -63,10 +63,14 @@ type CompanyUIData = {
   logoColor: string;
   booth: string;
   website: string;
-  websiteUrl: string; // full URL for opening (e.g. https://www.ods.com)
+  websiteUrl: string;
   industry: string;
   country: string;
   description: string;
+  problem: string;
+  solution: string;
+  pitchDeckUrl: string;
+  companyType: string;
   eventOffers: { id: string; title: string; color: string; link?: string }[];
   socialLinks: { id: string; platform: string; handle: string; url: string; icon: any; color: string }[];
   teamMembers: { id: string; name: string }[];
@@ -167,6 +171,20 @@ function mapCompanyToUIData(company: Company | null | undefined): CompanyUIData 
     link: p?.link ? ensureHttps(String(p.link)) : undefined,
   }));
   const boothValue = meta.booth ?? meta.boothNumber ?? (company as any).booth_info?.booth_number ?? "—";
+  const companyType = String(company.company_type ?? meta.company_type ?? "").toLowerCase();
+  const problem =
+    typeof meta.problem === "string" && meta.problem.trim()
+      ? meta.problem.trim()
+      : "";
+  const solution =
+    typeof meta.solution === "string" && meta.solution.trim()
+      ? meta.solution.trim()
+      : "";
+  const pitchDeckRaw = meta.pitch_deck_url ?? meta.pitchDeckUrl;
+  const pitchDeckUrl =
+    typeof pitchDeckRaw === "string" && pitchDeckRaw.trim()
+      ? ensureHttps(pitchDeckRaw.trim())
+      : "";
 
   let logo: { uri: string } | null = null;
   if (company.logo) {
@@ -188,6 +206,10 @@ function mapCompanyToUIData(company: Company | null | undefined): CompanyUIData 
     industry: company.company_sector ?? "—",
     country: company.country ?? "—",
     description: company.company_description ?? "",
+    problem,
+    solution,
+    pitchDeckUrl,
+    companyType,
     eventOffers: offers,
     socialLinks: socialLinks.length > 0 ? socialLinks : [
       { id: "linkedin", platform: "LinkedIn", handle: "Profile", url: "", icon: LinkedInIcon, color: "#0A66C2" },
@@ -207,6 +229,10 @@ const DEFAULT_COMPANY_DATA: CompanyUIData = {
   industry: "—",
   country: "—",
   description: "No description available.",
+  problem: "",
+  solution: "",
+  pitchDeckUrl: "",
+  companyType: "",
   eventOffers: [],
   socialLinks: [{ id: "linkedin", platform: "LinkedIn", handle: "Profile", url: "", icon: LinkedInIcon, color: "#0A66C2" }],
   teamMembers: [],
@@ -465,12 +491,16 @@ function CompanyDetailScreenInner({ route }: Props) {
               <Text className="text-2xl font-bold text-neutral-900 mb-1">
                 {companyData.name}
               </Text>
-              <Pressable className="flex-row items-center">
-                <Text className="text-sm text-neutral-500 mr-1">
-                  Booth {companyData.booth}
-                </Text>
-                <ArrowUpRightIcon size={14} color="#A3A3A3" />
-              </Pressable>
+              {companyData.companyType !== "startup" &&
+              companyData.booth &&
+              companyData.booth !== "—" ? (
+                <Pressable className="flex-row items-center">
+                  <Text className="text-sm text-neutral-500 mr-1">
+                    Booth {companyData.booth}
+                  </Text>
+                  <ArrowUpRightIcon size={14} color="#A3A3A3" />
+                </Pressable>
+              ) : null}
             </View>
           </View>
 
@@ -498,9 +528,47 @@ function CompanyDetailScreenInner({ route }: Props) {
           </View>
 
           {/* Description */}
-          <Text className="text-sm text-neutral-700 leading-5">
-            {companyData.description}
-          </Text>
+          {companyData.problem ? (
+            <View className="mb-4">
+              <Text className="text-sm font-semibold text-neutral-900 mb-1">
+                The problem
+              </Text>
+              <Text className="text-sm text-neutral-700 leading-5">
+                {companyData.problem}
+              </Text>
+            </View>
+          ) : null}
+          {companyData.solution ? (
+            <View className="mb-4">
+              <Text className="text-sm font-semibold text-neutral-900 mb-1">
+                The solution
+              </Text>
+              <Text className="text-sm text-neutral-700 leading-5">
+                {companyData.solution}
+              </Text>
+            </View>
+          ) : null}
+          {companyData.description ? (
+            <View className="mb-2">
+              <Text className="text-sm font-semibold text-neutral-900 mb-1">
+                About us
+              </Text>
+              <Text className="text-sm text-neutral-700 leading-5">
+                {companyData.description}
+              </Text>
+            </View>
+          ) : null}
+          {companyData.pitchDeckUrl ? (
+            <Pressable
+              className="mt-2 flex-row items-center"
+              onPress={() => openUrl(companyData.pitchDeckUrl)}
+            >
+              <Text className="text-sm font-medium text-blue-700">
+                View pitch deck
+              </Text>
+              <ArrowUpRightIcon size={14} color="#1D4ED8" />
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Event Offers Section - 2 per row, title up to 2 lines then truncate with … */}

@@ -38,6 +38,7 @@ interface NotificationDetailModalProps {
       | "ticket_allocation_accepted" // Info + View allocation → My tickets
       | "ticket_allocation_declined" // Info + View allocation → My tickets
       | "reminder" // Info + View meeting
+      | "startup_join_request" // Admin: review join requests
       | "app_update" // Store update: Later + Update
       | "generic"; // Simple info + OK
     title: string;
@@ -65,6 +66,7 @@ interface NotificationDetailModalProps {
     onViewMeeting?: () => void;
     onViewAllocation?: () => void;
     onViewProfile?: () => void;
+    onViewStartupJoin?: () => void;
     /** App store update CTA (opens Play / App Store). */
     onOpenAppStore?: () => void | Promise<void>;
   } | null;
@@ -287,6 +289,14 @@ export default function NotificationDetailModal({
                   </Text>
                 </View>
               )}
+              {notification.type === "startup_join_request" && (
+                <View className="px-6 pb-4">
+                  <Text className="text-base text-neutral-600 leading-6">
+                    {notification.description?.trim() ||
+                      "Someone requested to join your startup. Review and approve or decline from your Startup profile."}
+                  </Text>
+                </View>
+              )}
               {/* App update: same single body as push — only backend `description` (no stacked client + server copy). */}
               {notification.type === "app_update" && (
                 <View className="px-6 pb-4">
@@ -301,7 +311,8 @@ export default function NotificationDetailModal({
               {(notification.type === "generic" ||
                 (!notification.meetingDetails &&
                   !notification.requester &&
-                  notification.type !== "app_update")) &&
+                  notification.type !== "app_update" &&
+                  notification.type !== "startup_join_request")) &&
                 notification.description && (
                   <View className="px-6 pb-4">
                     <Text className="text-base text-neutral-600 leading-6">
@@ -559,6 +570,27 @@ export default function NotificationDetailModal({
                   >
                     <Text className="text-white font-semibold text-base">
                       View allocation
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : notification.onViewStartupJoin ? (
+                <View className="px-6">
+                  <Pressable
+                    onPress={() => {
+                      notification.onViewStartupJoin?.();
+                      onClose();
+                    }}
+                    className="bg-black rounded-2xl py-4 flex-row items-center justify-center"
+                    style={{
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
+                  >
+                    <Text className="text-white font-semibold text-base">
+                      Review join requests
                     </Text>
                   </Pressable>
                 </View>

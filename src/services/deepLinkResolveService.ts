@@ -46,7 +46,7 @@ export async function resolveMeetingById(
 
 export async function resolveCompanyById(
   companyId: number,
-  companyType: "exhibitor" | "partner",
+  companyType: "exhibitor" | "partner" | "startup",
 ) {
   try {
     return await eventService.getCompanyDetail(EVENT_ID, companyType, companyId);

@@ -7,7 +7,6 @@ export type RootStackParamList = {
   Welcome: undefined;
   CompleteProfile: { step?: "personal" | "company" } | undefined;
   CompleteCompanyProfile: undefined;
-  ProfileCreated: undefined;
   Home:
     | {
         /** FCM tap: show detail modal on Home without opening Notifications list. */
@@ -25,10 +24,10 @@ export type RootStackParamList = {
         /** Deeplink: open attendee profile sheet and highlight list row. */
         highlightUserId?: string;
         /** Pre-filter directory by ASF pass role. */
-        roleFilter?: "founder" | "investor" | "all";
+        roleFilter?: "startup" | "investor" | "all";
       }
     | undefined;
-  Profile: undefined;
+  Profile: { openStartupTab?: boolean } | undefined;
   Search: undefined;
   Menu: undefined;
   Notifications:
@@ -58,6 +57,11 @@ export type RootStackParamList = {
       }
     | undefined;
   Partners:
+    | {
+        highlightCompanyId?: string;
+      }
+    | undefined;
+  Startups:
     | {
         highlightCompanyId?: string;
       }
@@ -102,7 +106,11 @@ export type RootStackParamList = {
     otherPartyName: string;
     otherPartyAvatarUri?: string;
   };
-  CompanyDetail: { exhibitorId: string; type: "exhibitor" | "partner"; name?: string };
+  CompanyDetail: {
+    exhibitorId: string;
+    type: "exhibitor" | "partner" | "startup";
+    name?: string;
+  };
   Contact: undefined;
   Talent: undefined;
   PartnersOffers: undefined;

@@ -47,7 +47,7 @@ import {
   getTicketBackgroundColor,
   getTicketTypeDisplay,
   getTicketGradientColors,
-  isExhibitionPass,
+  isLightTicketCard,
 } from "../utils/ticketColors";
 import { ApiClientError } from "../services/api";
 import {
@@ -63,7 +63,7 @@ import QRCode from "react-native-qrcode-svg";
 import RequestMeetingModal, {
   type MeetingFormData,
 } from "../components/RequestMeetingModal";
-import { LoadingSpinner } from "../components";
+import { LoadingSpinner, SkeletonListRows } from "../components";
 import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
@@ -79,7 +79,7 @@ import { logError, ERROR_TAGS } from "../utils/logError";
 import { attendeeService } from "../services/attendeeService";
 import { mergeAttendeeProfiles, type AttendeeLike } from "../utils/normalizeAttendee";
 import ScannedAttendeeProfileContent from "../components/ScannedAttendeeProfileContent";
-// import PatternOverlay from "../components/ui/PatternOverlay";
+import GuidelinePatternOverlay from "../components/GuidelinePatternOverlay";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -525,10 +525,8 @@ function TicketCard({
 
   const gradientColors = getTicketGradientColors(ticketType ?? "expo");
   const cardClassName = "rounded-2xl p-5 relative overflow-hidden";
-  const isExhibition = isExhibitionPass(ticketType ?? title);
-  const cardBorderColorClass = isExhibition ? "border-black/30" : "border-white/30";
-  const cardBorderColorSmallClass = isExhibition ? "border-black/30" : "border-white/30";
-  const iconColor = isExhibition ? "#111827" : "#FFFFFF";
+  const isLightCard = isLightTicketCard(ticketType ?? title);
+  const iconColor = isLightCard ? "#111827" : "#FFFFFF";
 
   return (
     <View className="mb-4">
@@ -538,30 +536,20 @@ function TicketCard({
         end={{ x: 1, y: 0 }}
         className={cardClassName}
       >
-        {/* <PatternOverlay opacity={0.20} /> */}
-        <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
-          <View
-            className={`absolute top-3 right-3 w-10 h-10 border-2 ${cardBorderColorClass} rounded-lg`}
-          />
-          <View
-            className={`absolute top-8 right-8 w-5 h-5 border-2 ${cardBorderColorSmallClass} rounded`}
-          />
-          <View
-            className={`absolute top-14 right-14 w-3 h-3 border ${cardBorderColorSmallClass} rounded`}
-          />
-        </View>
+        <GuidelinePatternOverlay isLightCard={isLightCard} />
+        <View className="relative z-10">
         <View className="flex-row items-start justify-between">
           <View className="flex-1 pr-2">
             <Text
               className={`text-2xl font-bold mb-2 ${
-                isExhibition ? "text-black" : "text-white"
+                isLightCard ? "text-black" : "text-white"
               }`}
             >
               {title}
             </Text>
             <Text
               className={`text-base mb-10 font-mono ${
-                isExhibition ? "text-black/50" : "text-white/50"
+                isLightCard ? "text-black/50" : "text-white/50"
               }`}
             >
               {unassignedLabel ?? formatTicketCodeForDisplay(ticketNumber)}
@@ -570,14 +558,14 @@ function TicketCard({
               <View className="flex-col">
                 <Text
                   className={`text-sm ${
-                    isExhibition ? "text-black/60" : "text-white/60"
+                    isLightCard ? "text-black/60" : "text-white/60"
                   }`}
                 >
                   Assigned to
                 </Text>
                 <Text
                   className={`text-[18px] font-semibold py-2 ${
-                    isExhibition ? "text-black" : "text-white"
+                    isLightCard ? "text-black" : "text-white"
                   }`}
                 >
                   {assignedTo}
@@ -589,17 +577,17 @@ function TicketCard({
             {isUnassigned && (
               <View
                 className={`px-2 py-1 rounded-full flex-row items-center ${
-                  isExhibition ? "bg-black/5" : "bg-white/20"
+                  isLightCard ? "bg-black/5" : "bg-white/20"
                 }`}
               >
                 <View
                   className={`w-1.5 h-1.5 rounded-full mr-1 ${
-                    isExhibition ? "bg-black/40" : "bg-white"
+                    isLightCard ? "bg-black/40" : "bg-white"
                   }`}
                 />
                 <Text
                   className={`text-xs font-medium ${
-                    isExhibition ? "text-black/70" : "text-white"
+                    isLightCard ? "text-black/70" : "text-white"
                   }`}
                 >
                   Unassigned
@@ -621,20 +609,21 @@ function TicketCard({
           >
             <Text
               className={`text-sm font-semibold  ${
-                isExhibition ? "text-black" : "text-white"
+                isLightCard ? "text-black" : "text-white"
               }`}
             >
               View benefits
             </Text>
             <Text
               className={`text-sm font-bold ml-1  ${
-                isExhibition ? "text-black" : "text-white"
+                isLightCard ? "text-black" : "text-white"
               }`}
             >
               ↓
             </Text>
           </Pressable>
         )}
+        </View>
       </LinearGradient>
       {/* My Ticket buttons - View QR Code / Transfer Ticket */}
       {assignedTo && isMyTicket && (
@@ -1136,9 +1125,9 @@ function AssigningTicketsModal({
               const gradientColors = getTicketGradientColors(
                 ticket.ticketType ?? "expo",
               );
-              const isExhibition = isExhibitionPass(ticket.ticketType ?? ticket.title);
-              const cardBorderColorClass = isExhibition ? "border-black/30" : "border-white/30";
-              const iconColor = isExhibition ? "#111827" : "#FFFFFF";
+              const isLightCard = isLightTicketCard(ticket.ticketType ?? ticket.title);
+              const cardBorderColorClass = isLightCard ? "border-black/30" : "border-white/30";
+              const iconColor = isLightCard ? "#111827" : "#FFFFFF";
               const cardClassName = "rounded-2xl p-5 relative overflow-hidden";
               return (
                 <Pressable
@@ -1167,13 +1156,13 @@ function AssigningTicketsModal({
                       <View className="flex-1 pr-3">
                         <Text
                           className={`text-2xl font-bold mb-2 ${
-                            isExhibition ? "text-black" : "text-white"
+                            isLightCard ? "text-black" : "text-white"
                           }`}
                         >
                           {ticket.title}
                         </Text>
                         <Text
-                          className={`text-base ${isExhibition ? "text-black/50" : "text-white/50"}`}
+                          className={`text-base ${isLightCard ? "text-black/50" : "text-white/50"}`}
                         >
                           {ticket.ticketNumber}
                         </Text>
@@ -1181,17 +1170,17 @@ function AssigningTicketsModal({
                       <View className="flex-row items-center gap-2">
                         <View
                           className={`px-2 py-1 rounded-full flex-row items-center ${
-                            isExhibition ? "bg-black/5" : "bg-white/20"
+                            isLightCard ? "bg-black/5" : "bg-white/20"
                           }`}
                         >
                           <View
                             className={`w-1.5 h-1.5 rounded-full mr-1 ${
-                              isExhibition ? "bg-black/40" : "bg-white"
+                              isLightCard ? "bg-black/40" : "bg-white"
                             }`}
                           />
                           <Text
                             className={`text-xs font-medium ${
-                              isExhibition ? "text-black/70" : "text-white"
+                              isLightCard ? "text-black/70" : "text-white"
                             }`}
                           >
                             Unassigned
@@ -3269,7 +3258,7 @@ function EditAssignedTicketModal({
   onRevokeAccess: () => void;
 }) {
   const isAccepted = allocationStatus === "accepted";
-  const isExhibition = isExhibitionPass(title);
+  const isLightCard = isLightTicketCard(title);
   const translateY = useRef(new Animated.Value(0)).current;
   const offset = useRef(0);
   const isClosingRef = useRef(false);
@@ -3405,17 +3394,17 @@ function EditAssignedTicketModal({
                 <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
                   <View
                     className={`absolute top-3 right-3 w-10 h-10 border-2 ${
-                      isExhibition ? "border-black/30" : "border-white/30"
+                      isLightCard ? "border-black/30" : "border-white/30"
                     } rounded-lg`}
                   />
                   <View
                     className={`absolute top-8 right-8 w-5 h-5 border-2 ${
-                      isExhibition ? "border-black/30" : "border-white/30"
+                      isLightCard ? "border-black/30" : "border-white/30"
                     } rounded`}
                   />
                   <View
                     className={`absolute top-14 right-14 w-3 h-3 border ${
-                      isExhibition ? "border-black/30" : "border-white/30"
+                      isLightCard ? "border-black/30" : "border-white/30"
                     } rounded`}
                   />
                 </View>
@@ -3423,14 +3412,14 @@ function EditAssignedTicketModal({
                   <View className="flex-1 pr-3">
                     <Text
                       className={`text-2xl font-bold mb-2 ${
-                        isExhibition ? "text-black" : "text-white"
+                        isLightCard ? "text-black" : "text-white"
                       }`}
                     >
                       {title}
                     </Text>
                     <Text
                       className={`text-base mb-10 ${
-                        isExhibition ? "text-black/50" : "text-white/50"
+                        isLightCard ? "text-black/50" : "text-white/50"
                       }`}
                     >
                       {ticketNumber || "—"}
@@ -3438,14 +3427,14 @@ function EditAssignedTicketModal({
                     <View className="flex-col">
                       <Text
                         className={`text-sm ${
-                          isExhibition ? "text-black/60" : "text-white/60"
+                          isLightCard ? "text-black/60" : "text-white/60"
                         }`}
                       >
                         Assigned to
                       </Text>
                       <Text
                         className={`font-semibold py-2 text-[18px] ${
-                          isExhibition ? "text-black" : "text-white"
+                          isLightCard ? "text-black" : "text-white"
                         }`}
                       >
                         {assignedTo}
@@ -3455,17 +3444,17 @@ function EditAssignedTicketModal({
                   <View className="flex-row items-center gap-2">
                     <View
                       className={`px-2 py-1 rounded-full flex-row items-center ${
-                        isExhibition ? "bg-black/5" : "bg-white/20"
+                        isLightCard ? "bg-black/5" : "bg-white/20"
                       }`}
                     >
                       <View
                         className={`w-1.5 h-1.5 rounded-full mr-1 ${
-                          isExhibition ? "bg-black/40" : "bg-white"
+                          isLightCard ? "bg-black/40" : "bg-white"
                         }`}
                       />
                       <Text
                         className={`text-xs font-medium ${
-                          isExhibition ? "text-black/70" : "text-white"
+                          isLightCard ? "text-black/70" : "text-white"
                         }`}
                       >
                         {isAccepted ? "Accepted" : "Pending"}
@@ -3475,7 +3464,7 @@ function EditAssignedTicketModal({
                       <View className="w-6 h-6 items-center justify-center">
                         <TicketIcon
                           size={18}
-                          color={isExhibition ? "#111827" : "#FFFFFF"}
+                          color={isLightCard ? "#111827" : "#FFFFFF"}
                         />
                       </View>
                     </View>
@@ -3557,7 +3546,7 @@ function TransferTicketModal({
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const offset = useRef(0);
-  const isExhibition = isExhibitionPass(title);
+  const isLightCard = isLightTicketCard(title);
   const isClosingRef = useRef(false);
 
   const panResponder = useRef(
@@ -3703,17 +3692,17 @@ function TransferTicketModal({
                 <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
                   <View
                     className={`absolute top-3 right-3 w-10 h-10 border-2 ${
-                      isExhibition ? "border-black/30" : "border-white/30"
+                      isLightCard ? "border-black/30" : "border-white/30"
                     } rounded-lg`}
                   />
                   <View
                     className={`absolute top-8 right-8 w-5 h-5 border-2 ${
-                      isExhibition ? "border-black/30" : "border-white/30"
+                      isLightCard ? "border-black/30" : "border-white/30"
                     } rounded`}
                   />
                   <View
                     className={`absolute top-14 right-14 w-3 h-3 border ${
-                      isExhibition ? "border-black/30" : "border-white/30"
+                      isLightCard ? "border-black/30" : "border-white/30"
                     } rounded`}
                   />
                 </View>
@@ -3721,14 +3710,14 @@ function TransferTicketModal({
                   <View className="flex-1 pr-3">
                     <Text
                       className={`text-2xl font-bold mb-2 ${
-                        isExhibition ? "text-black" : "text-white"
+                        isLightCard ? "text-black" : "text-white"
                       }`}
                     >
                       {title}
                     </Text>
                     <Text
                       className={`text-base ${
-                        isExhibition ? "text-black/50" : "text-white/50"
+                        isLightCard ? "text-black/50" : "text-white/50"
                       }`}
                     >
                       {ticketNumber}
@@ -3738,17 +3727,17 @@ function TransferTicketModal({
                     {isUnassigned && (
                       <View
                         className={`px-2 py-1 rounded-full flex-row items-center ${
-                          isExhibition ? "bg-black/5" : "bg-white/20"
+                          isLightCard ? "bg-black/5" : "bg-white/20"
                         }`}
                       >
                         <View
                           className={`w-1.5 h-1.5 rounded-full mr-1 ${
-                            isExhibition ? "bg-black/40" : "bg-white"
+                            isLightCard ? "bg-black/40" : "bg-white"
                           }`}
                         />
                         <Text
                           className={`text-xs font-medium ${
-                            isExhibition ? "text-black/70" : "text-white"
+                            isLightCard ? "text-black/70" : "text-white"
                           }`}
                         >
                           Unassigned
@@ -3759,7 +3748,7 @@ function TransferTicketModal({
                       <View className="w-6 h-6 items-center justify-center">
                         <TicketIcon
                           size={18}
-                          color={isExhibition ? "#111827" : "#FFFFFF"}
+                          color={isLightCard ? "#111827" : "#FFFFFF"}
                         />
                       </View>
                     </View>
@@ -3995,11 +3984,8 @@ function MyTicketView({
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center py-20">
-        <LoadingSpinner size="large" color="#000000" />
-        <Text className="text-base text-neutral-600 mt-4">
-          Loading tickets...
-        </Text>
+      <View className="flex-1 py-8">
+        <SkeletonListRows count={4} />
       </View>
     );
   }

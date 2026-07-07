@@ -33,6 +33,7 @@ export type NotificationType =
   | "chat_message"
   | "app_update"
   | "book_meeting_prompt"
+  | "startup_join_request"
   | "generic";
 
 /**
@@ -115,6 +116,18 @@ export function isBookMeetingPromptNotificationType(
   return BOOK_MEETING_PROMPT_TYPES.has((ntype || "").trim().toLowerCase());
 }
 
+export function isStartupJoinNotificationType(
+  ntype: string | null | undefined,
+): boolean {
+  const t = (ntype || "").trim().toLowerCase();
+  return (
+    t === "startup_join_request" ||
+    t === "join_request" ||
+    t === "company_join_request" ||
+    t === "startup_join_reminder"
+  );
+}
+
 /** True when route's first segment is `attendees` (e.g. `attendees`, `/Attendees`). */
 export function routeFirstSegmentIsAttendees(
   route: string | null | undefined,
@@ -171,6 +184,15 @@ export function inferNotificationType(
 
   if (isBookMeetingPromptNotificationType(notification.notification_type)) {
     return "book_meeting_prompt";
+  }
+  if (isStartupJoinNotificationType(notification.notification_type)) {
+    return "startup_join_request";
+  }
+  if (
+    combined.includes("join request") &&
+    (combined.includes("startup") || combined.includes("company"))
+  ) {
+    return "startup_join_request";
   }
   if (
     routeFirstSegmentIsAttendees(notification.route) &&
@@ -451,6 +473,16 @@ export function getNotificationIcon(type: NotificationType): React.ReactNode {
           style={{ backgroundColor: "#EFF6FF" }}
         >
           <BellIcon size={24} color="#2563EB" />
+        </View>
+      );
+
+    case "startup_join_request":
+      return (
+        <View
+          className="w-12 h-12 rounded-lg items-center justify-center"
+          style={{ backgroundColor: "#FEF3C7" }}
+        >
+          <ProfileIcon size={24} color="#D97706" />
         </View>
       );
 

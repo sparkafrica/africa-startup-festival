@@ -15,18 +15,30 @@ import { useNavigation } from "@react-navigation/native";
 import type { RootStackScreenProps } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
 import { APP_GUIDE_CONTENT } from "../constants/appGuideContent";
-import { searchGuide, getTopicPrimarySection } from "../constants/appGuideIndex";
+import {
+  searchGuide,
+  getTopicPrimarySection,
+} from "../constants/appGuideIndex";
 
-const WATERMARK_IMG = require("../assets/images/ate-watermark.png");
+const WATERMARK_IMG = require("../assets/images/logo.png");
 
 type Props = RootStackScreenProps<"AppGuide">;
 
-type LineType = "mainTitle" | "subTitle" | "sectionHeading" | "label" | "bullet" | "divider" | "body" | "empty";
+type LineType =
+  | "mainTitle"
+  | "subTitle"
+  | "sectionHeading"
+  | "label"
+  | "bullet"
+  | "divider"
+  | "body"
+  | "empty";
 
 function getLineType(line: string, index: number): LineType {
   const t = line.trim();
   if (!t) return "empty";
-  if (t === "________________" || (t.startsWith("_") && t.length > 8)) return "divider";
+  if (t === "________________" || (t.startsWith("_") && t.length > 8))
+    return "divider";
   if (index === 0) return "mainTitle";
   if (t === "Frequently Asked Questions (FAQ)") return "subTitle";
   if (/^\d+\.\s+.+\?$/.test(t)) return "sectionHeading";
@@ -64,7 +76,8 @@ function GuideContent({
     <View style={styles.contentBlock}>
       {lines.map((line, i) => {
         const type = getLineType(line, i);
-        const sectionNum = type === "sectionHeading" ? getSectionNumber(line) : null;
+        const sectionNum =
+          type === "sectionHeading" ? getSectionNumber(line) : null;
 
         if (type === "sectionHeading" && sectionNum) {
           return (
@@ -104,7 +117,9 @@ function GuideContent({
           return (
             <View key={i} style={styles.bulletRow}>
               <Text style={styles.bulletMark}>•</Text>
-              <Text style={styles.bulletText}>{line.trim().replace(/^\*\s*/, "")}</Text>
+              <Text style={styles.bulletText}>
+                {line.trim().replace(/^\*\s*/, "")}
+              </Text>
             </View>
           );
         return (
@@ -160,7 +175,9 @@ export default function AppGuideScreen() {
   const sectionOffsetsRef = useRef<Record<number, number>>({});
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<{ section: number; title: string }[]>([]);
+  const [searchResults, setSearchResults] = useState<
+    { section: number; title: string }[]
+  >([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSectionLayout = useCallback((section: number, y: number) => {
@@ -190,7 +207,7 @@ export default function AppGuideScreen() {
         debounceRef.current = null;
       }, 300);
     },
-    [runSearch]
+    [runSearch],
   );
 
   useEffect(() => {
@@ -213,7 +230,7 @@ export default function AppGuideScreen() {
       const section = getTopicPrimarySection(kw);
       if (section != null) scrollToSection(section);
     },
-    [scrollToSection]
+    [scrollToSection],
   );
 
   return (
@@ -263,7 +280,10 @@ export default function AppGuideScreen() {
               {searchResults.map((r) => (
                 <Pressable
                   key={r.section}
-                  style={({ pressed }) => [styles.resultRow, pressed && styles.resultRowPressed]}
+                  style={({ pressed }) => [
+                    styles.resultRow,
+                    pressed && styles.resultRowPressed,
+                  ]}
                   onPress={() => {
                     scrollToSection(r.section);
                     setSearchQuery("");
@@ -301,7 +321,10 @@ export default function AppGuideScreen() {
             {POPULAR_KEYWORDS.map((kw) => (
               <Pressable
                 key={kw}
-                style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
+                style={({ pressed }) => [
+                  styles.chip,
+                  pressed && styles.chipPressed,
+                ]}
                 onPress={() => handleKeywordPress(kw)}
               >
                 <Text style={styles.chipText}>{kw}</Text>

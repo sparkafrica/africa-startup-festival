@@ -61,7 +61,7 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u sparkafrica --password-stdin
             docker service update --image ${{ env.IMAGE_SHA }} --with-registry-auth \
             --env-add PORT=3000 \
-            ate-deeplink_app
+            asf-deeplink_app
 
       - name: Update deployment status (success)
         if: success()
@@ -70,7 +70,7 @@ jobs:
           token: ${{ github.token }}
           deployment-id: ${{ steps.deployment.outputs.deployment_id }}
           state: success
-          environment-url: https://app.africatechnologyexpo.com
+          environment-url: https://app.africastartupfestival.com
 
       - name: Update deployment status (failure)
         if: failure()

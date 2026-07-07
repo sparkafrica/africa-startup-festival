@@ -7,7 +7,7 @@ import type { RootStackParamList } from "../navigation/types";
 import { StatusBar } from "expo-status-bar";
 import NotificationItem from "../components/NotificationItem";
 import NotificationDetailModal from "../components/NotificationDetailModal";
-import { LoadingSpinner } from "../components";
+import { Skeleton, SkeletonListRows } from "../components";
 import {
   CloseIcon,
   ProfileIcon,
@@ -281,6 +281,15 @@ export default function NotificationsScreen() {
     }
   }, [markAsRead, navigation, user?.user_id]);
 
+  const handleViewStartupJoin = useCallback((notification: UINotification) => {
+    markAsRead(notification);
+    setSelectedNotification(null);
+    navigation.goBack();
+    setTimeout(() => {
+      navigation.navigate("Profile", { openStartupTab: true });
+    }, 100);
+  }, [markAsRead, navigation]);
+
   /**
    * Handle "View profile" - mark as read, close modal, navigate to Connections
    */
@@ -393,12 +402,7 @@ export default function NotificationsScreen() {
 
         {/* Notifications List */}
         {isLoading && notifications.length === 0 ? (
-          <View className="flex-1 items-center justify-center px-6">
-            <LoadingSpinner size="large" />
-            <Text className="text-base text-neutral-500 mt-4">
-              Loading notifications...
-            </Text>
-          </View>
+          <SkeletonListRows count={8} />
         ) : error && notifications.length === 0 ? (
           <View className="flex-1 items-center justify-center px-6">
             <Text className="text-base text-neutral-500 text-center mb-4">
@@ -474,8 +478,8 @@ export default function NotificationsScreen() {
             
             {/* Loading more indicator */}
             {isLoadingMore && (
-              <View className="py-4 items-center">
-                <LoadingSpinner size="small" />
+              <View className="py-4 px-4">
+                <SkeletonListRows count={1} />
               </View>
             )}
           </ScrollView>
@@ -497,6 +501,7 @@ export default function NotificationsScreen() {
             selectedNotification?.type === "ticket_allocation_accepted" ||
             selectedNotification?.type === "ticket_allocation_declined" ||
             selectedNotification?.type === "app_update" ||
+            selectedNotification?.type === "startup_join_request" ||
             selectedNotification?.type === "generic")
         }
         onClose={() => {
@@ -510,6 +515,7 @@ export default function NotificationsScreen() {
             selectedNotification?.type === "ticket_allocation_accepted" ||
             selectedNotification?.type === "ticket_allocation_declined" ||
             selectedNotification?.type === "app_update" ||
+            selectedNotification?.type === "startup_join_request" ||
             selectedNotification?.type === "generic"
           ) {
             markAsRead(selectedNotification);
@@ -555,6 +561,10 @@ export default function NotificationsScreen() {
               : selectedNotification.type === "meeting_request_sent"
               ? () => handleViewMeeting(selectedNotification, "requests", "outbound")
               : undefined,
+          onViewStartupJoin:
+            selectedNotification.type === "startup_join_request"
+              ? () => handleViewStartupJoin(selectedNotification)
+              : undefined,
           onViewProfile:
             selectedNotification.type === "connection" ||
             selectedNotification.type === "connection_request" ||
@@ -586,7 +596,9 @@ export default function NotificationsScreen() {
             alignItems: "center",
           }}
         >
-          <LoadingSpinner size="large" color="#FFFFFF" />
+          <View className="bg-white rounded-2xl p-6 w-[80%]">
+            <SkeletonListRows count={3} />
+          </View>
         </View>
       )}
 

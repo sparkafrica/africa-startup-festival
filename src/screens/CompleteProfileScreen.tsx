@@ -35,18 +35,36 @@ import {
 } from "../utils/profilePhotoValidation";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { CloseIcon } from "../components/MenuIcons";
-import { LoadingSpinner } from "../components";
+import { LoadingSpinner, SkeletonAppShell } from "../components";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
 import { trackProfileEvent } from "../utils/analytics";
 import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
+import StartupConnectStep from "../components/StartupConnectStep";
 import {
-  COMPANY_SIZE_OPTIONS,
-  COMPANY_TYPE_OPTIONS,
-  PURCHASING_INFLUENCE_OPTIONS,
-  type SelectOption,
-} from "../constants/companyProfileOptions";
+  IndustriesToMeetField,
+  IndustriesToMeetModal,
+} from "../components/IndustriesToMeet";
+import {
+  validateEventGoals,
+  validateIndustriesToMeet,
+} from "../utils/profileFieldValidation";
+import {
+  fetchAssignedBoothNumber,
+  resolveCompanyType,
+  isStartupCompanyType,
+  showsBoothInCompanyProfile,
+  showsStartupDetailFieldsInCompanyProfile,
+} from "../utils/companyProfileFields";
+import {
+  getCurrentUserTicketInfo,
+  getCurrentUserTicketType,
+  isStartupPass,
+} from "../utils/asfTicketClass";
+import { type SelectOption } from "../constants/companyProfileOptions";
+
+const INPUT_PLACEHOLDER_COLOR = "#9CA3AF";
 
 // Offer colors
 const OFFER_COLORS = [
@@ -168,21 +186,6 @@ const validateWebsite = (
   return { valid: true };
 };
 
-const validateBoothNumber = (
-  booth: string
-): { valid: boolean; error?: string } => {
-  if (!booth.trim()) {
-    return { valid: false, error: "Booth number is required" };
-  }
-  if (booth.trim().length > 50) {
-    return {
-      valid: false,
-      error: "Booth number must be less than 50 characters",
-    };
-  }
-  return { valid: true };
-};
-
 const validateCompanyDescription = (
   description: string
 ): { valid: boolean; error?: string } => {
@@ -300,17 +303,23 @@ function CameraIcon({ size = 20, color = "#FFFFFF" }: IconProps) {
   );
 }
 
-function ChevronDownIcon({ size = 20, color = "#404040" }: IconProps) {
+function ChevronDownIcon({
+  size = 20,
+  color = "#404040",
+  rotated = false,
+}: IconProps & { rotated?: boolean }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <Path
-        d="M5 7.5L10 12.5L15 7.5"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
+    <View style={rotated ? { transform: [{ rotate: "180deg" }] } : undefined}>
+      <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+        <Path
+          d="M5 7.5L10 12.5L15 7.5"
+          stroke={color}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </View>
   );
 }
 
@@ -847,12 +856,14 @@ function OfferColorModal({
 // Attendee Profile Form Component (single screen, no progress bar)
 function AttendeeProfileForm({
   initialProfile = null,
+  onProfileSaved,
 }: {
   initialProfile?: UserProfile | null;
+  onProfileSaved?: () => void;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
-  const { user } = useAuth();
+  const { user, completeProfile } = useAuth();
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
@@ -863,12 +874,10 @@ function AttendeeProfileForm({
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [companySize, setCompanySize] = useState("");
-  const [companyType, setCompanyType] = useState("");
-  const [purchasingInfluence, setPurchasingInfluence] = useState("");
-  const [showCompanySizeModal, setShowCompanySizeModal] = useState(false);
-  const [showCompanyTypeModal, setShowCompanyTypeModal] = useState(false);
-  const [showPurchasingModal, setShowPurchasingModal] = useState(false);
+  const [eventGoals, setEventGoals] = useState("");
+  const [industriesToMeet, setIndustriesToMeet] = useState<string[]>([]);
+  const [showIndustriesToMeetModal, setShowIndustriesToMeetModal] = useState(false);
+  const [industriesExpanded, setIndustriesExpanded] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
@@ -913,26 +922,9 @@ function AttendeeProfileForm({
     }
     const li = meta.linkedIn ?? meta.linkedin_url;
     if (typeof li === "string") setLinkedIn(li);
-    const sizeVal = meta.company_size;
-    if (typeof sizeVal === "string") {
-      const opt = COMPANY_SIZE_OPTIONS.find(
-        (o) => o.id === sizeVal || o.label === sizeVal
-      );
-      if (opt) setCompanySize(opt.id);
-    }
-    const typeVal = meta.company_type;
-    if (typeof typeVal === "string") {
-      const opt = COMPANY_TYPE_OPTIONS.find(
-        (o) => o.id === typeVal || o.label === typeVal
-      );
-      if (opt) setCompanyType(opt.id);
-    }
-    const purchVal = meta.purchasing_influence;
-    if (typeof purchVal === "string") {
-      const opt = PURCHASING_INFLUENCE_OPTIONS.find(
-        (o) => o.id === purchVal || o.label === purchVal
-      );
-      if (opt) setPurchasingInfluence(opt.id);
+    if (typeof meta.event_goals === "string") setEventGoals(meta.event_goals);
+    if (Array.isArray(meta.industries_to_meet)) {
+      setIndustriesToMeet(meta.industries_to_meet as string[]);
     }
     const companyName = (source as UserProfile).company?.name;
     if (companyName) setCompany(companyName);
@@ -944,18 +936,22 @@ function AttendeeProfileForm({
   const selectedCountryData =
     COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
     COUNTRY_OPTIONS[0];
-  const selectedCompanySizeLabel =
-    COMPANY_SIZE_OPTIONS.find((o) => o.id === companySize)?.label ?? "Select one";
-  const selectedCompanyTypeLabel =
-    COMPANY_TYPE_OPTIONS.find((o) => o.id === companyType)?.label ?? "Select one";
-  const selectedPurchasingInfluenceLabel =
-    PURCHASING_INFLUENCE_OPTIONS.find((o) => o.id === purchasingInfluence)?.label ?? "Select one";
 
   const profilePhotoReady = hasRequiredImage({
     selectedUri: selectedImageUri,
     existingUrl: initialProfile?.profile_pic ?? user?.profile_pic,
     shouldRemove: shouldRemovePhoto,
   });
+
+  const toggleIndustryToMeet = (label: string) => {
+    setIndustriesToMeet((prev) =>
+      prev.includes(label)
+        ? prev.filter((i) => i !== label)
+        : prev.length < 12
+          ? [...prev, label]
+          : prev
+    );
+  };
 
   const toggleInterest = (interest: string) => {
     setSelectedInterests((prev) =>
@@ -1088,6 +1084,16 @@ function AttendeeProfileForm({
       errors.interests = interestsValidation.error || "";
     }
 
+    const eventGoalsValidation = validateEventGoals(eventGoals);
+    if (!eventGoalsValidation.valid) {
+      errors.eventGoals = eventGoalsValidation.error || "";
+    }
+
+    const industriesToMeetValidation = validateIndustriesToMeet(industriesToMeet);
+    if (!industriesToMeetValidation.valid) {
+      errors.industriesToMeet = industriesToMeetValidation.error || "";
+    }
+
     // Photo: primary guard is disabled Complete button (profilePhotoReady). This block is fallback if submit runs.
     const profilePhotoOk = hasRequiredImage({
       selectedUri: selectedImageUri,
@@ -1122,7 +1128,7 @@ function AttendeeProfileForm({
       const countryLabel =
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
-      // Build metadata: industry & interests are shown on attendee cards; company fields for internal use only
+      // Build metadata for attendee directory cards and matching
       const metadata: any = { ...getSafeMetadataObjectForMerge(user?.metadata) };
       metadata.linkedIn = linkedIn.trim();
       if (industryLabel) {
@@ -1131,18 +1137,11 @@ function AttendeeProfileForm({
       if (selectedInterests.length > 0) {
         metadata.interests = selectedInterests;
       }
-      if (companySize) {
-        metadata.company_size =
-          COMPANY_SIZE_OPTIONS.find((o) => o.id === companySize)?.label ?? companySize;
+      if (eventGoals.trim()) {
+        metadata.event_goals = eventGoals.trim();
       }
-      if (companyType) {
-        metadata.company_type =
-          COMPANY_TYPE_OPTIONS.find((o) => o.id === companyType)?.label ?? companyType;
-      }
-      if (purchasingInfluence) {
-        metadata.purchasing_influence =
-          PURCHASING_INFLUENCE_OPTIONS.find((o) => o.id === purchasingInfluence)?.label ??
-          purchasingInfluence;
+      if (industriesToMeet.length > 0) {
+        metadata.industries_to_meet = industriesToMeet;
       }
       // Note: company field is not sent to backend (company association is separate)
 
@@ -1206,9 +1205,18 @@ function AttendeeProfileForm({
       void trackProfileEvent("completed", { source: "complete_profile_screen" });
 
       await AsyncStorage.setItem("@spark:profile_just_saved", "true");
-      setTimeout(() => {
-        navigation.navigate("ProfileCreated");
-      }, 500);
+      if (onProfileSaved) {
+        onProfileSaved();
+      } else {
+        setTimeout(() => {
+          void completeProfile().catch(() => {
+            showToast(
+              "We're having trouble entering the app. Please try again.",
+              "error",
+            );
+          });
+        }, 500);
+      }
     } catch (error: any) {
       console.error("Error completing profile:", error);
       
@@ -1347,6 +1355,7 @@ function AttendeeProfileForm({
                   }
                 }}
                 placeholder="Enter full name"
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
               />
               {validationErrors.fullName && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -1374,6 +1383,7 @@ function AttendeeProfileForm({
                   }
                 }}
                 placeholder="Enter job title"
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
               />
               {validationErrors.jobTitle && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -1401,6 +1411,7 @@ function AttendeeProfileForm({
                   }
                 }}
                 placeholder="Enter company name"
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
               />
               {validationErrors.company && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -1431,6 +1442,7 @@ function AttendeeProfileForm({
                   }
                 }}
                 placeholder="https://linkedin.com/in/yourprofile"
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
               />
               {validationErrors.linkedIn && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -1476,70 +1488,60 @@ function AttendeeProfileForm({
               </Pressable>
             </View>
 
-            {/* Company size (metadata only) */}
+            {/* Event goals */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                What is the size of your company?
+                What are you hoping to get from the event?{" "}
+                <Text className="text-red-500">*</Text>
               </Text>
-              <Pressable
-                onPress={() => setShowCompanySizeModal(true)}
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
-              >
-                <View className="flex-1 min-w-0">
-                  <Text
-                    className="text-base text-neutral-900"
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {selectedCompanySizeLabel}
-                  </Text>
-                </View>
-                <ChevronDownIcon size={20} color="#404040" />
-              </Pressable>
+              <TextInput
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[88px] ${
+                  validationErrors.eventGoals
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={eventGoals}
+                onChangeText={(text) => {
+                  setEventGoals(text);
+                  if (validationErrors.eventGoals) {
+                    setValidationErrors({ ...validationErrors, eventGoals: "" });
+                  }
+                }}
+                placeholder="e.g. Meet investors, find partners, learn about..."
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                multiline
+                textAlignVertical="top"
+                maxLength={300}
+              />
+              {validationErrors.eventGoals ? (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.eventGoals}
+                </Text>
+              ) : null}
             </View>
 
-            {/* Company type (metadata only) */}
+            {/* Industries to meet */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
-                Which option best describes you or your company?
+                Industries you want to meet{" "}
+                <Text className="text-red-500">*</Text>
               </Text>
-              <Pressable
-                onPress={() => setShowCompanyTypeModal(true)}
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
-              >
-                <View className="flex-1 min-w-0">
-                  <Text
-                    className="text-base text-neutral-900"
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {selectedCompanyTypeLabel}
-                  </Text>
-                </View>
-                <ChevronDownIcon size={20} color="#404040" />
-              </Pressable>
-            </View>
-
-            {/* Purchasing influence (metadata only) */}
-            <View className="mb-4">
-              <Text className="text-sm font-medium text-neutral-700 mb-2">
-                How involved are you in purchasing decisions at your company?
+              <Text className="text-xs text-neutral-500 mb-2">
+                Select 5–12 ({industriesToMeet.length}/12)
               </Text>
-              <Pressable
-                onPress={() => setShowPurchasingModal(true)}
-                className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
-              >
-                <View className="flex-1 min-w-0">
-                  <Text
-                    className="text-base text-neutral-900"
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {selectedPurchasingInfluenceLabel}
-                  </Text>
-                </View>
-                <ChevronDownIcon size={20} color="#404040" />
-              </Pressable>
+              <IndustriesToMeetField
+                selected={industriesToMeet}
+                expanded={industriesExpanded}
+                onToggleExpanded={() => setIndustriesExpanded((prev) => !prev)}
+                onOpenModal={() => setShowIndustriesToMeetModal(true)}
+                onRemove={(label) => toggleIndustryToMeet(label)}
+                hasError={!!validationErrors.industriesToMeet}
+              />
+              {validationErrors.industriesToMeet ? (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.industriesToMeet}
+                </Text>
+              ) : null}
             </View>
 
             {/* Bio */}
@@ -1562,6 +1564,7 @@ function AttendeeProfileForm({
                     }
                   }}
                   placeholder="Tell us about yourself (10-200 characters)"
+                  placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -1653,16 +1656,26 @@ function AttendeeProfileForm({
           disabled={
             isSubmitting ||
             selectedInterests.length < 3 ||
+            industriesToMeet.length < 5 ||
+            !eventGoals.trim() ||
             !profilePhotoReady
           }
           className={`rounded-xl py-4 items-center justify-center ${
-            selectedInterests.length >= 3 && profilePhotoReady && !isSubmitting
+            selectedInterests.length >= 3 &&
+            industriesToMeet.length >= 5 &&
+            eventGoals.trim() &&
+            profilePhotoReady &&
+            !isSubmitting
               ? "bg-black"
               : "bg-neutral-300"
           }`}
           style={{
             opacity:
-              selectedInterests.length >= 3 && profilePhotoReady && !isSubmitting
+              selectedInterests.length >= 3 &&
+              industriesToMeet.length >= 5 &&
+              eventGoals.trim() &&
+              profilePhotoReady &&
+              !isSubmitting
                 ? 1
                 : 0.6,
           }}
@@ -1692,29 +1705,16 @@ function AttendeeProfileForm({
         selectedCountry={selectedCountry}
         onSelect={setSelectedCountry}
       />
-      <SelectOptionModal
-        title="What is the size of your company?"
-        options={COMPANY_SIZE_OPTIONS}
-        selectedId={companySize}
-        onSelect={(id) => setCompanySize(id)}
-        onClose={() => setShowCompanySizeModal(false)}
-        visible={showCompanySizeModal}
-      />
-      <SelectOptionModal
-        title="Which option best describes you or your company?"
-        options={COMPANY_TYPE_OPTIONS}
-        selectedId={companyType}
-        onSelect={(id) => setCompanyType(id)}
-        onClose={() => setShowCompanyTypeModal(false)}
-        visible={showCompanyTypeModal}
-      />
-      <SelectOptionModal
-        title="How involved are you in purchasing decisions at your company?"
-        options={PURCHASING_INFLUENCE_OPTIONS}
-        selectedId={purchasingInfluence}
-        onSelect={(id) => setPurchasingInfluence(id)}
-        onClose={() => setShowPurchasingModal(false)}
-        visible={showPurchasingModal}
+      <IndustriesToMeetModal
+        visible={showIndustriesToMeetModal}
+        onClose={() => setShowIndustriesToMeetModal(false)}
+        selected={industriesToMeet}
+        onChange={(next) => {
+          setIndustriesToMeet(next);
+          if (validationErrors.industriesToMeet) {
+            setValidationErrors({ ...validationErrors, industriesToMeet: "" });
+          }
+        }}
       />
     </KeyboardAvoidingView>
   );
@@ -1724,9 +1724,12 @@ function AttendeeProfileForm({
 function PersonalProfileForm({
   initialProfile = null,
   onPersonalSaved,
+  omitCompanyField = false,
 }: {
   initialProfile?: UserProfile | null;
   onPersonalSaved?: () => void;
+  /** Startup pass: company is collected in Step 2 (Startup tab). */
+  omitCompanyField?: boolean;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { user, completeProfile } = useAuth();
@@ -1741,6 +1744,10 @@ function PersonalProfileForm({
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [eventGoals, setEventGoals] = useState("");
+  const [industriesToMeet, setIndustriesToMeet] = useState<string[]>([]);
+  const [showIndustriesToMeetModal, setShowIndustriesToMeetModal] = useState(false);
+  const [industriesExpanded, setIndustriesExpanded] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
@@ -1787,6 +1794,10 @@ function PersonalProfileForm({
     }
     const li = meta.linkedIn ?? meta.linkedin_url;
     if (typeof li === "string") setLinkedIn(li);
+    if (typeof meta.event_goals === "string") setEventGoals(meta.event_goals);
+    if (Array.isArray(meta.industries_to_meet)) {
+      setIndustriesToMeet(meta.industries_to_meet as string[]);
+    }
   }, [initialProfile]);
 
   const selectedIndustryLabel =
@@ -1801,6 +1812,16 @@ function PersonalProfileForm({
     existingUrl: initialProfile?.profile_pic ?? user?.profile_pic,
     shouldRemove: shouldRemovePhoto,
   });
+
+  const toggleIndustryToMeet = (label: string) => {
+    setIndustriesToMeet((prev) =>
+      prev.includes(label)
+        ? prev.filter((i) => i !== label)
+        : prev.length < 12
+          ? [...prev, label]
+          : prev
+    );
+  };
 
   const toggleInterest = (interest: string) => {
     setSelectedInterests((prev) =>
@@ -1912,9 +1933,11 @@ function PersonalProfileForm({
       errors.jobTitle = jobTitleValidation.error || "";
     }
 
-    const companyValidation = validateCompany(company);
-    if (!companyValidation.valid) {
-      errors.company = companyValidation.error || "";
+    if (!omitCompanyField) {
+      const companyValidation = validateCompany(company);
+      if (!companyValidation.valid) {
+        errors.company = companyValidation.error || "";
+      }
     }
 
     const linkedInValidation = validateLinkedIn(linkedIn);
@@ -1930,6 +1953,16 @@ function PersonalProfileForm({
     const interestsValidation = validateInterests(selectedInterests);
     if (!interestsValidation.valid) {
       errors.interests = interestsValidation.error || "";
+    }
+
+    const eventGoalsValidation = validateEventGoals(eventGoals);
+    if (!eventGoalsValidation.valid) {
+      errors.eventGoals = eventGoalsValidation.error || "";
+    }
+
+    const industriesToMeetValidation = validateIndustriesToMeet(industriesToMeet);
+    if (!industriesToMeetValidation.valid) {
+      errors.industriesToMeet = industriesToMeetValidation.error || "";
     }
 
     const profilePhotoOk = hasRequiredImage({
@@ -1974,6 +2007,12 @@ function PersonalProfileForm({
       }
       if (selectedInterests.length > 0) {
         metadata.interests = selectedInterests;
+      }
+      if (eventGoals.trim()) {
+        metadata.event_goals = eventGoals.trim();
+      }
+      if (industriesToMeet.length > 0) {
+        metadata.industries_to_meet = industriesToMeet;
       }
 
       // Prepare API request payload
@@ -2024,12 +2063,6 @@ function PersonalProfileForm({
         } finally {
           setIsUploadingImage(false);
         }
-      }
-
-      try {
-        await completeProfile();
-      } catch (_) {
-        /* non-blocking */
       }
 
       if (photoUpdateFailed) {
@@ -2186,6 +2219,7 @@ function PersonalProfileForm({
                   }
                 }}
                 placeholder="Enter full name"
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
               />
               {validationErrors.fullName && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -2213,6 +2247,7 @@ function PersonalProfileForm({
                   }
                 }}
                 placeholder="Enter job title"
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
               />
               {validationErrors.jobTitle && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -2221,7 +2256,7 @@ function PersonalProfileForm({
               )}
             </View>
 
-            {/* Company */}
+            {!omitCompanyField ? (
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Company <Text className="text-red-500">*</Text>
@@ -2240,6 +2275,7 @@ function PersonalProfileForm({
                   }
                 }}
                 placeholder="Enter company name"
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
               />
               {validationErrors.company && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -2247,6 +2283,7 @@ function PersonalProfileForm({
                 </Text>
               )}
             </View>
+            ) : null}
 
             {/* LinkedIn */}
             <View className="mb-4">
@@ -2270,6 +2307,7 @@ function PersonalProfileForm({
                   }
                 }}
                 placeholder="https://linkedin.com/in/yourprofile"
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
               />
               {validationErrors.linkedIn && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -2315,6 +2353,62 @@ function PersonalProfileForm({
               </Pressable>
             </View>
 
+            {/* Event goals */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                What are you hoping to get from the event?{" "}
+                <Text className="text-red-500">*</Text>
+              </Text>
+              <TextInput
+                className={`bg-neutral-100 border rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[88px] ${
+                  validationErrors.eventGoals
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={eventGoals}
+                onChangeText={(text) => {
+                  setEventGoals(text);
+                  if (validationErrors.eventGoals) {
+                    setValidationErrors({ ...validationErrors, eventGoals: "" });
+                  }
+                }}
+                placeholder="e.g. Meet investors, find partners, learn about..."
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                multiline
+                textAlignVertical="top"
+                maxLength={300}
+              />
+              {validationErrors.eventGoals ? (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.eventGoals}
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Industries to meet */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                Industries you want to meet{" "}
+                <Text className="text-red-500">*</Text>
+              </Text>
+              <Text className="text-xs text-neutral-500 mb-2">
+                Select 5–12 ({industriesToMeet.length}/12)
+              </Text>
+              <IndustriesToMeetField
+                selected={industriesToMeet}
+                expanded={industriesExpanded}
+                onToggleExpanded={() => setIndustriesExpanded((prev) => !prev)}
+                onOpenModal={() => setShowIndustriesToMeetModal(true)}
+                onRemove={(label) => toggleIndustryToMeet(label)}
+                hasError={!!validationErrors.industriesToMeet}
+              />
+              {validationErrors.industriesToMeet ? (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.industriesToMeet}
+                </Text>
+              ) : null}
+            </View>
+
             {/* Bio */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
@@ -2335,6 +2429,7 @@ function PersonalProfileForm({
                     }
                   }}
                   placeholder="Tell us about yourself (10-200 characters)"
+                  placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -2454,6 +2549,17 @@ function PersonalProfileForm({
         selectedCountry={selectedCountry}
         onSelect={setSelectedCountry}
       />
+      <IndustriesToMeetModal
+        visible={showIndustriesToMeetModal}
+        onClose={() => setShowIndustriesToMeetModal(false)}
+        selected={industriesToMeet}
+        onChange={(next) => {
+          setIndustriesToMeet(next);
+          if (validationErrors.industriesToMeet) {
+            setValidationErrors({ ...validationErrors, industriesToMeet: "" });
+          }
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -2468,7 +2574,9 @@ function CompanyProfileForm({
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
   const [companyName, setCompanyName] = useState("");
-  const [boothNumber, setBoothNumber] = useState("");
+  const [problem, setProblem] = useState("");
+  const [solution, setSolution] = useState("");
+  const [pitchDeckUrl, setPitchDeckUrl] = useState("");
   const [website, setWebsite] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
   const [showIndustryModal, setShowIndustryModal] = useState(false);
@@ -2510,6 +2618,44 @@ function CompanyProfileForm({
   );
   /** True after user taps Remove on logo; cleared after successful save. Used to call clearCompanyLogo before uploading replacement. */
   const removedCompanyLogoPendingReplaceRef = useRef(false);
+  const [resolvedCompanyType, setResolvedCompanyType] = useState("");
+  const [boothNumber, setBoothNumber] = useState<string | null>(null);
+  const [boothLoading, setBoothLoading] = useState(false);
+
+  const showBooth = showsBoothInCompanyProfile(resolvedCompanyType);
+  const showStartupFields =
+    showsStartupDetailFieldsInCompanyProfile(resolvedCompanyType);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const ticket = await getCurrentUserTicketType();
+      const type = resolveCompanyType(initialProfile?.company ?? null, ticket);
+      if (cancelled) return;
+      setResolvedCompanyType(type);
+
+      if (!showsBoothInCompanyProfile(type)) {
+        setBoothNumber(null);
+        setBoothLoading(false);
+        return;
+      }
+
+      setBoothLoading(true);
+      try {
+        const booth = await fetchAssignedBoothNumber(
+          initialProfile?.company ?? null,
+        );
+        if (!cancelled) setBoothNumber(booth);
+      } finally {
+        if (!cancelled) setBoothLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialProfile]);
 
   useEffect(() => {
     const c = initialProfile?.company;
@@ -2539,6 +2685,9 @@ function CompanyProfileForm({
     }
     const meta = (metadata ?? {}) as Record<string, unknown>;
     if (typeof meta.website === "string") setWebsite(meta.website);
+    if (typeof meta.problem === "string") setProblem(meta.problem);
+    if (typeof meta.solution === "string") setSolution(meta.solution);
+    if (typeof meta.pitch_deck_url === "string") setPitchDeckUrl(meta.pitch_deck_url);
     const sl = meta.socialLinks as Record<string, string> | undefined;
     if (sl && typeof sl === "object") {
       setSocialLinks({
@@ -2564,9 +2713,6 @@ function CompanyProfileForm({
           link: (o as any).link ?? "",
         }))
       );
-    }
-    if (typeof meta.boothNumber === "string") {
-      setBoothNumber(meta.boothNumber);
     }
     if (meta.isRecruiting === true) setIsRecruiting(true);
     if (Array.isArray(meta.positions) && meta.positions.length > 0) {
@@ -2861,6 +3007,11 @@ function CompanyProfileForm({
       if (website.trim()) {
         metadata.website = website.trim();
       }
+      if (showStartupFields) {
+        if (problem.trim()) metadata.problem = problem.trim();
+        if (solution.trim()) metadata.solution = solution.trim();
+        if (pitchDeckUrl.trim()) metadata.pitch_deck_url = pitchDeckUrl.trim();
+      }
       if (socialLinks.linkedin.trim() || socialLinks.facebook.trim() || socialLinks.instagram.trim() || socialLinks.x.trim()) {
         const socialLinksObj: any = {};
         if (socialLinks.linkedin.trim()) socialLinksObj.linkedin = socialLinks.linkedin.trim();
@@ -2938,7 +3089,12 @@ function CompanyProfileForm({
 
       await AsyncStorage.setItem("@spark:profile_just_saved", "true");
       setTimeout(() => {
-        navigation.navigate("ProfileCreated");
+        void completeProfile().catch(() => {
+          showToast(
+            "We're having trouble entering the app. Please try again.",
+            "error",
+          );
+        });
       }, 500);
     } catch (error: any) {
       console.error("Error completing company profile:", error);
@@ -3082,6 +3238,7 @@ function CompanyProfileForm({
                   }
                 }}
                 placeholder="Enter company name"
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
               />
               {validationErrors.companyName && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -3205,6 +3362,72 @@ function CompanyProfileForm({
                 </Text>
               )}
             </View>
+
+            {showBooth ? (
+              <View className="mb-4">
+                <Text className="text-sm font-medium text-neutral-700 mb-2">
+                  Booth number
+                </Text>
+                <View className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
+                  <Text className="text-base text-neutral-900">
+                    {boothLoading
+                      ? "Loading…"
+                      : boothNumber || "Not assigned yet"}
+                  </Text>
+                </View>
+                <Text className="text-xs text-neutral-500 mt-1">
+                  Assigned by the event team. Contact support if this looks wrong.
+                </Text>
+              </View>
+            ) : null}
+
+            {showStartupFields ? (
+              <>
+                <View className="mb-4">
+                  <Text className="text-sm font-medium text-neutral-700 mb-2">
+                    The problem
+                  </Text>
+                  <TextInput
+                    className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[80px]"
+                    value={problem}
+                    onChangeText={setProblem}
+                    placeholder="What issue is your startup solving?"
+                    placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-sm font-medium text-neutral-700 mb-2">
+                    The solution
+                  </Text>
+                  <TextInput
+                    className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900 min-h-[80px]"
+                    value={solution}
+                    onChangeText={setSolution}
+                    placeholder="How are you solving it?"
+                    placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-sm font-medium text-neutral-700 mb-2">
+                    Pitch deck link
+                  </Text>
+                  <TextInput
+                    className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3 text-base text-neutral-900"
+                    value={pitchDeckUrl}
+                    onChangeText={setPitchDeckUrl}
+                    placeholder="https://..."
+                    placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                    autoCapitalize="none"
+                  />
+                </View>
+              </>
+            ) : null}
           </View>
 
           {/* Social Links */}
@@ -3254,7 +3477,7 @@ function CompanyProfileForm({
                         }
                       }}
                       placeholder="https://linkedin.com/in/yourprofile"
-                      placeholderTextColor="#9CA3AF"
+                      placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
                       style={{ height: 42, minHeight: 42, maxHeight: 42 }}
                     />
                     {validationErrors.linkedIn && (
@@ -3529,16 +3752,19 @@ function CompanyProfileForm({
 
 type Props = RootStackScreenProps<"CompleteProfile">;
 
-// Segmented Control Component for Personal | Company tabs
+// Segmented Control Component for Personal | Company/Startup tabs
 function SegmentedControl({
   activeTab,
   onTabChange,
-  isCompanyDisabled,
+  isSecondTabDisabled,
+  secondTabLabel,
 }: {
   activeTab: "personal" | "company";
   onTabChange: (tab: "personal" | "company") => void;
-  isCompanyDisabled?: boolean;
+  isSecondTabDisabled?: boolean;
+  secondTabLabel?: "Company" | "Startup";
 }) {
+  const label = secondTabLabel ?? "Company";
   return (
     <View className="px-6 pb-4 pt-4">
       <View className="flex-row bg-neutral-100 rounded-2xl p-1">
@@ -3568,8 +3794,8 @@ function SegmentedControl({
           </Text>
         </Pressable>
         <Pressable
-          onPress={() => !isCompanyDisabled && onTabChange("company")}
-          disabled={isCompanyDisabled}
+          onPress={() => !isSecondTabDisabled && onTabChange("company")}
+          disabled={isSecondTabDisabled}
           className={`flex-1 py-3 px-4 ${
             activeTab === "company" ? "bg-white rounded-xl" : "bg-transparent"
           }`}
@@ -3583,19 +3809,19 @@ function SegmentedControl({
                   elevation: 1,
                 }
               : undefined,
-            isCompanyDisabled && { opacity: 0.5 },
+            isSecondTabDisabled && { opacity: 0.5 },
           ]}
         >
           <Text
             className={`text-sm font-medium text-center ${
               activeTab === "company"
                 ? "text-black"
-                : isCompanyDisabled
+                : isSecondTabDisabled
                 ? "text-neutral-400"
                 : "text-neutral-500"
             }`}
           >
-            Company
+            {label}
           </Text>
         </Pressable>
       </View>
@@ -3604,27 +3830,21 @@ function SegmentedControl({
 }
 
 export default function CompleteProfileScreen({ route }: Props) {
-  const { user } = useAuth();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { user, completeProfile } = useAuth();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileFromCache, setProfileFromCache] = useState(false);
   const [activeTab, setActiveTab] = useState<"personal" | "company">("personal");
   const [isPersonalComplete, setIsPersonalComplete] = useState(false);
+  const [ticketType, setTicketType] = useState("");
+  const [ticketClassName, setTicketClassName] = useState("");
+  const [ticketResolved, setTicketResolved] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     try {
       const p = await authService.getCurrentUser();
-      if (__DEV__) {
-        console.log("[CompleteProfile] user/company admin check", {
-          userId: p.user_id,
-          companyId: p.company?.id ?? null,
-          adminUser: p.company?.admin_user ?? null,
-          isAdmin:
-            !!p.company?.admin_user &&
-            String(p.company.admin_user) === String(p.user_id),
-        });
-      }
       setProfile(p);
       setProfileError(null);
       setProfileFromCache(false);
@@ -3649,7 +3869,42 @@ export default function CompleteProfileScreen({ route }: Props) {
   // Load profile on mount
   useEffect(() => {
     fetchProfile();
+    void getCurrentUserTicketInfo().then(({ ticketType: t, ticketClassName: name }) => {
+      if (__DEV__) {
+        console.log("[CompleteProfile] ticket resolved", {
+          ticketType: t,
+          ticketClassName: name,
+          isStartupPass: isStartupPass(t),
+        });
+      }
+      setTicketType(t);
+      setTicketClassName(name);
+      setTicketResolved(true);
+    });
   }, [fetchProfile]);
+
+  useEffect(() => {
+    if (!__DEV__ || !ticketResolved || isLoadingProfile) return;
+    const sourceUser = profile ?? user ?? null;
+    const isAdmin =
+      !!sourceUser?.company?.admin_user &&
+      String(sourceUser.company.admin_user) === String(sourceUser.user_id);
+    console.log("[CompleteProfile] flow context", {
+      ticketType,
+      ticketClassName,
+      isStartupPass: isStartupPass(ticketType),
+      isAdmin,
+      companyId: sourceUser?.company?.id ?? null,
+      userId: sourceUser?.user_id ?? null,
+    });
+  }, [
+    ticketResolved,
+    isLoadingProfile,
+    ticketType,
+    ticketClassName,
+    profile,
+    user,
+  ]);
 
   useEffect(() => {
     void trackProfileEvent("started", {
@@ -3659,28 +3914,55 @@ export default function CompleteProfileScreen({ route }: Props) {
     // Intentionally once per mount (navigation entry), not on every param change.
   }, []);
 
+  const handleAttendeeProfileSaved = useCallback(async () => {
+    await AsyncStorage.setItem("@spark:profile_just_saved", "true");
+    try {
+      await completeProfile();
+    } catch {
+      Alert.alert(
+        "Error",
+        "We're having trouble entering the app. Please try again.",
+      );
+    }
+  }, [completeProfile]);
+
+  const handleStartupSkip = useCallback(async () => {
+    await AsyncStorage.setItem("@spark:profile_just_saved", "true");
+    try {
+      await completeProfile();
+    } catch {
+      Alert.alert(
+        "Error",
+        "We're having trouble entering the app. Please try again.",
+      );
+    }
+  }, [completeProfile]);
+
   // Show loading state while profile is loading
-  if (isLoadingProfile) {
+  if (isLoadingProfile || !ticketResolved) {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-        <View className="flex-1 items-center justify-center">
-          <LoadingSpinner size="large" />
-        </View>
+        <SkeletonAppShell />
       </SafeAreaView>
     );
   }
 
-  // Company flow is only for company admins. Quotas/ticket classes are intentionally ignored.
+  // Company flow is only for company admins. Startup pass uses Personal | Startup.
   const sourceUser = profile ?? user ?? null;
   const isCompanyAdmin =
     !!sourceUser?.company?.admin_user &&
     String(sourceUser.company.admin_user) === String(sourceUser.user_id);
-  const showCompanyProfile = isCompanyAdmin;
+  const companyType = resolveCompanyType(sourceUser?.company ?? null, ticketType);
+  const isStartupPassHolder = isStartupPass(ticketType);
+  const useStartupSecondTab =
+    isStartupPassHolder || isStartupCompanyType(companyType);
+  const showSegmentedProfile = isCompanyAdmin || isStartupPassHolder;
+  const showStartupConnect =
+    useStartupSecondTab && activeTab === "company" && !isCompanyAdmin;
 
   // Handle Personal profile completion
   const handlePersonalSaved = () => {
     setIsPersonalComplete(true);
-    // Switch to Company tab after Personal is saved
     setActiveTab("company");
   };
 
@@ -3711,24 +3993,46 @@ export default function CompleteProfileScreen({ route }: Props) {
           </Pressable>
         </View>
       ) : null}
-      {showCompanyProfile ? (
+      {showSegmentedProfile ? (
         <>
+          {/* {isStartupPassHolder ? (
+            <View className="px-6 pt-2 pb-1">
+              <View className="h-1.5 bg-neutral-200 rounded-full overflow-hidden flex-row">
+                <View
+                  className="h-full bg-black rounded-full"
+                  style={{ width: activeTab === "personal" ? "50%" : "100%" }}
+                />
+              </View>
+              <Text className="text-xs text-neutral-500 mt-2">
+                {activeTab === "personal"
+                  ? "Step 1 of 2 — Personal profile"
+                  : "Step 2 of 2 — Connect to your startup"}
+              </Text>
+            </View>
+          ) : null} */}
           <SegmentedControl
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            isCompanyDisabled={!isPersonalComplete}
+            isSecondTabDisabled={!isPersonalComplete && !isCompanyAdmin}
+            secondTabLabel={useStartupSecondTab ? "Startup" : "Company"}
           />
           {activeTab === "personal" ? (
             <PersonalProfileForm
               initialProfile={profile}
               onPersonalSaved={handlePersonalSaved}
+              omitCompanyField={isStartupPassHolder}
             />
+          ) : showStartupConnect ? (
+            <StartupConnectStep embedded onSkip={() => void handleStartupSkip()} />
           ) : (
             <CompanyProfileForm initialProfile={profile} />
           )}
         </>
       ) : (
-        <AttendeeProfileForm initialProfile={profile} />
+        <AttendeeProfileForm
+          initialProfile={profile}
+          onProfileSaved={handleAttendeeProfileSaved}
+        />
       )}
     </SafeAreaView>
   );

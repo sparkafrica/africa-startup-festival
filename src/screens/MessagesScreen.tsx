@@ -18,7 +18,7 @@ import {
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
-import { LoadingSpinner } from "../components";
+import { SkeletonMessageList } from "../components";
 import {
   getConversationListItemPeerUserId,
   listConversations,
@@ -474,10 +474,7 @@ export default function MessagesScreen() {
       </SafeAreaView>
 
       {isLoading ? (
-        <View className="flex-1 items-center justify-center py-20">
-          <LoadingSpinner size="large" />
-          <Text className="text-neutral-500 mt-3">Loading messages...</Text>
-        </View>
+        <SkeletonMessageList count={8} />
       ) : error ? (
         <View className="flex-1 items-center justify-center px-6">
           <Text className="text-neutral-500 text-center mb-4">{error}</Text>

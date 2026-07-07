@@ -38,6 +38,8 @@ import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContex
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { attendeeMatchesRoleFilter, type AttendeeRoleFilter } from "../utils/attendeeRole";
+import { resolveAttendeeStartupBadge } from "../utils/startupJoinStatus";
+import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
 import { attendeeService, type Attendee as BackendAttendee, type MatchInfo } from "../services/attendeeService";
 import { resolveAttendeeByUserId } from "../services/deepLinkResolveService";
 import { useListRowHighlight } from "../hooks/useListRowHighlight";
@@ -55,6 +57,13 @@ import {
   getCanUserInitiateConnection,
   showExhibitionCannotInitiateConnectionAlert,
 } from "../utils/meetingRestrictions";
+import { ticketTypeFromTicket } from "../utils/asfTicketClass";
+import {
+  canMessageAttendee,
+  canRequestMeetingWithAttendee,
+  currentUserIsInvestor,
+  showInvestorConnectionRequiredAlert,
+} from "../utils/asfNetworking";
 import { useToast } from "../hooks/useToast";
 import {
   useMessagesBadgeCount,
@@ -66,6 +75,7 @@ import {
   FilterModal,
   FilterTag,
   LoadingSpinner,
+  SkeletonListRows,
   RequestMeetingModal,
   ConnectMessageModal,
   MeetingRequestMessageModal,
@@ -287,6 +297,7 @@ interface Attendee {
   linkedInUrl?: string;
   industry?: string;
   connectionStatus?: "pending" | "accepted" | null;
+  startupBadge?: { kind: "linked"; companyName: string } | { kind: "pending" };
   backendData?: BackendAttendee;
 }
 
@@ -413,6 +424,11 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
                   </Text>
                 </View>
               )}
+              {item.startupBadge?.kind === "linked" ? (
+                <StartupBadge companyName={item.startupBadge.companyName} compact />
+              ) : item.startupBadge?.kind === "pending" ? (
+                <StartupPendingBadge compact />
+              ) : null}
             </View>
 
             <Text className="text-sm text-neutral-600" numberOfLines={1}>
@@ -1041,7 +1057,7 @@ export default function AttendeesScreen() {
     useNavigation<NavigationProp<RootStackParamList, "Attendees">>();
   const route = useRoute<RouteProp<RootStackParamList, "Attendees">>();
   const [roleFilter, setRoleFilter] = useState<AttendeeRoleFilter>(
-    route.params?.roleFilter ?? "all",
+    route.params?.roleFilter as AttendeeRoleFilter ?? "all",
   );
   const attendeeListRef = useRef<Animated.FlatList<Attendee>>(null);
   const listHighlight = useListRowHighlight<string>();
@@ -1348,6 +1364,8 @@ export default function AttendeesScreen() {
     // Extract LinkedIn URL
     const linkedInUrl = metadata?.linkedIn || metadata?.linkedin_url || undefined;
 
+    const startupBadge = resolveAttendeeStartupBadge(user as any);
+
     return {
       id: String(user.id),
       name: fullName,
@@ -1359,6 +1377,7 @@ export default function AttendeesScreen() {
       interests: interests.length > 0 ? interests : undefined,
       linkedInUrl: linkedInUrl,
       industry: industry || undefined,
+      startupBadge: startupBadge ?? undefined,
       backendData: backendAttendee,
     };
   };
@@ -1731,7 +1750,7 @@ export default function AttendeesScreen() {
   let displayedAttendees =
     activeTab === "Recommended" ? recommendedAttendees : filteredAttendees;
 
-  // Apply ASF role filter (founder / investor / all)
+  // Apply ASF role filter (startup / investor / all)
   displayedAttendees = displayedAttendees.filter((a) =>
     attendeeMatchesRoleFilter(a.backendData, roleFilter),
   );
@@ -1898,11 +1917,46 @@ export default function AttendeesScreen() {
     ]
   );
 
+  const openMeetingForAttendee = useCallback(
+    async (attendee: Attendee) => {
+      const canBook = await getCanUserBookMeetings();
+      if (!canBook) {
+        showExpoCannotBookMeetingAlert(navigation);
+        return;
+      }
+      const isInvestor = await currentUserIsInvestor();
+      if (!isInvestor) {
+        const allowed = await canRequestMeetingWithAttendee({
+          ticketType: ticketTypeFromTicket(attendee.backendData?.ticket ?? null),
+          connectionStatus: attendee.connectionStatus,
+        });
+        if (!allowed) {
+          showInvestorConnectionRequiredAlert();
+          return;
+        }
+      }
+      setMeetingAttendee(attendee);
+      setIsRequestMeetingModalVisible(true);
+    },
+    [navigation],
+  );
+
   const handleAttendeeMessage = useCallback(
     async (attendee: Attendee) => {
-      if (attendee.connectionStatus !== "accepted") {
-        showToast("Connect with this attendee to send messages", "info");
-        return;
+      const isInvestor = await currentUserIsInvestor();
+      if (!isInvestor) {
+        const allowed = await canMessageAttendee({
+          ticketType: ticketTypeFromTicket(attendee.backendData?.ticket ?? null),
+          connectionStatus: attendee.connectionStatus,
+        });
+        if (!allowed) {
+          showInvestorConnectionRequiredAlert();
+          return;
+        }
+        if (attendee.connectionStatus !== "accepted") {
+          showToast("Connect with this attendee to send messages", "info");
+          return;
+        }
       }
       if (isOpeningChat) return;
       setIsOpeningChat(true);
@@ -2155,7 +2209,7 @@ export default function AttendeesScreen() {
             {(
               [
                 { id: "all", label: "All" },
-                { id: "founder", label: "Founders" },
+                { id: "startup", label: "Startups" },
                 { id: "investor", label: "Investors" },
               ] as const
             ).map((chip) => {
@@ -2363,10 +2417,7 @@ export default function AttendeesScreen() {
 
         {/* Loading State */}
         {isLoading && allAttendeesBackend.length === 0 ? (
-          <View className="flex-1 items-center justify-center py-20">
-            <LoadingSpinner size="large" />
-            <Text className="text-gray-500 mt-4">Loading attendees...</Text>
-          </View>
+          <SkeletonListRows count={10} />
         ) : error && allAttendeesBackend.length === 0 ? (
           <View className="flex-1 items-center justify-center py-20 px-4">
             <Text className="text-red-600 text-center mb-4">{error}</Text>
@@ -2411,15 +2462,7 @@ export default function AttendeesScreen() {
                         attendee={attendee}
                         onSwipeLeft={handleReject}
                         onSwipeRight={handleAccept}
-                        onRequestMeeting={async (attendee) => {
-                          const canBook = await getCanUserBookMeetings();
-                          if (canBook) {
-                            setMeetingAttendee(attendee);
-                            setIsRequestMeetingModalVisible(true);
-                          } else {
-                            showExpoCannotBookMeetingAlert(navigation);
-                          }
-                        }}
+                        onRequestMeeting={(attendee) => void openMeetingForAttendee(attendee)}
                         onConnect={(attendee) => handleConnect(attendee, true)}
                         onMessage={handleAttendeeMessage}
                         messageOpening={isOpeningChat}
@@ -2487,7 +2530,7 @@ export default function AttendeesScreen() {
                   ListFooterComponent={
                     loadingMore && hasMoreAttendees ? (
                       <View className="py-5 items-center justify-center">
-                        <ActivityIndicator size="small" color="#1BB273" />
+                        <ActivityIndicator size="small" color="#000000" />
                       </View>
                     ) : null
                   }
@@ -2683,6 +2726,14 @@ export default function AttendeesScreen() {
                           </Text>
                         </View>
                       )}
+                      {selectedAttendee.startupBadge?.kind === "linked" ? (
+                        <StartupBadge
+                          companyName={selectedAttendee.startupBadge.companyName}
+                          compact
+                        />
+                      ) : selectedAttendee.startupBadge?.kind === "pending" ? (
+                        <StartupPendingBadge compact />
+                      ) : null}
                     </View>
                     <Text className="text-base text-neutral-600">
                       {selectedAttendee.role && selectedAttendee.company
@@ -2785,15 +2836,8 @@ export default function AttendeesScreen() {
                 <View className="mt-2">
                   <Pressable
                     onPress={async () => {
-                      const canBook = await getCanUserBookMeetings();
-                      if (canBook) {
-                        setMeetingAttendee(selectedAttendee);
-                        closeBottomSheet();
-                        setIsRequestMeetingModalVisible(true);
-                      } else {
-                        closeBottomSheet();
-                        showExpoCannotBookMeetingAlert(navigation);
-                      }
+                      closeBottomSheet();
+                      await openMeetingForAttendee(selectedAttendee);
                     }}
                     className="w-full flex-row items-center justify-center bg-black rounded-xl py-3.5 px-4"
                   >

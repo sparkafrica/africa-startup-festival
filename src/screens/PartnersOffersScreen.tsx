@@ -15,7 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { CloseIcon, ChevronRightIcon } from "../components/MenuIcons";
-import { LoadingSpinner } from "../components";
+import { SkeletonListRows } from "../components";
 import { offerService, type PartnerOffer } from "../services/offerService";
 import { ApiClientError } from "../services/api";
 import {
@@ -177,10 +177,7 @@ export default function PartnersOffersScreen() {
         </View>
 
         {isLoading && !refreshing ? (
-          <View style={styles.centered}>
-            <LoadingSpinner size="large" />
-            <Text style={styles.loadingText}>Loading offers...</Text>
-          </View>
+          <SkeletonListRows count={8} style={{ paddingTop: 16 }} />
         ) : error ? (
           <View style={styles.centered}>
             <Text style={styles.errorText}>{error}</Text>

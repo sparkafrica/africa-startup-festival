@@ -19,6 +19,7 @@ import {
 import {
   HeaderBar,
   LoadingSpinner,
+  SkeletonListRows,
   RequestMeetingModal,
   FLOATING_NAV_BOTTOM_INSET,
 } from "../components";
@@ -1140,12 +1141,7 @@ export default function ConnectionsScreen() {
 
         {/* Connections List */}
         {isLoading ? (
-          <View className="flex-1 items-center justify-center">
-            <LoadingSpinner size="large" />
-            <Text className="text-base text-neutral-500 mt-4">
-              Loading connections...
-            </Text>
-          </View>
+          <SkeletonListRows count={8} />
         ) : error ? (
           <View className="flex-1 items-center justify-center px-4">
             <Text className="text-base text-neutral-500 text-center mb-4">

@@ -25,7 +25,7 @@ import {
   ChevronDownIcon,
 } from "./icons";
 import { LinkedInIcon } from "./SocialIcons";
-import LoadingSpinner from "./LoadingSpinner";
+import { Skeleton, SkeletonListRows } from "./Skeleton";
 import { eventService, type SpeakerNestedEvent } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
@@ -402,11 +402,10 @@ export default function SpeakerDetailModal({
             </View>
 
             {isLoading ? (
-              <View style={{ padding: 32, alignItems: "center" }}>
-                <LoadingSpinner size="large" />
-                <Text style={{ color: "#6B7280", marginTop: 16 }}>
-                  Loading speaker...
-                </Text>
+              <View style={{ padding: 24 }}>
+                <Skeleton width={120} height={120} borderRadius={60} style={{ alignSelf: "center", marginBottom: 20 }} />
+                <Skeleton width="70%" height={20} style={{ alignSelf: "center", marginBottom: 12 }} />
+                <SkeletonListRows count={4} hasAvatar={false} />
               </View>
             ) : error || !speakerData ? (
               <View style={{ padding: 32, alignItems: "center" }}>

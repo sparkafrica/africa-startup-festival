@@ -15,8 +15,8 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
-import type { NavigationProp } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef, hasHomeScreen } from "../navigation/navigationRef";
 import { useAuth } from "../context/AuthContext";
@@ -38,6 +38,32 @@ import { useToast } from "../hooks/useToast";
 import { trackProfileEvent } from "../utils/analytics";
 import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
+import {
+  IndustriesToMeetField,
+  IndustriesToMeetModal,
+} from "../components/IndustriesToMeet";
+import {
+  validateEventGoals,
+  validateIndustriesToMeet,
+} from "../utils/profileFieldValidation";
+import {
+  fetchAssignedBoothNumber,
+  resolveCompanyType,
+  isStartupCompanyType,
+  showsBoothInCompanyProfile,
+  showsStartupDetailFieldsInCompanyProfile,
+} from "../utils/companyProfileFields";
+import {
+  getCurrentUserTicketInfo,
+  getCurrentUserTicketType,
+  isStartupPass,
+} from "../utils/asfTicketClass";
+import StartupConnectStep from "../components/StartupConnectStep";
+import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
+import { StartupJoinAdminPanel } from "../components/StartupJoinAdminPanel";
+import { useStartupJoin } from "../hooks/useStartupJoin";
+
+const INPUT_PLACEHOLDER_COLOR = "#9CA3AF";
 
 // Validation Helper Functions
 const validateFullName = (name: string): { valid: boolean; error?: string } => {
@@ -721,9 +747,11 @@ function Header() {
 function SegmentedControl({
   activeTab,
   onTabChange,
+  secondTabLabel = "Company",
 }: {
   activeTab: "Personal" | "Company";
   onTabChange: (tab: "Personal" | "Company") => void;
+  secondTabLabel?: "Company" | "Startup";
 }) {
   return (
     <View className="px-6 pb-4">
@@ -775,7 +803,7 @@ function SegmentedControl({
               activeTab === "Company" ? "text-black" : "text-neutral-500"
             }`}
           >
-            Company
+            {secondTabLabel}
           </Text>
         </Pressable>
       </View>
@@ -790,6 +818,9 @@ function PersonalProfileSection({
   onRefresh,
   refreshing,
   onProfilePhotoRequirementMet,
+  startupBadgeName,
+  showJoinPending,
+  omitCompanyField = false,
 }: {
   initialProfile?: UserProfile | null;
   onSave?: () => void;
@@ -798,6 +829,9 @@ function PersonalProfileSection({
   refreshing?: boolean;
   /** Report whether mandatory profile photo requirement is satisfied (for Save CTA disabled state). */
   onProfilePhotoRequirementMet?: (met: boolean) => void;
+  startupBadgeName?: string;
+  showJoinPending?: boolean;
+  omitCompanyField?: boolean;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
@@ -812,6 +846,10 @@ function PersonalProfileSection({
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [eventGoals, setEventGoals] = useState("");
+  const [industriesToMeet, setIndustriesToMeet] = useState<string[]>([]);
+  const [showIndustriesToMeetModal, setShowIndustriesToMeetModal] = useState(false);
+  const [industriesExpanded, setIndustriesExpanded] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
@@ -869,6 +907,10 @@ function PersonalProfileSection({
     if (Array.isArray(meta.interests)) {
       setSelectedInterests(meta.interests as string[]);
     }
+    if (typeof meta.event_goals === "string") setEventGoals(meta.event_goals);
+    if (Array.isArray(meta.industries_to_meet)) {
+      setIndustriesToMeet(meta.industries_to_meet as string[]);
+    }
     const companyName = (source as UserProfile).company?.name;
     if (companyName) setCompany(companyName);
     setValidationErrors({});
@@ -887,6 +929,16 @@ function PersonalProfileSection({
         ? prev.filter((i) => i !== interest)
         : prev.length < 7
           ? [...prev, interest]
+          : prev
+    );
+  };
+
+  const toggleIndustryToMeet = (label: string) => {
+    setIndustriesToMeet((prev) =>
+      prev.includes(label)
+        ? prev.filter((i) => i !== label)
+        : prev.length < 12
+          ? [...prev, label]
           : prev
     );
   };
@@ -999,7 +1051,7 @@ function PersonalProfileSection({
     }
 
     const companyValidation = validateCompany(company);
-    if (!companyValidation.valid) {
+    if (!omitCompanyField && !companyValidation.valid) {
       errors.company = companyValidation.error || "";
     }
 
@@ -1016,6 +1068,16 @@ function PersonalProfileSection({
     const interestsValidation = validateInterests(selectedInterests);
     if (!interestsValidation.valid) {
       errors.interests = interestsValidation.error || "";
+    }
+
+    const eventGoalsValidation = validateEventGoals(eventGoals);
+    if (!eventGoalsValidation.valid) {
+      errors.eventGoals = eventGoalsValidation.error || "";
+    }
+
+    const industriesToMeetValidation = validateIndustriesToMeet(industriesToMeet);
+    if (!industriesToMeetValidation.valid) {
+      errors.industriesToMeet = industriesToMeetValidation.error || "";
     }
 
     if (
@@ -1063,6 +1125,12 @@ function PersonalProfileSection({
       }
       if (linkedIn.trim()) {
         metadata.linkedIn = linkedIn.trim();
+      }
+      if (eventGoals.trim()) {
+        metadata.event_goals = eventGoals.trim();
+      }
+      if (industriesToMeet.length > 0) {
+        metadata.industries_to_meet = industriesToMeet;
       }
 
       // Prepare API request payload
@@ -1246,6 +1314,14 @@ function PersonalProfileSection({
                 <Text className="text-sm text-neutral-600 mt-1">
                   {source?.email ?? ""}
                 </Text>
+                {startupBadgeName || showJoinPending ? (
+                  <View className="flex-row flex-wrap gap-2 mt-2">
+                    {startupBadgeName ? (
+                      <StartupBadge companyName={startupBadgeName} compact />
+                    ) : null}
+                    {showJoinPending ? <StartupPendingBadge compact /> : null}
+                  </View>
+                ) : null}
               </View>
             </View>
             <Text className="text-xs text-neutral-600 mb-1 px-1">
@@ -1323,6 +1399,7 @@ function PersonalProfileSection({
             </View>
 
             {/* Company */}
+            {!omitCompanyField ? (
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
                 Company <Text className="text-red-500">*</Text>
@@ -1348,6 +1425,7 @@ function PersonalProfileSection({
                 </Text>
               )}
             </View>
+            ) : null}
 
             {/* LinkedIn */}
             <View className="mb-4">
@@ -1416,6 +1494,63 @@ function PersonalProfileSection({
               </Pressable>
             </View>
 
+            {/* Event goals */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                What are you hoping to get from the event?{" "}
+                <Text className="text-red-500">*</Text>
+              </Text>
+              <TextInput
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black min-h-[88px] ${
+                  validationErrors.eventGoals
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={eventGoals}
+                onChangeText={(text) => {
+                  setEventGoals(text);
+                  if (validationErrors.eventGoals) {
+                    setValidationErrors({ ...validationErrors, eventGoals: "" });
+                  }
+                }}
+                placeholder="e.g. Meet investors, find partners, learn about..."
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                multiline
+                textAlignVertical="top"
+                maxLength={300}
+              />
+              {validationErrors.eventGoals ? (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.eventGoals}
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Industries to meet */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                Industries you want to meet{" "}
+                <Text className="text-red-500">*</Text>
+              </Text>
+              <Text className="text-xs text-neutral-500 mb-2">
+                Select 5–12 ({industriesToMeet.length}/12)
+              </Text>
+              <IndustriesToMeetField
+                selected={industriesToMeet}
+                expanded={industriesExpanded}
+                onToggleExpanded={() => setIndustriesExpanded((prev) => !prev)}
+                onOpenModal={() => setShowIndustriesToMeetModal(true)}
+                onRemove={(label) => toggleIndustryToMeet(label)}
+                hasError={!!validationErrors.industriesToMeet}
+                inputClassName="bg-white"
+              />
+              {validationErrors.industriesToMeet ? (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.industriesToMeet}
+                </Text>
+              ) : null}
+            </View>
+
             {/* Bio */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
@@ -1436,6 +1571,7 @@ function PersonalProfileSection({
                     }
                   }}
                   placeholder="Tell us about yourself (10-200 characters)"
+                  placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -1533,6 +1669,17 @@ function PersonalProfileSection({
         selectedCountry={selectedCountry}
         onSelect={setSelectedCountry}
       />
+      <IndustriesToMeetModal
+        visible={showIndustriesToMeetModal}
+        onClose={() => setShowIndustriesToMeetModal(false)}
+        selected={industriesToMeet}
+        onChange={(next) => {
+          setIndustriesToMeet(next);
+          if (validationErrors.industriesToMeet) {
+            setValidationErrors({ ...validationErrors, industriesToMeet: "" });
+          }
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -1546,6 +1693,8 @@ function AttendeeProfileSection({
   onRefresh,
   refreshing,
   onProfilePhotoRequirementMet,
+  startupBadgeName,
+  showJoinPending,
 }: {
   initialProfile?: UserProfile | null;
   onSave?: () => void;
@@ -1555,6 +1704,8 @@ function AttendeeProfileSection({
   onRefresh?: () => void;
   refreshing?: boolean;
   onProfilePhotoRequirementMet?: (met: boolean) => void;
+  startupBadgeName?: string;
+  showJoinPending?: boolean;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
@@ -1568,6 +1719,10 @@ function AttendeeProfileSection({
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [eventGoals, setEventGoals] = useState("");
+  const [industriesToMeet, setIndustriesToMeet] = useState<string[]>([]);
+  const [showIndustriesToMeetModal, setShowIndustriesToMeetModal] = useState(false);
+  const [industriesExpanded, setIndustriesExpanded] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
@@ -1623,6 +1778,10 @@ function AttendeeProfileSection({
     if (Array.isArray(meta.interests)) setSelectedInterests(meta.interests as string[]);
     const li = meta.linkedIn ?? meta.linkedin_url;
     if (typeof li === "string") setLinkedIn(li);
+    if (typeof meta.event_goals === "string") setEventGoals(meta.event_goals);
+    if (Array.isArray(meta.industries_to_meet)) {
+      setIndustriesToMeet(meta.industries_to_meet as string[]);
+    }
   }, [source]);
 
   const selectedIndustryLabel =
@@ -1631,6 +1790,16 @@ function AttendeeProfileSection({
   const selectedCountryData =
     COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
     COUNTRY_OPTIONS[0];
+
+  const toggleIndustryToMeet = (label: string) => {
+    setIndustriesToMeet((prev) =>
+      prev.includes(label)
+        ? prev.filter((i) => i !== label)
+        : prev.length < 12
+          ? [...prev, label]
+          : prev
+    );
+  };
 
   const toggleInterest = (interest: string) => {
     setSelectedInterests((prev) =>
@@ -1764,6 +1933,16 @@ function AttendeeProfileSection({
       errors.interests = interestsValidation.error || "";
     }
 
+    const eventGoalsValidation = validateEventGoals(eventGoals);
+    if (!eventGoalsValidation.valid) {
+      errors.eventGoals = eventGoalsValidation.error || "";
+    }
+
+    const industriesToMeetValidation = validateIndustriesToMeet(industriesToMeet);
+    if (!industriesToMeetValidation.valid) {
+      errors.industriesToMeet = industriesToMeetValidation.error || "";
+    }
+
     if (
       !hasRequiredImage({
         selectedUri: selectedImageUri,
@@ -1809,6 +1988,12 @@ function AttendeeProfileSection({
         metadata.interests = selectedInterests;
       }
       metadata.linkedIn = linkedIn.trim();
+      if (eventGoals.trim()) {
+        metadata.event_goals = eventGoals.trim();
+      }
+      if (industriesToMeet.length > 0) {
+        metadata.industries_to_meet = industriesToMeet;
+      }
 
       // Prepare API request payload
       const profileData: any = {
@@ -1995,6 +2180,14 @@ function AttendeeProfileSection({
                 <Text className="text-sm text-neutral-600 mt-1">
                   {source?.email ?? ""}
                 </Text>
+                {startupBadgeName || showJoinPending ? (
+                  <View className="flex-row flex-wrap gap-2 mt-2">
+                    {startupBadgeName ? (
+                      <StartupBadge companyName={startupBadgeName} compact />
+                    ) : null}
+                    {showJoinPending ? <StartupPendingBadge compact /> : null}
+                  </View>
+                ) : null}
               </View>
             </View>
             <Text className="text-xs text-neutral-600 mb-1 px-1">
@@ -2149,6 +2342,63 @@ function AttendeeProfileSection({
               </Pressable>
             </View>
 
+            {/* Event goals */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                What are you hoping to get from the event?{" "}
+                <Text className="text-red-500">*</Text>
+              </Text>
+              <TextInput
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black min-h-[88px] ${
+                  validationErrors.eventGoals
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={eventGoals}
+                onChangeText={(text) => {
+                  setEventGoals(text);
+                  if (validationErrors.eventGoals) {
+                    setValidationErrors({ ...validationErrors, eventGoals: "" });
+                  }
+                }}
+                placeholder="e.g. Meet investors, find partners, learn about..."
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                multiline
+                textAlignVertical="top"
+                maxLength={300}
+              />
+              {validationErrors.eventGoals ? (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.eventGoals}
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Industries to meet */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                Industries you want to meet{" "}
+                <Text className="text-red-500">*</Text>
+              </Text>
+              <Text className="text-xs text-neutral-500 mb-2">
+                Select 5–12 ({industriesToMeet.length}/12)
+              </Text>
+              <IndustriesToMeetField
+                selected={industriesToMeet}
+                expanded={industriesExpanded}
+                onToggleExpanded={() => setIndustriesExpanded((prev) => !prev)}
+                onOpenModal={() => setShowIndustriesToMeetModal(true)}
+                onRemove={(label) => toggleIndustryToMeet(label)}
+                hasError={!!validationErrors.industriesToMeet}
+                inputClassName="bg-white"
+              />
+              {validationErrors.industriesToMeet ? (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.industriesToMeet}
+                </Text>
+              ) : null}
+            </View>
+
             {/* Bio */}
             <View className="mb-4">
               <Text className="text-sm font-medium text-neutral-700 mb-2">
@@ -2169,6 +2419,7 @@ function AttendeeProfileSection({
                     }
                   }}
                   placeholder="Tell us about yourself (10-200 characters)"
+                  placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
                   multiline
                   textAlignVertical="top"
                   maxLength={200}
@@ -2266,6 +2517,17 @@ function AttendeeProfileSection({
         selectedCountry={selectedCountry}
         onSelect={setSelectedCountry}
       />
+      <IndustriesToMeetModal
+        visible={showIndustriesToMeetModal}
+        onClose={() => setShowIndustriesToMeetModal(false)}
+        selected={industriesToMeet}
+        onChange={(next) => {
+          setIndustriesToMeet(next);
+          if (validationErrors.industriesToMeet) {
+            setValidationErrors({ ...validationErrors, industriesToMeet: "" });
+          }
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -2279,6 +2541,10 @@ function CompanyProfileSection({
   onRefresh,
   refreshing,
   onCompanyLogoRequirementMet,
+  adminJoinRequests,
+  onApproveJoin,
+  onDenyJoin,
+  joinAdminActing,
 }: {
   initialProfile?: UserProfile | null;
   onSave?: () => void;
@@ -2289,12 +2555,21 @@ function CompanyProfileSection({
   refreshing?: boolean;
   /** For Save button disabled state when Company tab is active */
   onCompanyLogoRequirementMet?: (met: boolean) => void;
+  adminJoinRequests?: import("../services/joinRequestService").JoinRequest[];
+  onApproveJoin?: (requestId: number) => Promise<void>;
+  onDenyJoin?: (requestId: number) => Promise<void>;
+  joinAdminActing?: boolean;
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
   const { user } = useAuth();
   const [companyName, setCompanyName] = useState("");
-  const [boothNumber, setBoothNumber] = useState("");
+  const [boothNumber, setBoothNumber] = useState<string | null>(null);
+  const [boothLoading, setBoothLoading] = useState(false);
+  const [resolvedCompanyType, setResolvedCompanyType] = useState("");
+  const [problem, setProblem] = useState("");
+  const [solution, setSolution] = useState("");
+  const [pitchDeckUrl, setPitchDeckUrl] = useState("");
   const [website, setWebsite] = useState("");
   const [companyDescription, setCompanyDescription] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
@@ -2341,9 +2616,42 @@ function CompanyProfileSection({
     shouldRemove: shouldRemovePhoto,
   });
 
+  const showBooth = showsBoothInCompanyProfile(resolvedCompanyType);
+  const showStartupFields =
+    showsStartupDetailFieldsInCompanyProfile(resolvedCompanyType);
+
   React.useEffect(() => {
     onCompanyLogoRequirementMet?.(companyLogoReady);
   }, [companyLogoReady, onCompanyLogoRequirementMet]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const ticket = await getCurrentUserTicketType();
+      const type = resolveCompanyType(companySource ?? null, ticket);
+      if (cancelled) return;
+      setResolvedCompanyType(type);
+
+      if (!showsBoothInCompanyProfile(type)) {
+        setBoothNumber(null);
+        setBoothLoading(false);
+        return;
+      }
+
+      setBoothLoading(true);
+      try {
+        const booth = await fetchAssignedBoothNumber(companySource ?? null);
+        if (!cancelled) setBoothNumber(booth);
+      } finally {
+        if (!cancelled) setBoothLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companySource]);
 
   React.useEffect(() => {
     const c = companySource;
@@ -2372,6 +2680,9 @@ function CompanyProfileSection({
     }
     const meta = (metadata ?? {}) as Record<string, unknown>;
     if (typeof meta.website === "string") setWebsite(meta.website);
+    if (typeof meta.problem === "string") setProblem(meta.problem);
+    if (typeof meta.solution === "string") setSolution(meta.solution);
+    if (typeof meta.pitch_deck_url === "string") setPitchDeckUrl(meta.pitch_deck_url);
     const sl = meta.socialLinks as Record<string, string> | undefined;
     if (sl && typeof sl === "object") {
       if (sl.linkedin) setLinkedIn(sl.linkedin);
@@ -2402,8 +2713,10 @@ function CompanyProfileSection({
         }))
       );
     }
-    if (typeof meta.boothNumber === "string") {
-      setBoothNumber(meta.boothNumber);
+    if (typeof meta.booth === "string" && meta.booth.trim()) {
+      setBoothNumber(meta.booth.trim());
+    } else if (typeof meta.boothNumber === "string" && meta.boothNumber.trim()) {
+      setBoothNumber(meta.boothNumber.trim());
     }
     if (typeof meta.isRecruiting === "boolean") setIsRecruiting(meta.isRecruiting);
     if (Array.isArray(meta.positions) && meta.positions.length > 0) {
@@ -2691,6 +3004,11 @@ function CompanyProfileSection({
         positions: positions.length > 0 ? positions : undefined,
         isRecruiting,
       };
+      if (showStartupFields) {
+        if (problem.trim()) metadata.problem = problem.trim();
+        if (solution.trim()) metadata.solution = solution.trim();
+        if (pitchDeckUrl.trim()) metadata.pitch_deck_url = pitchDeckUrl.trim();
+      }
       if (Object.keys(socialLinksObj).length > 0) {
         metadata.socialLinks = socialLinksObj;
       }
@@ -2826,6 +3144,14 @@ function CompanyProfileSection({
         }
       >
         <View className="px-4">
+          {adminJoinRequests && adminJoinRequests.length > 0 && onApproveJoin && onDenyJoin ? (
+            <StartupJoinAdminPanel
+              requests={adminJoinRequests}
+              isActing={joinAdminActing}
+              onApprove={onApproveJoin}
+              onDeny={onDenyJoin}
+            />
+          ) : null}
           {/* Company Picture and Name Section */}
           <View
             className={`rounded-2xl border mb-6 px-2 ${
@@ -3054,6 +3380,72 @@ function CompanyProfileSection({
                 </Text>
               )}
             </View>
+
+            {showBooth ? (
+              <View className="mb-4">
+                <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+                  Booth number
+                </Text>
+                <View className="bg-white border border-neutral-300 rounded-xl px-4 py-3">
+                  <Text className="text-base text-black">
+                    {boothLoading
+                      ? "Loading…"
+                      : boothNumber || "Not assigned yet"}
+                  </Text>
+                </View>
+                <Text className="text-xs text-neutral-500 mt-1">
+                  Assigned by the event team. Contact support if this looks wrong.
+                </Text>
+              </View>
+            ) : null}
+
+            {showStartupFields ? (
+              <>
+                <View className="mb-4">
+                  <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+                    The problem
+                  </Text>
+                  <TextInput
+                    className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black min-h-[80px]"
+                    value={problem}
+                    onChangeText={setProblem}
+                    placeholder="What issue is your startup solving?"
+                    placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+                    The solution
+                  </Text>
+                  <TextInput
+                    className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black min-h-[80px]"
+                    value={solution}
+                    onChangeText={setSolution}
+                    placeholder="How are you solving it?"
+                    placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+                    Pitch deck link
+                  </Text>
+                  <TextInput
+                    className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                    value={pitchDeckUrl}
+                    onChangeText={setPitchDeckUrl}
+                    placeholder="https://..."
+                    placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                    autoCapitalize="none"
+                  />
+                </View>
+              </>
+            ) : null}
           </View>
 
           {/* Social Links */}
@@ -3290,11 +3682,21 @@ function CompanyProfileSection({
 }
 
 export default function ProfileScreen() {
+  const route = useRoute<RouteProp<RootStackParamList, "Profile">>();
   const { user, completeProfile } = useAuth();
+  const {
+    viewState: startupJoinState,
+    approveRequest,
+    denyRequest,
+    isActing: joinAdminActing,
+    refresh: refreshStartupJoin,
+  } = useStartupJoin();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileFromCache, setProfileFromCache] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [ticketType, setTicketType] = useState("");
+  const [ticketClassName, setTicketClassName] = useState("");
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -3320,7 +3722,17 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     fetchProfile();
+    void getCurrentUserTicketInfo().then(({ ticketType: t, ticketClassName: name }) => {
+      setTicketType(t);
+      setTicketClassName(name);
+    });
   }, [fetchProfile]);
+
+  useEffect(() => {
+    if (route.params?.openStartupTab) {
+      setActiveTab("Company");
+    }
+  }, [route.params?.openStartupTab]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -3331,18 +3743,15 @@ export default function ProfileScreen() {
     }
   }, [fetchProfile]);
 
-  // Company tab is only for company admins (admin_user === current user_id).
+  // Company tab is for company admins; startup pass holders get Personal | Startup.
   const sourceUser = profile ?? user ?? null;
   const isCompanyAdmin =
     !!sourceUser?.company?.admin_user &&
     String(sourceUser.company.admin_user) === String(sourceUser.user_id);
-  const userRole: "attendee" | "company" = isCompanyAdmin
-    ? "company"
-    : "attendee";
+
   const [activeTab, setActiveTab] = useState<"Personal" | "Company">(
     "Personal"
   );
-  
   const [personalSaveTrigger, setPersonalSaveTrigger] = useState(0);
   const [companySaveTrigger, setCompanySaveTrigger] = useState(0);
   const [attendeeSaveTrigger, setAttendeeSaveTrigger] = useState(0);
@@ -3352,6 +3761,33 @@ export default function ProfileScreen() {
   const [personalPhotoReady, setPersonalPhotoReady] = useState(false);
   const [attendeePhotoReady, setAttendeePhotoReady] = useState(false);
   const [companyLogoReady, setCompanyLogoReady] = useState(false);
+
+  const companyType = resolveCompanyType(sourceUser?.company ?? null, ticketType);
+  const isStartupPassHolder = isStartupPass(ticketType);
+  const useStartupSecondTab =
+    isStartupPassHolder || isStartupCompanyType(companyType);
+  const showSegmentedProfile = isCompanyAdmin || isStartupPassHolder;
+  const showStartupConnect =
+    useStartupSecondTab && activeTab === "Company" && !isCompanyAdmin;
+
+  useEffect(() => {
+    if (!__DEV__ || !ticketType) return;
+    console.log("[Profile] flow context", {
+      ticketType,
+      ticketClassName,
+      isStartupPass: isStartupPassHolder,
+      isAdmin: isCompanyAdmin,
+      companyId: sourceUser?.company?.id ?? null,
+      showStartupConnect,
+    });
+  }, [
+    ticketType,
+    ticketClassName,
+    isStartupPassHolder,
+    isCompanyAdmin,
+    sourceUser?.company?.id,
+    showStartupConnect,
+  ]);
 
   const onPersonalPhotoRequirementMet = useCallback((met: boolean) => {
     setPersonalPhotoReady(met);
@@ -3404,44 +3840,12 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
         ) : null}
-        {userRole === "attendee" ? (
-          <>
-            <AttendeeProfileSection
-              initialProfile={profile}
-              saveTrigger={attendeeSaveTrigger}
-              onSave={completeProfile}
-              isSubmitting={attendeeIsSubmitting}
-              setIsSubmitting={setAttendeeIsSubmitting}
-              onRefresh={onRefresh}
-              refreshing={refreshing}
-              onProfilePhotoRequirementMet={onAttendeePhotoRequirementMet}
-            />
-            {/* Save Changes Button */}
-            <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
-              <Pressable
-                className="bg-black rounded-xl items-center justify-center flex-row gap-2"
-                style={{
-                  paddingVertical: 12,
-                  opacity:
-                    attendeeIsSubmitting || !attendeePhotoReady ? 0.6 : 1,
-                }}
-                onPress={handleSaveAttendee}
-                disabled={attendeeIsSubmitting || !attendeePhotoReady}
-              >
-                {attendeeIsSubmitting && (
-                  <LoadingSpinner size="small" color="#FFFFFF" />
-                )}
-                <Text className="text-white pb-2 text-base font-inter-semibold">
-                  Save Changes
-                </Text>
-              </Pressable>
-            </View>
-          </>
-        ) : (
+        {showSegmentedProfile ? (
           <>
             <SegmentedControl
               activeTab={activeTab}
               onTabChange={setActiveTab}
+              secondTabLabel={useStartupSecondTab ? "Startup" : "Company"}
             />
             {activeTab === "Personal" ? (
               <PersonalProfileSection
@@ -3451,6 +3855,18 @@ export default function ProfileScreen() {
                 onRefresh={onRefresh}
                 refreshing={refreshing}
                 onProfilePhotoRequirementMet={onPersonalPhotoRequirementMet}
+                startupBadgeName={startupJoinState.badge?.companyName}
+                showJoinPending={startupJoinState.phase === "pending"}
+                omitCompanyField={isStartupPassHolder}
+              />
+            ) : showStartupConnect ? (
+              <StartupConnectStep
+                embedded
+                variant="manage"
+                onComplete={() => {
+                  void fetchProfile();
+                  void refreshStartupJoin();
+                }}
               />
             ) : (
               <CompanyProfileSection
@@ -3462,9 +3878,13 @@ export default function ProfileScreen() {
                 onRefresh={onRefresh}
                 refreshing={refreshing}
                 onCompanyLogoRequirementMet={onCompanyLogoRequirementMet}
+                adminJoinRequests={startupJoinState.adminPendingRequests}
+                onApproveJoin={approveRequest}
+                onDenyJoin={denyRequest}
+                joinAdminActing={joinAdminActing}
               />
             )}
-            {/* Save Changes Button */}
+            {!showStartupConnect ? (
             <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
               <Pressable
                 className="bg-black rounded-xl items-center justify-center flex-row gap-2"
@@ -3494,6 +3914,41 @@ export default function ProfileScreen() {
                   <LoadingSpinner size="small" color="#FFFFFF" />
                 )}
                 <Text className="text-white pb-2 text-base font-semibold">
+                  Save Changes
+                </Text>
+              </Pressable>
+            </View>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <AttendeeProfileSection
+              initialProfile={profile}
+              saveTrigger={attendeeSaveTrigger}
+              onSave={completeProfile}
+              isSubmitting={attendeeIsSubmitting}
+              setIsSubmitting={setAttendeeIsSubmitting}
+              onRefresh={onRefresh}
+              refreshing={refreshing}
+              onProfilePhotoRequirementMet={onAttendeePhotoRequirementMet}
+              startupBadgeName={startupJoinState.badge?.companyName}
+              showJoinPending={startupJoinState.phase === "pending"}
+            />
+            <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
+              <Pressable
+                className="bg-black rounded-xl items-center justify-center flex-row gap-2"
+                style={{
+                  paddingVertical: 12,
+                  opacity:
+                    attendeeIsSubmitting || !attendeePhotoReady ? 0.6 : 1,
+                }}
+                onPress={handleSaveAttendee}
+                disabled={attendeeIsSubmitting || !attendeePhotoReady}
+              >
+                {attendeeIsSubmitting && (
+                  <LoadingSpinner size="small" color="#FFFFFF" />
+                )}
+                <Text className="text-white pb-2 text-base font-inter-semibold">
                   Save Changes
                 </Text>
               </Pressable>

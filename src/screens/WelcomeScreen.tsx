@@ -13,6 +13,7 @@ import {
   Keyboard,
   Alert,
   Dimensions,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -24,6 +25,9 @@ import { EVENT_ID } from "../config/env";
 import TicketCard from "../components/TicketCard";
 import { LoadingSpinner } from "../components";
 import Svg, { Path, Rect, Circle } from "react-native-svg";
+
+// const logoImage = require("../assets/images/ASF-Logotype-BLK.png");
+const logoImage = require("../assets/images/logo-white.png");
 
 // Checkmark Icon
 function CheckmarkIcon({
@@ -165,7 +169,7 @@ function RecipientDetailsModal({
   const [countryCode, setCountryCode] = useState("+234");
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState(
-    COUNTRIES.find((c) => c.code === "+234") || COUNTRIES[2]
+    COUNTRIES.find((c) => c.code === "+234") || COUNTRIES[2],
   );
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const translateY = useRef(new Animated.Value(0)).current;
@@ -218,7 +222,7 @@ function RecipientDetailsModal({
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -241,14 +245,14 @@ function RecipientDetailsModal({
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
       (e) => {
         setKeyboardHeight(e.endCoordinates.height);
-      }
+      },
     );
 
     const keyboardWillHide = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
       () => {
         setKeyboardHeight(0);
-      }
+      },
     );
 
     return () => {
@@ -267,7 +271,7 @@ function RecipientDetailsModal({
     if (!email.trim()) {
       Alert.alert(
         "Required Field",
-        "Please enter the recipient's email address"
+        "Please enter the recipient's email address",
       );
       return;
     }
@@ -288,7 +292,7 @@ function RecipientDetailsModal({
       if (digitsOnly.length < 7 || digitsOnly.length > 15) {
         Alert.alert(
           "Invalid Phone",
-          "Phone number must be between 7 and 15 digits"
+          "Phone number must be between 7 and 15 digits",
         );
         return;
       }
@@ -633,7 +637,7 @@ function TicketTransferConfirmationModal({
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   useEffect(() => {
@@ -734,18 +738,25 @@ export default function WelcomeScreen() {
       try {
         setIsLoadingQuotas(true);
         const quotas = await ticketService.getUserQuotas(EVENT_ID);
-        
+
         // DEBUG: Log the actual response
-        console.log("🔍 WelcomeScreen - Quotas response:", JSON.stringify(quotas, null, 2));
+        console.log(
+          "🔍 WelcomeScreen - Quotas response:",
+          JSON.stringify(quotas, null, 2),
+        );
         console.log("🔍 WelcomeScreen - Quotas array length:", quotas.length);
-        
+
         // Store quotas for display
         setTicketQuotas(quotas);
-        
-        // Calculate total quota count (sum of all quotas)
-        const totalQuota = quotas.reduce((sum, quota) => sum + quota.quota, 0);
-        console.log("🔍 WelcomeScreen - Total quota calculated:", totalQuota);
-        setTicketQuotaCount(totalQuota);
+
+        const remainingTotal = quotas.reduce((sum, quota) => {
+          const available =
+            quota.remaining_quota !== undefined
+              ? quota.remaining_quota
+              : quota.quota - quota.allocated_tickets;
+          return sum + Math.max(available, 0);
+        }, 0);
+        setTicketQuotaCount(remainingTotal);
       } catch (error) {
         console.error("Error fetching ticket quotas:", error);
         // On error, default to 0 (or keep previous count)
@@ -763,7 +774,7 @@ export default function WelcomeScreen() {
     setSelectedTickets((prev) =>
       prev.includes(quotaIdString)
         ? prev.filter((id) => id !== quotaIdString)
-        : [...prev, quotaIdString]
+        : [...prev, quotaIdString],
     );
   };
 
@@ -782,33 +793,25 @@ export default function WelcomeScreen() {
       return;
     }
 
-    // Check if user has unassigned quota tickets
-    // User can't transfer if they have unassigned quota (they need to assign those first)
-    const hasUnassignedQuota = ticketQuotas.some((quota) => {
-      const availableQuota = quota.remaining_quota !== undefined 
-        ? quota.remaining_quota 
-        : quota.quota - quota.allocated_tickets;
-      return availableQuota > 0;
+    const hasUnavailableSelection = selectedTickets.some((quotaIdStr) => {
+      const quota = ticketQuotas.find((q) => q.id.toString() === quotaIdStr);
+      if (!quota) return true;
+      const available =
+        quota.remaining_quota !== undefined
+          ? quota.remaining_quota
+          : quota.quota - quota.allocated_tickets;
+      return available <= 0;
     });
 
-    if (hasUnassignedQuota) {
-      // Count total available quota
-      const totalAvailableQuota = ticketQuotas.reduce((sum, quota) => {
-        const availableQuota = quota.remaining_quota !== undefined 
-          ? quota.remaining_quota 
-          : quota.quota - quota.allocated_tickets;
-        return sum + availableQuota;
-      }, 0);
-
+    if (hasUnavailableSelection) {
       Alert.alert(
-        "Assign Tickets First",
-        `You have ${totalAvailableQuota} available ticket${totalAvailableQuota !== 1 ? "s" : ""} in your quota. Please assign all available tickets before transferring.`,
-        [{ text: "OK" }]
+        "No tickets available",
+        "One or more selected ticket types have no remaining quota. Deselect them or refresh and try again.",
+        [{ text: "OK" }],
       );
       return;
     }
 
-    // Open recipient details modal
     setRecipientModalVisible(true);
   };
 
@@ -825,25 +828,61 @@ export default function WelcomeScreen() {
     }, 300);
   };
 
-  const handleTransferComplete = () => {
-    // TODO: Call API to transfer tickets
-    // await api.post('/tickets/transfer', {
-    //   ticketIds: selectedTickets,
-    //   recipient: recipientData
-    // });
+  const handleTransferComplete = async () => {
+    if (!recipientData || selectedTickets.length === 0) {
+      return;
+    }
 
-    console.log("Transferring tickets:", {
-      ticketIds: selectedTickets,
-      recipient: recipientData,
-    });
+    setIsProcessing(true);
+    try {
+      const recipient = {
+        fullName: recipientData.fullName,
+        email: recipientData.email,
+        phoneNumber: recipientData.phoneNumber,
+        countryCode: recipientData.countryCode,
+      };
 
-    // Close confirmation and proceed to profile
-    setConfirmationModalVisible(false);
-    setRecipientData(null);
-    setSelectedTickets([]);
+      for (const quotaIdStr of selectedTickets) {
+        const quota = ticketQuotas.find((q) => q.id.toString() === quotaIdStr);
+        if (!quota?.ticket_class?.id) continue;
+        await ticketService.allocateTicket(
+          EVENT_ID,
+          quota.ticket_class.id,
+          recipient,
+        );
+      }
 
-    // Navigate to profile completion
-    navigation.navigate("CompleteProfile");
+      const quotas = await ticketService.getUserQuotas(EVENT_ID);
+      setTicketQuotas(quotas);
+      const remainingTotal = quotas.reduce((sum, quota) => {
+        const available =
+          quota.remaining_quota !== undefined
+            ? quota.remaining_quota
+            : quota.quota - quota.allocated_tickets;
+        return sum + Math.max(available, 0);
+      }, 0);
+      setTicketQuotaCount(remainingTotal);
+
+      setConfirmationModalVisible(false);
+      setRecipientData(null);
+      setSelectedTickets([]);
+
+      Alert.alert(
+        "Ticket sent",
+        remainingTotal > 0
+          ? "Your recipient has been sent a ticket. You can send more from your quota or skip to finish your profile."
+          : "Your recipient has been sent a ticket. Continue to finish your profile.",
+        [{ text: "OK" }],
+      );
+    } catch (error: any) {
+      Alert.alert(
+        "Could not send ticket",
+        error?.message || "Please try again.",
+        [{ text: "OK" }],
+      );
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleSkip = () => {
@@ -859,68 +898,45 @@ export default function WelcomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View className="px-6 py-8">
-          {/* Success Checkmark */}
+          {/* Logo */}
           <View className="items-center mb-6">
-            <View className="w-28 h-28 rounded-full bg-green-50 items-center justify-center border-2 border-green-200">
-              <CheckmarkIcon size={60} color="#10B981" />
-            </View>
+            <Image
+              source={logoImage}
+              style={{ width: 280, height: 88 }}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Welcome Message */}
           <Text className="text-[30px] font-medium text-neutral-900 text-center mb-2">
             Welcome to Africa Startup Festival!
           </Text>
-          <Text className="text-base text-neutral-600 text-center mb-6">
+          <Text className="text-base text-neutral-600 text-center mb-8">
             {isLoadingQuotas
-              ? "Loading assignable tickets..."
+              ? "Loading your tickets…"
               : ticketQuotaCount > 0
-                ? `You have ${ticketQuotaCount} extra ticket${ticketQuotaCount !== 1 ? "s" : ""} to assign to others`
-                : "You have no extra tickets to assign to others"}
+                ? `You have ${ticketQuotaCount} ticket${ticketQuotaCount !== 1 ? "s" : ""} in your quota to send to teammates. Select below and tap Send, or skip to finish your profile.`
+                : "Your ticket is for this account. Continue to finish your profile."}
           </Text>
-          {!isLoadingQuotas && ticketQuotaCount === 0 && (
-            <Text className="text-sm text-neutral-500 text-center mb-6 -mt-4">
-              Your own ticket (if you registered for yourself) is already on
-              this account.
-            </Text>
-          )}
 
-          {/* Instructional Banner - Only show if user has tickets */}
-          {!isLoadingQuotas && ticketQuotaCount > 0 && (
-            <View
-              className="rounded-xl p-4 mb-6"
-              style={{
-                backgroundColor: "#FEF3C7",
-                borderWidth: 1,
-                borderColor: "#FDE68A",
-              }}
-            >
-              <Text className="text-sm font-medium text-neutral-900 mb-1">
-                Transfer tickets to team members or attendees
-              </Text>
-              <Text className="text-xs text-neutral-700">
-                Select tickets below to transfer, or skip to continue to your
-                profile
-              </Text>
-            </View>
-          )}
-
-          {/* Ticket Transfer Section - Only show if user has tickets */}
+          {/* Ticket quota section — send tickets from quota, not personal ticket transfer */}
           {!isLoadingQuotas && ticketQuotaCount > 0 && (
             <>
-              {/* Your Tickets Heading */}
               <Text className="text-[16px] font-semibold text-neutral-900 mb-4">
-                Tickets to assign ({ticketQuotaCount})
+                Tickets in your quota ({ticketQuotaCount})
               </Text>
 
               {/* Ticket Cards */}
               {ticketQuotas.map((quota) => {
                 const quotaIdString = quota.id.toString();
                 const isSelected = selectedTickets.includes(quotaIdString);
-                const availableQuota = quota.remaining_quota !== undefined 
-                  ? quota.remaining_quota 
-                  : quota.quota - quota.allocated_tickets;
-                const ticketType = quota.ticket_class.user_type || quota.ticket_class.type || "";
-                
+                const availableQuota =
+                  quota.remaining_quota !== undefined
+                    ? quota.remaining_quota
+                    : quota.quota - quota.allocated_tickets;
+                const ticketType =
+                  quota.ticket_class.user_type || quota.ticket_class.type || "";
+
                 return (
                   <TicketCard
                     key={quota.id}
@@ -937,27 +953,6 @@ export default function WelcomeScreen() {
               })}
             </>
           )}
-
-          {/* Empty State - No Tickets */}
-          {!isLoadingQuotas && ticketQuotaCount === 0 && (
-            <View className="bg-neutral-50 rounded-xl p-6 mb-12 border border-neutral-200">
-              <Text className="text-base font-medium text-neutral-900 text-center mb-3">
-                This step is for assigning tickets to other people
-              </Text>
-              <Text className="text-base text-neutral-600 text-center">
-                You don&apos;t have any assignable tickets in your quota right
-                now.
-              </Text>
-              <Text className="text-base text-neutral-600 text-center mt-3">
-                That doesn&apos;t mean you don&apos;t have a ticket. If you
-                bought or registered for yourself, your ticket is linked to this
-                account.
-              </Text>
-              <Text className="text-sm text-neutral-500 text-center mt-4">
-                Tap Continue to Profile to finish setup and view your ticket.
-              </Text>
-            </View>
-          )}
         </View>
       </ScrollView>
 
@@ -968,7 +963,7 @@ export default function WelcomeScreen() {
           paddingBottom: 34,
         }}
       >
-        {/* Transfer Tickets Button - Only show if user has tickets */}
+        {/* Send quota tickets — personal ticket transfer is in My Ticket(s) when quota is empty */}
         {!isLoadingQuotas && ticketQuotaCount > 0 && (
           <Pressable
             onPress={handleTransferTickets}
@@ -982,9 +977,13 @@ export default function WelcomeScreen() {
               opacity: selectedTickets.length > 0 && !isProcessing ? 1 : 0.6,
             }}
           >
-            <Text className="text-white text-base font-semibold">
-              Transfer Ticket(s)
-            </Text>
+            {isProcessing ? (
+              <LoadingSpinner size="small" color="#FFFFFF" />
+            ) : (
+              <Text className="text-white text-base font-semibold">
+                Transfer ticket(s) in quota
+              </Text>
+            )}
           </Pressable>
         )}
 

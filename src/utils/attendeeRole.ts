@@ -1,6 +1,6 @@
 import type { Attendee as BackendAttendee } from "../services/attendeeService";
 
-export type AttendeeRoleFilter = "all" | "founder" | "investor";
+export type AttendeeRoleFilter = "all" | "startup" | "investor";
 
 function parseMetadata(raw: unknown): Record<string, unknown> {
   if (!raw) return {};
@@ -19,7 +19,7 @@ function parseMetadata(raw: unknown): Record<string, unknown> {
 /** Resolve ASF role bucket from ticket user_type, type name, or user metadata. */
 export function getAttendeeRoleBucket(
   backend?: BackendAttendee | null,
-): "founder" | "investor" | "other" {
+): "startup" | "investor" | "other" {
   if (!backend) return "other";
 
   const meta = parseMetadata(backend.user?.metadata);
@@ -28,7 +28,7 @@ export function getAttendeeRoleBucket(
   const haystack = `${ticketType} ${metaType}`;
 
   if (haystack.includes("investor")) return "investor";
-  if (haystack.includes("founder")) return "founder";
+  if (haystack.includes("startup") || haystack.includes("founder")) return "startup";
   return "other";
 }
 

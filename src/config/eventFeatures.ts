@@ -11,7 +11,17 @@ export interface EventFeatures {
   virtualMeetingsOnly: boolean;
   scanNetworkingEnabled: boolean;
   showUpgradeTicket: boolean;
+  /** Menu routes hidden for ASF v1 (Kenya + Lagos). */
+  hiddenMenuRoutes: string[];
 }
+
+/** ASF v1 — Tag Pickup, Talent, Partner Offers, App Guide deferred. */
+export const ASF_HIDDEN_MENU_ROUTES = [
+  "Offers",
+  "Talent",
+  "TagPickup",
+  "AppGuide",
+] as const;
 
 export function getEventFeatures(now = Date.now()): EventFeatures {
   const postEvent = isPostEventMode(now);
@@ -26,5 +36,6 @@ export function getEventFeatures(now = Date.now()): EventFeatures {
     virtualMeetingsOnly: postEvent,
     scanNetworkingEnabled: !postEvent,
     showUpgradeTicket: false,
+    hiddenMenuRoutes: [...ASF_HIDDEN_MENU_ROUTES],
   };
 }

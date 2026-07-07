@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import {
   getTicketGradientColors,
-  isExhibitionPass,
+  isLightTicketCard,
 } from "../utils/ticketColors";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -100,9 +100,9 @@ export default function TicketBenefitsModal({
   }, [visible, translateY]);
 
   const gradient = getTicketGradientColors(ticketType ?? tierLabel);
-  const isExhibition = isExhibitionPass(ticketType ?? tierLabel);
-  const headerTextColor = isExhibition ? "text-black" : "text-white";
-  const headerSubTextColor = isExhibition ? "text-black/70" : "text-white/80";
+  const isLightCard = isLightTicketCard(ticketType ?? tierLabel);
+  const headerTextColor = isLightCard ? "text-black" : "text-white";
+  const headerSubTextColor = isLightCard ? "text-black/70" : "text-white/80";
 
   return (
     <Modal

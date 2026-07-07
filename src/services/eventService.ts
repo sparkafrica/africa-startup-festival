@@ -1318,10 +1318,10 @@ export const eventService = {
   },
 
   /**
-   * List companies by type (exhibitor or partner) from directory
+   * List companies by type (exhibitor, partner, or startup) from directory
    *
    * @param eventId - The ID of the event
-   * @param companyType - "exhibitor" or "partner"
+   * @param companyType - "exhibitor", "partner", or "startup"
    * @param filters - Optional filters (search, ordering, pagination)
    * @returns Promise that resolves with paginated companies
    *
@@ -1330,7 +1330,7 @@ export const eventService = {
    */
   async getDirectoryCompanies(
     eventId: number,
-    companyType: "exhibitor" | "partner",
+    companyType: "exhibitor" | "partner" | "startup",
     filters?: {
       search?: string;
       ordering?: string;
@@ -1399,10 +1399,10 @@ export const eventService = {
   },
 
   /**
-   * Get company details by type (exhibitor or partner) from directory
+   * Get company details by type (exhibitor, partner, or startup) from directory
    *
    * @param eventId - The ID of the event
-   * @param companyType - "exhibitor" or "partner"
+   * @param companyType - "exhibitor", "partner", or "startup"
    * @param companyPk - The company ID (from list)
    * @returns Promise that resolves with Company object
    *
@@ -1411,7 +1411,7 @@ export const eventService = {
    */
   async getCompanyDetail(
     eventId: number,
-    companyType: "exhibitor" | "partner",
+    companyType: "exhibitor" | "partner" | "startup",
     companyPk: number,
   ): Promise<Company> {
     try {

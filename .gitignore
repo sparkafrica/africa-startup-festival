@@ -14,7 +14,7 @@ BACKEND_API_SPECIFICATION.md
 INTEGRATION_CHECKLIST.md
 CACHE_FIX.md
 PROFILE_COMPLETE_PROFILE_INTEGRATION.md
-Spark EMS.yaml
+Spark EMS.yml
 
 # Expo
 .expo/
@@ -53,6 +53,8 @@ glossy-receiver-353007-910b0426a8e8.json
 # Firebase service account key (upload to EAS, never commit)
 # google-services.json
 # GoogleService-Info.plist
+AuthKey_T6AVABMQB7.p8
+
 
 # typescript
 *.tsbuildinfo

@@ -13,6 +13,7 @@ import {
 } from "../config/deeplink";
 import {
   isBookMeetingPromptNotificationType,
+  isStartupJoinNotificationType,
   routeFirstSegmentIsAttendees,
 } from "../utils/notificationUtils";
 import {
@@ -240,6 +241,15 @@ export function applyRouteNavigation(data: RouteNavigationInput | null): void {
       navigateDeepLinkTarget(target);
       return;
     }
+  }
+
+  if (
+    isStartupJoinNotificationType(data.notification_type) ||
+    routeLower === "profile/startup" ||
+    routeLower === "profile/startup/join-requests"
+  ) {
+    navigate("Profile", { openStartupTab: true });
+    return;
   }
 
   if (

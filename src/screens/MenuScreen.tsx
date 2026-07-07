@@ -37,13 +37,17 @@ export default function MenuScreen() {
           navigation.navigate("Profile");
           break;
         case "Startups":
-          navigation.navigate("Exhibitors");
+          navigation.navigate("Startups");
           break;
         case "Sponsors":
+        case "Partners":
           navigation.navigate("Partners");
           break;
+        case "Exhibitors":
+          navigation.navigate("Exhibitors");
+          break;
         case "Founders":
-          navigation.navigate("Attendees", { roleFilter: "founder" });
+          navigation.navigate("Attendees", { roleFilter: "startup" });
           break;
         case "Investors":
           navigation.navigate("Attendees", { roleFilter: "investor" });
