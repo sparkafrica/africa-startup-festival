@@ -1524,6 +1524,7 @@ export default function ConnectionsScreen() {
                               otherPartyName: displayConnection.name,
                               otherPartyAvatarUri:
                                 getConnectionProfilePicUri(displayConnection),
+                              otherPartyUserId: displayConnection.userId,
                             });
                           } catch (err: any) {
                             const msg =

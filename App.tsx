@@ -63,32 +63,6 @@ export default function App() {
     }
   }, [fontsLoaded, fontError]);
 
-  // Wait for both fonts and images to be ready
-  if (!fontsLoaded || !imagesPreloaded) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        {/* Preload banner images off-screen */}
-        <View style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}>
-          <Image
-            source={require("./src/assets/images/1st-card.jpeg")}
-            style={{ width: 1, height: 1 }}
-            resizeMode="cover"
-          />
-          <Image
-            source={require("./src/assets/images/2nd-card.jpg")}
-            style={{ width: 1, height: 1 }}
-            resizeMode="cover"
-          />
-          {/* <Image
-            source={require("./src/assets/images/3rd-card.jpg")}
-            style={{ width: 1, height: 1 }}
-            resizeMode="cover"
-          /> */}
-        </View>
-        <LoadingSpinner size="large" />
-      </View>
-    );
-  }
 
   // Set default font family for all Text components globally
   // Using Inter Display Regular as the default font

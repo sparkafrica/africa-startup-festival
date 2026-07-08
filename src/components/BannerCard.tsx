@@ -9,12 +9,39 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { ArrowRightIcon } from "./icons";
+import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
+
+export type BannerVariant = "black" | "white";
+
+const variantStyles = {
+  black: {
+    title: "text-white",
+    description: "text-white/90",
+    button: "bg-white border border-black",
+    buttonText: "text-black",
+    iconColor: "#000000",
+    cardBorder: "",
+    cardPatternOpacity: 0.2,
+    buttonPatternOpacity: 0.2,
+  },
+  white: {
+    title: "text-black",
+    description: "text-black/80",
+    button: "bg-black border border-white",
+    buttonText: "text-white",
+    iconColor: "#FFFFFF",
+    cardBorder: "border border-neutral-200",
+    cardPatternOpacity: 0.1,
+    buttonPatternOpacity: 0.5,
+  },
+};
 
 interface BannerCardProps {
   title: string | React.ReactNode;
   description: string;
   buttonText: string;
   gradient: string[];
+  variant?: BannerVariant;
   backgroundImage?: ImageSourcePropType;
   onPress?: () => void;
   /** Full-width vertical stack (post-event home). Default: horizontal carousel card. */
@@ -26,11 +53,13 @@ export default function BannerCard({
   description,
   buttonText,
   gradient,
+  variant = "black",
   backgroundImage,
   onPress,
   stacked = false,
 }: BannerCardProps) {
   const { width: windowWidth } = useWindowDimensions();
+  const styles = variantStyles[variant];
   const cardWidth = stacked
     ? windowWidth - 32
     : Math.min(320, Math.round(windowWidth * 0.85));
@@ -40,7 +69,7 @@ export default function BannerCard({
   return (
     <Pressable
       onPress={onPress}
-      className={`rounded-3xl overflow-hidden ${stacked ? "" : "mr-3"}`}
+      className={`rounded-3xl overflow-hidden ${styles.cardBorder} ${stacked ? "" : "mr-3"}`}
       style={[
         { width: cardWidth, flexDirection: "column" },
         !stacked ? { alignSelf: "stretch" } : null,
@@ -58,33 +87,52 @@ export default function BannerCard({
       <LinearGradient
         colors={gradient as [string, string]}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        className="px-4 pt-4 pb-4 rounded-b-3xl"
+        end={{ x: 2, y: 2 }}
+        className="px-4 pt-4 pb-4 rounded-b-3xl overflow-hidden relative"
         style={{ flex: 1, minHeight: 156 }}
       >
-        <View style={{ flex: 1, justifyContent: "space-between" }}>
+        <GuidelinePatternOverlay
+          isLightCard={variant === "white"}
+          opacity={styles.cardPatternOpacity}
+        />
+        <View
+          className="relative z-10"
+          style={{ flex: 1, justifyContent: "space-between" }}
+        >
           <View>
             {typeof title === "string" ? (
-              <Text className="text-lg text-white font-inter-semibold leading-snug mb-1.5">
+              <Text
+                className={`text-lg font-inter-semibold leading-snug mb-1.5 ${styles.title}`}
+              >
                 {title}
               </Text>
             ) : (
               <View className="mb-1.5">{title}</View>
             )}
 
-            <Text className="text-[14px] text-white/90 font-inter-normal leading-5">
+            <Text
+              className={`text-[14px] font-inter-normal leading-5 ${styles.description}`}
+            >
               {description}
             </Text>
           </View>
 
           <Pressable
             onPress={onPress}
-            className="w-full bg-white/10 border border-white/20 py-2.5 rounded-xl flex-row items-center justify-center mt-4"
+            className={`w-full py-2.5 rounded-xl flex-row items-center justify-center mt-4 overflow-hidden relative ${styles.button}`}
           >
-            <Text className="text-white text-[13px] font-inter-medium mr-2">
+            <GuidelinePatternOverlay
+              isLightCard={variant === "black"}
+              opacity={styles.buttonPatternOpacity}
+            />
+            <Text
+              className={`text-[15px] font-inter-bold mr-2 relative z-10 ${styles.buttonText}`}
+            >
               {buttonText}
             </Text>
-            <ArrowRightIcon size={16} color="#FFFFFF" />
+            <View className="relative z-10">
+              <ArrowRightIcon size={16} color={styles.iconColor} />
+            </View>
           </Pressable>
         </View>
       </LinearGradient>

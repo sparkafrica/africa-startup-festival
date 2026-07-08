@@ -105,6 +105,7 @@ export type RootStackParamList = {
     conversationId: number;
     otherPartyName: string;
     otherPartyAvatarUri?: string;
+    otherPartyUserId?: string;
   };
   CompanyDetail: {
     exhibitorId: string;

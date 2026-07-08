@@ -386,38 +386,49 @@ export default function HomeScreen() {
 
   const renderHeroBanners = () => (
     <>
-      <BannerCard
+      {/* <BannerCard
         title="Explore the programme"
         description="Sessions, panels, and keynotes across Africa Startup Festival."
         buttonText="See schedule"
         gradient={gradients.sparkBlack}
         backgroundImage={require("../assets/images/8th-card.jpeg")}
         onPress={() => navigation.navigate("Schedule")}
-      />
-      <BannerCard
+      /> */}
+      {/* <BannerCard
         title="Discover startups"
         description="Browse the startup directory and connect with founders on the floor."
         buttonText="View startups"
         gradient={gradients.partnerGreen}
         backgroundImage={require("../assets/images/9th-card.jpeg")}
         onPress={() => navigation.navigate("Startups")}
-      />
+      /> */}
       <BannerCard
-        title="Meet investors"
-        description="Find investors attending ASF and book focused meetings."
-        buttonText="Find investors"
+        title="Welcome to ASF 2026"
+        description="Start booking meetings with founders, investors, and operators."
+        buttonText="Book meetings"
         gradient={gradients.sparkBlack}
-        backgroundImage={require("../assets/images/7th-card.jpeg")}
-        onPress={() => navigation.navigate("Attendees", { roleFilter: "investor" })}
+        variant="black"
+        backgroundImage={require("../assets/images/1st-card.jpg")}
+        onPress={() => navigation.navigate("Attendees")}
       />
       <BannerCard
-        title="Book meetings"
-        description="Schedule time with founders, investors, and operators."
-        buttonText="Open meetings"
-        gradient={gradients.partnerGreen}
-        backgroundImage={require("../assets/images/11th-card.jpeg")}
-        onPress={() => navigation.navigate("Meetings")}
+        title="Connect with our 2026 Startups"
+        description="Discover the startups attending ASF 2026 and connect with founders on the floor."
+        buttonText="View startups"
+        gradient={gradients.sparkWhite}
+        variant="white"
+        backgroundImage={require("../assets/images/2nd-card.jpg")}
+        onPress={() => navigation.navigate("Startups")}
       />
+      {/* <BannerCard
+        title="Connect with our 2026 Startups"
+        description="Discover the startups attending ASF 2026 and connect with founders on the floor."
+        buttonText="View startups"
+        gradient={gradients.sparkWhite}
+        variant="white"
+        backgroundImage={require("../assets/images/2nd-card.jpg")}
+        onPress={() => navigation.navigate("Startups")}
+      /> */}
     </>
   );
 

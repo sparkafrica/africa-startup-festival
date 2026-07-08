@@ -162,16 +162,23 @@ export const shadows = {
   },
 };
 
+export const brand = {
+  white: "#FFFFFF",
+  black: "#000000",
+};
+
 export const gradients = {
   primary: ["#0EA5E9", "#0284C7"],
   secondary: ["#D946EF", "#C026D3"],
   sunset: ["#F59E0B", "#EF4444"],
   ocean: ["#3B82F6", "#0EA5E9"],
-  sparkBlack: ["#000000", "#000000"], // Black gradient for Africa Technology Expo 2026 banner
+  sparkBlack: ["#000000", "#000000"],
+  sparkWhite: ["#FFFFFF", "#FFFFFF"],
   partnerGreen: ["#10B981", "#059669"], // Green gradient for Partner Offers banner
 };
 
 export const theme = {
+  brand,
   colors,
   typography,
   spacing,

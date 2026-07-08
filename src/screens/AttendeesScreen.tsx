@@ -63,7 +63,12 @@ import {
   canRequestMeetingWithAttendee,
   currentUserIsInvestor,
   showInvestorConnectionRequiredAlert,
+  showMessagingAccessRequiredAlert,
 } from "../utils/asfNetworking";
+import {
+  canMessagePeer,
+  getAcceptedMeetingPeerIds,
+} from "../utils/messagingEligibility";
 import { useToast } from "../hooks/useToast";
 import {
   useMessagesBadgeCount,
@@ -297,6 +302,7 @@ interface Attendee {
   linkedInUrl?: string;
   industry?: string;
   connectionStatus?: "pending" | "accepted" | null;
+  hasAcceptedMeeting?: boolean;
   startupBadge?: { kind: "linked"; companyName: string } | { kind: "pending" };
   backendData?: BackendAttendee;
 }
@@ -349,6 +355,13 @@ function getAttendeeProfilePicUri(attendee: Attendee): string | undefined {
     if (typeof uri === "string" && uri.trim()) return uri.trim();
   }
   return undefined;
+}
+
+function attendeeCanMessage(attendee: Attendee): boolean {
+  return canMessagePeer({
+    connectionStatus: attendee.connectionStatus,
+    hasAcceptedMeeting: attendee.hasAcceptedMeeting,
+  });
 }
 
 /** Memoized row so VirtualizedList does not treat every item as changed when the parent re-renders. */
@@ -1011,7 +1024,7 @@ function AttendeeCard({
                 className={`flex-row items-center justify-center rounded-xl ${
                   hasFilters ? "px-2" : "px-3"
                 } ${
-                  attendee.connectionStatus === "accepted"
+                  attendeeCanMessage(attendee)
                     ? "bg-[#1BB273] shadow-sm"
                     : "border border-dashed border-neutral-300 bg-white"
                 }`}
@@ -1023,7 +1036,7 @@ function AttendeeCard({
                     <SpeechBubbleIcon
                       size={hasFilters ? 16 : 18}
                       color={
-                        attendee.connectionStatus === "accepted"
+                        attendeeCanMessage(attendee)
                           ? "#FFFFFF"
                           : "#A3A3A3"
                       }
@@ -1032,7 +1045,7 @@ function AttendeeCard({
                       className={`${
                         hasFilters ? "text-xs font-semibold" : "text-sm font-semibold"
                       } ml-1.5 ${
-                        attendee.connectionStatus === "accepted"
+                        attendeeCanMessage(attendee)
                           ? "text-white"
                           : "text-neutral-400"
                       }`}
@@ -1205,8 +1218,9 @@ export default function AttendeesScreen() {
 
   const { toast, showToast, hideToast } = useToast();
 
-  // Persist connection map for load-more (avoids re-fetching connections)
+  // Persist connection + meeting maps for load-more (avoids re-fetching on append)
   const connectionStatusMapRef = useRef<Map<string, "pending" | "accepted">>(new Map());
+  const acceptedMeetingPeerIdsRef = useRef<Set<string>>(new Set());
   /** Ignore stale results when multiple fetches overlap (pull-to-refresh + focus + mount). */
   const attendeesFetchGenRef = useRef(0);
   /** Blocks FlatList `onEndReached` briefly after list reset / mount to avoid duplicate load-more. */
@@ -1383,21 +1397,22 @@ export default function AttendeesScreen() {
   };
 
   /**
-   * Refresh connection badges on existing rows (one GET /connections/ page).
+   * Refresh connection badges and accepted-meeting messaging flags on existing rows.
    * Used when the list is restored from session cache without a full attendee refetch.
    */
-  const syncConnectionStatusesOnly = useCallback(async () => {
+  const syncMessagingEligibility = useCallback(async () => {
     const currentUserId = user?.user_id;
     if (!currentUserId) return;
+    const currentId = String(currentUserId);
     const emptyConnections = {
       connections: [] as any[],
       pagination: { count: 0, next: null, previous: null },
     };
-    const connectionsRes = await connectionService
-      .getConnections(1, 100)
-      .catch(() => emptyConnections);
+    const [connectionsRes, meetings] = await Promise.all([
+      connectionService.getConnections(1, 100).catch(() => emptyConnections),
+      meetingService.getMeetings().catch(() => []),
+    ]);
     const map = new Map<string, "pending" | "accepted">();
-    const currentId = String(currentUserId);
     for (const c of connectionsRes.connections) {
       const fromId = String(c.from_user.id);
       const toId = String(c.to_user.id);
@@ -1406,11 +1421,14 @@ export default function AttendeesScreen() {
         map.set(otherId, c.status);
       }
     }
+    const meetingPeers = getAcceptedMeetingPeerIds(meetings, currentId);
     connectionStatusMapRef.current = map;
+    acceptedMeetingPeerIdsRef.current = meetingPeers;
     setAllAttendeesBackend((prev) =>
       prev.map((a) => ({
         ...a,
         connectionStatus: map.get(String(a.id)) ?? null,
+        hasAcceptedMeeting: meetingPeers.has(String(a.id)),
       }))
     );
     connectionsSyncedForListRef.current = true;
@@ -1436,6 +1454,7 @@ export default function AttendeesScreen() {
       const ids = new Set(list.map((a) => a.id));
       let hasMore: boolean = initialHasMore;
       const mapRef = connectionStatusMapRef.current;
+      const meetingRef = acceptedMeetingPeerIdsRef.current;
 
       try {
         while (hasMore && fetchGen === attendeesFetchGenRef.current) {
@@ -1448,7 +1467,11 @@ export default function AttendeesScreen() {
           const mapped = res.attendees.map((a) => {
             const ui = mapBackendAttendeeToUI(a);
             const status = mapRef.get(String(ui.id)) ?? null;
-            return { ...ui, connectionStatus: status };
+            return {
+              ...ui,
+              connectionStatus: status,
+              hasAcceptedMeeting: meetingRef.has(String(ui.id)),
+            };
           });
           const deduped = mapped.filter((row) => !ids.has(row.id));
           for (const row of deduped) ids.add(row.id);
@@ -1498,10 +1521,13 @@ export default function AttendeesScreen() {
           pagination: { count: 0, next: null, previous: null },
         };
 
-        const [connectionsRes, firstRes] = await Promise.all([
+        const [connectionsRes, meetingsRes, firstRes] = await Promise.all([
           currentUserId
             ? connectionService.getConnections(1, 100).catch(() => emptyConnections)
             : Promise.resolve(emptyConnections),
+          currentUserId
+            ? meetingService.getMeetings().catch(() => [])
+            : Promise.resolve([]),
           attendeeService.getEventAttendees(EVENT_ID, "all", {
             page: 1,
             page_size: ATTENDEE_LIST_PAGE_SIZE,
@@ -1510,6 +1536,9 @@ export default function AttendeesScreen() {
         ]);
 
         const connectionStatusMap = new Map<string, "pending" | "accepted">();
+        const meetingPeerIds = currentUserId
+          ? getAcceptedMeetingPeerIds(meetingsRes, String(currentUserId))
+          : new Set<string>();
         if (currentUserId && connectionsRes.connections.length > 0) {
           const currentId = String(currentUserId);
           for (const c of connectionsRes.connections) {
@@ -1523,6 +1552,7 @@ export default function AttendeesScreen() {
         }
 
         connectionStatusMapRef.current = connectionStatusMap;
+        acceptedMeetingPeerIdsRef.current = meetingPeerIds;
 
         const seenIds = new Set<string>();
         const allMapped: Attendee[] = [];
@@ -1531,7 +1561,11 @@ export default function AttendeesScreen() {
           for (const a of batch) {
             const ui = mapBackendAttendeeToUI(a);
             const status = connectionStatusMap.get(String(ui.id)) ?? null;
-            const row = { ...ui, connectionStatus: status };
+            const row = {
+              ...ui,
+              connectionStatus: status,
+              hasAcceptedMeeting: meetingPeerIds.has(String(ui.id)),
+            };
             if (!seenIds.has(row.id)) {
               seenIds.add(row.id);
               allMapped.push(row);
@@ -1626,10 +1660,15 @@ export default function AttendeesScreen() {
         ordering: ATTENDEE_LIST_ORDERING,
       });
       const mapRef = connectionStatusMapRef.current;
+      const meetingRef = acceptedMeetingPeerIdsRef.current;
       const mapped = res.attendees.map((a) => {
         const ui = mapBackendAttendeeToUI(a);
         const status = mapRef.get(String(ui.id)) ?? null;
-        return { ...ui, connectionStatus: status };
+        return {
+          ...ui,
+          connectionStatus: status,
+          hasAcceptedMeeting: meetingRef.has(String(ui.id)),
+        };
       });
       const hasNext = !!res.pagination?.next;
       const apiTotal = apiTotalCountRef.current;
@@ -1697,8 +1736,8 @@ export default function AttendeesScreen() {
   useEffect(() => {
     if (connectionsSyncedForListRef.current) return;
     if (!user?.user_id || allAttendeesBackend.length === 0) return;
-    void syncConnectionStatusesOnly();
-  }, [user?.user_id, allAttendeesBackend.length, syncConnectionStatusesOnly]);
+    void syncMessagingEligibility();
+  }, [user?.user_id, allAttendeesBackend.length, syncMessagingEligibility]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1710,10 +1749,8 @@ export default function AttendeesScreen() {
         void fetchAttendees();
         return;
       }
-      if (!connectionsSyncedForListRef.current) {
-        void syncConnectionStatusesOnly();
-      }
-    }, [fetchAttendees, syncConnectionStatusesOnly])
+      void syncMessagingEligibility();
+    }, [fetchAttendees, syncMessagingEligibility])
   );
 
   // Mock data — disabled; API is the sole source (re-enable for local UI dev only)
@@ -1943,20 +1980,13 @@ export default function AttendeesScreen() {
 
   const handleAttendeeMessage = useCallback(
     async (attendee: Attendee) => {
-      const isInvestor = await currentUserIsInvestor();
-      if (!isInvestor) {
-        const allowed = await canMessageAttendee({
-          ticketType: ticketTypeFromTicket(attendee.backendData?.ticket ?? null),
-          connectionStatus: attendee.connectionStatus,
-        });
-        if (!allowed) {
-          showInvestorConnectionRequiredAlert();
-          return;
-        }
-        if (attendee.connectionStatus !== "accepted") {
-          showToast("Connect with this attendee to send messages", "info");
-          return;
-        }
+      const allowed = await canMessageAttendee({
+        connectionStatus: attendee.connectionStatus,
+        hasAcceptedMeeting: attendee.hasAcceptedMeeting,
+      });
+      if (!allowed) {
+        showMessagingAccessRequiredAlert();
+        return;
       }
       if (isOpeningChat) return;
       setIsOpeningChat(true);
@@ -1970,6 +2000,7 @@ export default function AttendeesScreen() {
           conversationId,
           otherPartyName: attendee.name,
           otherPartyAvatarUri: getAttendeeProfilePicUri(attendee),
+          otherPartyUserId: attendee.id,
         });
       } catch (e: any) {
         const msg =
@@ -2892,7 +2923,7 @@ export default function AttendeesScreen() {
                       <Pressable
                         onPress={() => {
                           const a = selectedAttendee;
-                          if (a.connectionStatus === "accepted") {
+                          if (attendeeCanMessage(a)) {
                             closeBottomSheet();
                           }
                           void handleAttendeeMessage(a);
@@ -2904,7 +2935,7 @@ export default function AttendeesScreen() {
                           opacity: isOpeningChat ? 0.88 : 1,
                         }}
                         className={`flex-row items-center justify-center rounded-xl px-3 ${
-                          selectedAttendee.connectionStatus === "accepted"
+                          attendeeCanMessage(selectedAttendee)
                             ? "bg-[#1BB273] shadow-sm"
                             : "border border-dashed border-neutral-300 bg-white"
                         }`}
@@ -2913,7 +2944,7 @@ export default function AttendeesScreen() {
                           <LoadingSpinner
                             size="small"
                             color={
-                              selectedAttendee.connectionStatus === "accepted"
+                              attendeeCanMessage(selectedAttendee)
                                 ? "#FFFFFF"
                                 : "#404040"
                             }
@@ -2923,14 +2954,14 @@ export default function AttendeesScreen() {
                             <SpeechBubbleIcon
                               size={18}
                               color={
-                                selectedAttendee.connectionStatus === "accepted"
+                                attendeeCanMessage(selectedAttendee)
                                   ? "#FFFFFF"
                                   : "#A3A3A3"
                               }
                             />
                             <Text
                               className={`text-sm font-semibold ml-1.5 ${
-                                selectedAttendee.connectionStatus === "accepted"
+                                attendeeCanMessage(selectedAttendee)
                                   ? "text-white"
                                   : "text-neutral-400"
                               }`}

@@ -5,8 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.sparkllc.asf",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_EAS_UPLOAD_KEY_SHA256",
-        "REPLACE_WITH_GOOGLE_PLAY_APP_SIGNING_SHA256"
+        "12:A3:04:24:E3:DF:48:A3:3F:6F:47:52:FD:E0:52:D5:81:13:32:C3:1A:40:1D:AC:84:D2:FD:45:67:46:41:DC",
+        "3F:F0:B7:37:DB:98:5F:5F:7A:64:5F:A9:A3:F8:F5:A0:F7:6C:23:E7:30:24:4D:34:D8:33:DA:D6:4A:EE:EE:51"
       ]
     }
   }

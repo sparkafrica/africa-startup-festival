@@ -14,6 +14,7 @@ import {
   Keyboard,
   Image,
   Dimensions,
+  Alert,
   type KeyboardEvent,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,6 +32,11 @@ import { markConversationRead } from "../services/chatService";
 import type { MessageReplyTo } from "../services/chatService";
 import { addPusherConnectionStateListener } from "../services/pusherChatService";
 import { emitInboxRead } from "../utils/chatInboxSync";
+import {
+  isPeerMessagingEligible,
+  loadMessagingEligiblePeerIds,
+} from "../utils/messagingEligibility";
+import { MESSAGING_ACCESS_REQUIRED_MESSAGE } from "../utils/asfNetworking";
 import Svg, { Path } from "react-native-svg";
 
 function formatMessageTime(iso: string): string {
@@ -83,7 +89,7 @@ export default function ConversationScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList, "Conversation">>();
   const route = useRoute<RouteProp<RootStackParamList, "Conversation">>();
   const insets = useSafeAreaInsets();
-  const { eventId, conversationId, otherPartyName, otherPartyAvatarUri } =
+  const { eventId, conversationId, otherPartyName, otherPartyAvatarUri, otherPartyUserId } =
     route.params;
   const { user } = useAuth();
   const { refresh: refreshMessagesBadge } = useMessagesBadgeContext();
@@ -102,8 +108,10 @@ export default function ConversationScreen() {
   const [inputText, setInputText] = useState("");
   const [replyingTo, setReplyingTo] = useState<MessageReplyTo | null>(null);
   const [iosComposerInset, setIosComposerInset] = useState(0);
+  const [canSendMessages, setCanSendMessages] = useState(true);
   const listRef = useRef<FlatList>(null);
   const markedReadThisVisitRef = useRef(false);
+  const messagingBlockedAlertShownRef = useRef(false);
 
   const messages = messagesByConversationId[conversationId] ?? [];
   const listData = useMemo(() => sortMessagesForInvertedChat(messages), [messages]);
@@ -143,8 +151,32 @@ export default function ConversationScreen() {
     useCallback(() => {
       let isActive = true;
       markedReadThisVisitRef.current = false;
+      messagingBlockedAlertShownRef.current = false;
 
       (async () => {
+        const peerId = String(otherPartyUserId ?? "").trim();
+        const currentUserId = String(user?.user_id ?? "").trim();
+        if (peerId && currentUserId) {
+          const { eligiblePeerIds } = await loadMessagingEligiblePeerIds(
+            currentUserId
+          );
+          if (!isActive) return;
+          const allowed = isPeerMessagingEligible(peerId, eligiblePeerIds);
+          setCanSendMessages(allowed);
+          if (!allowed && !messagingBlockedAlertShownRef.current) {
+            messagingBlockedAlertShownRef.current = true;
+            Alert.alert("Messaging unavailable", MESSAGING_ACCESS_REQUIRED_MESSAGE, [
+              {
+                text: "OK",
+                onPress: () => navigation.goBack(),
+              },
+            ]);
+            return;
+          }
+        } else {
+          setCanSendMessages(true);
+        }
+
         await loadConversation(eventId, conversationId);
         if (!isActive) return;
         await bindConversationRealtime(eventId, conversationId);
@@ -161,11 +193,14 @@ export default function ConversationScreen() {
     }, [
       eventId,
       conversationId,
+      otherPartyUserId,
+      user?.user_id,
       loadConversation,
       bindConversationRealtime,
       unbindConversationRealtime,
       markThreadRead,
       refreshMessagesBadge,
+      navigation,
     ]),
   );
 
@@ -214,7 +249,7 @@ export default function ConversationScreen() {
 
   const handleSend = () => {
     const trimmed = inputText.trim();
-    if (!trimmed) return;
+    if (!trimmed || !canSendMessages) return;
 
     setInputText("");
     const reply = replyingTo ?? undefined;
@@ -360,21 +395,31 @@ export default function ConversationScreen() {
             className="flex-row items-end px-4 pt-2 bg-white border-t border-neutral-100"
             style={{ paddingBottom: composerBottomPad }}
           >
-            <TextInput
-              className="flex-1 bg-neutral-100 rounded-xl px-4 py-3 text-base text-neutral-900 max-h-32"
-              placeholder="Message..."
-              placeholderTextColor="#A3A3A3"
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-            />
-            <Pressable
-              onPress={handleSend}
-              disabled={!inputText.trim()}
-              className="ml-2 w-11 h-11 rounded-full bg-neutral-900 items-center justify-center"
-            >
-              <SendIcon size={22} color="#FFFFFF" />
-            </Pressable>
+            {!canSendMessages ? (
+              <View className="flex-1 py-3 px-2">
+                <Text className="text-sm text-neutral-500 text-center">
+                  {MESSAGING_ACCESS_REQUIRED_MESSAGE}
+                </Text>
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  className="flex-1 bg-neutral-100 rounded-xl px-4 py-3 text-base text-neutral-900 max-h-32"
+                  placeholder="Message..."
+                  placeholderTextColor="#A3A3A3"
+                  value={inputText}
+                  onChangeText={setInputText}
+                  multiline
+                />
+                <Pressable
+                  onPress={handleSend}
+                  disabled={!inputText.trim()}
+                  className="ml-2 w-11 h-11 rounded-full bg-neutral-900 items-center justify-center"
+                >
+                  <SendIcon size={22} color="#FFFFFF" />
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
       )}
