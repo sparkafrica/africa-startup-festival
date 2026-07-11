@@ -1,43 +1,62 @@
 /**
- * EAS / expo-updates OTA flow: check early (no download), apply only after Home is stable.
+ * EAS / expo-updates OTA: check on main-app entry, show Bootsplash while fetching, then reload.
  * Ships as JS — no new native store build required for these calls.
  */
 import * as Updates from "expo-updates";
 
-/** Time Home must stay focused before we check again, fetch, and reload. */
-export const OTA_HOME_STABLE_DELAY_MS = 2000;
+/** Match BootsplashScreen branded animation length (hold before fade-out). */
+export const OTA_SPLASH_MIN_DURATION_MS = 3500;
 
-/** Light check only — run on verification or main mount; does not download or reload. */
-export async function runEarlyOtaCheckOnly(): Promise<void> {
-  if (__DEV__) return;
-  try {
-    if (typeof Updates.checkForUpdateAsync !== "function") return;
-    await Updates.checkForUpdateAsync();
-  } catch {
-    // ignore — offline or updates disabled
-  }
+/** Abort fetch and continue on cached bundle if download stalls. */
+export const OTA_FETCH_TIMEOUT_MS = 20000;
+
+export type OtaApplyResult = "no-update" | "reloaded" | "failed";
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isUpdatesAvailable(): boolean {
+  return (
+    !__DEV__ &&
+    typeof Updates.checkForUpdateAsync === "function" &&
+    typeof Updates.fetchUpdateAsync === "function" &&
+    typeof Updates.reloadAsync === "function"
+  );
 }
 
 /**
- * Authoritative check + download + reload. Call only after {@link OTA_HOME_STABLE_DELAY_MS} on Home.
- * Invokes `onDownloadStart` right before `fetchUpdateAsync` (show "Updating...").
+ * Check for an OTA update. When one exists, invoke `onSplashStart`, download in parallel
+ * with the branded splash minimum duration, then reload to apply.
  */
-export async function checkFetchAndReloadOta(
-  onDownloadStart: () => void
-): Promise<void> {
-  if (__DEV__) return;
+export async function applyOtaUpdateWithSplash(callbacks: {
+  onSplashStart: () => void;
+  onSplashEnd?: () => void;
+}): Promise<OtaApplyResult> {
+  if (!isUpdatesAvailable()) {
+    return "no-update";
+  }
+
   try {
-    if (typeof Updates.checkForUpdateAsync !== "function") return;
     const update = await Updates.checkForUpdateAsync();
-    if (!update.isAvailable) return;
-    onDownloadStart();
-    if (typeof Updates.fetchUpdateAsync === "function") {
-      await Updates.fetchUpdateAsync();
+    if (!update.isAvailable) {
+      return "no-update";
     }
-    if (typeof Updates.reloadAsync === "function") {
-      await Updates.reloadAsync();
-    }
+
+    callbacks.onSplashStart();
+
+    const fetchWithTimeout = Promise.race([
+      Updates.fetchUpdateAsync(),
+      wait(OTA_FETCH_TIMEOUT_MS).then(() =>
+        Promise.reject(new Error("ota-fetch-timeout")),
+      ),
+    ]);
+
+    await Promise.all([fetchWithTimeout, wait(OTA_SPLASH_MIN_DURATION_MS)]);
+    await Updates.reloadAsync();
+    return "reloaded";
   } catch {
-    throw new Error("ota-apply-failed");
+    callbacks.onSplashEnd?.();
+    return "failed";
   }
 }

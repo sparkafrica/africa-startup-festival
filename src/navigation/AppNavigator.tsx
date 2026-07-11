@@ -1,10 +1,11 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { HomeDirectorySkeleton } from "../components/Skeleton";
 import AuthNavigator from "./AuthNavigator";
 import MainNavigator from "./MainNavigator";
 import BootsplashScreen from "../screens/BootsplashScreen";
+import { applyOtaUpdateWithSplash } from "../utils/otaUpdateFlow";
 
 /**
  * AppNavigator - Main navigation router
@@ -13,10 +14,8 @@ import BootsplashScreen from "../screens/BootsplashScreen";
  * - AuthNavigator (Login, VerificationCode, Welcome, Profile) if user is not authenticated
  * - MainNavigator (all app screens) if user is authenticated and profile completed
  *
- * Flow:
- * 1. First-time users → Login (email) → VerificationCode → Welcome (tickets) → Profile Completion → Bootsplash → Main App
- * 2. Returning users → Check auth state → Login if needed → Bootsplash → Main App
- * 3. Authenticated users → Direct to Main App
+ * OTA: on main-app entry, check for a JS update; if available, Bootsplash runs while
+ * the bundle downloads, then the app reloads. Branded bootsplash still runs after login.
  */
 export default function AppNavigator() {
   const {
@@ -27,8 +26,35 @@ export default function AppNavigator() {
     dismissBootsplash,
   } = useAuth();
 
+  const [otaApplying, setOtaApplying] = useState(false);
+
   const authNavigator = useMemo(() => <AuthNavigator />, []);
   const mainNavigator = useMemo(() => <MainNavigator />, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || !hasCompletedProfile || isLoading) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void applyOtaUpdateWithSplash({
+      onSplashStart: () => {
+        if (!cancelled) {
+          setOtaApplying(true);
+        }
+      },
+      onSplashEnd: () => {
+        if (!cancelled) {
+          setOtaApplying(false);
+        }
+      },
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, hasCompletedProfile, isLoading]);
 
   if (isLoading) {
     return (
@@ -39,11 +65,15 @@ export default function AppNavigator() {
   }
 
   if (isAuthenticated && hasCompletedProfile) {
+    const splashVisible = showBootsplash || otaApplying;
+    const brandedOnly = showBootsplash && !otaApplying;
+
     return (
       <>
         {mainNavigator}
         <BootsplashScreen
-          visible={showBootsplash}
+          visible={splashVisible}
+          autoComplete={brandedOnly}
           onComplete={dismissBootsplash}
         />
       </>

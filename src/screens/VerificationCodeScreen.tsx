@@ -20,7 +20,6 @@ import type {
 import { useAuth } from "../context/AuthContext";
 import { LoadingSpinner } from "../components";
 import { logError, ERROR_TAGS } from "../utils/logError";
-import { runEarlyOtaCheckOnly } from "../utils/otaUpdateFlow";
 import Svg, { Path, Rect } from "react-native-svg";
 
 const OTP_SUCCESS_TO_BOOTSPLASH_MS = 1250;
@@ -73,7 +72,6 @@ export default function VerificationCodeScreen() {
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    void runEarlyOtaCheckOnly();
     return () => {
       if (transitionTimeoutRef.current) {
         clearTimeout(transitionTimeoutRef.current);

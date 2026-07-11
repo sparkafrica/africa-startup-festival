@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./types";
 
@@ -26,8 +26,6 @@ import TalentBoardScreen from "../screens/TalentBoardScreen";
 import PartnersOffersScreen from "../screens/PartnersOffersScreen";
 import AppGuideScreen from "../screens/AppGuideScreen";
 import TagPickupScreen from "../screens/TagPickupScreen";
-import { runEarlyOtaCheckOnly } from "../utils/otaUpdateFlow";
-
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const FADE = { animation: "fade" as const };
@@ -38,11 +36,6 @@ const MODAL_BOTTOM = {
 };
 
 export default function MainNavigator() {
-  // Returning users skip Verification — same early OTA check here (check only; fetch/reload on Home after delay).
-  useEffect(() => {
-    void runEarlyOtaCheckOnly();
-  }, []);
-
   return (
     <Stack.Navigator
       initialRouteName="Home"

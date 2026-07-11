@@ -22,7 +22,7 @@ const variantStyles = {
     iconColor: "#000000",
     cardBorder: "",
     cardPatternOpacity: 0.2,
-    buttonPatternOpacity: 0.2,
+    buttonPatternOpacity: 0,
   },
   white: {
     title: "text-black",
@@ -32,7 +32,7 @@ const variantStyles = {
     iconColor: "#FFFFFF",
     cardBorder: "border border-neutral-200",
     cardPatternOpacity: 0.1,
-    buttonPatternOpacity: 0.5,
+    buttonPatternOpacity: 0,
   },
 };
 

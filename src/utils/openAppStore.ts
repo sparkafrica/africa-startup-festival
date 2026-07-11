@@ -5,7 +5,7 @@
 import { Linking, Platform, Alert } from "react-native";
 import Constants from "expo-constants";
 
-const ANDROID_PACKAGE = "com.sparkllc.mobile";
+const ANDROID_PACKAGE = "com.sparkllc.asf";
 
 function getIosAppStoreId(): string {
   const extra = Constants.expoConfig?.extra as

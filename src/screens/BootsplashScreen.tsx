@@ -24,14 +24,20 @@ const logotypeBlk = require("../assets/images/ASF-Logotype-BLK.png");
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const LOGO_WIDTH = Math.min(SCREEN_WIDTH * 0.78, 320);
 
+/** Branded intro length before fade-out (ms). Kept in sync with OTA_SPLASH_MIN_DURATION_MS. */
+export const BOOTSPLASH_ANIMATION_DURATION_MS = 3500;
+
 interface BootsplashScreenProps {
   visible: boolean;
   onComplete: () => void;
+  /** When false (OTA apply), animation plays and holds — parent calls reloadAsync. Default true. */
+  autoComplete?: boolean;
 }
 
 export default function BootsplashScreen({
   visible,
   onComplete,
+  autoComplete = true,
 }: BootsplashScreenProps) {
   const patternOpacity = useSharedValue(0);
   const patternScale = useSharedValue(1.08);
@@ -85,19 +91,22 @@ export default function BootsplashScreen({
       withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }),
     );
 
-    sceneOpacity.value = withDelay(
-      3000,
-      withSequence(
-        withTiming(0, { duration: 500, easing: Easing.in(Easing.cubic) }),
-        withTiming(0, { duration: 0 }, (finished) => {
-          if (finished) {
-            runOnJS(onComplete)();
-          }
-        }),
-      ),
-    );
+    if (autoComplete) {
+      sceneOpacity.value = withDelay(
+        3000,
+        withSequence(
+          withTiming(0, { duration: 500, easing: Easing.in(Easing.cubic) }),
+          withTiming(0, { duration: 0 }, (finished) => {
+            if (finished) {
+              runOnJS(onComplete)();
+            }
+          }),
+        ),
+      );
+    }
   }, [
     visible,
+    autoComplete,
     patternOpacity,
     patternScale,
     whiteLogoOpacity,
@@ -138,7 +147,7 @@ export default function BootsplashScreen({
       animationType="none"
       transparent={false}
       statusBarTranslucent
-      onRequestClose={onComplete}
+      onRequestClose={autoComplete ? onComplete : undefined}
     >
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
       <View style={styles.container}>
