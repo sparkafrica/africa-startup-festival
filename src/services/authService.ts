@@ -79,7 +79,16 @@ export interface Company {
   company_type?: string;
   admin_user?: string | null; // User ID of the company admin
   event_id?: number; // Event ID associated with the company
-  // Add other fields as needed based on Company schema
+  /** Spark EMS Founder[] on company retrieve */
+  founders?: Array<{
+    id?: number;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    job_title?: string | null;
+    linkedin?: string | null;
+    profile_pic?: string | null;
+  }>;
 }
 
 /**

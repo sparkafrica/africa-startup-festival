@@ -1090,7 +1090,7 @@ export default function AttendeesScreen() {
     useChecklist();
   const { user } = useAuth();
   const { getOrCreateConversation } = useChat();
-  const [activeTab, setActiveTab] = useState<"Recommended" | "All">("All");
+  const [activeTab, setActiveTab] = useState<"Your Matches" | "All">("All");
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [showViewDropdown, setShowViewDropdown] = useState(false);
   const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(
@@ -1785,7 +1785,7 @@ export default function AttendeesScreen() {
 
   // Get displayed attendees based on active tab
   let displayedAttendees =
-    activeTab === "Recommended" ? recommendedAttendees : filteredAttendees;
+    activeTab === "Your Matches" ? recommendedAttendees : filteredAttendees;
 
   // Apply ASF role filter (startup / investor / all)
   displayedAttendees = displayedAttendees.filter((a) =>
@@ -2241,7 +2241,6 @@ export default function AttendeesScreen() {
               [
                 { id: "all", label: "All" },
                 { id: "startup", label: "Startups" },
-                { id: "investor", label: "Investors" },
               ] as const
             ).map((chip) => {
               const active = roleFilter === chip.id;
@@ -2268,7 +2267,7 @@ export default function AttendeesScreen() {
           </View>
         </View>
 
-        {/* Tabs: All attendees (left, default) and Recommended (right) */}
+        {/* Tabs: All attendees (left, default) and Your Matches (right) */}
         <View className="px-4 pt-2 pb-3">
           <View className="flex-row border border-neutral-200 rounded-2xl bg-neutral-100">
             <Pressable
@@ -2297,12 +2296,12 @@ export default function AttendeesScreen() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => setActiveTab("Recommended")}
+              onPress={() => setActiveTab("Your Matches")}
               className={`flex-1 py-3 px-4 rounded-2xl ${
-                activeTab === "Recommended" ? "bg-white" : "bg-neutral-100"
+                activeTab === "Your Matches" ? "bg-white" : "bg-neutral-100"
               }`}
               style={
-                activeTab === "Recommended"
+                activeTab === "Your Matches"
                   ? {
                       shadowColor: "#000",
                       shadowOffset: { width: 0, height: 1 },
@@ -2315,12 +2314,12 @@ export default function AttendeesScreen() {
             >
               <Text
                 className={`text-sm font-semibold text-center ${
-                  activeTab === "Recommended"
+                  activeTab === "Your Matches"
                     ? "text-neutral-900"
                     : "text-neutral-400"
                 }`}
               >
-                Recommended
+                Your Matches
               </Text>
             </Pressable>
           </View>

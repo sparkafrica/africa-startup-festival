@@ -20,7 +20,7 @@ import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef, hasHomeScreen } from "../navigation/navigationRef";
 import { useAuth } from "../context/AuthContext";
-import { authService, type UserProfile } from "../services/authService";
+import { authService, type UserProfile, readImageAsBase64 } from "../services/authService";
 import { companyService } from "../services/companyService";
 import { EVENT_ID } from "../config/env";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
@@ -38,6 +38,16 @@ import { useToast } from "../hooks/useToast";
 import { trackProfileEvent } from "../utils/analytics";
 import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
+import {
+  GROWTH_STAGE_OPTIONS,
+  growthStageIdFromLabel,
+  growthStageLabelFromId,
+} from "../constants/startupGrowthStages";
+import {
+  foundersToFormEntries,
+  buildFounderSavePayloads,
+  type FounderFormEntry,
+} from "../utils/founderUtils";
 import {
   IndustriesToMeetField,
   IndustriesToMeetModal,
@@ -586,6 +596,85 @@ function IndustryDropdownModal({
   );
 }
 
+function GrowthStageDropdownModal({
+  visible,
+  onClose,
+  selectedGrowthStage,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  selectedGrowthStage: string;
+  onSelect: (growthStageId: string) => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable className="flex-1 bg-black/50" onPress={onClose}>
+        <Pressable
+          className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[70%]"
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 10,
+          }}
+        >
+          <View className="items-center pt-2 pb-2">
+            <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
+          </View>
+          <View className="px-6 pb-6">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-[24px] font-bold text-black">
+                Current growth stage
+              </Text>
+              <Pressable
+                onPress={onClose}
+                className="w-8 h-8 items-center justify-center"
+              >
+                <CloseIcon size={20} color="#000000" />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator className="max-h-[400px]">
+              {GROWTH_STAGE_OPTIONS.map((option) => {
+                const isSelected = selectedGrowthStage === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => {
+                      onSelect(option.id);
+                      onClose();
+                    }}
+                    className={`py-4 px-4 rounded-xl mb-2 ${
+                      isSelected ? "bg-neutral-200" : "bg-white"
+                    }`}
+                  >
+                    <Text
+                      className={`text-base ${
+                        isSelected
+                          ? "font-semibold text-black"
+                          : "font-medium text-neutral-700"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function CountryDropdownModal({
   visible,
   onClose,
@@ -815,6 +904,8 @@ function PersonalProfileSection({
   initialProfile = null,
   onSave,
   saveTrigger,
+  isSubmitting,
+  setIsSubmitting,
   onRefresh,
   refreshing,
   onProfilePhotoRequirementMet,
@@ -825,6 +916,8 @@ function PersonalProfileSection({
   initialProfile?: UserProfile | null;
   onSave?: () => void;
   saveTrigger?: number;
+  isSubmitting?: boolean;
+  setIsSubmitting?: (value: boolean) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
   /** Report whether mandatory profile photo requirement is satisfied (for Save CTA disabled state). */
@@ -1098,6 +1191,7 @@ function PersonalProfileSection({
       return false;
     }
 
+    if (setIsSubmitting) setIsSubmitting(true);
     try {
       let photoUpdateFailed = false;
 
@@ -1197,6 +1291,10 @@ function PersonalProfileSection({
       if (onSave) {
         await onSave();
       }
+      if (setIsSubmitting) setIsSubmitting(false);
+      if (hasHomeScreen()) {
+        navigateRef("Home");
+      }
       return true;
     } catch (error: any) {
       console.error("Error saving profile:", error);
@@ -1220,6 +1318,7 @@ function PersonalProfileSection({
           "error"
         );
       }
+      if (setIsSubmitting) setIsSubmitting(false);
       return false;
     }
   };
@@ -2576,6 +2675,10 @@ function CompanyProfileSection({
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
   const [showCountryModal, setShowCountryModal] = useState(false);
+  const [selectedGrowthStage, setSelectedGrowthStage] = useState("seed");
+  const [showGrowthStageModal, setShowGrowthStageModal] = useState(false);
+  const [yearFounded, setYearFounded] = useState("");
+  const [founders, setFounders] = useState<FounderFormEntry[]>([]);
   const [offers, setOffers] = useState<
     Array<{ id: string | number; title: string; color: string; link: string }>
   >([]);
@@ -2683,6 +2786,19 @@ function CompanyProfileSection({
     if (typeof meta.problem === "string") setProblem(meta.problem);
     if (typeof meta.solution === "string") setSolution(meta.solution);
     if (typeof meta.pitch_deck_url === "string") setPitchDeckUrl(meta.pitch_deck_url);
+    if (typeof meta.growth_stage === "string" && meta.growth_stage.trim()) {
+      const stageId = growthStageIdFromLabel(meta.growth_stage);
+      if (stageId) setSelectedGrowthStage(stageId);
+    }
+    if (meta.year_founded != null && String(meta.year_founded).trim()) {
+      setYearFounded(String(meta.year_founded).trim());
+    }
+    setFounders(
+      foundersToFormEntries({
+        founders: c.founders,
+        metadata: meta,
+      }),
+    );
     const sl = meta.socialLinks as Record<string, string> | undefined;
     if (sl && typeof sl === "object") {
       if (sl.linkedin) setLinkedIn(sl.linkedin);
@@ -2736,6 +2852,8 @@ function CompanyProfileSection({
   const selectedIndustryLabel =
     INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
     "Technology";
+  const selectedGrowthStageLabel =
+    growthStageLabelFromId(selectedGrowthStage) || "Seed";
   const selectedCountryData =
     COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry) ||
     COUNTRY_OPTIONS[0];
@@ -2807,6 +2925,38 @@ function CompanyProfileSection({
 
   const removePosition = (id: string) => {
     setPositions(positions.filter((p) => p.id !== id));
+  };
+
+  const pickFounderPhoto = async (founderId: string) => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Photo library permission is required to add founder photos.",
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]?.uri) {
+        setFounders((prev) =>
+          prev.map((f) =>
+            f.id === founderId
+              ? { ...f, imageUri: result.assets[0].uri }
+              : f,
+          ),
+        );
+      }
+    } catch (error) {
+      console.error("Error picking founder photo:", error);
+      showToast("Failed to pick photo. Please try again.", "error");
+    }
   };
 
   // Image Picker Handlers
@@ -3008,10 +3158,42 @@ function CompanyProfileSection({
         if (problem.trim()) metadata.problem = problem.trim();
         if (solution.trim()) metadata.solution = solution.trim();
         if (pitchDeckUrl.trim()) metadata.pitch_deck_url = pitchDeckUrl.trim();
+        metadata.growth_stage = selectedGrowthStageLabel;
+        // Year founded is set at create and not editable — always preserve if present.
+        if (yearFounded.trim()) metadata.year_founded = yearFounded.trim();
       }
       if (Object.keys(socialLinksObj).length > 0) {
         metadata.socialLinks = socialLinksObj;
       }
+
+      let founderApiPayload:
+        | Array<{
+            first_name: string;
+            last_name: string;
+            email: string;
+            job_title?: string;
+            linkedin?: string;
+          }>
+        | undefined;
+
+      if (showStartupFields) {
+        const {
+          metadataFounders,
+          apiFounders,
+          validationError: founderError,
+        } = await buildFounderSavePayloads(founders, readImageAsBase64);
+        if (founderError) {
+          Alert.alert("Validation Error", founderError);
+          if (setIsSubmitting) setIsSubmitting(false);
+          return false;
+        }
+        // Always persist founders (incl. photos) in metadata for reliable public display.
+        metadata.founders = metadataFounders;
+        if (apiFounders.length > 0) {
+          founderApiPayload = apiFounders;
+        }
+      }
+
       Object.keys(metadata).forEach((key) => {
         if (metadata[key] === undefined) delete metadata[key];
       });
@@ -3022,12 +3204,14 @@ function CompanyProfileSection({
         country: countryLabel,
         company_description: companyDescription.trim() || null,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+        ...(founderApiPayload && founderApiPayload.length > 0
+          ? { founders: founderApiPayload }
+          : {}),
       };
       Object.keys(companyData).forEach((key) => {
         if (companyData[key] === undefined) delete companyData[key];
       });
 
-      let logoUpdateFailed = false;
       setIsUploadingImage(true);
       try {
         const replacingAfterRemove =
@@ -3056,21 +3240,19 @@ function CompanyProfileSection({
           setShouldRemovePhoto(false);
         }
         removedCompanyLogoPendingReplaceRef.current = false;
-      } catch (imageError: any) {
+      } catch (saveError: any) {
         showToast(
-          imageError.message || "Failed to save company profile. Please try again.",
+          saveError.message || "Failed to save company profile. Please try again.",
           "error"
         );
-        logoUpdateFailed = true;
+        if (setIsSubmitting) setIsSubmitting(false);
+        setIsUploadingImage(false);
+        return false;
       } finally {
         setIsUploadingImage(false);
       }
 
-      if (logoUpdateFailed) {
-        showToast("Company profile saved. Logo could not be updated.", "warning");
-      } else {
-        showToast("Company profile saved successfully!", "success");
-      }
+      showToast("Company profile saved successfully!", "success");
 
       void trackProfileEvent("updated", {
         source: "profile_screen",
@@ -3083,6 +3265,11 @@ function CompanyProfileSection({
 
       setSelectedImageUri(null);
       if (setIsSubmitting) setIsSubmitting(false);
+
+      // After manage-profile save in the main app, land on Home (not stay on Profile).
+      if (hasHomeScreen()) {
+        navigateRef("Home");
+      }
       return true;
     } catch (error: any) {
       console.error("Error saving company profile:", error);
@@ -3332,6 +3519,39 @@ function CompanyProfileSection({
               </Pressable>
             </View>
 
+            {showStartupFields ? (
+              <>
+                <View className="mb-4">
+                  <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+                    Current growth stage
+                  </Text>
+                  <Pressable
+                    onPress={() => setShowGrowthStageModal(true)}
+                    className="bg-white border border-neutral-300 rounded-xl px-4 py-3 flex-row items-center justify-between"
+                  >
+                    <Text className="text-base text-black">
+                      {selectedGrowthStageLabel}
+                    </Text>
+                    <ChevronDownIcon size={20} color="#404040" />
+                  </Pressable>
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+                    Year founded
+                  </Text>
+                  <View className="bg-neutral-100 border border-neutral-300 rounded-xl px-4 py-3">
+                    <Text className="text-base text-neutral-700">
+                      {yearFounded || "Not set"}
+                    </Text>
+                  </View>
+                  <Text className="text-xs text-neutral-500 mt-1">
+                    Set when the startup was created and cannot be changed here.
+                  </Text>
+                </View>
+              </>
+            ) : null}
+
             {/* Company Description */}
             <View className="mb-4">
               <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
@@ -3443,6 +3663,148 @@ function CompanyProfileSection({
                     placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
                     autoCapitalize="none"
                   />
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
+                    Founders
+                  </Text>
+                  <Text className="text-xs text-neutral-500 mb-3 leading-4">
+                    Photo, name, role, email, and LinkedIn for each founder.
+                  </Text>
+                  {founders.map((founder, index) => {
+                    const photoUri = founder.imageUri || founder.imageUrl;
+                    return (
+                      <View
+                        key={founder.id}
+                        className="mb-3 p-4 bg-white border border-neutral-200 rounded-xl"
+                      >
+                        <View className="flex-row items-center justify-between mb-3">
+                          <Text className="text-sm font-medium text-neutral-700">
+                            Founder {index + 1}
+                          </Text>
+                          {founders.length > 1 ? (
+                            <Pressable
+                              onPress={() =>
+                                setFounders((prev) =>
+                                  prev.filter((f) => f.id !== founder.id),
+                                )
+                              }
+                              hitSlop={8}
+                            >
+                              <Text className="text-xs font-medium text-red-600">
+                                Remove
+                              </Text>
+                            </Pressable>
+                          ) : null}
+                        </View>
+                        <Pressable
+                          onPress={() => void pickFounderPhoto(founder.id)}
+                          className="mb-3 w-20 h-20 rounded-full border border-neutral-300 bg-neutral-50 items-center justify-center overflow-hidden"
+                        >
+                          {photoUri ? (
+                            <Image
+                              source={{ uri: photoUri }}
+                              className="w-full h-full"
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Text className="text-[10px] text-neutral-500 text-center px-1">
+                              Add photo
+                            </Text>
+                          )}
+                        </Pressable>
+                        <Text className="text-xs font-medium text-neutral-600 mb-1">
+                          Name
+                        </Text>
+                        <TextInput
+                          className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                          value={founder.name}
+                          onChangeText={(v) =>
+                            setFounders((prev) =>
+                              prev.map((f) =>
+                                f.id === founder.id ? { ...f, name: v } : f,
+                              ),
+                            )
+                          }
+                          placeholder="Full name"
+                          placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                        />
+                        <Text className="text-xs font-medium text-neutral-600 mb-1">
+                          Role
+                        </Text>
+                        <TextInput
+                          className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                          value={founder.role}
+                          onChangeText={(v) =>
+                            setFounders((prev) =>
+                              prev.map((f) =>
+                                f.id === founder.id ? { ...f, role: v } : f,
+                              ),
+                            )
+                          }
+                          placeholder="e.g. CEO, Co-founder"
+                          placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                        />
+                        <Text className="text-xs font-medium text-neutral-600 mb-1">
+                          Email
+                        </Text>
+                        <TextInput
+                          className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                          value={founder.email}
+                          onChangeText={(v) =>
+                            setFounders((prev) =>
+                              prev.map((f) =>
+                                f.id === founder.id ? { ...f, email: v } : f,
+                              ),
+                            )
+                          }
+                          placeholder="founder@startup.com"
+                          placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                          autoCapitalize="none"
+                          keyboardType="email-address"
+                        />
+                        <Text className="text-xs font-medium text-neutral-600 mb-1">
+                          LinkedIn
+                        </Text>
+                        <TextInput
+                          className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                          value={founder.linkedIn}
+                          onChangeText={(v) =>
+                            setFounders((prev) =>
+                              prev.map((f) =>
+                                f.id === founder.id ? { ...f, linkedIn: v } : f,
+                              ),
+                            )
+                          }
+                          placeholder="https://linkedin.com/in/..."
+                          placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                          autoCapitalize="none"
+                        />
+                      </View>
+                    );
+                  })}
+                  <Pressable
+                    onPress={() =>
+                      setFounders((prev) => [
+                        ...prev,
+                        {
+                          id: `founder-${Date.now()}`,
+                          name: "",
+                          role: "",
+                          email: "",
+                          linkedIn: "",
+                          imageUri: null,
+                          imageUrl: null,
+                        },
+                      ])
+                    }
+                    className="py-2"
+                  >
+                    <Text className="text-sm font-semibold text-black">
+                      + Add founder
+                    </Text>
+                  </Pressable>
                 </View>
               </>
             ) : null}
@@ -3671,6 +4033,12 @@ function CompanyProfileSection({
         selectedIndustry={selectedIndustry}
         onSelect={setSelectedIndustry}
       />
+      <GrowthStageDropdownModal
+        visible={showGrowthStageModal}
+        onClose={() => setShowGrowthStageModal(false)}
+        selectedGrowthStage={selectedGrowthStage}
+        onSelect={setSelectedGrowthStage}
+      />
       <CountryDropdownModal
         visible={showCountryModal}
         onClose={() => setShowCountryModal(false)}
@@ -3756,6 +4124,7 @@ export default function ProfileScreen() {
   const [companySaveTrigger, setCompanySaveTrigger] = useState(0);
   const [attendeeSaveTrigger, setAttendeeSaveTrigger] = useState(0);
   const [companyIsSubmitting, setCompanyIsSubmitting] = useState(false);
+  const [personalIsSubmitting, setPersonalIsSubmitting] = useState(false);
   const [attendeeIsSubmitting, setAttendeeIsSubmitting] = useState(false);
   /** Updated by profile sections via effect — drives Save disabled state (primary guard). */
   const [personalPhotoReady, setPersonalPhotoReady] = useState(false);
@@ -3852,6 +4221,8 @@ export default function ProfileScreen() {
                 initialProfile={profile}
                 saveTrigger={personalSaveTrigger}
                 onSave={completeProfile}
+                isSubmitting={personalIsSubmitting}
+                setIsSubmitting={setPersonalIsSubmitting}
                 onRefresh={onRefresh}
                 refreshing={refreshing}
                 onProfilePhotoRequirementMet={onPersonalPhotoRequirementMet}
@@ -3892,7 +4263,7 @@ export default function ProfileScreen() {
                   paddingVertical: 12,
                   opacity:
                     activeTab === "Personal"
-                      ? !personalPhotoReady
+                      ? personalIsSubmitting || !personalPhotoReady
                         ? 0.6
                         : 1
                       : companyIsSubmitting || !companyLogoReady
@@ -3906,15 +4277,19 @@ export default function ProfileScreen() {
                 }
                 disabled={
                   activeTab === "Personal"
-                    ? !personalPhotoReady
+                    ? personalIsSubmitting || !personalPhotoReady
                     : companyIsSubmitting || !companyLogoReady
                 }
               >
-                {activeTab === "Company" && companyIsSubmitting && (
+                {((activeTab === "Personal" && personalIsSubmitting) ||
+                  (activeTab === "Company" && companyIsSubmitting)) && (
                   <LoadingSpinner size="small" color="#FFFFFF" />
                 )}
                 <Text className="text-white pb-2 text-base font-semibold">
-                  Save Changes
+                  {((activeTab === "Personal" && personalIsSubmitting) ||
+                  (activeTab === "Company" && companyIsSubmitting))
+                    ? "Saving…"
+                    : "Save Changes"}
                 </Text>
               </Pressable>
             </View>

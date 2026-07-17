@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback, Component } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  Component,
+} from "react";
 import {
   View,
   ScrollView,
@@ -33,6 +39,7 @@ import {
   type MeetingFormData,
 } from "../components";
 import { useChecklist } from "../context/ChecklistContext";
+import { useAuth } from "../context/AuthContext";
 import { meetingService } from "../services/meetingService";
 import { eventService, type Company } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
@@ -43,6 +50,7 @@ import {
   showExpoCannotBookMeetingAlert,
 } from "../utils/meetingRestrictions";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
+import { normalizeFoundersForDisplay } from "../utils/founderUtils";
 import { trackMeetingEvent } from "../utils/analytics";
 
 // ============================================
@@ -66,24 +74,50 @@ type CompanyUIData = {
   websiteUrl: string;
   industry: string;
   country: string;
+  growthStage: string;
+  yearFounded: string;
   description: string;
   problem: string;
   solution: string;
   pitchDeckUrl: string;
   companyType: string;
   eventOffers: { id: string; title: string; color: string; link?: string }[];
-  socialLinks: { id: string; platform: string; handle: string; url: string; icon: any; color: string }[];
+  socialLinks: {
+    id: string;
+    platform: string;
+    handle: string;
+    url: string;
+    icon: any;
+    color: string;
+  }[];
   teamMembers: { id: string; name: string }[];
+  founders: {
+    id: string;
+    name: string;
+    role: string;
+    linkedInUrl: string;
+    imageUrl: string | null;
+  }[];
   openPositions: { id: string; title: string; link?: string }[];
 };
 
-const COLORS = ["#2762C7", "#1E40AF", "#3B82F6", "#9333EA", "#22C55E", "#E91E63", "#FFC107", "#DC2626"];
+const COLORS = [
+  "#2762C7",
+  "#1E40AF",
+  "#3B82F6",
+  "#9333EA",
+  "#22C55E",
+  "#E91E63",
+  "#FFC107",
+  "#DC2626",
+];
 const OFFER_COLORS = ["#6B21A8", "#22C55E", "#3B82F6", "#E91E63"];
 
 function ensureHttps(url: string): string {
   if (!url || typeof url !== "string") return "";
   const trimmed = url.trim();
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://"))
+    return trimmed;
   return `https://${trimmed}`;
 }
 
@@ -102,13 +136,24 @@ function buildSocialUrl(platform: string, handle: string): string {
 }
 
 // Map Company (from GET /directory/{event_id}/{company_type}/{company_pk}/) to UI data
-function mapCompanyToUIData(company: Company | null | undefined): CompanyUIData {
+function mapCompanyToUIData(
+  company: Company | null | undefined,
+): CompanyUIData {
   if (!company || typeof company !== "object") {
     return { ...DEFAULT_COMPANY_DATA };
   }
   const name = company.name || "Company";
   const logoColor = COLORS[(name?.length || 0) % COLORS.length];
-  const meta = company.metadata || {};
+  let meta: Record<string, any> = {};
+  if (company.metadata && typeof company.metadata === "object") {
+    meta = company.metadata;
+  } else if (typeof company.metadata === "string") {
+    try {
+      meta = JSON.parse(company.metadata) as Record<string, any>;
+    } catch {
+      meta = {};
+    }
+  }
   const websiteRaw = meta.website ?? meta.company_website ?? "—";
   const websiteUrl = websiteRaw !== "—" ? ensureHttps(String(websiteRaw)) : "";
 
@@ -162,16 +207,31 @@ function mapCompanyToUIData(company: Company | null | undefined): CompanyUIData 
   const membersRaw = Array.isArray(company.members) ? company.members : [];
   const teamMembers = membersRaw.map((m: any, i: number) => ({
     id: String(m?.id ?? i),
-    name: `${m?.first_name ?? ""} ${m?.last_name ?? ""}`.trim() || "Team Member",
+    name:
+      `${m?.first_name ?? ""} ${m?.last_name ?? ""}`.trim() || "Team Member",
   }));
-  const positionsRaw = Array.isArray(meta.open_positions) ? meta.open_positions : Array.isArray(meta.positions) ? meta.positions : [];
+  const founders = normalizeFoundersForDisplay({
+    founders: company.founders,
+    metadata: meta,
+  });
+  const positionsRaw = Array.isArray(meta.open_positions)
+    ? meta.open_positions
+    : Array.isArray(meta.positions)
+      ? meta.positions
+      : [];
   const openPositions = positionsRaw.map((p: any, i: number) => ({
     id: String(p?.id ?? i),
     title: (p?.title ?? p?.role ?? "Position").toString().trim() || "Position",
     link: p?.link ? ensureHttps(String(p.link)) : undefined,
   }));
-  const boothValue = meta.booth ?? meta.boothNumber ?? (company as any).booth_info?.booth_number ?? "—";
-  const companyType = String(company.company_type ?? meta.company_type ?? "").toLowerCase();
+  const boothValue =
+    meta.booth ??
+    meta.boothNumber ??
+    (company as any).booth_info?.booth_number ??
+    "—";
+  const companyType = String(
+    company.company_type ?? meta.company_type ?? "",
+  ).toLowerCase();
   const problem =
     typeof meta.problem === "string" && meta.problem.trim()
       ? meta.problem.trim()
@@ -185,12 +245,25 @@ function mapCompanyToUIData(company: Company | null | undefined): CompanyUIData 
     typeof pitchDeckRaw === "string" && pitchDeckRaw.trim()
       ? ensureHttps(pitchDeckRaw.trim())
       : "";
+  const growthStage =
+    typeof meta.growth_stage === "string" && meta.growth_stage.trim()
+      ? meta.growth_stage.trim()
+      : "—";
+  const yearFoundedRaw = meta.year_founded;
+  const yearFounded =
+    yearFoundedRaw != null && String(yearFoundedRaw).trim()
+      ? String(yearFoundedRaw).trim()
+      : "—";
 
   let logo: { uri: string } | null = null;
   if (company.logo) {
     if (typeof company.logo === "string") {
       logo = { uri: company.logo };
-    } else if (typeof company.logo === "object" && company.logo !== null && "url" in company.logo) {
+    } else if (
+      typeof company.logo === "object" &&
+      company.logo !== null &&
+      "url" in company.logo
+    ) {
       const url = (company.logo as { url?: string }).url;
       if (typeof url === "string" && url) logo = { uri: url };
     }
@@ -205,16 +278,29 @@ function mapCompanyToUIData(company: Company | null | undefined): CompanyUIData 
     websiteUrl,
     industry: company.company_sector ?? "—",
     country: company.country ?? "—",
+    growthStage,
+    yearFounded,
     description: company.company_description ?? "",
     problem,
     solution,
     pitchDeckUrl,
     companyType,
     eventOffers: offers,
-    socialLinks: socialLinks.length > 0 ? socialLinks : [
-      { id: "linkedin", platform: "LinkedIn", handle: "Profile", url: "", icon: LinkedInIcon, color: "#0A66C2" },
-    ],
+    socialLinks:
+      socialLinks.length > 0
+        ? socialLinks
+        : [
+            {
+              id: "linkedin",
+              platform: "LinkedIn",
+              handle: "Profile",
+              url: "",
+              icon: LinkedInIcon,
+              color: "#0A66C2",
+            },
+          ],
     teamMembers,
+    founders,
     openPositions,
   };
 }
@@ -228,14 +314,26 @@ const DEFAULT_COMPANY_DATA: CompanyUIData = {
   websiteUrl: "",
   industry: "—",
   country: "—",
+  growthStage: "—",
+  yearFounded: "—",
   description: "No description available.",
   problem: "",
   solution: "",
   pitchDeckUrl: "",
   companyType: "",
   eventOffers: [],
-  socialLinks: [{ id: "linkedin", platform: "LinkedIn", handle: "Profile", url: "", icon: LinkedInIcon, color: "#0A66C2" }],
+  socialLinks: [
+    {
+      id: "linkedin",
+      platform: "LinkedIn",
+      handle: "Profile",
+      url: "",
+      icon: LinkedInIcon,
+      color: "#0A66C2",
+    },
+  ],
   teamMembers: [],
+  founders: [],
   openPositions: [],
 };
 
@@ -254,7 +352,11 @@ class CompanyDetailErrorBoundary extends Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     if (__DEV__) {
-      console.error("[CompanyDetail] Render error:", error, errorInfo.componentStack);
+      console.error(
+        "[CompanyDetail] Render error:",
+        error,
+        errorInfo.componentStack,
+      );
     }
   }
 
@@ -263,7 +365,9 @@ class CompanyDetailErrorBoundary extends Component<
       if (__DEV__) {
         return (
           <View style={{ flex: 1, justifyContent: "center", padding: 20 }}>
-            <Text style={{ color: "red", marginBottom: 8 }}>CompanyDetail crashed (dev only)</Text>
+            <Text style={{ color: "red", marginBottom: 8 }}>
+              CompanyDetail crashed (dev only)
+            </Text>
             <Text style={{ fontSize: 12 }}>{String(this.state.error)}</Text>
           </View>
         );
@@ -279,6 +383,7 @@ function CompanyDetailScreenInner({ route }: Props) {
   const { exhibitorId, type = "exhibitor", name: paramName } = route.params;
   const displayName = paramName || "Company";
   const { markRequestMeetingComplete } = useChecklist();
+  const { user } = useAuth();
 
   const [companyData, setCompanyData] = useState<CompanyUIData>(() => ({
     ...DEFAULT_COMPANY_DATA,
@@ -288,11 +393,16 @@ function CompanyDetailScreenInner({ route }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [adminUserId, setAdminUserId] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<number | null>(null);
+  const [isSubmittingMeeting, setIsSubmittingMeeting] = useState(false);
 
   const openUrl = useCallback(async (url: string) => {
     if (!url || !url.trim()) return;
     try {
-      const formatted = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
+      const formatted =
+        url.startsWith("http://") || url.startsWith("https://")
+          ? url
+          : `https://${url}`;
       const supported = await Linking.canOpenURL(formatted);
       if (supported) {
         await Linking.openURL(formatted);
@@ -313,21 +423,31 @@ function CompanyDetailScreenInner({ route }: Props) {
     if (isNaN(companyPk) || companyPk < 1) {
       setCompanyData((prev) => ({ ...prev, name: displayName }));
       setAdminUserId(null);
+      setCompanyId(null);
       setIsLoading(false);
       return;
     }
     setIsLoading(true);
     setLoadError(null);
     try {
-      const company = await eventService.getCompanyDetail(EVENT_ID, type, companyPk);
+      const company = await eventService.getCompanyDetail(
+        EVENT_ID,
+        type,
+        companyPk,
+      );
       const mapped = mapCompanyToUIData(company ?? null);
       setCompanyData(mapped);
       setAdminUserId((company as any)?.admin_user ?? null);
+      setCompanyId(company?.id ?? companyPk);
     } catch (err: any) {
-      const msg = err instanceof ApiClientError ? err.message : err?.message || "Failed to load company";
+      const msg =
+        err instanceof ApiClientError
+          ? err.message
+          : err?.message || "Failed to load company";
       setLoadError(msg);
       setCompanyData((prev) => ({ ...prev, name: displayName }));
       setAdminUserId(null);
+      setCompanyId(null);
     } finally {
       setIsLoading(false);
     }
@@ -414,9 +534,8 @@ function CompanyDetailScreenInner({ route }: Props) {
           });
         }
       },
-    })
+    }),
   ).current;
-
 
   return (
     <View style={styles.container} pointerEvents="box-none">
@@ -463,233 +582,333 @@ function CompanyDetailScreenInner({ route }: Props) {
 
           {/* Company Header */}
           <View className="px-4 mb-6" style={{ marginTop: 8 }}>
-          <View className="flex-row items-center mb-4">
-            {/* Logo — contain on tile; no inner fill so mark sits on page background */}
-            <View
-              className="w-16 h-16 rounded-xl items-center justify-center mr-3 overflow-hidden"
-              style={{
-                backgroundColor: companyData.logo
-                  ? "transparent"
-                  : companyData.logoColor,
-              }}
-            >
-              {companyData.logo ? (
-                <Image
-                  source={companyData.logo}
-                  style={{ width: 64, height: 64, borderRadius: 12 }}
-                  resizeMode="contain"
-                />
-              ) : (
-                <Text className="text-white font-bold text-2xl">
-                  {companyData.name.charAt(0)}
+            <View className="flex-row items-center mb-4">
+              {/* Logo — contain on tile; no inner fill so mark sits on page background */}
+              <View
+                className="w-16 h-16 rounded-xl items-center justify-center mr-3 overflow-hidden"
+                style={{
+                  backgroundColor: companyData.logo
+                    ? "transparent"
+                    : companyData.logoColor,
+                }}
+              >
+                {companyData.logo ? (
+                  <Image
+                    source={companyData.logo}
+                    style={{ width: 64, height: 64, borderRadius: 12 }}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Text className="text-white font-bold text-2xl">
+                    {companyData.name.charAt(0)}
+                  </Text>
+                )}
+              </View>
+
+              {/* Name and Booth */}
+              <View className="flex-1">
+                <Text className="text-2xl font-bold text-neutral-900 mb-1">
+                  {companyData.name}
                 </Text>
+                {companyData.companyType !== "startup" &&
+                companyData.booth &&
+                companyData.booth !== "—" ? (
+                  <Pressable className="flex-row items-center">
+                    <Text className="text-sm text-neutral-500 mr-1">
+                      Booth {companyData.booth}
+                    </Text>
+                    <ArrowUpRightIcon size={14} color="#A3A3A3" />
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+
+            {/* Tags - website + industry/country/growth/year pills */}
+            <View className="flex-row flex-wrap items-center gap-2 mb-4">
+              <Pressable
+                className="flex-row items-center px-3 py-1.5 bg-white border border-neutral-300 rounded-full"
+                onPress={() =>
+                  companyData.websiteUrl && openUrl(companyData.websiteUrl)
+                }
+              >
+                <GlobeIcon size={14} color="#000000" />
+                <Text
+                  className="text-xs text-neutral-900 ml-1.5"
+                  numberOfLines={1}
+                >
+                  {companyData.website}
+                </Text>
+              </Pressable>
+              {companyData.country !== "—" && (
+                <View className="flex-row items-center px-3 py-1.5 bg-green-50 border border-green-300 rounded-full">
+                  <Text className="text-xs text-green-700">
+                    {companyData.country}
+                  </Text>
+                </View>
+              )}
+              {companyData.growthStage !== "—" && (
+                <View className="flex-row items-center px-3 py-1.5 bg-neutral-100 border border-neutral-300 rounded-full">
+                  <Text className="text-xs text-neutral-800">
+                    {companyData.growthStage}
+                  </Text>
+                </View>
+              )}
+              {companyData.industry !== "—" && (
+                <View className="flex-row items-center px-3 py-1.5 bg-blue-50 border border-blue-300 rounded-full">
+                  <Text className="text-xs text-blue-700">
+                    {companyData.industry}
+                  </Text>
+                </View>
+              )}
+              {companyData.yearFounded !== "—" && (
+                <View className="flex-row items-center px-3 py-1.5 bg-amber-50 border border-amber-300 rounded-full">
+                  <Text className="text-xs text-amber-800">
+                    {companyData.yearFounded}
+                  </Text>
+                </View>
               )}
             </View>
 
-            {/* Name and Booth */}
-            <View className="flex-1">
-              <Text className="text-2xl font-bold text-neutral-900 mb-1">
-                {companyData.name}
-              </Text>
-              {companyData.companyType !== "startup" &&
-              companyData.booth &&
-              companyData.booth !== "—" ? (
-                <Pressable className="flex-row items-center">
-                  <Text className="text-sm text-neutral-500 mr-1">
-                    Booth {companyData.booth}
-                  </Text>
-                  <ArrowUpRightIcon size={14} color="#A3A3A3" />
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-
-          {/* Tags - website + industry/country pills, matches mock */}
-          <View className="flex-row flex-wrap items-center gap-2 mb-4">
-            <Pressable
-              className="flex-row items-center px-3 py-1.5 bg-white border border-neutral-300 rounded-full"
-              onPress={() => companyData.websiteUrl && openUrl(companyData.websiteUrl)}
-            >
-              <GlobeIcon size={14} color="#000000" />
-              <Text className="text-xs text-neutral-900 ml-1.5" numberOfLines={1}>
-                {companyData.website}
-              </Text>
-            </Pressable>
-            {companyData.industry !== "—" && (
-              <View className="flex-row items-center px-3 py-1.5 bg-blue-50 border border-blue-300 rounded-full">
-                <Text className="text-xs text-blue-700">{companyData.industry}</Text>
+            {/* Description */}
+            {companyData.problem ? (
+              <View className="mb-4">
+                <Text className="text-sm font-semibold text-neutral-900 mb-1">
+                  The problem
+                </Text>
+                <Text className="text-sm text-neutral-700 leading-5">
+                  {companyData.problem}
+                </Text>
               </View>
-            )}
-            {companyData.country !== "—" && (
-              <View className="flex-row items-center px-3 py-1.5 bg-green-50 border border-green-300 rounded-full">
-                <Text className="text-xs text-green-700">{companyData.country}</Text>
+            ) : null}
+            {companyData.solution ? (
+              <View className="mb-4">
+                <Text className="text-sm font-semibold text-neutral-900 mb-1">
+                  The solution
+                </Text>
+                <Text className="text-sm text-neutral-700 leading-5">
+                  {companyData.solution}
+                </Text>
               </View>
-            )}
-          </View>
+            ) : null}
+            {companyData.description ? (
+              <View className="mb-2">
+                <Text className="text-sm font-semibold text-neutral-900 mb-1">
+                  About us
+                </Text>
+                <Text className="text-sm text-neutral-700 leading-5">
+                  {companyData.description}
+                </Text>
+              </View>
+            ) : null}
+            {companyData.pitchDeckUrl ? (
+              <Pressable
+                className="mt-2 flex-row items-center"
+                onPress={() => openUrl(companyData.pitchDeckUrl)}
+              >
+                <Text className="text-sm font-medium text-blue-700">
+                  View pitch deck
+                </Text>
+                <ArrowUpRightIcon size={14} color="#1D4ED8" />
+              </Pressable>
+            ) : null}
 
-          {/* Description */}
-          {companyData.problem ? (
-            <View className="mb-4">
-              <Text className="text-sm font-semibold text-neutral-900 mb-1">
-                The problem
+          {companyData.founders.length > 0 ? (
+            <View className="mt-4 mb-2">
+              <Text className="text-sm font-semibold text-neutral-900 mb-3">
+                Founders
               </Text>
-              <Text className="text-sm text-neutral-700 leading-5">
-                {companyData.problem}
-              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingRight: 8 }}
+              >
+                {companyData.founders.map((founder) => (
+                  <Pressable
+                    key={founder.id}
+                    className="mr-3 w-36 rounded-2xl border border-neutral-200 bg-white p-3 items-center"
+                    onPress={() =>
+                      founder.linkedInUrl
+                        ? openUrl(founder.linkedInUrl)
+                        : undefined
+                    }
+                    style={{
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 3,
+                      elevation: 1,
+                    }}
+                  >
+                    {founder.imageUrl ? (
+                      <Image
+                        source={{ uri: founder.imageUrl }}
+                        className="w-16 h-16 rounded-full mb-2 bg-neutral-100"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View className="w-16 h-16 rounded-full mb-2 bg-neutral-200 items-center justify-center">
+                        <Text className="text-neutral-600 font-semibold text-xl">
+                          {founder.name.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <Text
+                      className="text-sm font-semibold text-neutral-900 text-center"
+                      numberOfLines={2}
+                    >
+                      {founder.name}
+                    </Text>
+                    {founder.role ? (
+                      <Text
+                        className="text-xs text-neutral-500 text-center mt-1"
+                        numberOfLines={2}
+                      >
+                        {founder.role}
+                      </Text>
+                    ) : null}
+                    {founder.linkedInUrl ? (
+                      <Text className="text-[11px] font-medium text-blue-700 mt-2">
+                        LinkedIn ↗
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </ScrollView>
             </View>
-          ) : null}
-          {companyData.solution ? (
-            <View className="mb-4">
-              <Text className="text-sm font-semibold text-neutral-900 mb-1">
-                The solution
-              </Text>
-              <Text className="text-sm text-neutral-700 leading-5">
-                {companyData.solution}
-              </Text>
-            </View>
-          ) : null}
-          {companyData.description ? (
-            <View className="mb-2">
-              <Text className="text-sm font-semibold text-neutral-900 mb-1">
-                About us
-              </Text>
-              <Text className="text-sm text-neutral-700 leading-5">
-                {companyData.description}
-              </Text>
-            </View>
-          ) : null}
-          {companyData.pitchDeckUrl ? (
-            <Pressable
-              className="mt-2 flex-row items-center"
-              onPress={() => openUrl(companyData.pitchDeckUrl)}
-            >
-              <Text className="text-sm font-medium text-blue-700">
-                View pitch deck
-              </Text>
-              <ArrowUpRightIcon size={14} color="#1D4ED8" />
-            </Pressable>
           ) : null}
         </View>
 
-        {/* Event Offers Section - 2 per row, title up to 2 lines then truncate with … */}
-        <View className="px-4 mb-6">
-          <Text className="text-sm font-light text-neutral-900 mb-3">
-            Event Offers
-          </Text>
-          {companyData.eventOffers.length === 0 ? (
-            <Text className="text-sm text-neutral-500 py-2">
-              No event offers at the moment.
+          {/* Event Offers Section - 2 per row, title up to 2 lines then truncate with … */}
+          <View className="px-4 mb-6">
+            <Text className="text-sm font-light text-neutral-900 mb-3">
+              Event Offers
             </Text>
-          ) : (
-            <View className="flex-row flex-wrap" style={{ marginHorizontal: -6 }}>
-              {companyData.eventOffers.map((offer) => (
-                <View key={offer.id} style={{ width: "50%", padding: 6 }}>
-                  <Pressable
-                    className="rounded-xl p-4"
-                    style={{
-                      backgroundColor: offer.color,
-                      minHeight: 120,
-                    }}
-                    onPress={() => offer.link && openUrl(offer.link)}
+            {companyData.eventOffers.length === 0 ? (
+              <Text className="text-sm text-neutral-500 py-2">
+                No event offers at the moment.
+              </Text>
+            ) : (
+              <View
+                className="flex-row flex-wrap"
+                style={{ marginHorizontal: -6 }}
+              >
+                {companyData.eventOffers.map((offer) => (
+                  <View key={offer.id} style={{ width: "50%", padding: 6 }}>
+                    <Pressable
+                      className="rounded-xl p-4"
+                      style={{
+                        backgroundColor: offer.color,
+                        minHeight: 120,
+                      }}
+                      onPress={() => offer.link && openUrl(offer.link)}
+                    >
+                      <Text
+                        className="text-white font-bold text-base mb-2"
+                        numberOfLines={2}
+                        ellipsizeMode="tail"
+                      >
+                        {(offer.title ?? "").trim() || "Offer"}
+                      </Text>
+                      <View className="flex-row items-center mt-auto">
+                        <Text className="text-white text-sm mr-1">Redeem</Text>
+                        <ArrowUpRightIcon size={14} color="#FFFFFF" />
+                      </View>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Social Links Section */}
+          <View className="px-4 mb-6">
+            <Text className="text-sm font-light text-neutral-900 mb-3">
+              Social Links
+            </Text>
+            <View className="flex-row flex-wrap justify-between">
+              {(() => {
+                // Split socialLinks into rows of 2
+                const rows = [];
+                const links = companyData.socialLinks;
+                for (let i = 0; i < links.length; i += 2) {
+                  rows.push(links.slice(i, i + 2));
+                }
+                return rows.map((row, rowIndex) => (
+                  <View
+                    key={rowIndex}
+                    className="flex-row justify-between mb-2"
+                    style={{ width: "100%" }}
                   >
-                    <Text className="text-white font-bold text-base mb-2" numberOfLines={2} ellipsizeMode="tail">
-                      {(offer.title ?? "").trim() || "Offer"}
+                    {row.map((social, colIndex) => {
+                      const IconComponent = social.icon;
+                      return (
+                        <Pressable
+                          key={social.id}
+                          className="flex-row items-center px-3 py-2 bg-white border border-neutral-300 rounded-full"
+                          style={{
+                            width: "48%",
+                            marginRight:
+                              colIndex === 0 && row.length === 2 ? "4%" : 0,
+                          }}
+                          onPress={() => social.url && openUrl(social.url)}
+                        >
+                          <IconComponent size={16} color={social.color} />
+                          <Text
+                            className="text-xs text-neutral-900 ml-2 flex-1"
+                            numberOfLines={1}
+                          >
+                            {social.handle}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                    {row.length === 1 && (
+                      // Fill the remaining column if odd
+                      <View style={{ width: "48%" }} />
+                    )}
+                  </View>
+                ));
+              })()}
+            </View>
+          </View>
+
+          {/* Open Positions Section - matches mock */}
+          <View className="px-4 mb-6">
+            <Text className="text-sm font-light text-neutral-900 mb-3">
+              Open Positions
+            </Text>
+            {companyData.openPositions.length === 0 ? (
+              <Text className="text-sm text-neutral-500 py-2">
+                No open positions at the moment.
+              </Text>
+            ) : (
+              <View style={{ gap: 8 }}>
+                {companyData.openPositions.map((position) => (
+                  <Pressable
+                    key={position.id}
+                    className="bg-white border border-neutral-200 rounded-xl px-4 py-3 flex-row items-center justify-between"
+                    onPress={() => position.link && openUrl(position.link)}
+                  >
+                    <Text
+                      className="text-sm font-bold text-neutral-900 flex-1"
+                      numberOfLines={1}
+                    >
+                      {position.title}
                     </Text>
-                    <View className="flex-row items-center mt-auto">
-                      <Text className="text-white text-sm mr-1">Redeem</Text>
-                      <ArrowUpRightIcon size={14} color="#FFFFFF" />
+                    <View className="flex-row items-center">
+                      <Text className="text-sm text-neutral-600 mr-1">
+                        View
+                      </Text>
+                      <ArrowUpRightIcon size={14} color="#404040" />
                     </View>
                   </Pressable>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Social Links Section */}
-        <View className="px-4 mb-6">
-          <Text className="text-sm font-light text-neutral-900 mb-3">
-            Social Links
-          </Text>
-          <View className="flex-row flex-wrap justify-between">
-            {(() => {
-              // Split socialLinks into rows of 2
-              const rows = [];
-              const links = companyData.socialLinks;
-              for (let i = 0; i < links.length; i += 2) {
-                rows.push(links.slice(i, i + 2));
-              }
-              return rows.map((row, rowIndex) => (
-                <View
-                  key={rowIndex}
-                  className="flex-row justify-between mb-2"
-                  style={{ width: "100%" }}
-                >
-                  {row.map((social, colIndex) => {
-                    const IconComponent = social.icon;
-                    return (
-                      <Pressable
-                        key={social.id}
-                        className="flex-row items-center px-3 py-2 bg-white border border-neutral-300 rounded-full"
-                        style={{
-                          width: "48%",
-                          marginRight:
-                            colIndex === 0 && row.length === 2 ? "4%" : 0,
-                        }}
-                        onPress={() => social.url && openUrl(social.url)}
-                      >
-                        <IconComponent size={16} color={social.color} />
-                        <Text
-                          className="text-xs text-neutral-900 ml-2 flex-1"
-                          numberOfLines={1}
-                        >
-                          {social.handle}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                  {row.length === 1 && (
-                    // Fill the remaining column if odd
-                    <View style={{ width: "48%" }} />
-                  )}
-                </View>
-              ));
-            })()}
+                ))}
+              </View>
+            )}
           </View>
-        </View>
 
-        {/* Open Positions Section - matches mock */}
-        <View className="px-4 mb-6">
-          <Text className="text-sm font-light text-neutral-900 mb-3">
-            Open Positions
-          </Text>
-          {companyData.openPositions.length === 0 ? (
-            <Text className="text-sm text-neutral-500 py-2">
-              No open positions at the moment.
-            </Text>
-          ) : (
-            <View style={{ gap: 8 }}>
-              {companyData.openPositions.map((position) => (
-                <Pressable
-                  key={position.id}
-                  className="bg-white border border-neutral-200 rounded-xl px-4 py-3 flex-row items-center justify-between"
-                  onPress={() => position.link && openUrl(position.link)}
-                >
-                  <Text className="text-sm font-bold text-neutral-900 flex-1" numberOfLines={1}>
-                    {position.title}
-                  </Text>
-                  <View className="flex-row items-center">
-                    <Text className="text-sm text-neutral-600 mr-1">View</Text>
-                    <ArrowUpRightIcon size={14} color="#404040" />
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Meet Our Team Section */}
-        {/* <View className="px-4 mb-6">
+          {/* Meet Our Team Section */}
+          {/* <View className="px-4 mb-6">
           <Text className="text-lg font-bold text-neutral-900 mb-3">
             Meet Our Team ({companyData.teamMembers.length})
           </Text>
@@ -710,29 +929,56 @@ function CompanyDetailScreenInner({ route }: Props) {
             ))}
           </ScrollView>
         </View> */}
-      </ScrollView>
+        </ScrollView>
 
-      {/* Action Button - Fixed at bottom */}
-      <SafeAreaView
-        edges={["bottom"]}
-        style={styles.buttonContainer}
-      >
-        <View className="px-4 pt-4 pb-4">
-          <Pressable
-            className="bg-neutral-900 rounded-xl py-4 items-center flex-row justify-center"
-            onPress={async () => {
-              const canBook = await getCanUserBookMeetings();
-              if (canBook) setIsRequestMeetingModalVisible(true);
-              else showExpoCannotBookMeetingAlert(navigation);
-            }}
-          >
-            <CalendarIconWhite size={20} color="#FFFFFF" />
-            <Text className="text-base font-semibold text-white ml-2">
-              Request Meeting
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
+        {/* Action Button - Fixed at bottom */}
+        <SafeAreaView edges={["bottom"]} style={styles.buttonContainer}>
+          <View className="px-4 pt-4 pb-4">
+            {(() => {
+              const isOwnStartup =
+                (adminUserId != null &&
+                  user?.user_id != null &&
+                  String(adminUserId) === String(user.user_id)) ||
+                (companyId != null &&
+                  user?.company?.id != null &&
+                  Number(user.company.id) === Number(companyId));
+
+              if (isOwnStartup) {
+                return (
+                  <View className="bg-neutral-100 border border-neutral-200 rounded-xl py-4 items-center">
+                    <Text className="text-sm font-medium text-neutral-600">
+                      This is your startup
+                    </Text>
+                  </View>
+                );
+              }
+
+              return (
+                <Pressable
+                  className="bg-neutral-900 rounded-xl py-4 items-center flex-row justify-center"
+                  disabled={isSubmittingMeeting}
+                  style={{ opacity: isSubmittingMeeting ? 0.7 : 1 }}
+                  onPress={async () => {
+                    const canBook = await getCanUserBookMeetings();
+                    if (canBook) setIsRequestMeetingModalVisible(true);
+                    else showExpoCannotBookMeetingAlert(navigation);
+                  }}
+                >
+                  {isSubmittingMeeting ? (
+                    <LoadingSpinner size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <CalendarIconWhite size={20} color="#FFFFFF" />
+                      <Text className="text-base font-semibold text-white ml-2">
+                        Request Meeting
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              );
+            })()}
+          </View>
+        </SafeAreaView>
       </Animated.View>
 
       {/* Request Meeting Modal */}
@@ -754,15 +1000,16 @@ function CompanyDetailScreenInner({ route }: Props) {
           if (!adminUserId) {
             Alert.alert(
               "Cannot Request Meeting",
-              "This company has no contact available for meeting requests. Try connecting via Attendees or Connections instead."
+              "This company has no contact available for meeting requests. Try connecting via Attendees or Connections instead.",
             );
             throw new Error("No company admin user");
           }
+          setIsSubmittingMeeting(true);
           try {
             await meetingService.submitMeetingRequestFromForm(
               EVENT_ID,
               data,
-              adminUserId
+              adminUserId,
             );
             void trackMeetingEvent("request_submitted", {
               source: "company_detail_screen",
@@ -779,9 +1026,12 @@ function CompanyDetailScreenInner({ route }: Props) {
             const msg =
               e instanceof ApiClientError
                 ? e.message
-                : e?.message || "Failed to send meeting request. Please try again.";
+                : e?.message ||
+                  "Failed to send meeting request. Please try again.";
             Alert.alert("Error", msg);
             throw e;
+          } finally {
+            setIsSubmittingMeeting(false);
           }
         }}
         attendeeName={displayName}

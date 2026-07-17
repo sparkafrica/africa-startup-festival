@@ -22,6 +22,16 @@ import { eventService, type Company } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { INDUSTRY_OPTIONS } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
+import {
+  GROWTH_STAGE_OPTIONS,
+  growthStageLabelFromId,
+  validateYearFounded,
+} from "../constants/startupGrowthStages";
+import {
+  buildFounderSavePayloads,
+  validateFounderEmail,
+} from "../utils/founderUtils";
+import { readImageAsBase64 } from "../services/authService";
 import { useStartupJoin } from "../hooks/useStartupJoin";
 import { shouldShowStartupJoinForm } from "../utils/startupJoinStatus";
 import { StartupJoinStatusCard } from "./StartupJoinStatusCard";
@@ -35,7 +45,9 @@ type FounderEntry = {
   id: string;
   name: string;
   role: string;
+  email: string;
   linkedIn: string;
+  imageUri: string | null;
 };
 
 type JobOpening = {
@@ -98,6 +110,8 @@ function validateCreateStartupForm(input: {
   description: string;
   website: string;
   pitchDeckUrl: string;
+  growthStageId: string;
+  yearFounded: string;
   founders: FounderEntry[];
   jobOpenings: JobOpening[];
 }): string | null {
@@ -109,21 +123,29 @@ function validateCreateStartupForm(input: {
     validateRequiredText(input.description, "Description", 10),
     validateUrl(input.website, "Website"),
     validateUrl(input.pitchDeckUrl, "Pitch deck link"),
+    !input.growthStageId ? "Current growth stage is required" : null,
+    validateYearFounded(input.yearFounded),
   ].filter(Boolean) as string[];
 
   const completeFounders = input.founders.filter(
-    (f) => f.name.trim() && f.role.trim() && f.linkedIn.trim(),
+    (f) =>
+      f.name.trim() && f.role.trim() && f.email.trim() && f.linkedIn.trim(),
   );
   if (completeFounders.length === 0) {
-    checks.push("At least one founder with name, role, and LinkedIn is required");
+    checks.push(
+      "At least one founder with name, role, email, and LinkedIn is required",
+    );
   }
   input.founders.forEach((f, i) => {
-    const partial = f.name.trim() || f.role.trim() || f.linkedIn.trim();
+    const partial =
+      f.name.trim() || f.role.trim() || f.email.trim() || f.linkedIn.trim();
     if (!partial) return;
     const nameErr = validateRequiredText(f.name, `Founder ${i + 1} name`, 2);
     if (nameErr) checks.push(nameErr);
     const roleErr = validateRequiredText(f.role, `Founder ${i + 1} role`, 2);
     if (roleErr) checks.push(roleErr);
+    const emailErr = validateFounderEmail(f.email);
+    if (emailErr) checks.push(`Founder ${i + 1}: ${emailErr}`);
     const liErr = validateLinkedInUrl(f.linkedIn);
     if (liErr) checks.push(`Founder ${i + 1}: ${liErr}`);
   });
@@ -195,10 +217,13 @@ export default function StartupConnectStep({
   const [pitchDeckUrl, setPitchDeckUrl] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
   const [selectedCountry, setSelectedCountry] = useState("nigeria");
+  const [selectedGrowthStage, setSelectedGrowthStage] = useState("seed");
+  const [yearFounded, setYearFounded] = useState("");
   const [showIndustryModal, setShowIndustryModal] = useState(false);
   const [showCountryModal, setShowCountryModal] = useState(false);
+  const [showGrowthStageModal, setShowGrowthStageModal] = useState(false);
   const [founders, setFounders] = useState<FounderEntry[]>([
-    { id: nextId(), name: "", role: "", linkedIn: "" },
+    { id: nextId(), name: "", role: "", email: "", linkedIn: "", imageUri: null },
   ]);
   const [jobOpenings, setJobOpenings] = useState<JobOpening[]>([]);
 
@@ -265,6 +290,27 @@ export default function StartupConnectStep({
     }
   };
 
+  const pickFounderPhoto = async (founderId: string) => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Allow photo access to upload a photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      setFounders((prev) =>
+        prev.map((f) =>
+          f.id === founderId ? { ...f, imageUri: result.assets[0].uri } : f,
+        ),
+      );
+    }
+  };
+
   const selectStartup = (company: Company) => {
     const id = Number(company.id);
     setSelectedCompanyId(id);
@@ -306,6 +352,8 @@ export default function StartupConnectStep({
       description,
       website,
       pitchDeckUrl,
+      growthStageId: selectedGrowthStage,
+      yearFounded,
       founders,
       jobOpenings,
     });
@@ -319,13 +367,31 @@ export default function StartupConnectStep({
         INDUSTRY_OPTIONS.find((o) => o.id === selectedIndustry)?.label ?? "";
       const countryLabel =
         COUNTRY_OPTIONS.find((o) => o.id === selectedCountry)?.label ?? "";
-      const founderRows = founders
-        .filter((f) => f.name.trim() && f.role.trim() && f.linkedIn.trim())
-        .map((f) => ({
-          name: f.name.trim(),
-          role: f.role.trim(),
-          linkedin: f.linkedIn.trim(),
-        }));
+      const growthStageLabel = growthStageLabelFromId(selectedGrowthStage);
+      const {
+        metadataFounders,
+        apiFounders,
+        validationError: founderError,
+      } = await buildFounderSavePayloads(
+        founders.map((f) => ({
+          ...f,
+          imageUrl: null,
+        })),
+        readImageAsBase64,
+      );
+      if (founderError) {
+        Alert.alert("Missing information", founderError);
+        setIsSubmitting(false);
+        return;
+      }
+      if (apiFounders.length === 0) {
+        Alert.alert(
+          "Missing information",
+          "At least one founder with name, role, email, and LinkedIn is required",
+        );
+        setIsSubmitting(false);
+        return;
+      }
       const jobs = jobOpenings
         .filter((j) => j.title.trim() && j.applyUrl.trim())
         .map((j) => ({
@@ -340,12 +406,15 @@ export default function StartupConnectStep({
         country: countryLabel,
         company_sector: industryLabel,
         company_description: description.trim(),
+        founders: apiFounders,
         metadata: {
           problem: problem.trim(),
           solution: solution.trim(),
           website: website.trim(),
           pitch_deck_url: pitchDeckUrl.trim(),
-          founders: founderRows,
+          growth_stage: growthStageLabel,
+          year_founded: yearFounded.trim(),
+          founders: metadataFounders,
           job_openings: jobs.length > 0 ? jobs : undefined,
         },
       });
@@ -384,6 +453,8 @@ export default function StartupConnectStep({
     INDUSTRY_OPTIONS.find((o) => o.id === selectedIndustry)?.label ?? "Select industry";
   const countryLabel =
     COUNTRY_OPTIONS.find((o) => o.id === selectedCountry)?.label ?? "Select country";
+  const growthStageLabel =
+    growthStageLabelFromId(selectedGrowthStage) || "Select growth stage";
 
   const horizontalPad = embedded ? 24 : 24;
 
@@ -627,6 +698,25 @@ export default function StartupConnectStep({
                 <Text className="text-base text-neutral-900">{countryLabel}</Text>
               </Pressable>
 
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                Current growth stage <Text className="text-red-500">*</Text>
+              </Text>
+              <Pressable
+                onPress={() => setShowGrowthStageModal(true)}
+                className="bg-white border border-neutral-300 rounded-xl px-4 py-3.5 mb-4"
+              >
+                <Text className="text-base text-neutral-900">{growthStageLabel}</Text>
+              </Pressable>
+
+              <Field
+                label="Year founded"
+                value={yearFounded}
+                onChange={setYearFounded}
+                required
+                keyboardType="number-pad"
+                placeholder="e.g. 2021"
+              />
+
               <Field label="Website" value={website} onChange={setWebsite} required />
               <Field label="Pitch deck link" value={pitchDeckUrl} onChange={setPitchDeckUrl} required />
 
@@ -685,13 +775,33 @@ export default function StartupConnectStep({
 
             <FormSection title="Founder info">
               <Text className="text-xs text-neutral-500 mb-3 leading-4">
-                For each founder: name, role, and LinkedIn link.
+                For each founder: photo, name, role, email, and LinkedIn. Email is
+                required by the backend.
               </Text>
               {founders.map((founder, index) => (
                 <View
                   key={founder.id}
                   className="mb-3 p-4 bg-white border border-neutral-200 rounded-xl"
                 >
+                  <Text className="text-sm font-medium text-neutral-700 mb-2">
+                    Founder {index + 1} photo
+                  </Text>
+                  <Pressable
+                    onPress={() => void pickFounderPhoto(founder.id)}
+                    className="mb-4 w-20 h-20 rounded-full border border-neutral-300 bg-neutral-50 items-center justify-center overflow-hidden self-start"
+                  >
+                    {founder.imageUri ? (
+                      <Image
+                        source={{ uri: founder.imageUri }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text className="text-[10px] text-neutral-500 text-center px-1">
+                        Add photo
+                      </Text>
+                    )}
+                  </Pressable>
                   <Field
                     label={`Founder ${index + 1} — Name`}
                     value={founder.name}
@@ -713,6 +823,19 @@ export default function StartupConnectStep({
                     required
                   />
                   <Field
+                    label="Email"
+                    value={founder.email}
+                    onChange={(v) =>
+                      setFounders((prev) =>
+                        prev.map((f) =>
+                          f.id === founder.id ? { ...f, email: v } : f,
+                        ),
+                      )
+                    }
+                    required
+                    placeholder="founder@startup.com"
+                  />
+                  <Field
                     label="LinkedIn"
                     value={founder.linkedIn}
                     onChange={(v) =>
@@ -730,7 +853,14 @@ export default function StartupConnectStep({
                 onPress={() =>
                   setFounders((prev) => [
                     ...prev,
-                    { id: nextId(), name: "", role: "", linkedIn: "" },
+                    {
+                      id: nextId(),
+                      name: "",
+                      role: "",
+                      email: "",
+                      linkedIn: "",
+                      imageUri: null,
+                    },
                   ])
                 }
                 className="py-2 mb-2"
@@ -742,12 +872,16 @@ export default function StartupConnectStep({
             <Pressable
               onPress={() => void handleCreateStartup()}
               disabled={isSubmitting}
-              className="bg-black rounded-xl py-4 items-center mt-2"
+              className="bg-black rounded-xl py-4 items-center justify-center flex-row mt-2"
               style={{ opacity: isSubmitting ? 0.6 : 1 }}
             >
-              <Text className="text-white font-semibold text-base">
-                Create startup & continue
-              </Text>
+              {isSubmitting ? (
+                <LoadingSpinner size="small" color="#FFFFFF" />
+              ) : (
+                <Text className="text-white font-semibold text-base">
+                  Create startup & continue
+                </Text>
+              )}
             </Pressable>
           </View>
         ) : null}
@@ -778,6 +912,14 @@ export default function StartupConnectStep({
         selectedId={selectedCountry}
         onSelect={setSelectedCountry}
       />
+      <PickerModal
+        visible={showGrowthStageModal}
+        onClose={() => setShowGrowthStageModal(false)}
+        title="Current growth stage"
+        options={GROWTH_STAGE_OPTIONS.map((o) => ({ id: o.id, label: o.label }))}
+        selectedId={selectedGrowthStage}
+        onSelect={setSelectedGrowthStage}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -805,12 +947,16 @@ function Field({
   onChange,
   multiline,
   required = false,
+  keyboardType,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   multiline?: boolean;
   required?: boolean;
+  keyboardType?: "default" | "number-pad";
+  placeholder?: string;
 }) {
   return (
     <View className="mb-4">
@@ -825,7 +971,10 @@ function Field({
         multiline={multiline}
         numberOfLines={multiline ? 4 : 1}
         textAlignVertical={multiline ? "top" : "center"}
+        keyboardType={keyboardType}
+        placeholder={placeholder}
         placeholderTextColor={INPUT_PLACEHOLDER}
+        maxLength={keyboardType === "number-pad" ? 4 : undefined}
       />
     </View>
   );

@@ -18,6 +18,7 @@ export { default as TicketCard } from "./TicketCard";
 export { default as GuidelinePatternOverlay } from "./GuidelinePatternOverlay";
 export { default as ChecklistItem } from "./ChecklistItem";
 export { default as ExhibitorCard } from "./ExhibitorCard";
+export { default as StartupDirectoryCard } from "./StartupDirectoryCard";
 export { default as BottomNavigation } from "./BottomNavigation";
 export { default as FloatingBottomNav, FLOATING_NAV_BOTTOM_INSET } from "./FloatingBottomNav";
 export type { FloatingBottomNavItem } from "./FloatingBottomNav";

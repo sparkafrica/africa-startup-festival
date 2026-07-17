@@ -18,6 +18,7 @@ import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import { LoadingSpinner } from "../components";
 import { logError, ERROR_TAGS } from "../utils/logError";
+import { EVENT_WEBSITE_URL, SUPPORT_EMAIL } from "../config/env";
 
 // Logo import
 const logoImage = require("../assets/images/logo.png");
@@ -86,19 +87,17 @@ export default function LoginScreen() {
     Alert.alert("Get Ticket", "This will open the ticket purchase page");
   };
 
-  const CONTACT_EMAIL = "contact@africastartupfestival.com";
-
   const handleContactUs = async () => {
-    const url = `mailto:${CONTACT_EMAIL}`;
+    const url = `mailto:${SUPPORT_EMAIL}`;
     try {
       const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        Alert.alert("Contact support", `Email: ${CONTACT_EMAIL}`);
+        Alert.alert("Contact support", `Email: ${SUPPORT_EMAIL}`);
       }
     } catch {
-      Alert.alert("Contact support", `Email: ${CONTACT_EMAIL}`);
+      Alert.alert("Contact support", `Email: ${SUPPORT_EMAIL}`);
     }
   };
 
@@ -210,7 +209,7 @@ export default function LoginScreen() {
               className="text-neutral-900 underline font-medium"
               onPress={async () => {
                 try {
-                  const url = "https://www.africastartupfestival.com";
+                  const url = EVENT_WEBSITE_URL;
                   const canOpen = await Linking.canOpenURL(url);
                   if (canOpen) {
                     await Linking.openURL(url);

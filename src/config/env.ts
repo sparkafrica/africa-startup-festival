@@ -65,6 +65,19 @@ export const CDN_BASE_URL = CDN_CONFIG[environment];
 // TODO: Consider fetching current event from backend API in the future
 export const EVENT_ID = 11;
 
+/** Public marketing / ticket-purchase site per event (Kenya = 11, Lagos = 13). */
+const EVENT_WEBSITE_URLS: Record<number, string> = {
+  11: "https://kenya.africastartupfestival.com/",
+  13: "https://africastartupfestival.com/en",
+};
+
+/** Marketing/ticket-purchase site for the active event; falls back to the main site. */
+export const EVENT_WEBSITE_URL =
+  EVENT_WEBSITE_URLS[EVENT_ID] ?? "https://www.africastartupfestival.com";
+
+/** Inbox for ticket/access queries (no-ticket users, login help). */
+export const SUPPORT_EMAIL = "info@africastartupfestival.com";
+
 // Realtime chat (Pusher)
 // Public client values used to establish websocket connection.
 export const PUSHER_API_KEY = "2ed4ec1984333f9e92d1";

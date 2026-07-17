@@ -12,7 +12,7 @@ import {
 import { useNotifications } from "../context/NotificationsContext";
 import {
   HeaderBar,
-  ExhibitorCard,
+  StartupDirectoryCard,
   FilterModal,
   SkeletonCardGrid,
   FLOATING_NAV_BOTTOM_INSET,
@@ -46,8 +46,11 @@ export default function StartupsScreen() {
       name: string;
       logoColor: string;
       logo?: string;
+      country?: string | null;
       company_sector?: string | null;
       company_description?: string | null;
+      growth_stage?: string | null;
+      year_founded?: string | null;
       metadata?: Record<string, unknown> | null;
     }[]
   >([]);
@@ -81,13 +84,25 @@ export default function StartupsScreen() {
       const list = response.companies.map((c) => {
         const name = c.name || `Startup ${c.id}`;
         const logoColor = COLORS[name.length % COLORS.length];
+        const meta = (c.metadata ?? {}) as Record<string, unknown>;
+        const growthStage =
+          typeof meta.growth_stage === "string" && meta.growth_stage.trim()
+            ? meta.growth_stage.trim()
+            : null;
+        const yearFounded =
+          meta.year_founded != null && String(meta.year_founded).trim()
+            ? String(meta.year_founded).trim()
+            : null;
         return {
           id: c.id,
           name,
           logoColor,
           logo: c.logo ?? undefined,
+          country: c.country ?? null,
           company_sector: c.company_sector ?? null,
           company_description: c.company_description ?? null,
+          growth_stage: growthStage,
+          year_founded: yearFounded,
           metadata: c.metadata ?? null,
         };
       });
@@ -240,10 +255,16 @@ export default function StartupsScreen() {
                         overflow: "hidden",
                       }}
                     >
-                      <ExhibitorCard
+                      <StartupDirectoryCard
                         name={startup.name}
                         logo={startup.logo}
                         logoColor={startup.logoColor}
+                        tags={[
+                          startup.country,
+                          startup.growth_stage,
+                          startup.company_sector,
+                          startup.year_founded,
+                        ].filter(Boolean) as string[]}
                         onPress={() => {
                           companyHighlight.clearHighlight();
                           navigation.navigate("CompanyDetail", {
@@ -253,9 +274,6 @@ export default function StartupsScreen() {
                           });
                         }}
                       />
-                      <Text className="text-xs text-neutral-600 text-center mt-2">
-                        {startup.name}
-                      </Text>
                       <ListRowHighlightOverlay
                         visible={highlighted}
                         opacity={companyHighlight.highlightOpacity}

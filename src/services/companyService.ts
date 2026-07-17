@@ -30,6 +30,15 @@ export interface CompanyUpdateRequest {
   metadata?: any;
   company_type?: string;
   event_id?: number;
+  founders?: Array<{
+    first_name?: string;
+    last_name?: string;
+    email: string;
+    job_title?: string | null;
+    linkedin?: string | null;
+    profile_pic?: string | null;
+    phone_number?: string;
+  }>;
 }
 
 export interface CreateCompanyRequest {
@@ -40,6 +49,16 @@ export interface CreateCompanyRequest {
   company_type?: "startup" | "exhibitor" | "investor" | "partner" | "organisation";
   event_id?: number;
   metadata?: Record<string, unknown>;
+  /** Spark EMS FounderRequest[] */
+  founders?: Array<{
+    first_name?: string;
+    last_name?: string;
+    email: string;
+    job_title?: string | null;
+    linkedin?: string | null;
+    profile_pic?: string | null;
+    phone_number?: string;
+  }>;
 }
 
 // ============================================================================
@@ -61,32 +80,39 @@ export const companyService = {
     const imageUri = options?.imageUri;
     const url = `/companies/${companyId}/`;
 
+    // Always persist company fields first (founders/metadata) so a logo-only
+    // FormData fallback cannot drop the rest of the payload.
+    const hasFieldUpdates = Object.keys(companyData).length > 0;
+    let updated: Company | null = null;
+
+    if (hasFieldUpdates) {
+      const response = await api.patch<CompanyUpdateRequest>(url, companyData);
+      if (response.status === "success" && response.data) {
+        updated = response.data as Company;
+      } else {
+        throw new ApiClientError({
+          status: "error",
+          message: response.message || "Failed to update company",
+          response_code: response.response_code,
+          data: {},
+        });
+      }
+    }
+
     if (imageUri) {
       const base64 = await readImageAsBase64(imageUri);
       if (base64) {
-        const payload = { ...companyData, logo: base64 };
         try {
-          const response = await api.put<CompanyUpdateRequest>(url, payload);
+          const response = await api.patch<CompanyUpdateRequest>(url, {
+            logo: base64,
+          });
           if (response.status === "success" && response.data) {
             return response.data as Company;
           }
         } catch (e: any) {
           if (__DEV__) {
             console.warn(
-              "PUT with logo failed, trying PATCH with logo:",
-              e?.message ?? e,
-            );
-          }
-        }
-        try {
-          const response = await api.patch<CompanyUpdateRequest>(url, payload);
-          if (response.status === "success" && response.data) {
-            return response.data as Company;
-          }
-        } catch (e: any) {
-          if (__DEV__) {
-            console.warn(
-              "PATCH with logo failed, falling back to PATCH FormData:",
+              "PATCH logo base64 failed, falling back to FormData:",
               e?.message ?? e,
             );
           }
@@ -95,14 +121,12 @@ export const companyService = {
       return this._uploadCompanyLogoFormData(companyId, imageUri);
     }
 
-    const response = await api.patch<CompanyUpdateRequest>(url, companyData);
-    if (response.status === "success" && response.data) {
-      return response.data as Company;
-    }
+    if (updated) return updated;
+
     throw new ApiClientError({
       status: "error",
-      message: response.message || "Failed to update company",
-      response_code: response.response_code,
+      message: "Failed to update company",
+      response_code: 0,
       data: {},
     });
   },
