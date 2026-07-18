@@ -36,6 +36,7 @@ import { useStartupJoin } from "../hooks/useStartupJoin";
 import { shouldShowStartupJoinForm } from "../utils/startupJoinStatus";
 import { StartupJoinStatusCard } from "./StartupJoinStatusCard";
 import { StartupJoinAdminPanel } from "./StartupJoinAdminPanel";
+import { ChevronDownIcon } from "./icons";
 
 const INPUT_PLACEHOLDER = "#9CA3AF";
 
@@ -225,6 +226,7 @@ export default function StartupConnectStep({
   const [founders, setFounders] = useState<FounderEntry[]>([
     { id: nextId(), name: "", role: "", email: "", linkedIn: "", imageUri: null },
   ]);
+  const [foundersExpanded, setFoundersExpanded] = useState(true);
   const [jobOpenings, setJobOpenings] = useState<JobOpening[]>([]);
 
   const finishFlow = useCallback(async () => {
@@ -773,101 +775,154 @@ export default function StartupConnectStep({
               </Pressable>
             </FormSection>
 
-            <FormSection title="Founder info">
-              <Text className="text-xs text-neutral-500 mb-3 leading-4">
-                For each founder: photo, name, role, email, and LinkedIn. Email is
-                required by the backend.
-              </Text>
-              {founders.map((founder, index) => (
-                <View
-                  key={founder.id}
-                  className="mb-3 p-4 bg-white border border-neutral-200 rounded-xl"
-                >
-                  <Text className="text-sm font-medium text-neutral-700 mb-2">
-                    Founder {index + 1} photo
-                  </Text>
-                  <Pressable
-                    onPress={() => void pickFounderPhoto(founder.id)}
-                    className="mb-4 w-20 h-20 rounded-full border border-neutral-300 bg-neutral-50 items-center justify-center overflow-hidden self-start"
-                  >
-                    {founder.imageUri ? (
-                      <Image
-                        source={{ uri: founder.imageUri }}
-                        className="w-full h-full"
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <Text className="text-[10px] text-neutral-500 text-center px-1">
-                        Add photo
-                      </Text>
-                    )}
-                  </Pressable>
-                  <Field
-                    label={`Founder ${index + 1} — Name`}
-                    value={founder.name}
-                    onChange={(v) =>
-                      setFounders((prev) =>
-                        prev.map((f) => (f.id === founder.id ? { ...f, name: v } : f)),
-                      )
-                    }
-                    required
-                  />
-                  <Field
-                    label="Role"
-                    value={founder.role}
-                    onChange={(v) =>
-                      setFounders((prev) =>
-                        prev.map((f) => (f.id === founder.id ? { ...f, role: v } : f)),
-                      )
-                    }
-                    required
-                  />
-                  <Field
-                    label="Email"
-                    value={founder.email}
-                    onChange={(v) =>
-                      setFounders((prev) =>
-                        prev.map((f) =>
-                          f.id === founder.id ? { ...f, email: v } : f,
-                        ),
-                      )
-                    }
-                    required
-                    placeholder="founder@startup.com"
-                  />
-                  <Field
-                    label="LinkedIn"
-                    value={founder.linkedIn}
-                    onChange={(v) =>
-                      setFounders((prev) =>
-                        prev.map((f) =>
-                          f.id === founder.id ? { ...f, linkedIn: v } : f,
-                        ),
-                      )
-                    }
-                    required
-                  />
-                </View>
-              ))}
+            <View className="mb-5 rounded-2xl border border-neutral-200 overflow-hidden">
               <Pressable
-                onPress={() =>
-                  setFounders((prev) => [
-                    ...prev,
-                    {
-                      id: nextId(),
-                      name: "",
-                      role: "",
-                      email: "",
-                      linkedIn: "",
-                      imageUri: null,
-                    },
-                  ])
-                }
-                className="py-2 mb-2"
+                onPress={() => setFoundersExpanded((prev) => !prev)}
+                className="px-4 py-3 bg-neutral-50 border-b border-neutral-100 flex-row items-center justify-between"
+                hitSlop={8}
               >
-                <Text className="text-sm font-semibold text-black">+ Add another founder</Text>
+                <View className="flex-1 pr-3">
+                  <Text className="text-sm font-semibold text-neutral-800">
+                    Founder info
+                  </Text>
+                  {!foundersExpanded ? (
+                    <Text className="text-xs text-neutral-500 mt-1">
+                      {founders.length} founder
+                      {founders.length === 1 ? "" : "s"} — tap to expand
+                    </Text>
+                  ) : null}
+                </View>
+                <View
+                  style={{
+                    transform: [
+                      { rotate: foundersExpanded ? "180deg" : "0deg" },
+                    ],
+                  }}
+                >
+                  <ChevronDownIcon size={20} color="#404040" />
+                </View>
               </Pressable>
-            </FormSection>
+              {foundersExpanded ? (
+                <View className="p-4 bg-white">
+                  <Text className="text-xs text-neutral-500 mb-3 leading-4">
+                    For each founder: photo, name, role, email, and LinkedIn. Email is
+                    required by the backend.
+                  </Text>
+                  {founders.map((founder, index) => (
+                    <View
+                      key={founder.id}
+                      className="mb-3 p-4 bg-white border border-neutral-200 rounded-xl"
+                    >
+                      <View className="flex-row items-center justify-between mb-2">
+                        <Text className="text-sm font-medium text-neutral-700">
+                          Founder {index + 1} photo
+                        </Text>
+                        {founders.length > 1 ? (
+                          <Pressable
+                            onPress={() =>
+                              setFounders((prev) =>
+                                prev.filter((f) => f.id !== founder.id),
+                              )
+                            }
+                            hitSlop={8}
+                          >
+                            <Text className="text-xs font-medium text-red-600">
+                              Remove
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                      <Pressable
+                        onPress={() => void pickFounderPhoto(founder.id)}
+                        className="mb-4 w-20 h-20 rounded-full border border-neutral-300 bg-neutral-50 items-center justify-center overflow-hidden self-start"
+                      >
+                        {founder.imageUri ? (
+                          <Image
+                            source={{ uri: founder.imageUri }}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <Text className="text-[10px] text-neutral-500 text-center px-1">
+                            Add photo
+                          </Text>
+                        )}
+                      </Pressable>
+                      <Field
+                        label={`Founder ${index + 1} — Name`}
+                        value={founder.name}
+                        onChange={(v) =>
+                          setFounders((prev) =>
+                            prev.map((f) =>
+                              f.id === founder.id ? { ...f, name: v } : f,
+                            ),
+                          )
+                        }
+                        required
+                      />
+                      <Field
+                        label="Role"
+                        value={founder.role}
+                        onChange={(v) =>
+                          setFounders((prev) =>
+                            prev.map((f) =>
+                              f.id === founder.id ? { ...f, role: v } : f,
+                            ),
+                          )
+                        }
+                        required
+                      />
+                      <Field
+                        label="Email"
+                        value={founder.email}
+                        onChange={(v) =>
+                          setFounders((prev) =>
+                            prev.map((f) =>
+                              f.id === founder.id ? { ...f, email: v } : f,
+                            ),
+                          )
+                        }
+                        required
+                        placeholder="founder@startup.com"
+                      />
+                      <Field
+                        label="LinkedIn"
+                        value={founder.linkedIn}
+                        onChange={(v) =>
+                          setFounders((prev) =>
+                            prev.map((f) =>
+                              f.id === founder.id ? { ...f, linkedIn: v } : f,
+                            ),
+                          )
+                        }
+                        required
+                      />
+                    </View>
+                  ))}
+                  <Pressable
+                    onPress={() => {
+                      setFounders((prev) => [
+                        ...prev,
+                        {
+                          id: nextId(),
+                          name: "",
+                          role: "",
+                          email: "",
+                          linkedIn: "",
+                          imageUri: null,
+                        },
+                      ]);
+                      setFoundersExpanded(true);
+                    }}
+                    className="py-2 mb-2"
+                  >
+                    <Text className="text-sm font-semibold text-black">
+                      + Add another founder
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
 
             <Pressable
               onPress={() => void handleCreateStartup()}

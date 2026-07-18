@@ -128,3 +128,35 @@ export function getIndustryAndInterestFilterCategories(): IndustryInterestFilter
     },
   ];
 }
+
+/** Industry / Sector only — partners & exhibitors directory filters. */
+export function getIndustryFilterCategories(): IndustryInterestFilterCategory[] {
+  return [
+    {
+      id: "industry",
+      title: "Industry / Sector",
+      options: INDUSTRY_OPTIONS,
+    },
+  ];
+}
+
+/**
+ * Startups directory filters: growth stage + industry/sector (no interests).
+ * Growth options come from startupGrowthStages — import lazily via ids/labels there.
+ */
+export function getStartupDirectoryFilterCategories(
+  growthStageOptions: { id: string; label: string }[],
+): IndustryInterestFilterCategory[] {
+  return [
+    {
+      id: "growth-stage",
+      title: "Growth stage",
+      options: growthStageOptions,
+    },
+    {
+      id: "industry",
+      title: "Industry / Sector",
+      options: INDUSTRY_OPTIONS,
+    },
+  ];
+}

@@ -38,6 +38,7 @@ function labelsByCategoryFromFilterIds(
 export type DirectoryCompanyFilterFields = {
   company_sector?: string | null;
   company_description?: string | null;
+  growth_stage?: string | null;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -64,6 +65,25 @@ export function directoryCompanyMatchesFilters(
           blob.includes(nl) ||
           (sector && nl.includes(sector)) ||
           (metaInd && nl.includes(metaInd))
+        );
+      });
+      if (!ok) return false;
+      continue;
+    }
+    if (catId === "growth-stage") {
+      const stageFromField = normalize(company.growth_stage || "");
+      const stageFromMeta =
+        typeof meta.growth_stage === "string"
+          ? normalize(meta.growth_stage)
+          : "";
+      const stage = stageFromField || stageFromMeta;
+      const ok = labels.some((l) => {
+        const nl = normalize(l);
+        return (
+          stage === nl ||
+          stage.includes(nl) ||
+          nl.includes(stage) ||
+          stage.replace(/\s+/g, "-") === nl.replace(/\s+/g, "-")
         );
       });
       if (!ok) return false;

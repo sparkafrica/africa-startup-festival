@@ -390,6 +390,7 @@ export default function HomeScreen() {
         buttonText="Book meetings"
         gradient={gradients.sparkBlack}
         variant="black"
+        square
         backgroundImage={require("../assets/images/1st-card.jpg")}
         onPress={() => navigation.navigate("Attendees")}
       />
@@ -399,6 +400,7 @@ export default function HomeScreen() {
         buttonText="View startups"
         gradient={gradients.sparkWhite}
         variant="white"
+        square
         backgroundImage={require("../assets/images/2nd-card.jpg")}
         onPress={() => navigation.navigate("Startups")}
       />

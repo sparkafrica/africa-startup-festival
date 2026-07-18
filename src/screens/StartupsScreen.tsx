@@ -23,7 +23,8 @@ import { ChevronDownIcon } from "../components/icons";
 import { eventService } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
-import { getIndustryAndInterestFilterCategories } from "../constants/industryAndInterests";
+import { getStartupDirectoryFilterCategories } from "../constants/industryAndInterests";
+import { GROWTH_STAGE_OPTIONS } from "../constants/startupGrowthStages";
 import { directoryCompanyMatchesFilters } from "../utils/directoryFilters";
 
 export default function StartupsScreen() {
@@ -36,7 +37,10 @@ export default function StartupsScreen() {
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
   const filterCategories: FilterCategory[] = useMemo(
-    () => getIndustryAndInterestFilterCategories(),
+    () =>
+      getStartupDirectoryFilterCategories(
+        GROWTH_STAGE_OPTIONS.map((o) => ({ id: o.id, label: o.label })),
+      ),
     [],
   );
 
@@ -260,11 +264,31 @@ export default function StartupsScreen() {
                         logo={startup.logo}
                         logoColor={startup.logoColor}
                         tags={[
-                          startup.country,
-                          startup.growth_stage,
-                          startup.company_sector,
-                          startup.year_founded,
-                        ].filter(Boolean) as string[]}
+                          startup.country
+                            ? { label: startup.country, kind: "country" as const }
+                            : null,
+                          startup.growth_stage
+                            ? {
+                                label: startup.growth_stage,
+                                kind: "growth" as const,
+                              }
+                            : null,
+                          startup.company_sector
+                            ? {
+                                label: startup.company_sector,
+                                kind: "industry" as const,
+                              }
+                            : null,
+                          startup.year_founded
+                            ? {
+                                label: startup.year_founded,
+                                kind: "year" as const,
+                              }
+                            : null,
+                        ].filter(Boolean) as {
+                          label: string;
+                          kind: "country" | "growth" | "industry" | "year";
+                        }[]}
                         onPress={() => {
                           companyHighlight.clearHighlight();
                           navigation.navigate("CompanyDetail", {

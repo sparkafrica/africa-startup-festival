@@ -23,7 +23,7 @@ import { ChevronDownIcon } from "../components/icons";
 import { eventService } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
-import { getIndustryAndInterestFilterCategories } from "../constants/industryAndInterests";
+import { getIndustryFilterCategories } from "../constants/industryAndInterests";
 import { directoryCompanyMatchesFilters } from "../utils/directoryFilters";
 
 export default function ExhibitorsScreen() {
@@ -36,7 +36,7 @@ export default function ExhibitorsScreen() {
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
   const filterCategories: FilterCategory[] = useMemo(
-    () => getIndustryAndInterestFilterCategories(),
+    () => getIndustryFilterCategories(),
     []
   );
 

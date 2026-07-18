@@ -46,6 +46,8 @@ interface BannerCardProps {
   onPress?: () => void;
   /** Full-width vertical stack (post-event home). Default: horizontal carousel card. */
   stacked?: boolean;
+  /** Square corners on card + CTA (no rounded). */
+  square?: boolean;
 }
 
 export default function BannerCard({
@@ -57,6 +59,7 @@ export default function BannerCard({
   backgroundImage,
   onPress,
   stacked = false,
+  square = false,
 }: BannerCardProps) {
   const { width: windowWidth } = useWindowDimensions();
   const styles = variantStyles[variant];
@@ -65,11 +68,15 @@ export default function BannerCard({
     : Math.min(320, Math.round(windowWidth * 0.85));
   /** Tall hero — same 180px as original w-80 design; not tied to narrow %-of-width. */
   const imageHeight = 180;
+  const cardRadius = square ? "" : "rounded-3xl";
+  const imageRadius = square ? "" : "rounded-t-3xl";
+  const gradientRadius = square ? "" : "rounded-b-3xl";
+  const buttonRadius = square ? "" : "rounded-xl";
 
   return (
     <Pressable
       onPress={onPress}
-      className={`rounded-3xl overflow-hidden ${styles.cardBorder} ${stacked ? "" : "mr-3"}`}
+      className={`${cardRadius} overflow-hidden ${styles.cardBorder} ${stacked ? "" : "mr-3"}`}
       style={[
         { width: cardWidth, flexDirection: "column" },
         !stacked ? { alignSelf: "stretch" } : null,
@@ -78,7 +85,7 @@ export default function BannerCard({
       {backgroundImage && (
         <Image
           source={backgroundImage}
-          className="w-full rounded-t-3xl"
+          className={`w-full ${imageRadius}`}
           style={{ height: imageHeight }}
           resizeMode="cover"
         />
@@ -88,7 +95,7 @@ export default function BannerCard({
         colors={gradient as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 2, y: 2 }}
-        className="px-4 pt-4 pb-4 rounded-b-3xl overflow-hidden relative"
+        className={`px-4 pt-4 pb-4 ${gradientRadius} overflow-hidden relative`}
         style={{ flex: 1, minHeight: 156 }}
       >
         <GuidelinePatternOverlay
@@ -119,7 +126,7 @@ export default function BannerCard({
 
           <Pressable
             onPress={onPress}
-            className={`w-full py-2.5 rounded-xl flex-row items-center justify-center mt-4 overflow-hidden relative ${styles.button}`}
+            className={`w-full py-2.5 ${buttonRadius} flex-row items-center justify-center mt-4 overflow-hidden relative ${styles.button}`}
           >
             <GuidelinePatternOverlay
               isLightCard={variant === "black"}

@@ -74,6 +74,24 @@ function ensureHttps(url: string): string {
   return `https://${trimmed}`;
 }
 
+function normalizeEmail(email: unknown): string {
+  return (email ?? "").toString().trim().toLowerCase();
+}
+
+function extractEmail(f: any): string {
+  return normalizeEmail(f?.email);
+}
+
+function extractProfilePic(f: any): string | null {
+  if (typeof f?.profile_pic === "string" && f.profile_pic.trim()) {
+    return f.profile_pic.trim();
+  }
+  if (typeof f?.imageUrl === "string" && f.imageUrl.trim()) {
+    return f.imageUrl.trim();
+  }
+  return null;
+}
+
 function mapOneFounder(f: any, i: number): FounderDisplay | null {
   const first = (f?.first_name ?? "").toString().trim();
   const last = (f?.last_name ?? "").toString().trim();
@@ -83,15 +101,12 @@ function mapOneFounder(f: any, i: number): FounderDisplay | null {
     "";
   const role = (f?.job_title ?? f?.role ?? "").toString().trim();
   const linkedInRaw = (f?.linkedin ?? f?.linkedIn ?? "").toString().trim();
-  const pic =
-    typeof f?.profile_pic === "string" && f.profile_pic.trim()
-      ? f.profile_pic.trim()
-      : typeof f?.imageUrl === "string" && f.imageUrl.trim()
-        ? f.imageUrl.trim()
-        : null;
+  const pic = extractProfilePic(f);
   if (!name && !role) return null;
+  const email = extractEmail(f);
   return {
-    id: String(f?.id ?? i),
+    // Prefer email as stable id so React keys / merges survive reorder.
+    id: email || String(f?.id ?? `founder-${i}`),
     name: name || "Founder",
     role,
     linkedInUrl: linkedInRaw ? ensureHttps(linkedInRaw) : "",
@@ -100,8 +115,10 @@ function mapOneFounder(f: any, i: number): FounderDisplay | null {
 }
 
 /**
- * Prefer API founders, merge in metadata photos/emails when API rows lack them.
- * Falls back entirely to metadata.founders when API list is empty.
+ * Prefer metadata.founders when present — that is where this app stores the
+ * full founder row including profile_pic, so photos stay paired with the right
+ * person across add/remove/reorder.
+ * Fall back to API founders when metadata has none.
  */
 export function normalizeFoundersForDisplay(input: {
   founders?: unknown;
@@ -111,27 +128,19 @@ export function normalizeFoundersForDisplay(input: {
   const metaFounders = Array.isArray(meta.founders) ? meta.founders : [];
   const apiFounders = Array.isArray(input.founders) ? input.founders : [];
 
-  if (apiFounders.length > 0) {
-    return apiFounders
-      .map((f: any, i: number) => {
-        const mapped = mapOneFounder(f, i);
-        if (!mapped) return null;
-        const metaRow = metaFounders[i] as any;
-        if (!mapped.imageUrl && metaRow) {
-          const metaPic =
-            typeof metaRow?.profile_pic === "string" && metaRow.profile_pic.trim()
-              ? metaRow.profile_pic.trim()
-              : null;
-          if (metaPic) mapped.imageUrl = metaPic;
-        }
-        return mapped;
-      })
+  if (metaFounders.length > 0) {
+    return metaFounders
+      .map((f: any, i: number) => mapOneFounder(f, i))
       .filter(Boolean) as FounderDisplay[];
   }
 
-  return metaFounders
-    .map((f: any, i: number) => mapOneFounder(f, i))
-    .filter(Boolean) as FounderDisplay[];
+  if (apiFounders.length > 0) {
+    return apiFounders
+      .map((f: any, i: number) => mapOneFounder(f, i))
+      .filter(Boolean) as FounderDisplay[];
+  }
+
+  return [];
 }
 
 /** Map API/metadata founders into editable form rows. */
@@ -154,19 +163,29 @@ export function foundersToFormEntries(input: {
     ];
   }
 
-  const apiFounders = Array.isArray(input.founders) ? input.founders : [];
   const metaList = Array.isArray(input.metadata?.founders)
     ? (input.metadata!.founders as any[])
     : [];
+  const apiFounders = Array.isArray(input.founders) ? input.founders : [];
 
   return displayed.map((d, i) => {
-    const api = apiFounders[i] as any;
+    // Prefer the same source row normalizeFoundersForDisplay used.
     const meta = metaList[i];
+    const api =
+      apiFounders.find(
+        (f: any) => extractEmail(f) && extractEmail(f) === normalizeEmail(d.id),
+      ) ?? apiFounders[i];
+    const email = (
+      meta?.email ??
+      (api as any)?.email ??
+      (d.id.includes("@") ? d.id : "") ??
+      ""
+    ).toString();
     return {
       id: d.id,
       name: d.name,
       role: d.role,
-      email: (api?.email ?? meta?.email ?? "").toString(),
+      email,
       linkedIn: d.linkedInUrl,
       imageUri: null,
       imageUrl: d.imageUrl,

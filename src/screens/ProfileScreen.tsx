@@ -286,17 +286,23 @@ function CameraIcon({ size = 16, color = "#FFFFFF" }: IconProps) {
   );
 }
 
-function ChevronDownIcon({ size = 20, color = "#404040" }: IconProps) {
+function ChevronDownIcon({
+  size = 20,
+  color = "#404040",
+  rotated = false,
+}: IconProps & { rotated?: boolean }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <Path
-        d="M5 7.5L10 12.5L15 7.5"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
+    <View style={{ transform: [{ rotate: rotated ? "180deg" : "0deg" }] }}>
+      <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+        <Path
+          d="M5 7.5L10 12.5L15 7.5"
+          stroke={color}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </View>
   );
 }
 
@@ -928,7 +934,7 @@ function PersonalProfileSection({
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
-  const { user } = useAuth();
+  const { user, triggerBootsplash } = useAuth();
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
@@ -1277,12 +1283,6 @@ function PersonalProfileSection({
         }
       }
 
-      if (photoUpdateFailed) {
-        showToast("Profile saved. Photo could not be updated.", "warning");
-      } else {
-        showToast("Profile saved successfully!", "success");
-      }
-
       void trackProfileEvent("updated", {
         source: "profile_screen",
         section: "personal",
@@ -1292,8 +1292,17 @@ function PersonalProfileSection({
         await onSave();
       }
       if (setIsSubmitting) setIsSubmitting(false);
+      if (photoUpdateFailed) {
+        showToast("Profile saved. Photo could not be updated.", "warning");
+      } else {
+        showToast("Profile saved successfully!", "success");
+      }
       if (hasHomeScreen()) {
-        navigateRef("Home");
+        // toast → splash → Home
+        setTimeout(() => {
+          triggerBootsplash();
+          navigateRef("Home");
+        }, 900);
       }
       return true;
     } catch (error: any) {
@@ -2144,12 +2153,6 @@ function AttendeeProfileSection({
         }
       }
 
-      if (photoUpdateFailed) {
-        showToast("Profile saved. Photo could not be updated.", "warning");
-      } else {
-        showToast("Profile saved successfully!", "success");
-      }
-
       void trackProfileEvent("updated", {
         source: "profile_screen",
         section: "personal_attendee",
@@ -2160,6 +2163,11 @@ function AttendeeProfileSection({
       }
 
       if (setIsSubmitting) setIsSubmitting(false);
+      if (photoUpdateFailed) {
+        showToast("Profile saved. Photo could not be updated.", "warning");
+      } else {
+        showToast("Profile saved successfully!", "success");
+      }
       return true;
     } catch (error: any) {
       console.error("Error saving profile:", error);
@@ -2661,7 +2669,7 @@ function CompanyProfileSection({
 }) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
-  const { user } = useAuth();
+  const { user, triggerBootsplash } = useAuth();
   const [companyName, setCompanyName] = useState("");
   const [boothNumber, setBoothNumber] = useState<string | null>(null);
   const [boothLoading, setBoothLoading] = useState(false);
@@ -2679,6 +2687,7 @@ function CompanyProfileSection({
   const [showGrowthStageModal, setShowGrowthStageModal] = useState(false);
   const [yearFounded, setYearFounded] = useState("");
   const [founders, setFounders] = useState<FounderFormEntry[]>([]);
+  const [foundersExpanded, setFoundersExpanded] = useState(true);
   const [offers, setOffers] = useState<
     Array<{ id: string | number; title: string; color: string; link: string }>
   >([]);
@@ -3252,8 +3261,6 @@ function CompanyProfileSection({
         setIsUploadingImage(false);
       }
 
-      showToast("Company profile saved successfully!", "success");
-
       void trackProfileEvent("updated", {
         source: "profile_screen",
         section: "company",
@@ -3265,10 +3272,14 @@ function CompanyProfileSection({
 
       setSelectedImageUri(null);
       if (setIsSubmitting) setIsSubmitting(false);
+      showToast("Company profile saved successfully!", "success");
 
-      // After manage-profile save in the main app, land on Home (not stay on Profile).
+      // Saving → toast → splash → Home
       if (hasHomeScreen()) {
-        navigateRef("Home");
+        setTimeout(() => {
+          triggerBootsplash();
+          navigateRef("Home");
+        }, 900);
       }
       return true;
     } catch (error: any) {
@@ -3666,145 +3677,170 @@ function CompanyProfileSection({
                 </View>
 
                 <View className="mb-4">
-                  <Text className="text-[14px] font-semibold text-neutral-700 mb-2">
-                    Founders
-                  </Text>
-                  <Text className="text-xs text-neutral-500 mb-3 leading-4">
-                    Photo, name, role, email, and LinkedIn for each founder.
-                  </Text>
-                  {founders.map((founder, index) => {
-                    const photoUri = founder.imageUri || founder.imageUrl;
-                    return (
-                      <View
-                        key={founder.id}
-                        className="mb-3 p-4 bg-white border border-neutral-200 rounded-xl"
-                      >
-                        <View className="flex-row items-center justify-between mb-3">
-                          <Text className="text-sm font-medium text-neutral-700">
-                            Founder {index + 1}
-                          </Text>
-                          {founders.length > 1 ? (
+                  <Pressable
+                    onPress={() => setFoundersExpanded((prev) => !prev)}
+                    className="flex-row items-center justify-between mb-2"
+                    hitSlop={8}
+                  >
+                    <View className="flex-1 pr-3">
+                      <Text className="text-[14px] font-semibold text-neutral-700">
+                        Founders
+                      </Text>
+                      {!foundersExpanded ? (
+                        <Text className="text-xs text-neutral-500 mt-1">
+                          {founders.length} founder
+                          {founders.length === 1 ? "" : "s"} — tap to expand
+                        </Text>
+                      ) : null}
+                    </View>
+                    <ChevronDownIcon
+                      size={20}
+                      color="#404040"
+                      rotated={foundersExpanded}
+                    />
+                  </Pressable>
+                  {foundersExpanded ? (
+                    <>
+                      <Text className="text-xs text-neutral-500 mb-3 leading-4">
+                        Photo, name, role, email, and LinkedIn for each founder.
+                      </Text>
+                      {founders.map((founder, index) => {
+                        const photoUri = founder.imageUri || founder.imageUrl;
+                        return (
+                          <View
+                            key={founder.id}
+                            className="mb-3 p-4 bg-white border border-neutral-200 rounded-xl"
+                          >
+                            <View className="flex-row items-center justify-between mb-3">
+                              <Text className="text-sm font-medium text-neutral-700">
+                                Founder {index + 1}
+                              </Text>
+                              {founders.length > 1 ? (
+                                <Pressable
+                                  onPress={() =>
+                                    setFounders((prev) =>
+                                      prev.filter((f) => f.id !== founder.id),
+                                    )
+                                  }
+                                  hitSlop={8}
+                                >
+                                  <Text className="text-xs font-medium text-red-600">
+                                    Remove
+                                  </Text>
+                                </Pressable>
+                              ) : null}
+                            </View>
                             <Pressable
-                              onPress={() =>
+                              onPress={() => void pickFounderPhoto(founder.id)}
+                              className="mb-3 w-20 h-20 rounded-full border border-neutral-300 bg-neutral-50 items-center justify-center overflow-hidden"
+                            >
+                              {photoUri ? (
+                                <Image
+                                  source={{ uri: photoUri }}
+                                  className="w-full h-full"
+                                  resizeMode="cover"
+                                />
+                              ) : (
+                                <Text className="text-[10px] text-neutral-500 text-center px-1">
+                                  Add photo
+                                </Text>
+                              )}
+                            </Pressable>
+                            <Text className="text-xs font-medium text-neutral-600 mb-1">
+                              Name
+                            </Text>
+                            <TextInput
+                              className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                              value={founder.name}
+                              onChangeText={(v) =>
                                 setFounders((prev) =>
-                                  prev.filter((f) => f.id !== founder.id),
+                                  prev.map((f) =>
+                                    f.id === founder.id ? { ...f, name: v } : f,
+                                  ),
                                 )
                               }
-                              hitSlop={8}
-                            >
-                              <Text className="text-xs font-medium text-red-600">
-                                Remove
-                              </Text>
-                            </Pressable>
-                          ) : null}
-                        </View>
-                        <Pressable
-                          onPress={() => void pickFounderPhoto(founder.id)}
-                          className="mb-3 w-20 h-20 rounded-full border border-neutral-300 bg-neutral-50 items-center justify-center overflow-hidden"
-                        >
-                          {photoUri ? (
-                            <Image
-                              source={{ uri: photoUri }}
-                              className="w-full h-full"
-                              resizeMode="cover"
+                              placeholder="Full name"
+                              placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
                             />
-                          ) : (
-                            <Text className="text-[10px] text-neutral-500 text-center px-1">
-                              Add photo
+                            <Text className="text-xs font-medium text-neutral-600 mb-1">
+                              Role
                             </Text>
-                          )}
-                        </Pressable>
-                        <Text className="text-xs font-medium text-neutral-600 mb-1">
-                          Name
+                            <TextInput
+                              className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                              value={founder.role}
+                              onChangeText={(v) =>
+                                setFounders((prev) =>
+                                  prev.map((f) =>
+                                    f.id === founder.id ? { ...f, role: v } : f,
+                                  ),
+                                )
+                              }
+                              placeholder="e.g. CEO, Co-founder"
+                              placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                            />
+                            <Text className="text-xs font-medium text-neutral-600 mb-1">
+                              Email
+                            </Text>
+                            <TextInput
+                              className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                              value={founder.email}
+                              onChangeText={(v) =>
+                                setFounders((prev) =>
+                                  prev.map((f) =>
+                                    f.id === founder.id ? { ...f, email: v } : f,
+                                  ),
+                                )
+                              }
+                              placeholder="founder@startup.com"
+                              placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                              autoCapitalize="none"
+                              keyboardType="email-address"
+                            />
+                            <Text className="text-xs font-medium text-neutral-600 mb-1">
+                              LinkedIn
+                            </Text>
+                            <TextInput
+                              className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                              value={founder.linkedIn}
+                              onChangeText={(v) =>
+                                setFounders((prev) =>
+                                  prev.map((f) =>
+                                    f.id === founder.id
+                                      ? { ...f, linkedIn: v }
+                                      : f,
+                                  ),
+                                )
+                              }
+                              placeholder="https://linkedin.com/in/..."
+                              placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                              autoCapitalize="none"
+                            />
+                          </View>
+                        );
+                      })}
+                      <Pressable
+                        onPress={() =>
+                          setFounders((prev) => [
+                            ...prev,
+                            {
+                              id: `founder-${Date.now()}`,
+                              name: "",
+                              role: "",
+                              email: "",
+                              linkedIn: "",
+                              imageUri: null,
+                              imageUrl: null,
+                            },
+                          ])
+                        }
+                        className="py-2"
+                      >
+                        <Text className="text-sm font-semibold text-black">
+                          + Add founder
                         </Text>
-                        <TextInput
-                          className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
-                          value={founder.name}
-                          onChangeText={(v) =>
-                            setFounders((prev) =>
-                              prev.map((f) =>
-                                f.id === founder.id ? { ...f, name: v } : f,
-                              ),
-                            )
-                          }
-                          placeholder="Full name"
-                          placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
-                        />
-                        <Text className="text-xs font-medium text-neutral-600 mb-1">
-                          Role
-                        </Text>
-                        <TextInput
-                          className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
-                          value={founder.role}
-                          onChangeText={(v) =>
-                            setFounders((prev) =>
-                              prev.map((f) =>
-                                f.id === founder.id ? { ...f, role: v } : f,
-                              ),
-                            )
-                          }
-                          placeholder="e.g. CEO, Co-founder"
-                          placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
-                        />
-                        <Text className="text-xs font-medium text-neutral-600 mb-1">
-                          Email
-                        </Text>
-                        <TextInput
-                          className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
-                          value={founder.email}
-                          onChangeText={(v) =>
-                            setFounders((prev) =>
-                              prev.map((f) =>
-                                f.id === founder.id ? { ...f, email: v } : f,
-                              ),
-                            )
-                          }
-                          placeholder="founder@startup.com"
-                          placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
-                          autoCapitalize="none"
-                          keyboardType="email-address"
-                        />
-                        <Text className="text-xs font-medium text-neutral-600 mb-1">
-                          LinkedIn
-                        </Text>
-                        <TextInput
-                          className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
-                          value={founder.linkedIn}
-                          onChangeText={(v) =>
-                            setFounders((prev) =>
-                              prev.map((f) =>
-                                f.id === founder.id ? { ...f, linkedIn: v } : f,
-                              ),
-                            )
-                          }
-                          placeholder="https://linkedin.com/in/..."
-                          placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
-                          autoCapitalize="none"
-                        />
-                      </View>
-                    );
-                  })}
-                  <Pressable
-                    onPress={() =>
-                      setFounders((prev) => [
-                        ...prev,
-                        {
-                          id: `founder-${Date.now()}`,
-                          name: "",
-                          role: "",
-                          email: "",
-                          linkedIn: "",
-                          imageUri: null,
-                          imageUrl: null,
-                        },
-                      ])
-                    }
-                    className="py-2"
-                  >
-                    <Text className="text-sm font-semibold text-black">
-                      + Add founder
-                    </Text>
-                  </Pressable>
+                      </Pressable>
+                    </>
+                  ) : null}
                 </View>
               </>
             ) : null}
@@ -4051,7 +4087,7 @@ function CompanyProfileSection({
 
 export default function ProfileScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "Profile">>();
-  const { user, completeProfile } = useAuth();
+  const { user, refreshUser } = useAuth();
   const {
     viewState: startupJoinState,
     approveRequest,
@@ -4220,7 +4256,7 @@ export default function ProfileScreen() {
               <PersonalProfileSection
                 initialProfile={profile}
                 saveTrigger={personalSaveTrigger}
-                onSave={completeProfile}
+                onSave={refreshUser}
                 isSubmitting={personalIsSubmitting}
                 setIsSubmitting={setPersonalIsSubmitting}
                 onRefresh={onRefresh}
@@ -4243,7 +4279,7 @@ export default function ProfileScreen() {
               <CompanyProfileSection
                 initialProfile={profile}
                 saveTrigger={companySaveTrigger}
-                onSave={completeProfile}
+                onSave={refreshUser}
                 isSubmitting={companyIsSubmitting}
                 setIsSubmitting={setCompanyIsSubmitting}
                 onRefresh={onRefresh}
@@ -4300,7 +4336,7 @@ export default function ProfileScreen() {
             <AttendeeProfileSection
               initialProfile={profile}
               saveTrigger={attendeeSaveTrigger}
-              onSave={completeProfile}
+              onSave={refreshUser}
               isSubmitting={attendeeIsSubmitting}
               setIsSubmitting={setAttendeeIsSubmitting}
               onRefresh={onRefresh}

@@ -6,15 +6,24 @@ import {
   Image,
   ImageSourcePropType,
 } from "react-native";
+import {
+  PROFILE_TAG_COLORS,
+  type ProfileTagKind,
+} from "../constants/profileTagColors";
 
 const LOGO_SIZE = 88;
 const LOGO_RADIUS = 16;
+
+export type StartupDirectoryTag = {
+  label: string;
+  kind: ProfileTagKind;
+};
 
 interface StartupDirectoryCardProps {
   name: string;
   logo?: string | number;
   logoColor?: string;
-  tags?: string[];
+  tags?: StartupDirectoryTag[];
   onPress?: () => void;
 }
 
@@ -34,7 +43,7 @@ export default function StartupDirectoryCard({
       : logo
     : undefined;
 
-  const visibleTags = tags.filter(Boolean);
+  const visibleTags = tags.filter((t) => t?.label);
 
   return (
     <Pressable
@@ -48,7 +57,7 @@ export default function StartupDirectoryCard({
         elevation: 2,
       }}
     >
-      {/* Logo plate — full-width white band so the mark reads larger on mobile */}
+      {/* Logo plate — full-width white band so the mark sits larger on mobile */}
       <View
         className="bg-neutral-50 items-center justify-center border-b border-neutral-100"
         style={{ height: 112, paddingHorizontal: 12 }}
@@ -89,17 +98,29 @@ export default function StartupDirectoryCard({
         </Text>
 
         {visibleTags.length > 0 ? (
-          <View className="flex-row flex-wrap justify-center">
-            {visibleTags.map((tag) => (
-              <View
-                key={`${name}-${tag}`}
-                className="px-2 py-1 mr-1 mb-1 rounded-md bg-teal-50 border border-teal-200"
-              >
-                <Text className="text-[11px] text-teal-800 font-medium" numberOfLines={1}>
-                  {tag}
-                </Text>
-              </View>
-            ))}
+          <View className="flex-row flex-wrap justify-start">
+            {visibleTags.map((tag) => {
+              const palette = PROFILE_TAG_COLORS[tag.kind];
+              return (
+                <View
+                  key={`${name}-${tag.kind}-${tag.label}`}
+                  className="px-2 py-1 mr-1 mb-1 rounded-md"
+                  style={{
+                    backgroundColor: palette.bg,
+                    borderWidth: 1,
+                    borderColor: palette.border,
+                  }}
+                >
+                  <Text
+                    className="text-[11px] font-medium"
+                    style={{ color: palette.text }}
+                    numberOfLines={1}
+                  >
+                    {tag.label}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
         ) : null}
       </View>

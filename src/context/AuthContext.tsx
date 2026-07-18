@@ -54,6 +54,10 @@ interface AuthContextType {
   logout: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
   completeProfile: () => Promise<void>;
+  /** Soft refresh after Manage Profile save — updates user state, no bootsplash. */
+  refreshUser: () => Promise<void>;
+  /** Play branded bootsplash over the main app (e.g. after Manage Profile save). */
+  triggerBootsplash: () => void;
   markWelcomeSeen: () => Promise<void>;
   // For development: skip auth temporarily
   skipAuth: () => void;
@@ -91,6 +95,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const enterMainAppWithBootsplash = useCallback(() => {
     setIsAuthenticated(true);
+    setShowBootsplash(true);
+  }, []);
+
+  const triggerBootsplash = useCallback(() => {
     setShowBootsplash(true);
   }, []);
 
@@ -413,6 +421,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Fallback: If GET /auth/user/ fails or returns incomplete data (prod API issues),
    * and PROFILE_JUST_SAVED is set (user came from successful save), we optimistically
    * mark complete so the user can enter the app instead of being stuck.
+   *
+   * Use only for first-time profile completion (shows branded bootsplash).
+   * For Manage Profile in the main app, use refreshUser instead.
    */
   const completeProfile = async () => {
     const clearJustSaved = () =>
@@ -481,6 +492,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  /** Soft refresh after Manage Profile save — updates user state, no bootsplash. */
+  const refreshUser = async () => {
+    try {
+      const userProfile = await authService.getCurrentUser();
+      ticketService.getUserTicket(EVENT_ID).catch(() => {});
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.USER,
+        JSON.stringify(userProfile),
+      );
+      setUser(userProfile);
+      const profileComplete = isProfileComplete(userProfile);
+      setHasCompletedProfile(profileComplete);
+      if (profileComplete) {
+        await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
+      }
+    } catch (error) {
+      console.error("Error refreshing user after profile save:", error);
+      // Non-fatal: save already succeeded; local form state is enough until next load.
+    }
+  };
+
   // Development helper: skip auth for UI development
   // NOTE: This bypasses the login flow - use only for development/testing
   const skipAuth = async () => {
@@ -522,6 +554,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     completeOnboarding,
     completeProfile,
+    refreshUser,
+    triggerBootsplash,
     markWelcomeSeen,
     skipAuth,
   };
