@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     padding: 32,
     backgroundColor: "#FFFFFF",
-    borderRadius: 32,
+    borderRadius: 0,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
   },
   detailsCard: {
     backgroundColor: "#F5F5F5",
-    borderRadius: 16,
+    borderRadius: 0,
     padding: 16,
     borderWidth: 1,
     borderColor: "#E5E5E5",

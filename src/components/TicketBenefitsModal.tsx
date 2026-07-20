@@ -129,7 +129,7 @@ export default function TicketBenefitsModal({
               colors={gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={{ borderRadius: 16, padding: 16 }}
+              style={{ borderRadius: 0, padding: 16 }}
             >
               <Text className={`text-xs uppercase tracking-wide ${headerSubTextColor}`}>
                 Your Ticket Benefits

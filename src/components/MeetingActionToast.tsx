@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   toast: {
-    borderRadius: 16,
+    borderRadius: 0,
     paddingHorizontal: 16,
     paddingVertical: 14,
     flexDirection: "row",

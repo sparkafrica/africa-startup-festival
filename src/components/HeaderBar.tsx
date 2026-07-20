@@ -32,21 +32,14 @@ export default function HeaderBar({
     <SafeAreaView edges={["top"]} className="bg-white">
       <StatusBar style="dark" />
       <View className="flex-row items-center px-3 py-2.5">
-        {/* Pills only — flex-1 so they shrink; never draw over trailing icons */}
+        {/* Standalone actions — no borders */}
         <View className="flex-row items-center flex-1 min-w-0 mr-2">
           <Pressable
             onPress={onScanPress}
-            className="flex-row items-center bg-[#fefefe] rounded-full h-9 px-2.5 mr-1.5 border border-[#c6c6c6] flex-shrink-0"
-            style={{
-              shadowColor: "#fefefe",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.09,
-              shadowRadius: 3,
-              elevation: 2,
-            }}
+            className="flex-row items-center h-9 px-2 mr-1 flex-shrink-0"
             hitSlop={8}
           >
-            <View className="w-5 h-5 bg-[#fefefe] rounded-full items-center justify-center mr-1.5">
+            <View className="w-5 h-5 items-center justify-center mr-1.5">
               <ScanIcon size={18} color="#404040" />
             </View>
             <Text className="font-semibold text-[#404040] text-sm">Scan</Text>
@@ -54,18 +47,11 @@ export default function HeaderBar({
           {onMyTicketPress ? (
             <Pressable
               onPress={onMyTicketPress}
-              className="flex-row items-center bg-[#fefefe] rounded-full h-9 pl-2 pr-2.5 mr-0 border border-[#c6c6c6] min-w-0"
-              style={{
-                flexShrink: 1,
-                shadowColor: "#fefefe",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.09,
-                shadowRadius: 3,
-                elevation: 2,
-              }}
+              className="flex-row items-center h-9 pl-1.5 pr-2 mr-0 min-w-0"
+              style={{ flexShrink: 1 }}
               hitSlop={8}
             >
-              <View className="w-5 h-5 bg-[#fefefe] rounded-full items-center justify-center mr-1.5">
+              <View className="w-5 h-5 items-center justify-center mr-1.5">
                 <TicketIcon size={18} color="#404040" />
               </View>
               <View style={{ minWidth: 0, flexShrink: 1 }}>
@@ -79,21 +65,14 @@ export default function HeaderBar({
             </Pressable>
           ) : null}
         </View>
-        {/* Fixed-width cluster — always reserved so menu never overlaps */}
+        {/* Fixed-width cluster — standalone icon buttons, no borders */}
         <View className="flex-row items-center flex-shrink-0">
           <Pressable
             onPress={onNotificationPress}
-            className="w-9 h-9 rounded-full bg-[#fefefe] border border-[#c6c6c6] items-center justify-center"
-            style={{
-              shadowColor: "#2762C7",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.09,
-              shadowRadius: 3,
-              elevation: 2,
-            }}
+            className="w-9 h-9 items-center justify-center"
             hitSlop={8}
           >
-            <BellIcon size={17} color="#404040" />
+            <BellIcon size={20} color="#404040" />
             {hasUnreadNotifications && (
               <View
                 style={{
@@ -112,17 +91,10 @@ export default function HeaderBar({
           </Pressable>
           <Pressable
             onPress={onMessagesPress}
-            className="w-9 h-9 rounded-full bg-[#fefefe] border border-[#c6c6c6] items-center justify-center ml-1.5"
-            style={{
-              shadowColor: "#2762C7",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.09,
-              shadowRadius: 3,
-              elevation: 2,
-            }}
+            className="w-9 h-9 items-center justify-center ml-0.5"
             hitSlop={8}
           >
-            <MailIcon size={17} color="#404040" />
+            <MailIcon size={20} color="#404040" />
             {hasUnreadMessages && (
               <View
                 style={{
@@ -153,17 +125,12 @@ export default function HeaderBar({
               </View>
             )}
           </Pressable>
-          <Pressable onPress={onMenuPress} className="ml-1.5 p-1">
-            <View
-              style={{
-                borderWidth: 1,
-                borderColor: "#c6c6c6",
-                borderRadius: 9999,
-                padding: 5,
-              }}
-            >
-              <MenuIcon size={19} color="#404040" />
-            </View>
+          <Pressable
+            onPress={onMenuPress}
+            className="w-9 h-9 items-center justify-center ml-0.5"
+            hitSlop={8}
+          >
+            <MenuIcon size={20} color="#404040" />
           </Pressable>
         </View>
       </View>

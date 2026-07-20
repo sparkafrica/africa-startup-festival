@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 999,
+    borderRadius: 0,
   },
   dayCellSelected: {
     backgroundColor: "#171717",

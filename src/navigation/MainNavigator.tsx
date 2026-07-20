@@ -22,6 +22,7 @@ import MeetingsScreen from "../screens/MeetingsScreen";
 import ConnectionsScreen from "../screens/ConnectionsScreen";
 import ConversationScreen from "../screens/ConversationScreen";
 import ContactScreen from "../screens/ContactScreen";
+import FloorPlanScreen from "../screens/FloorPlanScreen";
 import TalentBoardScreen from "../screens/TalentBoardScreen";
 import PartnersOffersScreen from "../screens/PartnersOffersScreen";
 import AppGuideScreen from "../screens/AppGuideScreen";
@@ -75,6 +76,7 @@ export default function MainNavigator() {
       <Stack.Screen name="Connections" component={ConnectionsScreen} options={NONE} />
       <Stack.Screen name="Conversation" component={ConversationScreen} options={FADE} />
       <Stack.Screen name="Contact" component={ContactScreen} options={FADE} />
+      <Stack.Screen name="FloorPlan" component={FloorPlanScreen} options={FADE} />
       <Stack.Screen name="Talent" component={TalentBoardScreen} options={FADE} />
       <Stack.Screen name="PartnersOffers" component={PartnersOffersScreen} options={FADE} />
       <Stack.Screen name="AppGuide" component={AppGuideScreen} options={FADE} />

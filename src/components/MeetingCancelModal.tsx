@@ -358,8 +358,8 @@ const styles = StyleSheet.create({
   },
   bottomSheet: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     width: "100%",
     position: "absolute",
     bottom: 0,
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 16,
     minHeight: 120,
     maxHeight: 200,
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     backgroundColor: "#111827",
-    borderRadius: 12,
+    borderRadius: 0,
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",

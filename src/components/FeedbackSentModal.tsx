@@ -215,8 +215,8 @@ const styles = StyleSheet.create({
   },
   bottomSheet: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     width: "100%",
     position: "absolute",
     bottom: 0,
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     backgroundColor: "#000000",
-    borderRadius: 999,
+    borderRadius: 0,
     paddingVertical: 16,
     paddingHorizontal: 48,
     alignItems: "center",

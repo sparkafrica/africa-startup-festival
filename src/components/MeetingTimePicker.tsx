@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 12,
     paddingHorizontal: 14,
-    borderRadius: 10,
+    borderRadius: 0,
   },
   rowSelected: {
     backgroundColor: "#F0FDF4",

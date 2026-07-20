@@ -21,6 +21,7 @@ import {
   LoadingSpinner,
   SkeletonListRows,
   RequestMeetingModal,
+  GuidelinePatternOverlay,
   FLOATING_NAV_BOTTOM_INSET,
 } from "../components";
 import ConnectionsExportBanner from "../components/ConnectionsExportBanner";
@@ -180,8 +181,9 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
   return (
     <Pressable
       onPress={onPress}
-      className="bg-white rounded-xl"
+      className="bg-white"
       style={{
+        borderRadius: 0,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
@@ -216,8 +218,8 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
             {/* Status Indicator */}
             {statusIndicator && (
               <View
-                className="px-2 py-0.5 rounded-full ml-2"
-                style={{ backgroundColor: statusIndicator.bgColor }}
+                className="px-2 py-0.5 ml-2"
+                style={{ backgroundColor: statusIndicator.bgColor, borderRadius: 0 }}
               >
                 <Text
                   className="text-xs font-medium"
@@ -1069,7 +1071,7 @@ export default function ConnectionsScreen() {
           position: "relative",
           marginHorizontal: 16,
           marginBottom: 12,
-          borderRadius: 12,
+          borderRadius: 0,
           overflow: "hidden",
         }}
       >
@@ -1149,7 +1151,8 @@ export default function ConnectionsScreen() {
             </Text>
             <Pressable
               onPress={fetchConnections}
-              className="bg-neutral-900 rounded-xl px-6 py-3"
+              className="bg-neutral-900 px-6 py-3"
+              style={{ borderRadius: 0 }}
             >
               <Text className="text-white font-semibold">Retry</Text>
             </Pressable>
@@ -1259,8 +1262,10 @@ export default function ConnectionsScreen() {
           >
             <Pressable
               onPress={(e) => e.stopPropagation()}
-              className="bg-white rounded-t-3xl"
+              className="overflow-hidden"
               style={{
+                borderRadius: 0,
+                backgroundColor: "#FFFFFF",
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: -2 },
                 shadowOpacity: 0.1,
@@ -1268,6 +1273,9 @@ export default function ConnectionsScreen() {
                 elevation: 10,
               }}
             >
+              <GuidelinePatternOverlay isLightCard opacity={0.05} />
+
+              <View className="relative z-10">
               {/* Drag Handle */}
               <View
                 className="w-12 h-1.5 bg-neutral-300 rounded-full self-center mt-3 mb-6"
@@ -1316,8 +1324,9 @@ export default function ConnectionsScreen() {
                           {displayConnection.tags.map((tag, index) => (
                             <View
                               key={index}
-                              className="bg-white border rounded-full px-3 py-1.5 mr-2 mb-2"
+                              className="bg-white border px-3 py-1.5 mr-2 mb-2"
                               style={{
+                                borderRadius: 0,
                                 borderColor: tag.borderColor,
                                 borderWidth: 1.5,
                               }}
@@ -1350,7 +1359,8 @@ export default function ConnectionsScreen() {
                         {displayConnection.interests.map((interest, index) => (
                           <View
                             key={index}
-                            className="bg-white border border-neutral-300 rounded-full px-3 py-1.5 mr-2 mb-2"
+                            className="bg-white border border-neutral-300 px-3 py-1.5 mr-2 mb-2"
+                            style={{ borderRadius: 0 }}
                           >
                             <Text className="text-sm font-medium text-neutral-700">
                               {interest}
@@ -1373,7 +1383,8 @@ export default function ConnectionsScreen() {
                         (session, index) => (
                           <View
                             key={index}
-                            className="bg-neutral-100 rounded-xl p-4 mb-2"
+                            className="bg-neutral-100 p-4 mb-2"
+                            style={{ borderRadius: 0 }}
                           >
                             <Text className="text-base font-semibold text-neutral-900 mb-1">
                               {session.title}
@@ -1396,7 +1407,7 @@ export default function ConnectionsScreen() {
                         <Pressable
                           onPress={() => handleAcceptConnection(selectedConnection)}
                           disabled={isProcessingAction}
-                          className="w-full flex-row items-center justify-center bg-[#1BB273] rounded-xl py-3.5 px-4 mb-3"
+                          className="w-full flex-row items-center justify-center bg-[#1BB273] py-3.5 px-4 mb-3" style={{ borderRadius: 0 }}
                         >
                           {isProcessingAction ? (
                             <LoadingSpinner size="small" color="#FFFFFF" />
@@ -1409,8 +1420,8 @@ export default function ConnectionsScreen() {
                         <Pressable
                           onPress={() => handleRejectConnection(selectedConnection)}
                           disabled={isProcessingAction}
-                          className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4 mb-3"
-                          style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
+                          className="w-full flex-row items-center justify-center py-3.5 px-4 mb-3"
+                          style={{ borderRadius: 0, backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
                         >
                           {isProcessingAction ? (
                             <LoadingSpinner size="small" color="#FFFFFF" />
@@ -1437,7 +1448,7 @@ export default function ConnectionsScreen() {
                           showExpoCannotBookMeetingAlert(navigation);
                         }
                       }}
-                      className="w-full flex-row items-center justify-center bg-neutral-900 rounded-xl py-3.5 px-4 mb-3"
+                      className="w-full flex-row items-center justify-center bg-neutral-900 py-3.5 px-4 mb-3" style={{ borderRadius: 0 }}
                     >
                       <CalendarIconWhite size={20} color="#FFFFFF" />
                       <Text className="text-base font-semibold text-white ml-2">
@@ -1492,8 +1503,8 @@ export default function ConnectionsScreen() {
                         return linkedIn ? (
                           <Pressable
                             onPress={openLinkedIn}
-                            style={{ flex: 1, marginRight: 6 }}
-                            className="flex-row items-center justify-center bg-neutral-200 rounded-xl py-3.5 px-3"
+                            className="flex-row items-center justify-center bg-neutral-200 py-3.5 px-3"
+                            style={{ flex: 1, marginRight: 6, borderRadius: 0 }}
                           >
                             <LinkedInIcon size={20} color="#0A66C2" />
                             <Text
@@ -1537,8 +1548,8 @@ export default function ConnectionsScreen() {
                           }
                         }}
                         disabled={isOpeningChat}
-                        style={{ flex: 1, marginLeft: 6 }}
-                        className="flex-row items-center justify-center bg-[#1BB273] rounded-xl py-3.5 px-3"
+                        className="flex-row items-center justify-center bg-[#1BB273] py-3.5 px-3"
+                        style={{ flex: 1, marginLeft: 6, borderRadius: 0 }}
                       >
                         {isOpeningChat ? (
                           <LoadingSpinner size="small" color="#FFFFFF" />
@@ -1588,7 +1599,7 @@ export default function ConnectionsScreen() {
                               );
                             }
                           }}
-                          className="w-full flex-row items-center justify-center bg-neutral-200 rounded-xl py-3.5 px-4 mb-3"
+                          className="w-full flex-row items-center justify-center bg-neutral-200 py-3.5 px-4 mb-3" style={{ borderRadius: 0 }}
                         >
                           <LinkedInIcon size={20} color="#0A66C2" />
                           <Text className="text-base font-semibold text-neutral-700 ml-2">
@@ -1620,7 +1631,7 @@ export default function ConnectionsScreen() {
                     <Pressable
                       onPress={() => handleDeleteConnection(selectedConnection)}
                       disabled={isProcessingAction}
-                      className="w-full flex-row items-center justify-center rounded-xl py-3.5 px-4 mt-3"
+                      className="w-full flex-row items-center justify-center py-3.5 px-4 mt-3" style={{ borderRadius: 0 }}
                       style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
                     >
                       {isProcessingAction ? (
@@ -1634,6 +1645,7 @@ export default function ConnectionsScreen() {
                   )}
                 </View>
               </ScrollView>
+              </View>
             </Pressable>
           </Animated.View>
         </View>

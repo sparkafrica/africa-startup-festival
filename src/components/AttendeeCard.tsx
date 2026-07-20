@@ -60,8 +60,9 @@ export default function AttendeeCard({
 }: AttendeeCardProps) {
   return (
     <View
-      className="bg-white rounded-2xl p-4 mb-3"
+      className="bg-white p-4 mb-3"
       style={{
+        borderRadius: 0,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
@@ -102,7 +103,8 @@ export default function AttendeeCard({
               {tags.map((tag, index) => (
                 <View
                   key={index}
-                  className="px-2 py-1 bg-neutral-100 rounded-md mr-2 mb-1"
+                  className="px-2 py-1 bg-neutral-100 mr-2 mb-1"
+                  style={{ borderRadius: 0 }}
                 >
                   <Text className="text-xs text-neutral-700">{tag}</Text>
                 </View>
@@ -114,7 +116,8 @@ export default function AttendeeCard({
         {/* Connect Button */}
         <Pressable
           onPress={onConnect}
-          className="px-3 py-2 rounded-xl border border-neutral-200 items-center justify-center flex-shrink-0"
+          className="px-3 py-2 border border-neutral-200 items-center justify-center flex-shrink-0"
+          style={{ borderRadius: 0 }}
         >
           <ConnectIcon size={16} color="#404040" />
           <Text className="text-xs font-medium text-neutral-900 mt-1">
@@ -125,4 +128,3 @@ export default function AttendeeCard({
     </View>
   );
 }
-

@@ -46,8 +46,9 @@ export default function MeetingCard({
   return (
     <Pressable
       onPress={onPress}
-      className="bg-white rounded-xl p-4 mb-4 border border-gray-200"
+      className="bg-white p-4 mb-4 border border-gray-200"
       style={{
+        borderRadius: 0,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
@@ -112,7 +113,7 @@ export default function MeetingCard({
 
       {/* Approval Status Message */}
       {approvalMessage && (
-        <View className="bg-orange-50 rounded-lg px-3 py-2.5">
+        <View className="bg-orange-50 px-3 py-2.5" style={{ borderRadius: 0 }}>
           <Text className="text-sm text-black">
             {approvalMessage}
             {expiresIn !== undefined &&

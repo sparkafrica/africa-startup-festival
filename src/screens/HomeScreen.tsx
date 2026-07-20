@@ -127,10 +127,8 @@ export default function HomeScreen() {
   }, [registerScrollToTop]);
 
   // Get checklist state and methods from context
-  const {
-    isConnectAttendeesComplete,
-    isRequestMeetingComplete,
-  } = useChecklist();
+  const { isConnectAttendeesComplete, isRequestMeetingComplete } =
+    useChecklist();
 
   // Track if checklist has been auto-collapsed (to prevent re-collapsing on manual opens)
   const [hasAutoCollapsed, setHasAutoCollapsed] = useState(false);
@@ -143,22 +141,31 @@ export default function HomeScreen() {
   const [speakersLoading, setSpeakersLoading] = useState(true);
   const [speakersError, setSpeakersError] = useState<string | null>(null);
 
-  const [featuredExhibitors, setFeaturedExhibitors] = useState<FeaturedCompany[]>([]);
+  const [featuredExhibitors, setFeaturedExhibitors] = useState<
+    FeaturedCompany[]
+  >([]);
   const [exhibitorsLoading, setExhibitorsLoading] = useState(true);
   const [exhibitorsError, setExhibitorsError] = useState<string | null>(null);
 
-  const [featuredPartners, setFeaturedPartners] = useState<FeaturedCompany[]>([]);
+  const [featuredPartners, setFeaturedPartners] = useState<FeaturedCompany[]>(
+    [],
+  );
   const [partnersLoading, setPartnersLoading] = useState(true);
   const [partnersError, setPartnersError] = useState<string | null>(null);
 
-  const [featuredStartups, setFeaturedStartups] = useState<FeaturedCompany[]>([]);
+  const [featuredStartups, setFeaturedStartups] = useState<FeaturedCompany[]>(
+    [],
+  );
   const [startupsLoading, setStartupsLoading] = useState(true);
   const [startupsError, setStartupsError] = useState<string | null>(null);
 
-  const [directoryTab, setDirectoryTab] = useState<DirectoryTabId>("exhibitors");
+  const [directoryTab, setDirectoryTab] =
+    useState<DirectoryTabId>("exhibitors");
 
   // Speaker detail modal
-  const [selectedSpeakerId, setSelectedSpeakerId] = useState<string | null>(null);
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState<string | null>(
+    null,
+  );
   const [speakerModalVisible, setSpeakerModalVisible] = useState(false);
 
   // Refresh state
@@ -186,10 +193,7 @@ export default function HomeScreen() {
       if (allChecklistComplete) {
         setChecklistExpanded(false);
       }
-    }, [
-      refreshMeetingsBadge,
-      allChecklistComplete,
-    ]),
+    }, [refreshMeetingsBadge, allChecklistComplete]),
   );
 
   // Fetch featured speakers
@@ -201,7 +205,7 @@ export default function HomeScreen() {
         page_size: 4,
         ordering: "-id", // Or whatever ordering makes sense for "featured"
       });
-      
+
       // Take first 4 speakers as featured
       setFeaturedSpeakers(response.speakers.slice(0, 4));
     } catch (err: any) {
@@ -221,11 +225,19 @@ export default function HomeScreen() {
     setExhibitorsLoading(true);
     setExhibitorsError(null);
     try {
-      const response = await eventService.getDirectoryCompanies(EVENT_ID, "exhibitor", {
-        page_size: 4,
-        ordering: "-id",
-      });
-      setFeaturedExhibitors(response.companies.slice(0, 4).map((c) => ({ id: c.id, organisation: c.name, logo: c.logo })));
+      const response = await eventService.getDirectoryCompanies(
+        EVENT_ID,
+        "exhibitor",
+        {
+          page_size: 4,
+          ordering: "-id",
+        },
+      );
+      setFeaturedExhibitors(
+        response.companies
+          .slice(0, 4)
+          .map((c) => ({ id: c.id, organisation: c.name, logo: c.logo })),
+      );
     } catch (err: any) {
       const errorMessage =
         err instanceof ApiClientError
@@ -242,11 +254,19 @@ export default function HomeScreen() {
     setPartnersLoading(true);
     setPartnersError(null);
     try {
-      const response = await eventService.getDirectoryCompanies(EVENT_ID, "partner", {
-        page_size: 4,
-        ordering: "-id",
-      });
-      setFeaturedPartners(response.companies.slice(0, 4).map((c) => ({ id: c.id, organisation: c.name, logo: c.logo })));
+      const response = await eventService.getDirectoryCompanies(
+        EVENT_ID,
+        "partner",
+        {
+          page_size: 4,
+          ordering: "-id",
+        },
+      );
+      setFeaturedPartners(
+        response.companies
+          .slice(0, 4)
+          .map((c) => ({ id: c.id, organisation: c.name, logo: c.logo })),
+      );
     } catch (err: any) {
       const errorMessage =
         err instanceof ApiClientError
@@ -263,10 +283,14 @@ export default function HomeScreen() {
     setStartupsLoading(true);
     setStartupsError(null);
     try {
-      const response = await eventService.getDirectoryCompanies(EVENT_ID, "startup", {
-        page_size: 4,
-        ordering: "-id",
-      });
+      const response = await eventService.getDirectoryCompanies(
+        EVENT_ID,
+        "startup",
+        {
+          page_size: 4,
+          ordering: "-id",
+        },
+      );
       setFeaturedStartups(
         response.companies
           .slice(0, 4)
@@ -329,7 +353,7 @@ export default function HomeScreen() {
         fetchFeaturedStartups();
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, []),
   );
 
   // Handler functions for checklist item navigation
@@ -480,16 +504,25 @@ export default function HomeScreen() {
       if (featuredSpeakers.length === 0) {
         return (
           <View className="py-4">
-            <Text className="text-gray-500 text-center">{activeDirectory.emptyLabel}</Text>
+            <Text className="text-gray-500 text-center">
+              {activeDirectory.emptyLabel}
+            </Text>
           </View>
         );
       }
       return (
         <View className="flex-row flex-wrap -mx-1.5">
           {featuredSpeakers.map((speaker) => {
-            const avatarColor = LOGO_COLORS[parseInt(String(speaker.id), 10) % LOGO_COLORS.length];
+            const avatarColor =
+              LOGO_COLORS[
+                parseInt(String(speaker.id), 10) % LOGO_COLORS.length
+              ];
             return (
-              <View key={speaker.id} className="px-1.5 mb-3" style={{ width: "100%" }}>
+              <View
+                key={speaker.id}
+                className="px-1.5 mb-3"
+                style={{ width: "100%" }}
+              >
                 <SpeakerCard
                   name={speaker.full_name || "Speaker"}
                   role={
@@ -497,7 +530,11 @@ export default function HomeScreen() {
                       ? `${speaker.role} at ${speaker.company}`
                       : speaker.role || speaker.company || "Speaker"
                   }
-                  avatar={speaker.profile_pic ? { uri: speaker.profile_pic } : undefined}
+                  avatar={
+                    speaker.profile_pic
+                      ? { uri: speaker.profile_pic }
+                      : undefined
+                  }
                   avatarColor={avatarColor}
                   variant="horizontal"
                   onPress={() => {
@@ -547,7 +584,9 @@ export default function HomeScreen() {
     if (tabState.items.length === 0) {
       return (
         <View className="py-4">
-          <Text className="text-gray-500 text-center">{activeDirectory.emptyLabel}</Text>
+          <Text className="text-gray-500 text-center">
+            {activeDirectory.emptyLabel}
+          </Text>
         </View>
       );
     }
@@ -616,67 +655,69 @@ export default function HomeScreen() {
         <StartupJoinReminderBanner pendingCount={adminPendingRequests.length} />
 
         {eventFeatures.showEventDirectoryOnHome ? (
-        <View className="px-4">
-          {renderChecklist()}
+          <View className="px-4">
+            {renderChecklist()}
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            className="mb-3"
-            contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-          >
-            {DIRECTORY_TABS.map((tab) => {
-              const active = directoryTab === tab.id;
-              return (
-                <Pressable
-                  key={tab.id}
-                  onPress={() => setDirectoryTab(tab.id)}
-                  className={`px-4 py-2.5 rounded-full border ${
-                    active
-                      ? "bg-black border-black"
-                      : "bg-white border-neutral-300"
-                  }`}
-                >
-                  <Text
-                    className={`text-sm font-semibold ${
-                      active ? "text-white" : "text-neutral-700"
-                    }`}
-                  >
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          <Card
-            title={activeDirectory.title}
-            description={activeDirectory.description}
-            expandable={false}
-            expanded={true}
-            className="mb-4"
-          >
-            {renderDirectoryTabContent()}
-            {!isActiveDirectoryLoading ? (
-            <Pressable
-              onPress={() => navigation.navigate(activeDirectory.screen)}
-              className="bg-black rounded-xl py-4 px-6 flex-row items-center justify-center mt-4"
-              style={{
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 2,
-              }}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              className="mb-3"
+              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
             >
-              <Text className="text-white font-semibold text-base px-2">
-                {activeDirectory.viewAllLabel}
-              </Text>
-              <ArrowUpRightIcon size={18} color="#FFFFFF" />
-            </Pressable>
-            ) : null}
-          </Card>
-        </View>
+              {DIRECTORY_TABS.map((tab) => {
+                const active = directoryTab === tab.id;
+                return (
+                  <Pressable
+                    key={tab.id}
+                    onPress={() => setDirectoryTab(tab.id)}
+                    className={`px-4 py-2.5 border ${
+                      active
+                        ? "bg-black border-black"
+                        : "bg-white border-neutral-300"
+                    }`}
+                    style={{ borderRadius: 0 }}
+                  >
+                    <Text
+                      className={`text-sm font-semibold ${
+                        active ? "text-white" : "text-neutral-700"
+                      }`}
+                    >
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <Card
+              title={activeDirectory.title}
+              description={activeDirectory.description}
+              expandable={false}
+              expanded={true}
+              className="mb-4"
+            >
+              {renderDirectoryTabContent()}
+              {!isActiveDirectoryLoading ? (
+                <Pressable
+                  onPress={() => navigation.navigate(activeDirectory.screen)}
+                  className="bg-black py-4 px-6 flex-row items-center justify-center mt-4"
+                  style={{
+                    borderRadius: 0,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                >
+                  <Text className="text-white font-semibold text-base px-2">
+                    {activeDirectory.viewAllLabel}
+                  </Text>
+                  <ArrowUpRightIcon size={18} color="#FFFFFF" />
+                </Pressable>
+              ) : null}
+            </Card>
+          </View>
         ) : null}
       </ScrollView>
 
@@ -687,7 +728,10 @@ export default function HomeScreen() {
           setSelectedSpeakerId(null);
         }}
         speakerId={selectedSpeakerId || ""}
-        name={featuredSpeakers.find((s) => s.id.toString() === selectedSpeakerId)?.full_name}
+        name={
+          featuredSpeakers.find((s) => s.id.toString() === selectedSpeakerId)
+            ?.full_name
+        }
       />
 
       <HomePushNotificationOverlay />

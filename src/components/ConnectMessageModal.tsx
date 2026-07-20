@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     padding: 32,
     backgroundColor: "#FFFFFF",
-    borderRadius: 32,
+    borderRadius: 0,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,

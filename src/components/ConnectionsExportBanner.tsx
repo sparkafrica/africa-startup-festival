@@ -85,7 +85,7 @@ const PARTNER_GREEN = "#1BB273";
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderRadius: 0,
     padding: 20,
     overflow: "hidden",
     position: "relative",
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   button: {
     alignSelf: "flex-start",
     backgroundColor: PARTNER_GREEN,
-    borderRadius: 12,
+    borderRadius: 0,
     paddingVertical: 12,
     paddingHorizontal: 20,
     minWidth: 200,

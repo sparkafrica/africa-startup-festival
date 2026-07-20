@@ -16,14 +16,12 @@ import {
   TicketsIcon,
   MailIcon,
   ProfileIcon,
-  OffersIcon,
-  TalentIcon,
   LogoutIcon,
   CloseIcon,
   UserAvatarIcon,
   ChevronRightIcon,
-  HelpIcon,
   LightbulbIcon,
+  MapIcon,
 } from "./MenuIcons";
 import { PeopleIcon } from "./BottomNavIcons";
 import { getEventFeatures } from "../config/eventFeatures";
@@ -96,7 +94,7 @@ export default function Menu({
 
   const menuItems = [
     {
-      label: "My Ticket(s)",
+      label: "My Ticket",
       icon: <TicketsIcon size={20} color="#444" />,
       route: "Tickets",
     },
@@ -111,49 +109,19 @@ export default function Menu({
       route: "Profile",
     },
     {
+      label: "Floor Plan",
+      icon: <MapIcon size={20} color="#444" />,
+      route: "FloorPlan",
+    },
+    {
       label: "Startup Directory",
       icon: <PeopleIcon size={20} color="#444" />,
       route: "Startups",
     },
     {
-      label: "Sponsor Directory",
-      icon: <PeopleIcon size={20} color="#444" />,
-      route: "Sponsors",
-    },
-    {
-      label: "Founders",
-      icon: <PeopleIcon size={20} color="#444" />,
-      route: "Founders",
-    },
-    {
-      label: "Investors",
-      icon: <PeopleIcon size={20} color="#444" />,
-      route: "Investors",
-    },
-    {
-      label: "Partner Offers",
-      icon: <OffersIcon size={20} color="#444" />,
-      route: "Offers",
-    },
-    {
-      label: "Talent Board",
-      icon: <TalentIcon size={20} color="#444" />,
-      route: "Talent",
-    },
-    {
-      label: "Tag Pickup",
-      icon: <TicketsIcon size={20} color="#444" />,
-      route: "TagPickup",
-    },
-    {
       label: "Contact Us",
       icon: <MailIcon size={20} color="#444" />,
       route: "Contact",
-    },
-    {
-      label: "App Guide",
-      icon: <HelpIcon size={20} color="#444" />,
-      route: "AppGuide",
     },
     {
       label: "App Suggestions",
@@ -163,12 +131,9 @@ export default function Menu({
   ];
 
   const hiddenRoutes = new Set(getEventFeatures().hiddenMenuRoutes);
-  const hiddenPostEventRoutes = new Set(["Offers", "Talent", "TagPickup"]);
-  const visibleMenuItems = menuItems.filter((item) => {
-    if (hiddenRoutes.has(item.route)) return false;
-    if (postEventMode && hiddenPostEventRoutes.has(item.route)) return false;
-    return true;
-  });
+  const visibleMenuItems = menuItems.filter(
+    (item) => !hiddenRoutes.has(item.route),
+  );
 
   return (
     <View className="flex-1 bg-white">
@@ -193,7 +158,8 @@ export default function Menu({
               colors={cardGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              className="rounded-2xl p-5 overflow-hidden"
+              className="p-5 overflow-hidden"
+              style={{ borderRadius: 16 }}
             >
               <GuidelinePatternOverlay isLightCard={isLightCard} />
               <View className="flex-row items-start relative z-10">

@@ -115,13 +115,14 @@ const spacing = {
 
 const borderRadius = {
   none: 0,
-  sm: 4,
-  base: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  "2xl": 24,
-  "3xl": 32,
+  sm: 0,
+  base: 0,
+  md: 0,
+  lg: 0,
+  xl: 0,
+  "2xl": 0,
+  "3xl": 0,
+  /** Keep true circles (avatars, spinners, icon buttons). */
   full: 9999,
 };
 

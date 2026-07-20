@@ -255,7 +255,7 @@ export default function StartupsScreen() {
                       style={{
                         width: "50%",
                         position: "relative",
-                        borderRadius: 12,
+                        borderRadius: 0,
                         overflow: "hidden",
                       }}
                     >

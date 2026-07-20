@@ -287,8 +287,8 @@ export default function ScannedAttendeeScreen() {
         className="flex-1 rounded-t-3xl bg-white overflow-hidden"
         style={{
           marginTop: 250,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
+          borderTopLeftRadius: 0,
+          borderTopRightRadius: 0,
         }}
       >
         {/* Close (X) - only close control so it's clear and reliable */}

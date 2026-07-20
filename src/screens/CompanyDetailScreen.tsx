@@ -653,8 +653,9 @@ function CompanyDetailScreenInner({ route }: Props) {
             <View className="flex-row items-center mb-4">
               {/* Logo — contain on tile; no inner fill so mark sits on page background */}
               <View
-                className="w-16 h-16 rounded-xl items-center justify-center mr-3 overflow-hidden"
+                className="w-16 h-16 items-center justify-center mr-3 overflow-hidden"
                 style={{
+                  borderRadius: 0,
                   backgroundColor: companyData.logo
                     ? "transparent"
                     : companyData.logoColor,
@@ -663,7 +664,7 @@ function CompanyDetailScreenInner({ route }: Props) {
                 {companyData.logo ? (
                   <Image
                     source={companyData.logo}
-                    style={{ width: 64, height: 64, borderRadius: 12 }}
+                    style={{ width: 64, height: 64, borderRadius: 0 }}
                     resizeMode="contain"
                   />
                 ) : (
@@ -700,7 +701,8 @@ function CompanyDetailScreenInner({ route }: Props) {
             {/* Website + spotlight facts */}
             <View className="mb-5">
               <Pressable
-                className="flex-row items-center self-start px-3 py-2 bg-white border border-black rounded-full mb-4"
+                className="flex-row items-center self-start px-3 py-2 bg-white border border-black mb-4"
+                style={{ borderRadius: 0 }}
                 onPress={() =>
                   companyData.websiteUrl && openUrl(companyData.websiteUrl)
                 }
@@ -715,7 +717,10 @@ function CompanyDetailScreenInner({ route }: Props) {
                 </Text>
               </Pressable>
 
-              <View className="flex-row flex-wrap justify-between border border-neutral-200 rounded-2xl bg-neutral-50 px-3.5 pt-3.5 pb-1">
+              <View
+                className="flex-row flex-wrap justify-between border border-neutral-200 bg-neutral-50 px-3.5 pt-3.5 pb-1"
+                style={{ borderRadius: 0 }}
+              >
                 <ProfileFact
                   label="Country"
                   value={companyData.country}
@@ -811,13 +816,14 @@ function CompanyDetailScreenInner({ route }: Props) {
                 {companyData.founders.map((founder) => (
                   <Pressable
                     key={founder.id}
-                    className="mr-3 w-36 rounded-2xl border border-neutral-200 bg-white p-3 items-center"
+                    className="mr-3 w-36 border border-neutral-200 bg-white p-3 items-center"
                     onPress={() =>
                       founder.linkedInUrl
                         ? openUrl(founder.linkedInUrl)
                         : undefined
                     }
                     style={{
+                      borderRadius: 0,
                       shadowColor: brand.black,
                       shadowOffset: { width: 0, height: 1 },
                       shadowOpacity: 0.05,
@@ -886,8 +892,9 @@ function CompanyDetailScreenInner({ route }: Props) {
                 {companyData.eventOffers.map((offer) => (
                   <View key={offer.id} style={{ width: "50%", padding: 6 }}>
                     <Pressable
-                      className="rounded-xl p-4"
+                      className="p-4"
                       style={{
+                        borderRadius: 0,
                         backgroundColor: offer.color,
                         minHeight: 120,
                       }}
@@ -920,7 +927,8 @@ function CompanyDetailScreenInner({ route }: Props) {
                 return (
                   <Pressable
                     key={social.id}
-                    className="flex-row items-center self-start px-3 py-2 mr-2 mb-2 bg-white border border-black rounded-full"
+                    className="flex-row items-center self-start px-3 py-2 mr-2 mb-2 bg-white border border-black"
+                    style={{ borderRadius: 0 }}
                     onPress={() => social.url && openUrl(social.url)}
                   >
                     <IconComponent size={16} color={brand.black} />
@@ -949,7 +957,8 @@ function CompanyDetailScreenInner({ route }: Props) {
                 {companyData.openPositions.map((position) => (
                   <Pressable
                     key={position.id}
-                    className="bg-white border border-black rounded-xl px-4 py-3 flex-row items-center justify-between"
+                    className="bg-white border border-black px-4 py-3 flex-row items-center justify-between"
+                    style={{ borderRadius: 0 }}
                     onPress={() => position.link && openUrl(position.link)}
                   >
                     <Text
@@ -1012,7 +1021,10 @@ function CompanyDetailScreenInner({ route }: Props) {
 
               if (isOwnStartup) {
                 return (
-                  <View className="bg-neutral-100 border border-neutral-200 rounded-xl py-4 items-center">
+                  <View
+                    className="bg-neutral-100 border border-neutral-200 py-4 items-center"
+                    style={{ borderRadius: 0 }}
+                  >
                     <Text className="text-sm font-medium text-neutral-600">
                       This is your startup
                     </Text>
@@ -1022,8 +1034,9 @@ function CompanyDetailScreenInner({ route }: Props) {
 
               return (
                 <Pressable
-                  className="rounded-xl py-4 items-center flex-row justify-center"
+                  className="py-4 items-center flex-row justify-center"
                   style={{
+                    borderRadius: 0,
                     backgroundColor: brand.black,
                     opacity: isSubmittingMeeting ? 0.7 : 1,
                   }}
@@ -1144,8 +1157,8 @@ const styles = StyleSheet.create({
     right: 0,
     height: MODAL_HEIGHT,
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     overflow: "hidden",
   },
   handleContainer: {

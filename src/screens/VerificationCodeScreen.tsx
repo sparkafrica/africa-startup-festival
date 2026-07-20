@@ -252,7 +252,7 @@ export default function VerificationCodeScreen() {
                 delayLongPress={400}
                 className="flex-row justify-center gap-2 mb-2 py-2 px-2"
                 style={({ pressed }) => ({
-                  borderRadius: 12,
+                  borderRadius: 0,
                   backgroundColor: pressed ? "#F5F5F5" : "transparent",
                 })}
               >

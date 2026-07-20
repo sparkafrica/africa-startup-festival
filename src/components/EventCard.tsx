@@ -56,7 +56,10 @@ function EventCard({
   const hasBadgeAboveSponsor = happeningSoon || !!sessionBadge;
 
   return (
-    <View className="bg-white rounded-xl p-4 mb-4 border border-gray-100">
+    <View
+      className="bg-white p-4 mb-4 border border-gray-100"
+      style={{ borderRadius: 0 }}
+    >
       <Pressable
         onPress={onOpenDetail}
         disabled={!onOpenDetail}
@@ -69,7 +72,10 @@ function EventCard({
         {(happeningSoon || sessionBadge || sponsoredBy) && (
           <View className="mb-2 w-full items-start">
             {happeningSoon ? (
-              <View className="rounded-full bg-[#1BB273] px-2.5 py-1">
+              <View
+                className="bg-[#1BB273] px-2.5 py-1"
+                style={{ borderRadius: 0 }}
+              >
                 <Text className="text-[11px] font-semibold text-white">
                   Starting soon
                 </Text>
@@ -115,12 +121,16 @@ function EventCard({
         {onRemoveFromSchedule ? (
           <Pressable
             onPress={onRemoveFromSchedule}
-            className="flex-row items-center rounded-md px-4 py-2.5 border border-red-500"
+            className="flex-row items-center px-4 py-2.5 border border-red-500"
+            style={{ borderRadius: 0 }}
           >
             <Text className="text-red-500 font-medium text-sm">Remove from schedule</Text>
           </Pressable>
         ) : isInMySchedule ? (
-          <View className="flex-row items-center bg-neutral-200 rounded-md px-4 py-2.5">
+          <View
+            className="flex-row items-center bg-neutral-200 px-4 py-2.5"
+            style={{ borderRadius: 0 }}
+          >
             <CalendarIconWhite size={16} color="#737373" />
             <Text className="text-neutral-500 font-medium text-sm ml-2">Added</Text>
           </View>
@@ -128,9 +138,10 @@ function EventCard({
           <Pressable
             onPress={onAddToSchedule}
             disabled={isAddingToSchedule}
-            className={`flex-row items-center rounded-md px-4 py-2.5 ${
+            className={`flex-row items-center px-4 py-2.5 ${
               isAddingToSchedule ? "bg-neutral-700" : "bg-black"
             }`}
+            style={{ borderRadius: 0 }}
           >
             {isAddingToSchedule ? (
               <LoadingSpinner size="small" color="#FFFFFF" />
@@ -144,7 +155,11 @@ function EventCard({
         ) : null}
 
         {onLeaveFeedback ? (
-        <Pressable onPress={onLeaveFeedback} className="px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-md">
+        <Pressable
+          onPress={onLeaveFeedback}
+          className="px-3 py-2.5 bg-neutral-50 border border-neutral-300"
+          style={{ borderRadius: 0 }}
+        >
           <Text className="text-gray-800 text-sm">Leave a Feedback</Text>
         </Pressable>
         ) : null}

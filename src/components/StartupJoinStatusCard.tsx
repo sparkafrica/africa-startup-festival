@@ -24,7 +24,7 @@ export function StartupJoinStatusCard({
 
   if (state.phase === "pending") {
     return (
-      <View className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+      <View className="mb-5 border border-amber-200 bg-amber-50 px-4 py-4" style={{ borderRadius: 0 }}>
         <Text className="text-base font-semibold text-amber-900 mb-1">
           Request pending
         </Text>
@@ -46,7 +46,7 @@ export function StartupJoinStatusCard({
 
   if (state.phase === "denied") {
     return (
-      <View className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-4">
+      <View className="mb-5 border border-red-200 bg-red-50 px-4 py-4" style={{ borderRadius: 0 }}>
         <Text className="text-base font-semibold text-red-900 mb-1">
           Join request declined
         </Text>
@@ -61,7 +61,7 @@ export function StartupJoinStatusCard({
 
   if (state.phase === "linked" && state.badge) {
     return (
-      <View className="mb-5 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4">
+      <View className="mb-5 border border-neutral-200 bg-neutral-50 px-4 py-4" style={{ borderRadius: 0 }}>
         <View className="flex-row items-center flex-wrap gap-2 mb-2">
           <Text className="text-base font-semibold text-neutral-900">
             Linked to startup

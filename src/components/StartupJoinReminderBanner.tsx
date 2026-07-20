@@ -16,7 +16,8 @@ export function StartupJoinReminderBanner({
   return (
     <Pressable
       onPress={() => navigation.navigate("Profile", { openStartupTab: true })}
-      className="mx-4 mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3"
+      className="mx-4 mb-4 border border-amber-200 bg-amber-50 px-4 py-3"
+      style={{ borderRadius: 0 }}
     >
       <Text className="text-sm font-semibold text-amber-900">
         {pendingCount === 1

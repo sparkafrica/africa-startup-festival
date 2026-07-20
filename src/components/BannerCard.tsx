@@ -17,7 +17,8 @@ const variantStyles = {
   black: {
     title: "text-white",
     description: "text-white/90",
-    button: "bg-white border border-black",
+    /** No border — a black border on the white CTA reads taller than the peer card. */
+    button: "bg-white",
     buttonText: "text-black",
     iconColor: "#000000",
     cardBorder: "",
@@ -27,7 +28,7 @@ const variantStyles = {
   white: {
     title: "text-black",
     description: "text-black/80",
-    button: "bg-black border border-white",
+    button: "bg-black",
     buttonText: "text-white",
     iconColor: "#FFFFFF",
     cardBorder: "border border-neutral-200",
@@ -46,7 +47,7 @@ interface BannerCardProps {
   onPress?: () => void;
   /** Full-width vertical stack (post-event home). Default: horizontal carousel card. */
   stacked?: boolean;
-  /** Square corners on card + CTA (no rounded). */
+  /** @deprecated Cards are pointed by default; kept for call-site compatibility. */
   square?: boolean;
 }
 
@@ -59,7 +60,6 @@ export default function BannerCard({
   backgroundImage,
   onPress,
   stacked = false,
-  square = false,
 }: BannerCardProps) {
   const { width: windowWidth } = useWindowDimensions();
   const styles = variantStyles[variant];
@@ -68,25 +68,21 @@ export default function BannerCard({
     : Math.min(320, Math.round(windowWidth * 0.85));
   /** Tall hero — same 180px as original w-80 design; not tied to narrow %-of-width. */
   const imageHeight = 180;
-  const cardRadius = square ? "" : "rounded-3xl";
-  const imageRadius = square ? "" : "rounded-t-3xl";
-  const gradientRadius = square ? "" : "rounded-b-3xl";
-  const buttonRadius = square ? "" : "rounded-xl";
 
   return (
     <Pressable
       onPress={onPress}
-      className={`${cardRadius} overflow-hidden ${styles.cardBorder} ${stacked ? "" : "mr-3"}`}
+      className={`overflow-hidden ${styles.cardBorder} ${stacked ? "" : "mr-3"}`}
       style={[
-        { width: cardWidth, flexDirection: "column" },
+        { width: cardWidth, flexDirection: "column", borderRadius: 0 },
         !stacked ? { alignSelf: "stretch" } : null,
       ]}
     >
       {backgroundImage && (
         <Image
           source={backgroundImage}
-          className={`w-full ${imageRadius}`}
-          style={{ height: imageHeight }}
+          className="w-full"
+          style={{ height: imageHeight, borderRadius: 0 }}
           resizeMode="cover"
         />
       )}
@@ -95,8 +91,8 @@ export default function BannerCard({
         colors={gradient as [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 2, y: 2 }}
-        className={`px-4 pt-4 pb-4 ${gradientRadius} overflow-hidden relative`}
-        style={{ flex: 1, minHeight: 156 }}
+        className="px-4 pt-4 pb-4 overflow-hidden relative"
+        style={{ flex: 1, minHeight: 156, borderRadius: 0 }}
       >
         <GuidelinePatternOverlay
           isLightCard={variant === "white"}
@@ -126,19 +122,38 @@ export default function BannerCard({
 
           <Pressable
             onPress={onPress}
-            className={`w-full py-2.5 ${buttonRadius} flex-row items-center justify-center mt-4 overflow-hidden relative ${styles.button}`}
+            className={`w-full flex-row items-center justify-center mt-4 overflow-hidden relative ${styles.button}`}
+            style={{
+              height: 40,
+              minHeight: 40,
+              maxHeight: 40,
+              borderRadius: 0,
+              borderWidth: 0,
+            }}
           >
             <GuidelinePatternOverlay
               isLightCard={variant === "black"}
               opacity={styles.buttonPatternOpacity}
             />
-            <Text
-              className={`text-[15px] font-inter-bold mr-2 relative z-10 ${styles.buttonText}`}
+            <View
+              className="relative z-10 flex-row items-center justify-center"
+              style={{ height: 16, gap: 8 }}
             >
-              {buttonText}
-            </Text>
-            <View className="relative z-10">
-              <ArrowRightIcon size={16} color={styles.iconColor} />
+              <Text
+                className={`text-[15px] font-inter-bold ${styles.buttonText}`}
+                style={{
+                  fontSize: 15,
+                  lineHeight: 16,
+                  includeFontPadding: false,
+                  textAlignVertical: "center",
+                }}
+              >
+                {buttonText}
+              </Text>
+              {/* Optical nudge: Inter bold sits slightly low vs SVG geometric center */}
+              <View style={{ transform: [{ translateY: 1 }] }}>
+                <ArrowRightIcon size={16} color={styles.iconColor} />
+              </View>
             </View>
           </Pressable>
         </View>

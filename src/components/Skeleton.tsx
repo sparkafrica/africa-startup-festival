@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
   },
   homeDirectorySkeleton: {
     width: "100%",
-    borderRadius: 12,
+    borderRadius: 0,
     overflow: "hidden",
     backgroundColor: "#FFFFFF",
   },

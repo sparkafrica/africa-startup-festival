@@ -685,8 +685,8 @@ const styles = StyleSheet.create({
   },
   bottomSheet: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     maxHeight: SCREEN_HEIGHT * 0.9,
     width: "100%",
     position: "absolute",

@@ -19,10 +19,6 @@ export default function MenuScreen() {
   );
 
   const handleNavigate = (route: string) => {
-    const postEvent = getEventFeatures().postEvent;
-    if (postEvent && (route === "Offers" || route === "Talent")) {
-      return;
-    }
     navigation.goBack();
 
     setTimeout(() => {
@@ -36,36 +32,14 @@ export default function MenuScreen() {
         case "Profile":
           navigation.navigate("Profile");
           break;
+        case "FloorPlan":
+          navigation.navigate("FloorPlan");
+          break;
         case "Startups":
           navigation.navigate("Startups");
           break;
-        case "Sponsors":
-        case "Partners":
-          navigation.navigate("Partners");
-          break;
-        case "Exhibitors":
-          navigation.navigate("Exhibitors");
-          break;
-        case "Founders":
-          navigation.navigate("Attendees", { roleFilter: "startup" });
-          break;
-        case "Investors":
-          navigation.navigate("Attendees", { roleFilter: "investor" });
-          break;
-        case "Offers":
-          navigation.navigate("PartnersOffers");
-          break;
-        case "Talent":
-          navigation.navigate("Talent");
-          break;
-        case "TagPickup":
-          navigation.navigate("TagPickup");
-          break;
         case "Contact":
           navigation.navigate("Contact");
-          break;
-        case "AppGuide":
-          navigation.navigate("AppGuide");
           break;
         case "AppSuggestions":
           Linking.openURL("https://forms.gle/cc3W9UvfeXV1Zufu7").catch(() => {

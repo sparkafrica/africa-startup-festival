@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, Pressable, Image, ImageSourcePropType } from "react-native";
 
 const LOGO_SIZE = 64;
-const LOGO_RADIUS = 12;
+const LOGO_RADIUS = 0;
 
 interface PartnerCardProps {
   name?: string;
@@ -20,8 +20,9 @@ export default function PartnerCard({
   return (
     <Pressable
       onPress={onPress}
-      className="bg-neutral-100 rounded-xl p-3 items-center justify-center border border-neutral-200 w-full"
+      className="bg-neutral-100 p-3 items-center justify-center border border-neutral-200 w-full"
       style={{
+        borderRadius: 0,
         minHeight: 90,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
@@ -42,8 +43,8 @@ export default function PartnerCard({
         />
       ) : (
         <View
-          className="w-16 h-16 rounded-xl items-center justify-center"
-          style={{ backgroundColor: logoColor }}
+          className="w-16 h-16 items-center justify-center"
+          style={{ backgroundColor: logoColor, borderRadius: 0 }}
         >
           <Text className="text-white font-bold text-2xl">
             {name ? name.charAt(0) : "?"}

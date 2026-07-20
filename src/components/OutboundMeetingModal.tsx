@@ -24,6 +24,7 @@ import { LinkedInIcon } from "./SocialIcons";
 import EditMeetingModal, { EditMeetingModalProps } from "./EditMeetingModal";
 import MeetingCancelModal from "./MeetingCancelModal";
 import MeetingCancelledModal from "./MeetingCancelledModal";
+import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -382,6 +383,8 @@ export default function OutboundMeetingModal({
           ]}
           onLayout={handleLayout}
         >
+          <GuidelinePatternOverlay isLightCard opacity={0.05} />
+          <View style={{ position: "relative", zIndex: 10, flexShrink: 1 }}>
           {/* Draggable Handle */}
           <View style={styles.handleContainer} {...panResponder.panHandlers}>
             <View style={styles.handle} />
@@ -552,6 +555,7 @@ export default function OutboundMeetingModal({
               <Text style={styles.feedbackButtonText}>Leave Feedback</Text>
             </Pressable> */}
           </SafeAreaView>
+          </View>
         </Animated.View>
 
         {/* Participant Detail Overlay - Renders inside the same Modal */}
@@ -788,8 +792,8 @@ const styles = StyleSheet.create({
   },
   bottomSheet: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     width: "100%",
     position: "absolute",
     bottom: 0,
@@ -803,7 +807,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 8,
     paddingBottom: 0,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
   },
   handle: {
     width: 40,
@@ -826,7 +830,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF0E6",
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 0,
     marginBottom: 16,
   },
   statusDot: {
@@ -866,7 +870,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F9FAFB",
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 12,
     marginTop: 8,
     marginBottom: 20,
@@ -909,7 +913,7 @@ const styles = StyleSheet.create({
   },
   approvalMessage: {
     backgroundColor: "#FFFBEB",
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 16,
     marginTop: 8,
     marginBottom: 8,
@@ -933,7 +937,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#111827",
-    borderRadius: 12,
+    borderRadius: 0,
     paddingVertical: 16,
     marginBottom: 12,
     gap: 8,
@@ -950,7 +954,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#EF4444",
-    borderRadius: 12,
+    borderRadius: 0,
     paddingVertical: 16,
     gap: 8,
   },
@@ -964,7 +968,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 0,
     paddingVertical: 16,
     marginTop: 12,
     borderWidth: 1,
@@ -997,8 +1001,8 @@ const styles = StyleSheet.create({
   participantSafeArea: {
     width: "100%",
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     overflow: "hidden",
   },
   participantSheetContainer: {
@@ -1061,7 +1065,7 @@ const styles = StyleSheet.create({
   participantTagPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     backgroundColor: "#F9FAFB",
@@ -1094,7 +1098,7 @@ const styles = StyleSheet.create({
   participantInterestPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 0,
     backgroundColor: "#F3F4F6",
   },
   participantInterestText: {
@@ -1108,7 +1112,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 999,
+    borderRadius: 0,
     backgroundColor: "#F3F4F6",
     alignSelf: "flex-start",
   },

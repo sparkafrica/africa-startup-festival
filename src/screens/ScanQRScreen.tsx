@@ -356,7 +356,7 @@ function ScanFrame({ onQRCodePress }: { onQRCodePress?: () => void }) {
               width: cornerLength,
               height: cornerWidth,
               backgroundColor: "#000000",
-              borderTopLeftRadius: 26,
+              borderTopLeftRadius: 0,
             }}
           />
           <View
@@ -367,7 +367,7 @@ function ScanFrame({ onQRCodePress }: { onQRCodePress?: () => void }) {
               width: cornerWidth,
               height: cornerLength,
               backgroundColor: "#000000",
-              borderTopLeftRadius: 26,
+              borderTopLeftRadius: 0,
             }}
           />
           <View
@@ -378,7 +378,7 @@ function ScanFrame({ onQRCodePress }: { onQRCodePress?: () => void }) {
               width: cornerLength,
               height: cornerWidth,
               backgroundColor: "#000000",
-              borderTopRightRadius: 26,
+              borderTopRightRadius: 0,
             }}
           />
           <View
@@ -389,7 +389,7 @@ function ScanFrame({ onQRCodePress }: { onQRCodePress?: () => void }) {
               width: cornerWidth,
               height: cornerLength,
               backgroundColor: "#000000",
-              borderTopRightRadius: 26,
+              borderTopRightRadius: 0,
             }}
           />
           <View
@@ -400,7 +400,7 @@ function ScanFrame({ onQRCodePress }: { onQRCodePress?: () => void }) {
               width: cornerLength,
               height: cornerWidth,
               backgroundColor: "#000000",
-              borderBottomLeftRadius: 26,
+              borderBottomLeftRadius: 0,
             }}
           />
           <View
@@ -411,7 +411,7 @@ function ScanFrame({ onQRCodePress }: { onQRCodePress?: () => void }) {
               width: cornerWidth,
               height: cornerLength,
               backgroundColor: "#000000",
-              borderBottomLeftRadius: 26,
+              borderBottomLeftRadius: 0,
             }}
           />
           <View
@@ -422,7 +422,7 @@ function ScanFrame({ onQRCodePress }: { onQRCodePress?: () => void }) {
               width: cornerLength,
               height: cornerWidth,
               backgroundColor: "#000000",
-              borderBottomRightRadius: 26,
+              borderBottomRightRadius: 0,
             }}
           />
           <View
@@ -433,7 +433,7 @@ function ScanFrame({ onQRCodePress }: { onQRCodePress?: () => void }) {
               width: cornerWidth,
               height: cornerLength,
               backgroundColor: "#000000",
-              borderBottomRightRadius: 26,
+              borderBottomRightRadius: 0,
             }}
           />
         </View>
@@ -524,7 +524,7 @@ function TicketCard({
         : null;
 
   const gradientColors = getTicketGradientColors(ticketType ?? "expo");
-  const cardClassName = "rounded-2xl p-5 relative overflow-hidden";
+  const cardClassName = "p-5 relative overflow-hidden";
   const isLightCard = isLightTicketCard(ticketType ?? title);
   const iconColor = isLightCard ? "#111827" : "#FFFFFF";
 
@@ -535,6 +535,7 @@ function TicketCard({
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         className={cardClassName}
+        style={{ borderRadius: 16 }}
       >
         <GuidelinePatternOverlay isLightCard={isLightCard} />
         <View className="relative z-10">
@@ -1128,7 +1129,7 @@ function AssigningTicketsModal({
               const isLightCard = isLightTicketCard(ticket.ticketType ?? ticket.title);
               const cardBorderColorClass = isLightCard ? "border-black/30" : "border-white/30";
               const iconColor = isLightCard ? "#111827" : "#FFFFFF";
-              const cardClassName = "rounded-2xl p-5 relative overflow-hidden";
+              const cardClassName = "p-5 relative overflow-hidden";
               return (
                 <Pressable
                   key={index}
@@ -1140,6 +1141,7 @@ function AssigningTicketsModal({
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     className={cardClassName}
+                    style={{ borderRadius: 16 }}
                   >
                     <View className="absolute top-0 right-0 w-24 h-24 opacity-20">
                       <View

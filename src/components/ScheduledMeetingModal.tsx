@@ -32,6 +32,7 @@ import MeetingCancelModal from "./MeetingCancelModal";
 import MeetingCancelledModal from "./MeetingCancelledModal";
 import FeedbackSentModal from "./FeedbackSentModal";
 import EditMeetingModal from "./EditMeetingModal";
+import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -373,6 +374,8 @@ export default function ScheduledMeetingModal({
           ]}
           onLayout={handleLayout}
         >
+          <GuidelinePatternOverlay isLightCard opacity={0.05} />
+          <View style={{ position: "relative", zIndex: 10, flex: 1 }}>
           <View style={styles.handleContainer} {...panResponder.panHandlers}>
             <View style={styles.handle} />
           </View>
@@ -539,6 +542,7 @@ export default function ScheduledMeetingModal({
           </ScrollView>
 
           <SafeAreaView edges={["bottom"]} style={styles.safeArea} />
+          </View>
         </Animated.View>
       </View>
 
@@ -802,8 +806,8 @@ const styles = StyleSheet.create({
   },
   bottomSheet: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     width: "100%",
     position: "absolute",
     bottom: 0,
@@ -825,7 +829,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 12,
     paddingBottom: 8,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
   },
   handle: {
     width: 40,
@@ -846,7 +850,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "flex-start",
     backgroundColor: "#DFF1E4",
-    borderRadius: 999,
+    borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 4,
     marginBottom: 16,
@@ -892,7 +896,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 10,
+    borderRadius: 0,
     padding: 16,
     marginTop: 8,
     marginBottom: 20,
@@ -952,7 +956,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#000000",
-    borderRadius: 10,
+    borderRadius: 0,
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderWidth: 1,
@@ -969,7 +973,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FF3B30",
-    borderRadius: 10,
+    borderRadius: 0,
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderWidth: 1,
@@ -986,7 +990,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 10,
+    borderRadius: 0,
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderWidth: 1,
@@ -1020,8 +1024,8 @@ const styles = StyleSheet.create({
   participantSafeArea: {
     width: "100%",
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     overflow: "hidden",
   },
   participantSheetContainer: {
@@ -1086,7 +1090,7 @@ const styles = StyleSheet.create({
   participantTagPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 0,
     borderWidth: 1,
     backgroundColor: "#FFFFFF",
   },
@@ -1118,7 +1122,7 @@ const styles = StyleSheet.create({
   participantInterestPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: "#E0E0E0",
     backgroundColor: "#FFFFFF",
@@ -1134,7 +1138,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 10,
+    borderRadius: 0,
     padding: 12,
     borderWidth: 1,
     borderColor: "#E0E0E0",

@@ -18,8 +18,9 @@ export default function ChecklistItem({
   return (
     <Pressable
       onPress={onPress}
-      className={`${completed ? "bg-neutral-100" : "bg-white"} rounded-xl p-4 mb-3 flex-row items-start justify-between`}
+      className={`${completed ? "bg-neutral-100" : "bg-white"} p-4 mb-3 flex-row items-start justify-between`}
       style={{
+        borderRadius: 0,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,

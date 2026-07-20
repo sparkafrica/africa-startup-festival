@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -37,10 +37,10 @@ import { useChat } from "../context/ChatContext";
 import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
-import { attendeeMatchesRoleFilter, type AttendeeRoleFilter } from "../utils/attendeeRole";
 import { resolveAttendeeStartupBadge } from "../utils/startupJoinStatus";
 import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
 import { attendeeService, type Attendee as BackendAttendee, type MatchInfo } from "../services/attendeeService";
+import { eventService } from "../services/eventService";
 import { resolveAttendeeByUserId } from "../services/deepLinkResolveService";
 import { useListRowHighlight } from "../hooks/useListRowHighlight";
 import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
@@ -81,9 +81,12 @@ import {
   FilterTag,
   LoadingSpinner,
   SkeletonListRows,
+  SkeletonCardGrid,
+  StartupDirectoryCard,
   RequestMeetingModal,
   ConnectMessageModal,
   MeetingRequestMessageModal,
+  GuidelinePatternOverlay,
   FLOATING_NAV_BOTTOM_INSET,
   type FilterCategory,
   type MeetingFormData,
@@ -116,6 +119,30 @@ const ATTENDEE_CACHE_TTL_MS = 5 * 60 * 1000;
 const LOAD_MORE_THRESHOLD = 3;
 /** Minimum match_score (1–10) to show attendee in Recommended tab. Backend returns score 1–10 via match_info. */
 const RECOMMENDED_MIN_SCORE = 8;
+
+type DirectoryMode = "attendees" | "startups";
+
+type DirectoryStartupRow = {
+  id: number;
+  name: string;
+  logoColor: string;
+  logo?: string;
+  country?: string | null;
+  company_sector?: string | null;
+  growth_stage?: string | null;
+  year_founded?: string | null;
+};
+
+const STARTUP_LOGO_COLORS = [
+  "#2762C7",
+  "#000000",
+  "#FFC107",
+  "#E91E63",
+  "#DC2626",
+  "#9333EA",
+  "#10B981",
+  "#F97316",
+];
 
 /** Custom list scrollbar (track + thumb) — native indicators are often invisible on Android / dark UI. */
 const ATTENDEE_LIST_SCROLLBAR_WIDTH = Platform.OS === "ios" ? 7 : 6;
@@ -381,8 +408,9 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
       onPress={() => {
         onOpen(item);
       }}
-      className="bg-white rounded-xl"
+      className="bg-white"
       style={{
+        borderRadius: 0,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
@@ -414,8 +442,9 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
               </Text>
               {item.connectionStatus && (
                 <View
-                  className="px-2 py-0.5 rounded-full"
+                  className="px-2 py-0.5"
                   style={{
+                    borderRadius: 0,
                     backgroundColor:
                       item.connectionStatus === "accepted"
                         ? "#D1FAE5"
@@ -458,7 +487,7 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
               {item.tags.map((tag, index) => (
                 <View
                   key={index}
-                  className="bg-white border border-neutral-200 rounded-full px-2.5 py-1 mr-2 mb-1"
+                  className="bg-white border border-neutral-200 px-2.5 py-1 mr-2 mb-1" style={{ borderRadius: 0 }}
                 >
                   <Text className="text-xs font-medium text-neutral-900">
                     {tag}
@@ -473,8 +502,8 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
           {item.connectionStatus === "accepted" ||
           item.connectionStatus === "pending" ? (
             <View
-              className="flex-row items-center justify-center rounded-xl px-3 py-2 flex-shrink-0"
-              style={{ backgroundColor: "#E5E7EB" }}
+              className="flex-row items-center justify-center px-3 py-2 flex-shrink-0"
+              style={{ borderRadius: 0, backgroundColor: "#E5E7EB" }}
             >
               <PeopleIcon size={16} color="#9CA3AF" />
               <Text className="text-sm font-medium text-neutral-500 ml-1.5">
@@ -485,8 +514,8 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
             </View>
           ) : skipped ? (
             <View
-              className="flex-row items-center justify-center rounded-xl px-3 py-2 flex-shrink-0"
-              style={{ backgroundColor: "#F3F4F6" }}
+              className="flex-row items-center justify-center px-3 py-2 flex-shrink-0"
+              style={{ borderRadius: 0, backgroundColor: "#F3F4F6" }}
             >
               <Text className="text-sm font-medium text-neutral-500">Skipped</Text>
             </View>
@@ -496,7 +525,7 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
                 e.stopPropagation();
                 onConnect(item);
               }}
-              className="flex-row items-center justify-center bg-neutral-100 rounded-xl px-3 py-2 flex-shrink-0"
+              className="flex-row items-center justify-center bg-neutral-100 px-3 py-2 flex-shrink-0" style={{ borderRadius: 0 }}
             >
               <PeopleIcon size={16} color="#404040" />
               <Text className="text-sm font-medium text-neutral-900 ml-1.5">
@@ -718,9 +747,10 @@ function AttendeeCard({
         ]}
       >
       <View
-        className={`bg-white rounded-2xl mb-4 ${hasFilters ? "p-2.5" : "p-4"}`}
+        className={`bg-white mb-4 ${hasFilters ? "p-2.5" : "p-4"}`}
         style={{
           width: cardWidth,
+          borderRadius: 0,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.1,
@@ -737,7 +767,7 @@ function AttendeeCard({
               left: 0,
               right: 0,
               bottom: 0,
-              borderRadius: 16,
+              borderRadius: 0,
               backgroundColor: "rgba(239, 68, 68, 0.9)",
               alignItems: "center",
               justifyContent: "center",
@@ -760,7 +790,7 @@ function AttendeeCard({
               left: 0,
               right: 0,
               bottom: 0,
-              borderRadius: 16,
+              borderRadius: 0,
               backgroundColor: "rgba(34, 197, 94, 0.9)",
               alignItems: "center",
               justifyContent: "center",
@@ -816,8 +846,9 @@ function AttendeeCard({
               </Text>
               {attendee.connectionStatus && (
                 <View
-                  className="px-2 py-0.5 rounded-full"
+                  className="px-2 py-0.5"
                   style={{
+                    borderRadius: 0,
                     backgroundColor:
                       attendee.connectionStatus === "accepted"
                         ? "#D1FAE5"
@@ -860,9 +891,10 @@ function AttendeeCard({
             {attendee.tags.map((tag, index) => (
               <View
                 key={index}
-                className={`bg-neutral-200 rounded-full ${
+                className={`bg-neutral-200 ${
                   hasFilters ? "px-2 py-1" : "px-3 py-1.5"
                 } mr-2 ${hasFilters ? "mb-1" : "mb-2"}`}
+                style={{ borderRadius: 0 }}
               >
                 <Text
                   className={`${
@@ -906,9 +938,10 @@ function AttendeeCard({
                 .map((interest, index) => (
                   <View
                     key={index}
-                    className={`bg-neutral-200 rounded-full ${
+                    className={`bg-neutral-200 ${
                       hasFilters ? "px-2 py-1" : "px-3 py-1.5"
                     } mr-2 ${hasFilters ? "mb-1" : "mb-2"}`}
+                    style={{ borderRadius: 0 }}
                   >
                     <Text
                       className={`${
@@ -920,7 +953,7 @@ function AttendeeCard({
                   </View>
                 ))}
               {hasFilters && attendee.interests.length > 3 && (
-                <View className="bg-neutral-100 rounded-full px-2 py-0.5 mr-2 mb-1">
+                <View className="bg-neutral-100 px-2 py-0.5 mr-2 mb-1" style={{ borderRadius: 0 }}>
                   <Text className="text-xs font-medium text-neutral-700">
                     +{attendee.interests.length - 3}
                   </Text>
@@ -939,9 +972,10 @@ function AttendeeCard({
               }
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            className={`w-full flex-row items-center justify-center bg-black rounded-xl ${
+            className={`w-full flex-row items-center justify-center bg-black ${
               hasFilters ? "py-4 px-3" : "py-3.5 px-4"
             }`}
+            style={{ borderRadius: 0 }}
           >
             <CalendarIcon size={hasFilters ? 16 : 20} color="#FFFFFF" />
             <Text
@@ -971,8 +1005,9 @@ function AttendeeCard({
                     flex: 1,
                     minHeight: hasFilters ? 44 : 48,
                     backgroundColor: "#F3F4F6",
+                    borderRadius: 0,
                   }}
-                  className={`flex-row items-center justify-center rounded-xl border border-neutral-200/80 ${
+                  className={`flex-row items-center justify-center border border-neutral-200/80 ${
                     hasFilters ? "px-2" : "px-3"
                   }`}
                 >
@@ -996,8 +1031,8 @@ function AttendeeCard({
                     }
                   }}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  style={{ flex: 1, minHeight: hasFilters ? 44 : 48 }}
-                  className={`flex-row items-center justify-center rounded-xl border border-neutral-200 bg-white ${
+                  style={{ flex: 1, minHeight: hasFilters ? 44 : 48, borderRadius: 0 }}
+                  className={`flex-row items-center justify-center border border-neutral-200 bg-white ${
                     hasFilters ? "px-2" : "px-3"
                   }`}
                 >
@@ -1020,8 +1055,9 @@ function AttendeeCard({
                   flex: 1,
                   minHeight: hasFilters ? 44 : 48,
                   opacity: messageOpening ? 0.88 : 1,
+                  borderRadius: 0,
                 }}
-                className={`flex-row items-center justify-center rounded-xl ${
+                className={`flex-row items-center justify-center ${
                   hasFilters ? "px-2" : "px-3"
                 } ${
                   attendeeCanMessage(attendee)
@@ -1069,8 +1105,8 @@ export default function AttendeesScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Attendees">>();
   const route = useRoute<RouteProp<RootStackParamList, "Attendees">>();
-  const [roleFilter, setRoleFilter] = useState<AttendeeRoleFilter>(
-    route.params?.roleFilter as AttendeeRoleFilter ?? "all",
+  const [directoryMode, setDirectoryMode] = useState<DirectoryMode>(() =>
+    route.params?.roleFilter === "startup" ? "startups" : "attendees",
   );
   const attendeeListRef = useRef<Animated.FlatList<Attendee>>(null);
   const listHighlight = useListRowHighlight<string>();
@@ -1100,8 +1136,10 @@ export default function AttendeesScreen() {
   const { setFloatingNavSuppressed } = useFloatingNavVisibility();
 
   useEffect(() => {
-    if (route.params?.roleFilter) {
-      setRoleFilter(route.params.roleFilter);
+    if (route.params?.roleFilter === "startup") {
+      setDirectoryMode("startups");
+    } else if (route.params?.roleFilter === "all" || route.params?.roleFilter === "investor") {
+      setDirectoryMode("attendees");
     }
   }, [route.params?.roleFilter]);
 
@@ -1148,6 +1186,68 @@ export default function AttendeesScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
+
+  // Directory startups (mode = startups)
+  const [directoryStartups, setDirectoryStartups] = useState<DirectoryStartupRow[]>([]);
+  const [startupsLoading, setStartupsLoading] = useState(false);
+  const [startupsError, setStartupsError] = useState<string | null>(null);
+  const [startupsRefreshing, setStartupsRefreshing] = useState(false);
+  const startupsFetchedRef = useRef(false);
+
+  const fetchDirectoryStartups = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setStartupsRefreshing(true);
+    } else {
+      setStartupsLoading(true);
+    }
+    setStartupsError(null);
+    try {
+      const response = await eventService.getDirectoryCompanies(EVENT_ID, "startup", {
+        page_size: 100,
+        ordering: "-id",
+      });
+      const list: DirectoryStartupRow[] = response.companies.map((c) => {
+        const name = c.name || `Startup ${c.id}`;
+        const logoColor = STARTUP_LOGO_COLORS[name.length % STARTUP_LOGO_COLORS.length];
+        const meta = (c.metadata ?? {}) as Record<string, unknown>;
+        const growthStage =
+          typeof meta.growth_stage === "string" && meta.growth_stage.trim()
+            ? meta.growth_stage.trim()
+            : null;
+        const yearFounded =
+          meta.year_founded != null && String(meta.year_founded).trim()
+            ? String(meta.year_founded).trim()
+            : null;
+        return {
+          id: c.id,
+          name,
+          logoColor,
+          logo: c.logo ?? undefined,
+          country: c.country ?? null,
+          company_sector: c.company_sector ?? null,
+          growth_stage: growthStage,
+          year_founded: yearFounded,
+        };
+      });
+      setDirectoryStartups(list);
+      startupsFetchedRef.current = true;
+    } catch (err: any) {
+      const msg =
+        err instanceof ApiClientError
+          ? err.message
+          : err?.message || "Failed to load startups";
+      setStartupsError(msg);
+    } finally {
+      setStartupsLoading(false);
+      setStartupsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (directoryMode === "startups" && !startupsFetchedRef.current) {
+      void fetchDirectoryStartups();
+    }
+  }, [directoryMode, fetchDirectoryStartups]);
 
   /** List scrollbar: UI-thread only — avoids setState on scroll (VirtualizedList slow-update warnings). */
   const listScrollY = useSharedValue(0);
@@ -1787,11 +1887,6 @@ export default function AttendeesScreen() {
   let displayedAttendees =
     activeTab === "Your Matches" ? recommendedAttendees : filteredAttendees;
 
-  // Apply ASF role filter (startup / investor / all)
-  displayedAttendees = displayedAttendees.filter((a) =>
-    attendeeMatchesRoleFilter(a.backendData, roleFilter),
-  );
-
   // Apply client-side filters (industry, interests, job title)
   if (selectedFilterIds.length > 0) {
     displayedAttendees = displayedAttendees.filter((a) =>
@@ -1805,6 +1900,27 @@ export default function AttendeesScreen() {
       attendeeMatchesSearchQuery(attendee, searchQuery)
     );
   }
+
+  const displayedStartups = useMemo(() => {
+    let rows = directoryStartups;
+    if (searchQuery.trim().length > 0) {
+      const q = searchQuery.trim().toLowerCase();
+      rows = rows.filter((s) => s.name.toLowerCase().includes(q));
+    }
+    // Your Matches for startups: empty until backend match scores ship on directory
+    if (activeTab === "Your Matches") {
+      return [] as DirectoryStartupRow[];
+    }
+    return rows;
+  }, [directoryStartups, searchQuery, activeTab]);
+
+  const switchDirectoryMode = useCallback((mode: DirectoryMode) => {
+    setDirectoryMode(mode);
+    setActiveTab("All");
+    setSearchQuery("");
+    setCurrentCardIndex(0);
+    clearHighlight();
+  }, [clearHighlight]);
 
   // List view: show all (including skipped with "Skipped" badge). Card view: exclude skipped so we don't re-show them.
   const displayedAttendeesForCards = displayedAttendees.filter(
@@ -2186,7 +2302,7 @@ export default function AttendeesScreen() {
             position: "relative",
             marginHorizontal: 16,
             marginBottom: 12,
-            borderRadius: 12,
+            borderRadius: 0,
             overflow: "hidden",
           }}
         >
@@ -2234,25 +2350,26 @@ export default function AttendeesScreen() {
       />
 
       <View className="flex-1">
-        {/* Role filter chips */}
+        {/* Mode: Attendees | Startups */}
         <View className="px-4 pt-4 pb-2">
           <View className="flex-row gap-2">
             {(
               [
-                { id: "all", label: "All" },
-                { id: "startup", label: "Startups" },
-              ] as const
+                { id: "attendees" as const, label: "Attendees" },
+                { id: "startups" as const, label: "Startups" },
+              ]
             ).map((chip) => {
-              const active = roleFilter === chip.id;
+              const active = directoryMode === chip.id;
               return (
                 <Pressable
                   key={chip.id}
-                  onPress={() => setRoleFilter(chip.id)}
-                  className={`px-4 py-2 rounded-full border ${
+                  onPress={() => switchDirectoryMode(chip.id)}
+                  className={`px-4 py-2 border ${
                     active
                       ? "bg-black border-black"
                       : "bg-white border-neutral-200"
                   }`}
+                  style={{ borderRadius: 0 }}
                 >
                   <Text
                     className={`text-sm font-medium ${
@@ -2267,16 +2384,17 @@ export default function AttendeesScreen() {
           </View>
         </View>
 
-        {/* Tabs: All attendees (left, default) and Your Matches (right) */}
+        {/* Tabs: All Attendees/Startups (left) and Your Matches (right) */}
         <View className="px-4 pt-2 pb-3">
-          <View className="flex-row border border-neutral-200 rounded-2xl bg-neutral-100">
+          <View className="flex-row border border-neutral-200 bg-neutral-100" style={{ borderRadius: 0 }}>
             <Pressable
               onPress={() => setActiveTab("All")}
-              className={`flex-1 py-3 px-4 rounded-2xl mr-2 ${
+              className={`flex-1 py-3 px-4 mr-2 ${
                 activeTab === "All" ? "bg-white" : "bg-neutral-100"
               }`}
-              style={
-                activeTab === "All"
+              style={{
+                borderRadius: 0,
+                ...(activeTab === "All"
                   ? {
                       shadowColor: "#000",
                       shadowOffset: { width: 0, height: 1 },
@@ -2284,24 +2402,25 @@ export default function AttendeesScreen() {
                       shadowRadius: 2,
                       elevation: 1,
                     }
-                  : undefined
-              }
+                  : {}),
+              }}
             >
               <Text
                 className={`text-sm font-semibold text-center ${
                   activeTab === "All" ? "text-neutral-900" : "text-neutral-400"
                 }`}
               >
-                All attendees
+                {directoryMode === "startups" ? "All Startups" : "All Attendees"}
               </Text>
             </Pressable>
             <Pressable
               onPress={() => setActiveTab("Your Matches")}
-              className={`flex-1 py-3 px-4 rounded-2xl ${
+              className={`flex-1 py-3 px-4 ${
                 activeTab === "Your Matches" ? "bg-white" : "bg-neutral-100"
               }`}
-              style={
-                activeTab === "Your Matches"
+              style={{
+                borderRadius: 0,
+                ...(activeTab === "Your Matches"
                   ? {
                       shadowColor: "#000",
                       shadowOffset: { width: 0, height: 1 },
@@ -2309,8 +2428,8 @@ export default function AttendeesScreen() {
                       shadowRadius: 2,
                       elevation: 1,
                     }
-                  : undefined
-              }
+                  : {}),
+              }}
             >
               <Text
                 className={`text-sm font-semibold text-center ${
@@ -2325,12 +2444,145 @@ export default function AttendeesScreen() {
           </View>
         </View>
 
+        {directoryMode === "startups" ? (
+          <>
+            <View className="px-4 pb-4">
+              <View
+                className="flex-row items-center bg-white border border-neutral-200 px-4 py-3"
+                style={{ borderRadius: 0 }}
+              >
+                <SearchIcon size={18} color="#A3A3A3" />
+                <TextInput
+                  className="flex-1 ml-3 text-base text-neutral-900"
+                  placeholder="Search startups..."
+                  placeholderTextColor="#A3A3A3"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searchQuery.length > 0 && (
+                  <Pressable onPress={() => setSearchQuery("")} className="ml-2">
+                    <Text className="text-sm font-medium text-neutral-600">
+                      Clear
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+
+            {startupsLoading && directoryStartups.length === 0 ? (
+              <View className="px-4">
+                <SkeletonCardGrid count={6} />
+              </View>
+            ) : startupsError && directoryStartups.length === 0 ? (
+              <View className="flex-1 items-center justify-center py-20 px-4">
+                <Text className="text-red-600 text-center mb-4">
+                  {startupsError}
+                </Text>
+                <Pressable
+                  onPress={() => void fetchDirectoryStartups()}
+                  className="bg-black px-6 py-3"
+                  style={{ borderRadius: 0 }}
+                >
+                  <Text className="text-white font-medium">Retry</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <ScrollView
+                className="flex-1"
+                contentContainerStyle={{
+                  paddingHorizontal: 16,
+                  paddingBottom: FLOATING_NAV_BOTTOM_INSET,
+                }}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={startupsRefreshing}
+                    onRefresh={() => void fetchDirectoryStartups(true)}
+                    tintColor="#1BB273"
+                    colors={["#1BB273"]}
+                  />
+                }
+              >
+                {activeTab === "Your Matches" ? (
+                  <View className="py-12 items-center">
+                    <Text className="text-base text-neutral-500 text-center">
+                      Startup matches coming soon
+                    </Text>
+                  </View>
+                ) : displayedStartups.length === 0 ? (
+                  <View className="py-12 items-center">
+                    <Text className="text-base text-neutral-500 text-center">
+                      {searchQuery.trim()
+                        ? "No startups match your search"
+                        : "No startups available"}
+                    </Text>
+                  </View>
+                ) : (
+                  <View className="flex-row flex-wrap -mx-1.5">
+                    {displayedStartups.map((startup) => (
+                      <View
+                        key={startup.id}
+                        className="px-1.5 mb-3"
+                        style={{ width: "50%" }}
+                      >
+                        <StartupDirectoryCard
+                          name={startup.name}
+                          logo={startup.logo}
+                          logoColor={startup.logoColor}
+                          tags={[
+                            startup.country
+                              ? {
+                                  label: startup.country,
+                                  kind: "country" as const,
+                                }
+                              : null,
+                            startup.growth_stage
+                              ? {
+                                  label: startup.growth_stage,
+                                  kind: "growth" as const,
+                                }
+                              : null,
+                            startup.company_sector
+                              ? {
+                                  label: startup.company_sector,
+                                  kind: "industry" as const,
+                                }
+                              : null,
+                            startup.year_founded
+                              ? {
+                                  label: startup.year_founded,
+                                  kind: "year" as const,
+                                }
+                              : null,
+                          ].filter(Boolean) as {
+                            label: string;
+                            kind: "country" | "growth" | "industry" | "year";
+                          }[]}
+                          onPress={() => {
+                            navigation.navigate("CompanyDetail", {
+                              exhibitorId: startup.id.toString(),
+                              type: "startup",
+                              name: startup.name,
+                            });
+                          }}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </>
+        ) : (
+          <>
         {/* View Dropdown and Filter Dropdowns */}
         <View className="px-4 pb-6 flex-row">
           <View className="flex-1 mr-2" style={{ position: "relative" }}>
           <Pressable
               onPress={() => setShowViewDropdown(!showViewDropdown)}
-              className="flex-row items-center justify-center bg-white rounded-xl px-4 py-3 border border-neutral-200"
+              className="flex-row items-center justify-center bg-white px-4 py-3 border border-neutral-200" style={{ borderRadius: 0 }}
           >
               {viewMode === "card" ? (
             <GridIcon size={16} color="#404040" />
@@ -2347,8 +2599,9 @@ export default function AttendeesScreen() {
             {/* Dropdown Menu */}
             {showViewDropdown && (
               <View
-                className="absolute top-full mt-1 w-full bg-white rounded-xl border border-neutral-200"
+                className="absolute top-full mt-1 w-full bg-white border border-neutral-200"
                 style={{
+                  borderRadius: 0,
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.1,
@@ -2377,7 +2630,7 @@ export default function AttendeesScreen() {
                     setViewMode("list");
                     setShowViewDropdown(false);
                   }}
-                  className={`px-4 py-3 flex-row items-center rounded-b-xl ${
+                  className={`px-4 py-3 flex-row items-center ${
                     viewMode === "list" ? "bg-neutral-50" : ""
                   }`}
                 >
@@ -2391,7 +2644,7 @@ export default function AttendeesScreen() {
           </View>
           <Pressable
             onPress={() => setIsFilterModalVisible(true)}
-            className="flex-1 flex-row items-center justify-center bg-white rounded-xl px-4 py-3 border border-neutral-200"
+            className="flex-1 flex-row items-center justify-center bg-white px-4 py-3 border border-neutral-200" style={{ borderRadius: 0 }}
           >
             <FilterIcon size={16} color="#404040" />
             <Text className="text-sm font-medium text-neutral-900 ml-2">
@@ -2423,7 +2676,7 @@ export default function AttendeesScreen() {
         {/* Search Bar - Only shown in List View */}
         {viewMode === "list" && (
           <View className="px-4 pb-4">
-            <View className="flex-row items-center bg-white border border-neutral-200 rounded-xl px-4 py-3">
+            <View className="flex-row items-center bg-white border border-neutral-200 px-4 py-3" style={{ borderRadius: 0 }}>
               <SearchIcon size={18} color="#A3A3A3" />
               <TextInput
                 className="flex-1 ml-3 text-base text-neutral-900"
@@ -2453,7 +2706,7 @@ export default function AttendeesScreen() {
             <Text className="text-red-600 text-center mb-4">{error}</Text>
             <Pressable
               onPress={() => void fetchAttendees()}
-              className="bg-black rounded-md px-6 py-3"
+              className="bg-black px-6 py-3" style={{ borderRadius: 0 }}
             >
               <Text className="text-white font-medium">Retry</Text>
             </Pressable>
@@ -2621,6 +2874,8 @@ export default function AttendeesScreen() {
       )}
           </>
         )}
+          </>
+        )}
       </View>
 
       {/* Filter Modal */}
@@ -2645,7 +2900,7 @@ export default function AttendeesScreen() {
           }}
           pointerEvents="box-none"
         >
-          {/* Backdrop */}
+          {/* Backdrop — simple dim; list stays clear behind the sheet */}
           <RNAnimated.View
             style={{
               position: "absolute",
@@ -2693,8 +2948,10 @@ export default function AttendeesScreen() {
           >
             <Pressable
               onPress={(e) => e.stopPropagation()}
-              className="bg-white rounded-t-3xl"
+              className="overflow-hidden"
               style={{
+                borderRadius: 0,
+                backgroundColor: "#FFFFFF",
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: -2 },
                 shadowOpacity: 0.1,
@@ -2702,6 +2959,10 @@ export default function AttendeesScreen() {
                 elevation: 10,
               }}
             >
+              {/* Opaque sheet surface + ASF guideline texture */}
+              <GuidelinePatternOverlay isLightCard opacity={0.05} />
+
+              <View className="relative z-10">
               {/* Drag Handle */}
               <View
                 className="w-12 h-1.5 bg-neutral-300 rounded-full self-center mt-3 mb-6"
@@ -2733,8 +2994,9 @@ export default function AttendeesScreen() {
                       </Text>
                       {selectedAttendee.connectionStatus && (
                         <View
-                          className="px-2 py-0.5 rounded-full"
+                          className="px-2 py-0.5"
                           style={{
+                            borderRadius: 0,
                             backgroundColor:
                               selectedAttendee.connectionStatus === "accepted"
                                 ? "#D1FAE5"
@@ -2781,7 +3043,7 @@ export default function AttendeesScreen() {
                     {selectedAttendee.tags.map((tag, index) => (
                       <View
                         key={index}
-                        className="bg-neutral-100 rounded-full px-3 py-1.5 mr-2 mb-2"
+                        className="bg-neutral-100 px-3 py-1.5 mr-2 mb-2" style={{ borderRadius: 0 }}
                       >
                         <Text className="text-sm font-medium text-neutral-700">
                           {tag}
@@ -2809,7 +3071,7 @@ export default function AttendeesScreen() {
                         {selectedAttendee.interests.map((interest, index) => (
                           <View
                             key={index}
-                            className="bg-neutral-100 rounded-full px-3 py-1.5 mr-2 mb-2"
+                            className="bg-neutral-100 px-3 py-1.5 mr-2 mb-2" style={{ borderRadius: 0 }}
                           >
                             <Text className="text-sm font-medium text-neutral-700">
                               {interest}
@@ -2851,7 +3113,7 @@ export default function AttendeesScreen() {
                             Alert.alert("Error", "Failed to open LinkedIn profile. Please try again.", [{ text: "OK" }]);
                           }
                         }}
-                        className="flex-row items-center bg-neutral-100 rounded-full px-4 py-2.5 self-start"
+                        className="flex-row items-center bg-neutral-100 px-4 py-2.5 self-start" style={{ borderRadius: 0 }}
                       >
                         <LinkedInIcon size={18} color="#0A66C2" />
                         <Text className="text-sm font-medium text-neutral-900 ml-2">
@@ -2869,7 +3131,7 @@ export default function AttendeesScreen() {
                       closeBottomSheet();
                       await openMeetingForAttendee(selectedAttendee);
                     }}
-                    className="w-full flex-row items-center justify-center bg-black rounded-xl py-3.5 px-4"
+                    className="w-full flex-row items-center justify-center bg-black py-3.5 px-4" style={{ borderRadius: 0 }}
                   >
                     <CalendarIcon size={20} color="#FFFFFF" />
                     <Text className="text-base font-medium text-white ml-2">
@@ -2893,8 +3155,9 @@ export default function AttendeesScreen() {
                             flex: 1,
                             minHeight: 48,
                             backgroundColor: "#F3F4F6",
+                            borderRadius: 0,
                           }}
-                          className="flex-row items-center justify-center rounded-xl border border-neutral-200/80 px-3"
+                          className="flex-row items-center justify-center border border-neutral-200/80 px-3"
                         >
                           <PeopleIcon size={20} color="#9CA3AF" />
                           <Text className="text-sm font-medium text-neutral-500 ml-1.5" numberOfLines={1}>
@@ -2909,8 +3172,8 @@ export default function AttendeesScreen() {
                             handleConnect(selectedAttendee);
                             closeBottomSheet();
                           }}
-                          style={{ flex: 1, minHeight: 48 }}
-                          className="flex-row items-center justify-center rounded-xl border border-neutral-200 bg-white px-3"
+                          style={{ flex: 1, minHeight: 48, borderRadius: 0 }}
+                          className="flex-row items-center justify-center border border-neutral-200 bg-white px-3"
                         >
                           <PeopleIcon size={20} color="#404040" />
                           <Text className="text-sm font-semibold text-neutral-900 ml-1.5" numberOfLines={1}>
@@ -2932,8 +3195,9 @@ export default function AttendeesScreen() {
                           flex: 1,
                           minHeight: 48,
                           opacity: isOpeningChat ? 0.88 : 1,
+                          borderRadius: 0,
                         }}
-                        className={`flex-row items-center justify-center rounded-xl px-3 ${
+                        className={`flex-row items-center justify-center px-3 ${
                           attendeeCanMessage(selectedAttendee)
                             ? "bg-[#1BB273] shadow-sm"
                             : "border border-dashed border-neutral-300 bg-white"
@@ -2975,6 +3239,7 @@ export default function AttendeesScreen() {
                   </View>
                 </View>
               </ScrollView>
+              </View>
             </Pressable>
           </RNAnimated.View>
         </View>

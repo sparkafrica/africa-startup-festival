@@ -18,7 +18,8 @@ export default function StatusTag({
 
   return (
     <View
-      className={`${variantStyles[variant]} rounded-full px-3 py-1 self-start`}
+      className={`${variantStyles[variant]} px-3 py-1 self-start`}
+      style={{ borderRadius: 0 }}
     >
       <Text className="text-white text-xs font-medium">{label}</Text>
     </View>

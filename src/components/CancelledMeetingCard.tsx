@@ -27,8 +27,9 @@ export default function CancelledMeetingCard({
   return (
     <Pressable
       onPress={onPress}
-      className="bg-white rounded-xl p-4 mb-4"
+      className="bg-white p-4 mb-4"
       style={{
+        borderRadius: 0,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
@@ -42,8 +43,8 @@ export default function CancelledMeetingCard({
           {title}
         </Text>
         <View
-          className="flex-row items-center rounded-full px-3 py-1 self-start"
-          style={{ backgroundColor: "#FF3B30" }}
+          className="flex-row items-center px-3 py-1 self-start"
+          style={{ backgroundColor: "#FF3B30", borderRadius: 0 }}
         >
           <Text className="text-white text-xs font-medium">Cancelled</Text>
         </View>

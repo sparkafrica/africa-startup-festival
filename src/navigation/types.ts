@@ -113,6 +113,7 @@ export type RootStackParamList = {
     name?: string;
   };
   Contact: undefined;
+  FloorPlan: undefined;
   Talent: undefined;
   PartnersOffers: undefined;
   AppGuide: undefined;

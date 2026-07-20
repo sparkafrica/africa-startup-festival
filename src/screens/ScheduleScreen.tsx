@@ -942,7 +942,10 @@ export default function ScheduleScreen() {
 
         {/* Schedule / My Schedule segment (My Schedule hidden while CTAs disabled) */}
         {SCHEDULE_SESSION_CTAS_ENABLED ? (
-        <View className="flex-row mx-4 mb-2 p-1 bg-neutral-100 rounded-lg">
+        <View
+          className="flex-row mx-4 mb-2 p-1 bg-neutral-100"
+          style={{ borderRadius: 0 }}
+        >
           <TabButton
             label="Schedule"
             isActive={scheduleView === "all"}
@@ -1018,7 +1021,8 @@ export default function ScheduleScreen() {
                   onPress={() =>
                     void fetchEventSchedules({ force: true, showLoading: true })
                   }
-                  className="bg-black rounded-md px-6 py-3"
+                  className="bg-black px-6 py-3"
+                  style={{ borderRadius: 0 }}
                 >
                   <Text className="text-white font-medium">Retry</Text>
                 </Pressable>
@@ -1051,7 +1055,7 @@ export default function ScheduleScreen() {
                   }}
                   style={{
                     marginBottom: 4,
-                    borderRadius: 12,
+                    borderRadius: 0,
                     overflow: "hidden",
                     position: "relative",
                   }}
@@ -1096,7 +1100,7 @@ export default function ScheduleScreen() {
                       top: 0,
                       bottom: 0,
                       zIndex: 2,
-                      borderRadius: 12,
+                      borderRadius: 0,
                       borderWidth: 2,
                       borderColor: "#1BB273",
                       backgroundColor: "rgba(27, 178, 115, 0.14)",

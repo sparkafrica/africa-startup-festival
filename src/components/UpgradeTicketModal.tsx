@@ -393,8 +393,8 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     paddingHorizontal: spacing[6],
     paddingTop: spacing[2],
   },

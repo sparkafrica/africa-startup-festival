@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PersonProfileIcon } from "./icons";
 import { LinkedInIcon } from "./SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
+import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -57,6 +58,8 @@ export default function ParticipantDetailModal({
         {/* Bottom Sheet Card */}
         <View style={styles.sheetWrapper}>
           <View style={styles.sheetContainer}>
+            <GuidelinePatternOverlay isLightCard opacity={0.05} />
+            <View style={{ position: "relative", zIndex: 10, flex: 1 }}>
             {/* Handle */}
             <View style={styles.handleContainer}>
               <View style={styles.handle} />
@@ -152,6 +155,7 @@ export default function ParticipantDetailModal({
                 );
               })()}
             </ScrollView>
+            </View>
           </View>
           <SafeAreaView edges={["bottom"]} style={styles.bottomSafeArea} />
         </View>
@@ -181,8 +185,8 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     width: SHEET_MAX_WIDTH,
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     overflow: "hidden",
     minHeight: SCREEN_HEIGHT * 0.5,
     maxHeight: SCREEN_HEIGHT * 0.85,
@@ -246,7 +250,7 @@ const styles = StyleSheet.create({
   tagPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     backgroundColor: "#F9FAFB",
@@ -279,7 +283,7 @@ const styles = StyleSheet.create({
   interestPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 0,
     backgroundColor: "#F3F4F6",
   },
   interestText: {
@@ -292,7 +296,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 999,
+    borderRadius: 0,
     backgroundColor: "#F3F4F6",
     alignSelf: "flex-start",
     maxWidth: 200,

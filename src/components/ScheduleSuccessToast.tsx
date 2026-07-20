@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   },
   toast: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 0,
     paddingHorizontal: 16,
     paddingVertical: 14,
     flexDirection: "row",

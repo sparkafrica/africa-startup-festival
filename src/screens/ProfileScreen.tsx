@@ -725,8 +725,8 @@ function CountryDropdownModal({
             right: 0,
             height: sheetHeight,
             backgroundColor: "#fff",
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
+            borderTopLeftRadius: 0,
+            borderTopRightRadius: 0,
             shadowColor: "#000",
             shadowOffset: { width: 0, height: -2 },
             shadowOpacity: 0.1,
@@ -2688,6 +2688,10 @@ function CompanyProfileSection({
   const [yearFounded, setYearFounded] = useState("");
   const [founders, setFounders] = useState<FounderFormEntry[]>([]);
   const [foundersExpanded, setFoundersExpanded] = useState(true);
+  /** Per-founder expand; missing id defaults to expanded. */
+  const [expandedFounderIds, setExpandedFounderIds] = useState<
+    Record<string, boolean>
+  >({});
   const [offers, setOffers] = useState<
     Array<{ id: string | number; title: string; color: string; link: string }>
   >([]);
@@ -3706,124 +3710,183 @@ function CompanyProfileSection({
                       </Text>
                       {founders.map((founder, index) => {
                         const photoUri = founder.imageUri || founder.imageUrl;
+                        const isExpanded = expandedFounderIds[founder.id] !== false;
+                        const summary =
+                          founder.name.trim() ||
+                          founder.role.trim() ||
+                          `Founder ${index + 1}`;
                         return (
                           <View
                             key={founder.id}
-                            className="mb-3 p-4 bg-white border border-neutral-200 rounded-xl"
+                            className="mb-3 bg-white border border-neutral-200 rounded-xl overflow-hidden"
                           >
-                            <View className="flex-row items-center justify-between mb-3">
-                              <Text className="text-sm font-medium text-neutral-700">
-                                Founder {index + 1}
-                              </Text>
+                            <Pressable
+                              onPress={() =>
+                                setExpandedFounderIds((prev) => ({
+                                  ...prev,
+                                  [founder.id]: !isExpanded,
+                                }))
+                              }
+                              className="flex-row items-center px-4 py-3"
+                              hitSlop={4}
+                            >
+                              <View className="w-10 h-10 rounded-full border border-neutral-200 bg-neutral-50 items-center justify-center overflow-hidden mr-3">
+                                {photoUri ? (
+                                  <Image
+                                    source={{ uri: photoUri }}
+                                    className="w-full h-full"
+                                    resizeMode="cover"
+                                  />
+                                ) : (
+                                  <Text className="text-[10px] text-neutral-400">
+                                    {(founder.name || "?").charAt(0).toUpperCase()}
+                                  </Text>
+                                )}
+                              </View>
+                              <View className="flex-1 pr-2">
+                                <Text className="text-sm font-medium text-neutral-800">
+                                  Founder {index + 1}
+                                </Text>
+                                <Text
+                                  className="text-xs text-neutral-500 mt-0.5"
+                                  numberOfLines={1}
+                                >
+                                  {isExpanded
+                                    ? "Tap to collapse"
+                                    : summary}
+                                </Text>
+                              </View>
                               {founders.length > 1 ? (
                                 <Pressable
-                                  onPress={() =>
+                                  onPress={() => {
                                     setFounders((prev) =>
                                       prev.filter((f) => f.id !== founder.id),
-                                    )
-                                  }
+                                    );
+                                    setExpandedFounderIds((prev) => {
+                                      const next = { ...prev };
+                                      delete next[founder.id];
+                                      return next;
+                                    });
+                                  }}
                                   hitSlop={8}
+                                  className="mr-3"
                                 >
                                   <Text className="text-xs font-medium text-red-600">
                                     Remove
                                   </Text>
                                 </Pressable>
                               ) : null}
-                            </View>
-                            <Pressable
-                              onPress={() => void pickFounderPhoto(founder.id)}
-                              className="mb-3 w-20 h-20 rounded-full border border-neutral-300 bg-neutral-50 items-center justify-center overflow-hidden"
-                            >
-                              {photoUri ? (
-                                <Image
-                                  source={{ uri: photoUri }}
-                                  className="w-full h-full"
-                                  resizeMode="cover"
-                                />
-                              ) : (
-                                <Text className="text-[10px] text-neutral-500 text-center px-1">
-                                  Add photo
-                                </Text>
-                              )}
+                              <ChevronDownIcon
+                                size={18}
+                                color="#404040"
+                                rotated={isExpanded}
+                              />
                             </Pressable>
-                            <Text className="text-xs font-medium text-neutral-600 mb-1">
-                              Name
-                            </Text>
-                            <TextInput
-                              className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
-                              value={founder.name}
-                              onChangeText={(v) =>
-                                setFounders((prev) =>
-                                  prev.map((f) =>
-                                    f.id === founder.id ? { ...f, name: v } : f,
-                                  ),
-                                )
-                              }
-                              placeholder="Full name"
-                              placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
-                            />
-                            <Text className="text-xs font-medium text-neutral-600 mb-1">
-                              Role
-                            </Text>
-                            <TextInput
-                              className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
-                              value={founder.role}
-                              onChangeText={(v) =>
-                                setFounders((prev) =>
-                                  prev.map((f) =>
-                                    f.id === founder.id ? { ...f, role: v } : f,
-                                  ),
-                                )
-                              }
-                              placeholder="e.g. CEO, Co-founder"
-                              placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
-                            />
-                            <Text className="text-xs font-medium text-neutral-600 mb-1">
-                              Email
-                            </Text>
-                            <TextInput
-                              className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
-                              value={founder.email}
-                              onChangeText={(v) =>
-                                setFounders((prev) =>
-                                  prev.map((f) =>
-                                    f.id === founder.id ? { ...f, email: v } : f,
-                                  ),
-                                )
-                              }
-                              placeholder="founder@startup.com"
-                              placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
-                              autoCapitalize="none"
-                              keyboardType="email-address"
-                            />
-                            <Text className="text-xs font-medium text-neutral-600 mb-1">
-                              LinkedIn
-                            </Text>
-                            <TextInput
-                              className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
-                              value={founder.linkedIn}
-                              onChangeText={(v) =>
-                                setFounders((prev) =>
-                                  prev.map((f) =>
-                                    f.id === founder.id
-                                      ? { ...f, linkedIn: v }
-                                      : f,
-                                  ),
-                                )
-                              }
-                              placeholder="https://linkedin.com/in/..."
-                              placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
-                              autoCapitalize="none"
-                            />
+                            {isExpanded ? (
+                              <View className="px-4 pb-4 border-t border-neutral-100">
+                                <Pressable
+                                  onPress={() => void pickFounderPhoto(founder.id)}
+                                  className="mt-3 mb-3 w-20 h-20 rounded-full border border-neutral-300 bg-neutral-50 items-center justify-center overflow-hidden"
+                                >
+                                  {photoUri ? (
+                                    <Image
+                                      source={{ uri: photoUri }}
+                                      className="w-full h-full"
+                                      resizeMode="cover"
+                                    />
+                                  ) : (
+                                    <Text className="text-[10px] text-neutral-500 text-center px-1">
+                                      Add photo
+                                    </Text>
+                                  )}
+                                </Pressable>
+                                <Text className="text-xs font-medium text-neutral-600 mb-1">
+                                  Name
+                                </Text>
+                                <TextInput
+                                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                                  value={founder.name}
+                                  onChangeText={(v) =>
+                                    setFounders((prev) =>
+                                      prev.map((f) =>
+                                        f.id === founder.id
+                                          ? { ...f, name: v }
+                                          : f,
+                                      ),
+                                    )
+                                  }
+                                  placeholder="Full name"
+                                  placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                                />
+                                <Text className="text-xs font-medium text-neutral-600 mb-1">
+                                  Role
+                                </Text>
+                                <TextInput
+                                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                                  value={founder.role}
+                                  onChangeText={(v) =>
+                                    setFounders((prev) =>
+                                      prev.map((f) =>
+                                        f.id === founder.id
+                                          ? { ...f, role: v }
+                                          : f,
+                                      ),
+                                    )
+                                  }
+                                  placeholder="e.g. CEO, Co-founder"
+                                  placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                                />
+                                <Text className="text-xs font-medium text-neutral-600 mb-1">
+                                  Email
+                                </Text>
+                                <TextInput
+                                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black mb-3"
+                                  value={founder.email}
+                                  onChangeText={(v) =>
+                                    setFounders((prev) =>
+                                      prev.map((f) =>
+                                        f.id === founder.id
+                                          ? { ...f, email: v }
+                                          : f,
+                                      ),
+                                    )
+                                  }
+                                  placeholder="founder@startup.com"
+                                  placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                                  autoCapitalize="none"
+                                  keyboardType="email-address"
+                                />
+                                <Text className="text-xs font-medium text-neutral-600 mb-1">
+                                  LinkedIn
+                                </Text>
+                                <TextInput
+                                  className="bg-white border border-neutral-300 rounded-xl px-4 py-3 text-base text-black"
+                                  value={founder.linkedIn}
+                                  onChangeText={(v) =>
+                                    setFounders((prev) =>
+                                      prev.map((f) =>
+                                        f.id === founder.id
+                                          ? { ...f, linkedIn: v }
+                                          : f,
+                                      ),
+                                    )
+                                  }
+                                  placeholder="https://linkedin.com/in/..."
+                                  placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+                                  autoCapitalize="none"
+                                />
+                              </View>
+                            ) : null}
                           </View>
                         );
                       })}
                       <Pressable
-                        onPress={() =>
+                        onPress={() => {
+                          const id = `founder-${Date.now()}`;
                           setFounders((prev) => [
                             ...prev,
                             {
-                              id: `founder-${Date.now()}`,
+                              id,
                               name: "",
                               role: "",
                               email: "",
@@ -3831,8 +3894,13 @@ function CompanyProfileSection({
                               imageUri: null,
                               imageUrl: null,
                             },
-                          ])
-                        }
+                          ]);
+                          setExpandedFounderIds((prev) => ({
+                            ...prev,
+                            [id]: true,
+                          }));
+                          setFoundersExpanded(true);
+                        }}
                         className="py-2"
                       >
                         <Text className="text-sm font-semibold text-black">

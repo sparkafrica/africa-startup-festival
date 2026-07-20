@@ -10,9 +10,10 @@ export function StartupBadge({
 }) {
   return (
     <View
-      className={`flex-row items-center rounded-full bg-neutral-900 ${
+      className={`flex-row items-center bg-neutral-900 ${
         compact ? "px-2 py-0.5" : "px-2.5 py-1"
       }`}
+      style={{ borderRadius: 0 }}
     >
       <Text
         className={`text-white font-semibold ${compact ? "text-[10px]" : "text-xs"}`}
@@ -27,9 +28,10 @@ export function StartupBadge({
 export function StartupPendingBadge({ compact = false }: { compact?: boolean }) {
   return (
     <View
-      className={`rounded-full bg-amber-100 border border-amber-200 ${
+      className={`bg-amber-100 border border-amber-200 ${
         compact ? "px-2 py-0.5" : "px-2.5 py-1"
       }`}
+      style={{ borderRadius: 0 }}
     >
       <Text
         className={`font-medium text-amber-800 ${compact ? "text-[10px]" : "text-xs"}`}

@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#F5F5F5",
-    borderRadius: 12,
+    borderRadius: 0,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   dropdown: {
     position: "absolute",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 0,
     borderWidth: 1.5,
     borderColor: "#E5E7EB",
     shadowColor: "#000",

@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: "80%",
-    borderRadius: 16,
+    borderRadius: 0,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     paddingLeft: 8,
     marginBottom: 8,
-    borderRadius: 4,
+    borderRadius: 0,
   },
   replyQuoteMine: {
     borderLeftColor: "#1BB273",

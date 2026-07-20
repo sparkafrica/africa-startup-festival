@@ -1236,7 +1236,10 @@ export default function MeetingsScreen({ route }: Props) {
       />
 
       {postEventMode ? (
-        <View className="mx-4 mt-3 mb-1 rounded-xl bg-neutral-100 border border-neutral-200 px-4 py-3">
+        <View
+          className="mx-4 mt-3 mb-1 bg-neutral-100 border border-neutral-200 px-4 py-3"
+          style={{ borderRadius: 0 }}
+        >
           <Text className="text-sm text-neutral-700 leading-5">
             <Text className="font-semibold text-[#1BB273]">Africa Startup Festival</Text> has
             ended. This tab shows{" "}
@@ -1255,7 +1258,7 @@ export default function MeetingsScreen({ route }: Props) {
 
       {/* Fixed Primary Tab Navigation */}
       <View className="px-4 pt-4 pb-3 bg-white">
-        <View className="bg-gray-100 rounded-xl p-1 flex-row">
+        <View className="bg-gray-100 p-1 flex-row" style={{ borderRadius: 0 }}>
           <TabButton
             label="Requests"
             count={tabCounts.requests}
@@ -1350,7 +1353,8 @@ export default function MeetingsScreen({ route }: Props) {
               </Text>
               <Pressable
                 onPress={() => fetchMeetings(false)}
-                className="bg-neutral-900 rounded-xl px-6 py-3"
+                className="bg-neutral-900 px-6 py-3"
+                style={{ borderRadius: 0 }}
               >
                 <Text className="text-white font-semibold">Retry</Text>
               </Pressable>

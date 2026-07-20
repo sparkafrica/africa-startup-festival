@@ -17,11 +17,12 @@ export default function TabButton({
   return (
     <Pressable
       onPress={onPress}
-      className={`flex-1 rounded-lg px-2 py-2.5 items-center justify-center min-h-[40px] ${
+      className={`flex-1 px-2 py-2.5 items-center justify-center min-h-[40px] ${
         isActive ? "bg-white" : "bg-transparent"
       }`}
-      style={
-        isActive
+      style={{
+        borderRadius: 0,
+        ...(isActive
           ? {
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 2 },
@@ -29,8 +30,8 @@ export default function TabButton({
               shadowRadius: 4,
               elevation: 2,
             }
-          : undefined
-      }
+          : null),
+      }}
     >
       <Text
         className={`text-sm font-medium text-center ${

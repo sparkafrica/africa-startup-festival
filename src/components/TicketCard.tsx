@@ -32,6 +32,7 @@ export default function TicketCard({
   const isLightCard = isLightTicketCard(type);
 
   const cardStyle = {
+    borderRadius: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: isSelected ? 4 : 2 },
     shadowOpacity: isSelected ? 0.15 : 0.1,
@@ -39,7 +40,7 @@ export default function TicketCard({
     elevation: isSelected ? 4 : 2,
   };
 
-  const cardClassName = `rounded-2xl p-5 relative overflow-hidden ${
+  const cardClassName = `p-5 relative overflow-hidden ${
     isSelected
       ? isLightCard
         ? "border-2 border-black/20"

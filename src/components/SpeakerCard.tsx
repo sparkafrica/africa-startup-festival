@@ -28,8 +28,9 @@ export default function SpeakerCard({
     return (
       <Pressable
         onPress={onPress}
-        className="bg-white rounded-xl p-4 items-center w-full"
+        className="bg-white p-4 items-center w-full"
         style={{
+          borderRadius: 0,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 1 },
           shadowOpacity: 0.05,
@@ -77,8 +78,9 @@ export default function SpeakerCard({
   return (
     <Pressable
       onPress={onPress}
-      className="bg-neutral-100 rounded-xl p-3 flex-row items-center w-full"
+      className="bg-neutral-100 p-3 flex-row items-center w-full"
       style={{
+        borderRadius: 0,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,

@@ -22,7 +22,7 @@ export default function ListRowHighlightOverlay({
         top: 0,
         bottom: 0,
         zIndex: 2,
-        borderRadius: 12,
+        borderRadius: 0,
         borderWidth: 2,
         borderColor: "#1BB273",
         backgroundColor: "rgba(27, 178, 115, 0.14)",

@@ -9,6 +9,19 @@ const {
 module.exports = {
   content: ["./App.{js,jsx,ts,tsx}", "./src/**/*.{js,jsx,ts,tsx}"],
   theme: {
+    // Replace defaults so rounded-* is pointed app-wide (full stays circular).
+    // `extend` alone can leave Tailwind's default radii active in NativeWind.
+    borderRadius: {
+      none: 0,
+      sm: 0,
+      DEFAULT: 0,
+      md: 0,
+      lg: 0,
+      xl: 0,
+      "2xl": 0,
+      "3xl": 0,
+      full: borderRadius.full,
+    },
     extend: {
       colors: {
         primary: colors.primary,
@@ -23,7 +36,6 @@ module.exports = {
         text: colors.text,
       },
       spacing: spacing,
-      borderRadius: borderRadius,
       fontFamily: {
         // Inter Display - ONLY font family (no fallbacks)
         sans: typography.fontFamily.sans,

@@ -33,8 +33,9 @@ export default function ScheduledMeetingCard({
   return (
     <Pressable
       onPress={onPress}
-      className="bg-white rounded-xl p-4 mb-4"
+      className="bg-white p-4 mb-4"
       style={{
+        borderRadius: 0,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
@@ -48,8 +49,8 @@ export default function ScheduledMeetingCard({
           {title}
         </Text>
         <View
-          className="flex-row items-center rounded-full px-3 py-1 self-start"
-          style={{ backgroundColor: "#DFF1E4" }}
+          className="flex-row items-center px-3 py-1 self-start"
+          style={{ backgroundColor: "#DFF1E4", borderRadius: 0 }}
         >
           <View
             className="w-2 h-2 rounded-full mr-2"

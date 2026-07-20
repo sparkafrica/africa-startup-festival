@@ -12,7 +12,7 @@ import {
 } from "../constants/profileTagColors";
 
 const LOGO_SIZE = 88;
-const LOGO_RADIUS = 16;
+const LOGO_RADIUS = 0;
 
 export type StartupDirectoryTag = {
   label: string;
@@ -48,8 +48,9 @@ export default function StartupDirectoryCard({
   return (
     <Pressable
       onPress={onPress}
-      className="bg-white rounded-2xl border border-neutral-200 w-full overflow-hidden"
+      className="bg-white border border-neutral-200 w-full overflow-hidden"
       style={{
+        borderRadius: 0,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
@@ -104,8 +105,9 @@ export default function StartupDirectoryCard({
               return (
                 <View
                   key={`${name}-${tag.kind}-${tag.label}`}
-                  className="px-2 py-1 mr-1 mb-1 rounded-md"
+                  className="px-2 py-1 mr-1 mb-1"
                   style={{
+                    borderRadius: 0,
                     backgroundColor: palette.bg,
                     borderWidth: 1,
                     borderColor: palette.border,

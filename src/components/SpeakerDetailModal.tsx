@@ -26,6 +26,7 @@ import {
 } from "./icons";
 import { LinkedInIcon } from "./SocialIcons";
 import { Skeleton, SkeletonListRows } from "./Skeleton";
+import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
 import { eventService, type SpeakerNestedEvent } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
@@ -374,12 +375,14 @@ export default function SpeakerDetailModal({
               maxWidth: "100%",
               maxHeight: SHEET_MAX_HEIGHT,
               backgroundColor: "#FFFFFF",
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
+              borderTopLeftRadius: 0,
+              borderTopRightRadius: 0,
               overflow: "hidden",
               transform: [{ translateY: sheetTranslateY }],
             }}
           >
+            <GuidelinePatternOverlay isLightCard opacity={0.05} />
+            <View style={{ position: "relative", zIndex: 10 }}>
             {/* Drag handle — wide touch strip above/below pill (users expect a large drag zone) */}
             <View
               style={{
@@ -396,7 +399,7 @@ export default function SpeakerDetailModal({
                   width: 48,
                   height: 6,
                   backgroundColor: "#D4D4D4",
-                  borderRadius: 999,
+                  borderRadius: 3,
                 }}
               />
             </View>
@@ -424,7 +427,7 @@ export default function SpeakerDetailModal({
                     backgroundColor: "#000",
                     paddingHorizontal: 24,
                     paddingVertical: 12,
-                    borderRadius: 8,
+                    borderRadius: 0,
                   }}
                 >
                   <Text style={{ color: "#FFF", fontWeight: "500" }}>Retry</Text>
@@ -513,7 +516,7 @@ export default function SpeakerDetailModal({
                         style={{
                           paddingHorizontal: 12,
                           paddingVertical: 6,
-                          borderRadius: 999,
+                          borderRadius: 0,
                           backgroundColor: "#FFFFFF",
                           borderWidth: 1,
                           borderColor: tag.borderColor || "#E5E7EB",
@@ -610,7 +613,7 @@ export default function SpeakerDetailModal({
                           style={{
                             paddingHorizontal: 12,
                             paddingVertical: 6,
-                            borderRadius: 999,
+                            borderRadius: 0,
                             backgroundColor: "#F5F5F5",
                             marginRight: 8,
                             marginBottom: 8,
@@ -668,7 +671,7 @@ export default function SpeakerDetailModal({
                         }}
                         style={{
                           backgroundColor: "#F5F5F5",
-                          borderRadius: 12,
+                          borderRadius: 0,
                           padding: 16,
                           marginBottom: 8,
                         }}
@@ -709,7 +712,7 @@ export default function SpeakerDetailModal({
                         alignItems: "center",
                         justifyContent: "center",
                         backgroundColor: "#F5F5F5",
-                        borderRadius: 12,
+                        borderRadius: 0,
                         paddingVertical: 12,
                         paddingHorizontal: 16,
                       }}
@@ -733,7 +736,7 @@ export default function SpeakerDetailModal({
                         alignItems: "center",
                         justifyContent: "center",
                         backgroundColor: "#F5F5F5",
-                        borderRadius: 12,
+                        borderRadius: 0,
                         paddingVertical: 12,
                         paddingHorizontal: 16,
                         opacity: 0.65,
@@ -755,6 +758,7 @@ export default function SpeakerDetailModal({
                 </View>
               </ScrollView>
             )}
+            </View>
           </Animated.View>
         </View>
       </View>

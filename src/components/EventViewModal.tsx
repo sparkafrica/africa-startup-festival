@@ -19,6 +19,7 @@ import { CalendarIconWhite } from "./SocialIcons";
 import { ChevronRightIcon } from "./icons";
 import LoadingSpinner from "./LoadingSpinner";
 import ScheduleBadge from "./ScheduleBadge";
+import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
 import type { ScheduleBadgeColor } from "../utils/scheduleMetadata";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -237,6 +238,8 @@ export default function EventViewModal({
             },
           ]}
         >
+          <GuidelinePatternOverlay isLightCard opacity={0.05} />
+          <View style={{ position: "relative", zIndex: 10, flex: 1 }}>
           {/* Draggable Handle */}
           <View style={styles.draggableArea} {...panResponder.panHandlers}>
             <View style={styles.handleContainer}>
@@ -413,6 +416,7 @@ export default function EventViewModal({
             ) : null}
           </SafeAreaView>
           ) : null}
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -432,8 +436,8 @@ const styles = StyleSheet.create({
   },
   bottomSheet: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     maxHeight: SCREEN_HEIGHT * 0.9,
     width: "100%",
     position: "absolute",
@@ -442,6 +446,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1001,
     elevation: 1001,
+    overflow: "hidden",
   },
   draggableArea: {
     width: "100%",
@@ -495,7 +500,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8F8F0",
     borderWidth: 1,
     borderColor: "#1BB273",
-    borderRadius: 15,
+    borderRadius: 0,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
@@ -530,7 +535,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F5F5F5",
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 12,
     marginBottom: 8,
   },
@@ -586,7 +591,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#000000",
-    borderRadius: 12,
+    borderRadius: 0,
     paddingVertical: 16,
     marginBottom: 12,
     gap: 8,
@@ -605,7 +610,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 0,
     paddingVertical: 16,
     marginBottom: 12,
     borderWidth: 1.5,
@@ -621,7 +626,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E5E7EB",
-    borderRadius: 12,
+    borderRadius: 0,
     paddingVertical: 16,
     marginBottom: 12,
   },
@@ -636,7 +641,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F5F5F5",
-    borderRadius: 12,
+    borderRadius: 0,
     paddingVertical: 16,
   },
   feedbackButtonText: {

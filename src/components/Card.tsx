@@ -23,8 +23,9 @@ export default function Card({
 }: CardProps) {
   return (
     <View
-      className={`bg-white rounded-2xl p-5 mb-4 ${className}`}
+      className={`bg-white p-5 mb-4 ${className}`}
       style={{
+        borderRadius: 0,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
