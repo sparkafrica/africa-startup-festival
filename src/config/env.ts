@@ -42,6 +42,7 @@ export const API_CONFIG = {
     WS_URL: "wss://dev-api.sparkafrica.co/",
   },
   production: {
+    // BASE_URL: "https://dev-api.sparkafrica.co", // Production server
     BASE_URL: "https://api.sparkafrica.co", // Production server
     TIMEOUT: 30000,
     WS_URL: "wss://api.sparkafrica.co", // Production WebSocket URL

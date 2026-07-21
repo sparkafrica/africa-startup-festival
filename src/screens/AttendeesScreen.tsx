@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -18,7 +24,11 @@ import {
   type ListRenderItemInfo,
   type LayoutChangeEvent,
 } from "react-native";
-import { GestureDetector, Gesture, Pressable as GesturePressable } from "react-native-gesture-handler";
+import {
+  GestureDetector,
+  Gesture,
+  Pressable as GesturePressable,
+} from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -28,7 +38,11 @@ import Animated, {
   runOnJS,
   interpolate,
 } from "react-native-reanimated";
-import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useChecklist } from "../context/ChecklistContext";
@@ -39,7 +53,11 @@ import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { resolveAttendeeStartupBadge } from "../utils/startupJoinStatus";
 import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
-import { attendeeService, type Attendee as BackendAttendee, type MatchInfo } from "../services/attendeeService";
+import {
+  attendeeService,
+  type Attendee as BackendAttendee,
+  type MatchInfo,
+} from "../services/attendeeService";
 import { eventService } from "../services/eventService";
 import { resolveAttendeeByUserId } from "../services/deepLinkResolveService";
 import { useListRowHighlight } from "../hooks/useListRowHighlight";
@@ -91,11 +109,13 @@ import {
   type FilterCategory,
   type MeetingFormData,
 } from "../components";
+import { PeopleIcon, CalendarIcon } from "../components/BottomNavIcons";
 import {
-  PeopleIcon,
-  CalendarIcon,
-} from "../components/BottomNavIcons";
-import { ChevronDownIcon, ListIcon, SearchIcon, SpeechBubbleIcon } from "../components/icons";
+  ChevronDownIcon,
+  ListIcon,
+  SearchIcon,
+  SpeechBubbleIcon,
+} from "../components/icons";
 import { LinkedInIcon } from "../components/SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import {
@@ -162,13 +182,21 @@ const ATTENDEE_LIST_SCROLLBAR_THUMB_COLORS =
  * Backend: AI match returns { match_score: number (1–10), reason?: string }.
  * Returns { match_score, reason } or null.
  */
-function parseMatchInfo(raw: string | MatchInfo | null | undefined): MatchInfo | null {
+function parseMatchInfo(
+  raw: string | MatchInfo | null | undefined,
+): MatchInfo | null {
   if (raw == null) return null;
-  if (typeof raw === "object" && (raw.match_score != null || raw.reason != null)) return raw;
+  if (
+    typeof raw === "object" &&
+    (raw.match_score != null || raw.reason != null)
+  )
+    return raw;
   if (typeof raw === "string" && raw.trim()) {
     try {
       const parsed = JSON.parse(raw) as MatchInfo;
-      return parsed && (parsed.match_score != null || parsed.reason != null) ? parsed : null;
+      return parsed && (parsed.match_score != null || parsed.reason != null)
+        ? parsed
+        : null;
     } catch {
       return null;
     }
@@ -177,9 +205,15 @@ function parseMatchInfo(raw: string | MatchInfo | null | undefined): MatchInfo |
 }
 
 /** True if attendee has match_score >= 8 (backend uses 1–10 scale for AI match). */
-function isRecommendedByMatchInfo(backendAttendee: BackendAttendee | undefined): boolean {
+function isRecommendedByMatchInfo(
+  backendAttendee: BackendAttendee | undefined,
+): boolean {
   const info = parseMatchInfo(backendAttendee?.match_info);
-  return info != null && typeof info.match_score === "number" && info.match_score >= RECOMMENDED_MIN_SCORE;
+  return (
+    info != null &&
+    typeof info.match_score === "number" &&
+    info.match_score >= RECOMMENDED_MIN_SCORE
+  );
 }
 
 // Grid Icon Component (for Card View)
@@ -348,7 +382,10 @@ let attendeeFullListSessionCache: {
 } | null = null;
 
 /** Client-side list search — full display name, first name, or last name only (each field checked separately). */
-function attendeeMatchesSearchQuery(attendee: Attendee, rawQuery: string): boolean {
+function attendeeMatchesSearchQuery(
+  attendee: Attendee,
+  rawQuery: string,
+): boolean {
   const query = rawQuery.toLowerCase().trim();
   if (!query) return true;
   const user = attendee.backendData?.user;
@@ -421,7 +458,10 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
       <View className="p-4">
         <View className="flex-row items-start mb-3">
           <View className="w-14 h-14 rounded-full bg-neutral-100 border border-neutral-200 items-center justify-center mr-3 flex-shrink-0 overflow-hidden">
-            {item.avatar && typeof item.avatar === "object" && "uri" in item.avatar && item.avatar.uri ? (
+            {item.avatar &&
+            typeof item.avatar === "object" &&
+            "uri" in item.avatar &&
+            item.avatar.uri ? (
               <Image
                 source={item.avatar as ImageSourcePropType}
                 style={{ width: 56, height: 56, borderRadius: 28 }}
@@ -467,7 +507,10 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
                 </View>
               )}
               {item.startupBadge?.kind === "linked" ? (
-                <StartupBadge companyName={item.startupBadge.companyName} compact />
+                <StartupBadge
+                  companyName={item.startupBadge.companyName}
+                  compact
+                />
               ) : item.startupBadge?.kind === "pending" ? (
                 <StartupPendingBadge compact />
               ) : null}
@@ -487,7 +530,8 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
               {item.tags.map((tag, index) => (
                 <View
                   key={index}
-                  className="bg-white border border-neutral-200 px-2.5 py-1 mr-2 mb-1" style={{ borderRadius: 0 }}
+                  className="bg-white border border-neutral-200 px-2.5 py-1 mr-2 mb-1"
+                  style={{ borderRadius: 0 }}
                 >
                   <Text className="text-xs font-medium text-neutral-900">
                     {tag}
@@ -507,9 +551,7 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
             >
               <PeopleIcon size={16} color="#9CA3AF" />
               <Text className="text-sm font-medium text-neutral-500 ml-1.5">
-                {item.connectionStatus === "accepted"
-                  ? "Connected"
-                  : "Pending"}
+                {item.connectionStatus === "accepted" ? "Connected" : "Pending"}
               </Text>
             </View>
           ) : skipped ? (
@@ -517,7 +559,9 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
               className="flex-row items-center justify-center px-3 py-2 flex-shrink-0"
               style={{ borderRadius: 0, backgroundColor: "#F3F4F6" }}
             >
-              <Text className="text-sm font-medium text-neutral-500">Skipped</Text>
+              <Text className="text-sm font-medium text-neutral-500">
+                Skipped
+              </Text>
             </View>
           ) : (
             <Pressable
@@ -525,7 +569,8 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
                 e.stopPropagation();
                 onConnect(item);
               }}
-              className="flex-row items-center justify-center bg-neutral-100 px-3 py-2 flex-shrink-0" style={{ borderRadius: 0 }}
+              className="flex-row items-center justify-center bg-neutral-100 px-3 py-2 flex-shrink-0"
+              style={{ borderRadius: 0 }}
             >
               <PeopleIcon size={16} color="#404040" />
               <Text className="text-sm font-medium text-neutral-900 ml-1.5">
@@ -612,7 +657,10 @@ function AttendeeCard({
       // Update overlay opacity and scale
       if (event.translationX < 0) {
         // Swiping left
-        const progress = Math.min(Math.abs(event.translationX) / SWIPE_THRESHOLD, 1);
+        const progress = Math.min(
+          Math.abs(event.translationX) / SWIPE_THRESHOLD,
+          1,
+        );
         leftOverlayOpacity.value = progress;
         leftOverlayScale.value = progress;
         rightOverlayOpacity.value = 0;
@@ -704,7 +752,7 @@ function AttendeeCard({
     const rotation = interpolate(
       rotate.value,
       [-ROTATION_MAX, 0, ROTATION_MAX],
-      [-15, 0, 15]
+      [-15, 0, 15],
     );
 
     return {
@@ -746,356 +794,370 @@ function AttendeeCard({
           cardAnimatedStyle,
         ]}
       >
-      <View
-        className={`bg-white mb-4 ${hasFilters ? "p-2.5" : "p-4"}`}
-        style={{
-          width: cardWidth,
-          borderRadius: 0,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-          elevation: 4,
-        }}
-      >
-        {/* Reject Overlay (Red X - Left) */}
-        <Animated.View
-          style={[
-            {
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              borderRadius: 0,
-              backgroundColor: "rgba(239, 68, 68, 0.9)",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 10,
-            },
-            leftOverlayAnimatedStyle,
-          ]}
-        >
-          <View className="w-32 h-32 rounded-full bg-red-500 items-center justify-center">
-            <XIcon size={80} color="#FFFFFF" />
-          </View>
-        </Animated.View>
-
-        {/* Accept Overlay (Green Checkmark - Right) */}
-        <Animated.View
-          style={[
-            {
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              borderRadius: 0,
-              backgroundColor: "rgba(34, 197, 94, 0.9)",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 10,
-            },
-            rightOverlayAnimatedStyle,
-          ]}
-        >
-          <View className="w-32 h-32 rounded-full bg-green-500 items-center justify-center">
-            <CheckmarkIcon size={80} color="#FFFFFF" />
-          </View>
-        </Animated.View>
-        {/* Profile Header */}
         <View
-          className={`flex-row items-start ${
-            hasFilters ? "mb-1.5 pt-2" : "mb-3"
-          }`}
+          className={`bg-white mb-4 ${hasFilters ? "p-2.5" : "p-4"}`}
+          style={{
+            width: cardWidth,
+            borderRadius: 0,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 4,
+          }}
         >
-          {/* Profile Picture */}
+          {/* Reject Overlay (Red X - Left) */}
+          <Animated.View
+            style={[
+              {
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                borderRadius: 0,
+                backgroundColor: "rgba(239, 68, 68, 0.9)",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 10,
+              },
+              leftOverlayAnimatedStyle,
+            ]}
+          >
+            <View className="w-32 h-32 rounded-full bg-red-500 items-center justify-center">
+              <XIcon size={80} color="#FFFFFF" />
+            </View>
+          </Animated.View>
+
+          {/* Accept Overlay (Green Checkmark - Right) */}
+          <Animated.View
+            style={[
+              {
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                borderRadius: 0,
+                backgroundColor: "rgba(34, 197, 94, 0.9)",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 10,
+              },
+              rightOverlayAnimatedStyle,
+            ]}
+          >
+            <View className="w-32 h-32 rounded-full bg-green-500 items-center justify-center">
+              <CheckmarkIcon size={80} color="#FFFFFF" />
+            </View>
+          </Animated.View>
+          {/* Profile Header */}
           <View
-            className={`${
-              hasFilters ? "w-12 h-12" : "w-16 h-16"
-            } rounded-full bg-neutral-100 items-center justify-center overflow-hidden ${
-              hasFilters ? "mr-3" : "mr-4"
+            className={`flex-row items-start ${
+              hasFilters ? "mb-1.5 pt-2" : "mb-3"
             }`}
           >
-            {attendee.avatar && typeof attendee.avatar === "object" && "uri" in attendee.avatar && attendee.avatar.uri ? (
-              <Image
-                source={attendee.avatar as ImageSourcePropType}
-                style={{
-                  width: hasFilters ? 48 : 64,
-                  height: hasFilters ? 48 : 64,
-                  borderRadius: hasFilters ? 24 : 32,
-                }}
-                resizeMode="cover"
-              />
-            ) : (
-              <PersonIcon size={hasFilters ? 24 : 32} color="#A3A3A3" />
-            )}
-          </View>
-
-          {/* Name and Title */}
-          <View className="flex-1">
-            <View className="flex-row items-center flex-wrap gap-2">
-              <Text
-                className={`${
-                  hasFilters ? "text-lg" : "text-2xl"
-                } font-bold text-neutral-900 ${
-                  hasFilters ? "mb-0.5 pt-2" : "mb-1"
-                }`}
-              >
-                {attendee.name}
-              </Text>
-              {attendee.connectionStatus && (
-                <View
-                  className="px-2 py-0.5"
+            {/* Profile Picture */}
+            <View
+              className={`${
+                hasFilters ? "w-12 h-12" : "w-16 h-16"
+              } rounded-full bg-neutral-100 items-center justify-center overflow-hidden ${
+                hasFilters ? "mr-3" : "mr-4"
+              }`}
+            >
+              {attendee.avatar &&
+              typeof attendee.avatar === "object" &&
+              "uri" in attendee.avatar &&
+              attendee.avatar.uri ? (
+                <Image
+                  source={attendee.avatar as ImageSourcePropType}
                   style={{
-                    borderRadius: 0,
-                    backgroundColor:
-                      attendee.connectionStatus === "accepted"
-                        ? "#D1FAE5"
-                        : "#FEF3C7",
+                    width: hasFilters ? 48 : 64,
+                    height: hasFilters ? 48 : 64,
+                    borderRadius: hasFilters ? 24 : 32,
                   }}
-                >
-                  <Text
-                    className="text-xs font-medium"
-                    style={{
-                      color:
-                        attendee.connectionStatus === "accepted"
-                          ? "#10B981"
-                          : "#F59E0B",
-                    }}
-                  >
-                    {attendee.connectionStatus === "accepted"
-                      ? "Connected"
-                      : "Pending"}
-                  </Text>
-                </View>
+                  resizeMode="cover"
+                />
+              ) : (
+                <PersonIcon size={hasFilters ? 24 : 32} color="#A3A3A3" />
               )}
             </View>
-            <Text
-              className={`${
-                hasFilters ? "text-xs" : "text-base"
-              } text-neutral-600`}
-            >
-              {attendee.role && attendee.company
-                ? `${attendee.role} · ${attendee.company}`
-                : attendee.role || attendee.company || ""}
-            </Text>
-          </View>
-        </View>
 
-        {/* Tags */}
-        {attendee.tags && attendee.tags.length > 0 && (
-          <View
-            className={`flex-row flex-wrap ${hasFilters ? "mb-2" : "mb-3"}`}
-          >
-            {attendee.tags.map((tag, index) => (
-              <View
-                key={index}
-                className={`bg-neutral-200 ${
-                  hasFilters ? "px-2 py-1" : "px-3 py-1.5"
-                } mr-2 ${hasFilters ? "mb-1" : "mb-2"}`}
-                style={{ borderRadius: 0 }}
-              >
+            {/* Name and Title */}
+            <View className="flex-1">
+              <View className="flex-row items-center flex-wrap gap-2">
                 <Text
                   className={`${
-                    hasFilters ? "text-xs" : "text-sm"
-                  } font-medium text-neutral-700`}
+                    hasFilters ? "text-lg" : "text-2xl"
+                  } font-bold text-neutral-900 ${
+                    hasFilters ? "mb-0.5 pt-2" : "mb-1"
+                  }`}
                 >
-                  {tag}
+                  {attendee.name}
                 </Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Bio */}
-        {attendee.bio && (
-          <Text
-            className={`${
-              hasFilters ? "text-normal font-medium" : "text-base"
-            } text-neutral-700 ${hasFilters ? "mb-1" : "mb-3"} ${
-              hasFilters ? "leading-4" : "leading-6"
-            }`}
-            numberOfLines={hasFilters ? 2 : undefined}
-          >
-            {attendee.bio}
-          </Text>
-        )}
-
-        {/* Interests Section */}
-        {attendee.interests && attendee.interests.length > 0 && (
-          <View className={hasFilters ? "py-4 mb-0.5" : "mb-2"}>
-            <Text
-              className={`${
-                hasFilters ? "text-[14px] font-medium" : "text-base"
-              } font-semibold text-neutral-900 ${hasFilters ? "mb-1" : "mb-2"}`}
-            >
-              Interests
-            </Text>
-            <View className="flex-row flex-wrap">
-              {attendee.interests
-                .slice(0, hasFilters ? 3 : undefined)
-                .map((interest, index) => (
+                {attendee.connectionStatus && (
                   <View
-                    key={index}
-                    className={`bg-neutral-200 ${
-                      hasFilters ? "px-2 py-1" : "px-3 py-1.5"
-                    } mr-2 ${hasFilters ? "mb-1" : "mb-2"}`}
-                    style={{ borderRadius: 0 }}
+                    className="px-2 py-0.5"
+                    style={{
+                      borderRadius: 0,
+                      backgroundColor:
+                        attendee.connectionStatus === "accepted"
+                          ? "#D1FAE5"
+                          : "#FEF3C7",
+                    }}
                   >
                     <Text
-                      className={`${
-                        hasFilters ? "text-xs" : "text-sm"
-                      } font-medium text-neutral-700`}
+                      className="text-xs font-medium"
+                      style={{
+                        color:
+                          attendee.connectionStatus === "accepted"
+                            ? "#10B981"
+                            : "#F59E0B",
+                      }}
                     >
-                      {interest}
+                      {attendee.connectionStatus === "accepted"
+                        ? "Connected"
+                        : "Pending"}
                     </Text>
                   </View>
-                ))}
-              {hasFilters && attendee.interests.length > 3 && (
-                <View className="bg-neutral-100 px-2 py-0.5 mr-2 mb-1" style={{ borderRadius: 0 }}>
-                  <Text className="text-xs font-medium text-neutral-700">
-                    +{attendee.interests.length - 3}
-                  </Text>
-                </View>
-              )}
+                )}
+              </View>
+              <Text
+                className={`${
+                  hasFilters ? "text-xs" : "text-base"
+                } text-neutral-600`}
+              >
+                {attendee.role && attendee.company
+                  ? `${attendee.role} · ${attendee.company}`
+                  : attendee.role || attendee.company || ""}
+              </Text>
             </View>
           </View>
-        )}
 
-        {/* Primary CTA, then a separated pair: Connect | Message */}
-        <View className={hasFilters ? "pt-2 pb-2" : "mt-2"}>
-          <GesturePressable
-            onPress={() => {
-              if (onRequestMeeting) {
-                onRequestMeeting(attendee);
-              }
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            className={`w-full flex-row items-center justify-center bg-black ${
-              hasFilters ? "py-4 px-3" : "py-3.5 px-4"
-            }`}
-            style={{ borderRadius: 0 }}
-          >
-            <CalendarIcon size={hasFilters ? 16 : 20} color="#FFFFFF" />
+          {/* Tags */}
+          {attendee.tags && attendee.tags.length > 0 && (
+            <View
+              className={`flex-row flex-wrap ${hasFilters ? "mb-2" : "mb-3"}`}
+            >
+              {attendee.tags.map((tag, index) => (
+                <View
+                  key={index}
+                  className={`bg-neutral-200 ${
+                    hasFilters ? "px-2 py-1" : "px-3 py-1.5"
+                  } mr-2 ${hasFilters ? "mb-1" : "mb-2"}`}
+                  style={{ borderRadius: 0 }}
+                >
+                  <Text
+                    className={`${
+                      hasFilters ? "text-xs" : "text-sm"
+                    } font-medium text-neutral-700`}
+                  >
+                    {tag}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Bio */}
+          {attendee.bio && (
             <Text
               className={`${
                 hasFilters ? "text-normal font-medium" : "text-base"
-              } font-medium text-white ${hasFilters ? "ml-1.5" : "ml-2"}`}
+              } text-neutral-700 ${hasFilters ? "mb-1" : "mb-3"} ${
+                hasFilters ? "leading-4" : "leading-6"
+              }`}
+              numberOfLines={hasFilters ? 2 : undefined}
             >
-              Request Meeting
+              {attendee.bio}
             </Text>
-          </GesturePressable>
+          )}
 
-          <View
-            className={`border-t border-neutral-100 ${hasFilters ? "mt-2 pt-2" : "mt-3 pt-3"}`}
-          >
-            <View
-              style={{
-                width: "100%",
-                flexDirection: "row",
-                alignItems: "stretch",
-                columnGap: 8,
+          {/* Interests Section */}
+          {attendee.interests && attendee.interests.length > 0 && (
+            <View className={hasFilters ? "py-4 mb-0.5" : "mb-2"}>
+              <Text
+                className={`${
+                  hasFilters ? "text-[14px] font-medium" : "text-base"
+                } font-semibold text-neutral-900 ${hasFilters ? "mb-1" : "mb-2"}`}
+              >
+                Interests
+              </Text>
+              <View className="flex-row flex-wrap">
+                {attendee.interests
+                  .slice(0, hasFilters ? 3 : undefined)
+                  .map((interest, index) => (
+                    <View
+                      key={index}
+                      className={`bg-neutral-200 ${
+                        hasFilters ? "px-2 py-1" : "px-3 py-1.5"
+                      } mr-2 ${hasFilters ? "mb-1" : "mb-2"}`}
+                      style={{ borderRadius: 0 }}
+                    >
+                      <Text
+                        className={`${
+                          hasFilters ? "text-xs" : "text-sm"
+                        } font-medium text-neutral-700`}
+                      >
+                        {interest}
+                      </Text>
+                    </View>
+                  ))}
+                {hasFilters && attendee.interests.length > 3 && (
+                  <View
+                    className="bg-neutral-100 px-2 py-0.5 mr-2 mb-1"
+                    style={{ borderRadius: 0 }}
+                  >
+                    <Text className="text-xs font-medium text-neutral-700">
+                      +{attendee.interests.length - 3}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Primary CTA, then a separated pair: Connect | Message */}
+          <View className={hasFilters ? "pt-2 pb-2" : "mt-2"}>
+            <GesturePressable
+              onPress={() => {
+                if (onRequestMeeting) {
+                  onRequestMeeting(attendee);
+                }
               }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              className={`w-full flex-row items-center justify-center bg-black ${
+                hasFilters ? "py-4 px-3" : "py-3.5 px-4"
+              }`}
+              style={{ borderRadius: 0 }}
             >
-              {attendee.connectionStatus === "accepted" ||
-              attendee.connectionStatus === "pending" ? (
-                <View
+              <CalendarIcon size={hasFilters ? 16 : 20} color="#FFFFFF" />
+              <Text
+                className={`${
+                  hasFilters ? "text-normal font-medium" : "text-base"
+                } font-medium text-white ${hasFilters ? "ml-1.5" : "ml-2"}`}
+              >
+                Request Meeting
+              </Text>
+            </GesturePressable>
+
+            <View
+              className={`border-t border-neutral-100 ${hasFilters ? "mt-2 pt-2" : "mt-3 pt-3"}`}
+            >
+              <View
+                style={{
+                  width: "100%",
+                  flexDirection: "row",
+                  alignItems: "stretch",
+                  columnGap: 8,
+                }}
+              >
+                {attendee.connectionStatus === "accepted" ||
+                attendee.connectionStatus === "pending" ? (
+                  <View
+                    style={{
+                      flex: 1,
+                      minHeight: hasFilters ? 44 : 48,
+                      backgroundColor: "#F3F4F6",
+                      borderRadius: 0,
+                    }}
+                    className={`flex-row items-center justify-center border border-neutral-200/80 ${
+                      hasFilters ? "px-2" : "px-3"
+                    }`}
+                  >
+                    <PeopleIcon size={hasFilters ? 16 : 20} color="#9CA3AF" />
+                    <Text
+                      className={`${
+                        hasFilters
+                          ? "text-xs font-medium"
+                          : "text-sm font-medium"
+                      } text-neutral-500 ml-1.5`}
+                      numberOfLines={1}
+                    >
+                      {attendee.connectionStatus === "accepted"
+                        ? "Connected"
+                        : "Pending"}
+                    </Text>
+                  </View>
+                ) : (
+                  <GesturePressable
+                    onPress={() => {
+                      if (onConnect) {
+                        onConnect(attendee);
+                      }
+                    }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={{
+                      flex: 1,
+                      minHeight: hasFilters ? 44 : 48,
+                      borderRadius: 0,
+                    }}
+                    className={`flex-row items-center justify-center border border-neutral-200 bg-white ${
+                      hasFilters ? "px-2" : "px-3"
+                    }`}
+                  >
+                    <PeopleIcon size={hasFilters ? 16 : 20} color="#404040" />
+                    <Text
+                      className={`${
+                        hasFilters
+                          ? "text-xs font-semibold"
+                          : "text-sm font-semibold"
+                      } text-neutral-900 ml-1.5`}
+                      numberOfLines={1}
+                    >
+                      Connect
+                    </Text>
+                  </GesturePressable>
+                )}
+
+                <Pressable
+                  onPress={() => onMessage?.(attendee)}
+                  disabled={messageOpening}
                   style={{
                     flex: 1,
                     minHeight: hasFilters ? 44 : 48,
-                    backgroundColor: "#F3F4F6",
+                    opacity: messageOpening ? 0.88 : 1,
                     borderRadius: 0,
                   }}
-                  className={`flex-row items-center justify-center border border-neutral-200/80 ${
+                  className={`flex-row items-center justify-center ${
                     hasFilters ? "px-2" : "px-3"
+                  } ${
+                    attendeeCanMessage(attendee)
+                      ? "bg-[#1BB273] shadow-sm"
+                      : "border border-dashed border-neutral-300 bg-white"
                   }`}
                 >
-                  <PeopleIcon size={hasFilters ? 16 : 20} color="#9CA3AF" />
-                  <Text
-                    className={`${
-                      hasFilters ? "text-xs font-medium" : "text-sm font-medium"
-                    } text-neutral-500 ml-1.5`}
-                    numberOfLines={1}
-                  >
-                    {attendee.connectionStatus === "accepted"
-                      ? "Connected"
-                      : "Pending"}
-                  </Text>
-                </View>
-              ) : (
-                <GesturePressable
-                  onPress={() => {
-                    if (onConnect) {
-                      onConnect(attendee);
-                    }
-                  }}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  style={{ flex: 1, minHeight: hasFilters ? 44 : 48, borderRadius: 0 }}
-                  className={`flex-row items-center justify-center border border-neutral-200 bg-white ${
-                    hasFilters ? "px-2" : "px-3"
-                  }`}
-                >
-                  <PeopleIcon size={hasFilters ? 16 : 20} color="#404040" />
-                  <Text
-                    className={`${
-                      hasFilters ? "text-xs font-semibold" : "text-sm font-semibold"
-                    } text-neutral-900 ml-1.5`}
-                    numberOfLines={1}
-                  >
-                    Connect
-                  </Text>
-                </GesturePressable>
-              )}
-
-              <Pressable
-                onPress={() => onMessage?.(attendee)}
-                disabled={messageOpening}
-                style={{
-                  flex: 1,
-                  minHeight: hasFilters ? 44 : 48,
-                  opacity: messageOpening ? 0.88 : 1,
-                  borderRadius: 0,
-                }}
-                className={`flex-row items-center justify-center ${
-                  hasFilters ? "px-2" : "px-3"
-                } ${
-                  attendeeCanMessage(attendee)
-                    ? "bg-[#1BB273] shadow-sm"
-                    : "border border-dashed border-neutral-300 bg-white"
-                }`}
-              >
-                {messageOpening ? (
-                  <LoadingSpinner size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <SpeechBubbleIcon
-                      size={hasFilters ? 16 : 18}
-                      color={
-                        attendeeCanMessage(attendee)
-                          ? "#FFFFFF"
-                          : "#A3A3A3"
-                      }
-                    />
-                    <Text
-                      className={`${
-                        hasFilters ? "text-xs font-semibold" : "text-sm font-semibold"
-                      } ml-1.5 ${
-                        attendeeCanMessage(attendee)
-                          ? "text-white"
-                          : "text-neutral-400"
-                      }`}
-                      numberOfLines={1}
-                    >
-                      Message
-                    </Text>
-                  </>
-                )}
-              </Pressable>
+                  {messageOpening ? (
+                    <LoadingSpinner size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <SpeechBubbleIcon
+                        size={hasFilters ? 16 : 18}
+                        color={
+                          attendeeCanMessage(attendee) ? "#FFFFFF" : "#A3A3A3"
+                        }
+                      />
+                      <Text
+                        className={`${
+                          hasFilters
+                            ? "text-xs font-semibold"
+                            : "text-sm font-semibold"
+                        } ml-1.5 ${
+                          attendeeCanMessage(attendee)
+                            ? "text-white"
+                            : "text-neutral-400"
+                        }`}
+                        numberOfLines={1}
+                      >
+                        Message
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
             </View>
           </View>
         </View>
-      </View>
       </Animated.View>
     </GestureDetector>
   );
@@ -1130,7 +1192,7 @@ export default function AttendeesScreen() {
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [showViewDropdown, setShowViewDropdown] = useState(false);
   const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(
-    null
+    null,
   );
   const [showBottomSheet, setShowBottomSheet] = useState(false);
   const { setFloatingNavSuppressed } = useFloatingNavVisibility();
@@ -1138,7 +1200,10 @@ export default function AttendeesScreen() {
   useEffect(() => {
     if (route.params?.roleFilter === "startup") {
       setDirectoryMode("startups");
-    } else if (route.params?.roleFilter === "all" || route.params?.roleFilter === "investor") {
+    } else if (
+      route.params?.roleFilter === "all" ||
+      route.params?.roleFilter === "investor"
+    ) {
       setDirectoryMode("attendees");
     }
   }, [route.params?.roleFilter]);
@@ -1176,11 +1241,15 @@ export default function AttendeesScreen() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Backend data state
-  const [allAttendeesBackend, setAllAttendeesBackend] = useState<Attendee[]>([]);
+  const [allAttendeesBackend, setAllAttendeesBackend] = useState<Attendee[]>(
+    [],
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [skippedAttendeeIds, setSkippedAttendeeIds] = useState<Set<string>>(new Set());
+  const [skippedAttendeeIds, setSkippedAttendeeIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [attendeePage, setAttendeePage] = useState(1);
   const [hasMoreAttendees, setHasMoreAttendees] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -1188,7 +1257,9 @@ export default function AttendeesScreen() {
   const [isOpeningChat, setIsOpeningChat] = useState(false);
 
   // Directory startups (mode = startups)
-  const [directoryStartups, setDirectoryStartups] = useState<DirectoryStartupRow[]>([]);
+  const [directoryStartups, setDirectoryStartups] = useState<
+    DirectoryStartupRow[]
+  >([]);
   const [startupsLoading, setStartupsLoading] = useState(false);
   const [startupsError, setStartupsError] = useState<string | null>(null);
   const [startupsRefreshing, setStartupsRefreshing] = useState(false);
@@ -1202,13 +1273,18 @@ export default function AttendeesScreen() {
     }
     setStartupsError(null);
     try {
-      const response = await eventService.getDirectoryCompanies(EVENT_ID, "startup", {
-        page_size: 100,
-        ordering: "-id",
-      });
+      const response = await eventService.getDirectoryCompanies(
+        EVENT_ID,
+        "startup",
+        {
+          page_size: 100,
+          ordering: "-id",
+        },
+      );
       const list: DirectoryStartupRow[] = response.companies.map((c) => {
         const name = c.name || `Startup ${c.id}`;
-        const logoColor = STARTUP_LOGO_COLORS[name.length % STARTUP_LOGO_COLORS.length];
+        const logoColor =
+          STARTUP_LOGO_COLORS[name.length % STARTUP_LOGO_COLORS.length];
         const meta = (c.metadata ?? {}) as Record<string, unknown>;
         const growthStage =
           typeof meta.growth_stage === "string" && meta.growth_stage.trim()
@@ -1303,9 +1379,12 @@ export default function AttendeesScreen() {
     };
   });
 
-  const onAttendeeListContentSizeChange = useCallback((_w: number, h: number) => {
-    listContentHeightSV.value = h;
-  }, [listContentHeightSV]);
+  const onAttendeeListContentSizeChange = useCallback(
+    (_w: number, h: number) => {
+      listContentHeightSV.value = h;
+    },
+    [listContentHeightSV],
+  );
 
   const onAttendeeListLayout = useCallback(
     (e: LayoutChangeEvent) => {
@@ -1313,13 +1392,15 @@ export default function AttendeesScreen() {
       listLayoutHeightSV.value = h;
       listHighlight.scrollViewportHeightRef.current = h;
     },
-    [listLayoutHeightSV, listHighlight]
+    [listLayoutHeightSV, listHighlight],
   );
 
   const { toast, showToast, hideToast } = useToast();
 
   // Persist connection + meeting maps for load-more (avoids re-fetching on append)
-  const connectionStatusMapRef = useRef<Map<string, "pending" | "accepted">>(new Map());
+  const connectionStatusMapRef = useRef<Map<string, "pending" | "accepted">>(
+    new Map(),
+  );
   const acceptedMeetingPeerIdsRef = useRef<Set<string>>(new Set());
   /** Ignore stale results when multiple fetches overlap (pull-to-refresh + focus + mount). */
   const attendeesFetchGenRef = useRef(0);
@@ -1387,7 +1468,7 @@ export default function AttendeesScreen() {
       const byCategory: Record<string, string[]> = {};
       for (const id of filterIds) {
         const cat = filterCategories.find((c) =>
-          c.options.some((o) => o.id === id)
+          c.options.some((o) => o.id === id),
         );
         if (!cat) continue;
         if (!byCategory[cat.id]) byCategory[cat.id] = [];
@@ -1400,21 +1481,26 @@ export default function AttendeesScreen() {
         const match = (): boolean => {
           if (catId === "industry") {
             const ind = normalize(attendee.industry || "");
-            const tagStr = coerceStringArray(attendee.tags).map(normalize).join(" ");
+            const tagStr = coerceStringArray(attendee.tags)
+              .map(normalize)
+              .join(" ");
             return labels.some(
-              (l) => ind.includes(normalize(l)) || tagStr.includes(normalize(l))
+              (l) =>
+                ind.includes(normalize(l)) || tagStr.includes(normalize(l)),
             );
           }
           if (catId === "interests") {
             const list = coerceStringArray(attendee.interests).map(normalize);
             return labels.some((l) =>
-              list.some((i) => i.includes(normalize(l)) || normalize(l).includes(i))
+              list.some(
+                (i) => i.includes(normalize(l)) || normalize(l).includes(i),
+              ),
             );
           }
           if (catId === "job-title") {
             const role = normalize(attendee.role || "");
             return labels.some(
-              (l) => role.includes(normalize(l)) || normalize(l).includes(role)
+              (l) => role.includes(normalize(l)) || normalize(l).includes(role),
             );
           }
           return true;
@@ -1423,15 +1509,17 @@ export default function AttendeesScreen() {
       }
       return true;
     },
-    [filterCategories]
+    [filterCategories],
   );
 
   /**
    * Map backend Attendee to UI Attendee format
    */
-  const mapBackendAttendeeToUI = (backendAttendee: BackendAttendee): Attendee => {
+  const mapBackendAttendeeToUI = (
+    backendAttendee: BackendAttendee,
+  ): Attendee => {
     const user = backendAttendee.user;
-    
+
     // Parse metadata (might be string or object)
     let metadata = user.metadata;
     if (typeof metadata === "string") {
@@ -1451,10 +1539,10 @@ export default function AttendeesScreen() {
     const role = user.job_title || user.organisation_role || undefined;
 
     // Extract company name - check company.name first (like participant cards), then fall back to organisation
-    const company = 
-      (user as any).company?.name || 
+    const company =
+      (user as any).company?.name ||
       (user as any).company?.company_name ||
-      user.organisation || 
+      user.organisation ||
       undefined;
 
     // Extract avatar
@@ -1463,7 +1551,9 @@ export default function AttendeesScreen() {
     // Extract tags (industry/sector only — country omitted from cards)
     const tags: string[] = [];
     const industry = coerceMetadataLabel(
-      metadata?.industry || metadata?.sector || (user as any).company?.company_sector
+      metadata?.industry ||
+        metadata?.sector ||
+        (user as any).company?.company_sector,
     );
     if (industry) {
       tags.push(industry);
@@ -1476,7 +1566,8 @@ export default function AttendeesScreen() {
     const bio = metadata?.bio || "";
 
     // Extract LinkedIn URL
-    const linkedInUrl = metadata?.linkedIn || metadata?.linkedin_url || undefined;
+    const linkedInUrl =
+      metadata?.linkedIn || metadata?.linkedin_url || undefined;
 
     const startupBadge = resolveAttendeeStartupBadge(user as any);
 
@@ -1529,7 +1620,7 @@ export default function AttendeesScreen() {
         ...a,
         connectionStatus: map.get(String(a.id)) ?? null,
         hasAcceptedMeeting: meetingPeers.has(String(a.id)),
-      }))
+      })),
     );
     connectionsSyncedForListRef.current = true;
   }, [user?.user_id]);
@@ -1543,7 +1634,7 @@ export default function AttendeesScreen() {
       startPage: number,
       baseList: Attendee[],
       initialHasMore: boolean,
-      apiTotal: number
+      apiTotal: number,
     ) => {
       if (!initialHasMore || prefetchInFlightRef.current) return;
       prefetchInFlightRef.current = true;
@@ -1599,134 +1690,132 @@ export default function AttendeesScreen() {
         setLoadingMore(false);
       }
     },
-    []
+    [],
   );
 
   /**
    * Fetch attendees page 1 (reset). Remaining pages prefetch in background for client-side search.
    */
-  const fetchAttendees = useCallback(
-    async () => {
-      const fetchGen = ++attendeesFetchGenRef.current;
+  const fetchAttendees = useCallback(async () => {
+    const fetchGen = ++attendeesFetchGenRef.current;
 
-      listEndReachAllowedAfterRef.current = Date.now() + 800;
-      setIsLoading(true);
-      setError(null);
-      connectionsSyncedForListRef.current = false;
-      try {
-        const currentUserId = user?.user_id;
+    listEndReachAllowedAfterRef.current = Date.now() + 800;
+    setIsLoading(true);
+    setError(null);
+    connectionsSyncedForListRef.current = false;
+    try {
+      const currentUserId = user?.user_id;
 
-        const emptyConnections = {
-          connections: [] as any[],
-          pagination: { count: 0, next: null, previous: null },
-        };
+      const emptyConnections = {
+        connections: [] as any[],
+        pagination: { count: 0, next: null, previous: null },
+      };
 
-        const [connectionsRes, meetingsRes, firstRes] = await Promise.all([
-          currentUserId
-            ? connectionService.getConnections(1, 100).catch(() => emptyConnections)
-            : Promise.resolve(emptyConnections),
-          currentUserId
-            ? meetingService.getMeetings().catch(() => [])
-            : Promise.resolve([]),
-          attendeeService.getEventAttendees(EVENT_ID, "all", {
-            page: 1,
-            page_size: ATTENDEE_LIST_PAGE_SIZE,
-            ordering: ATTENDEE_LIST_ORDERING,
-          }),
-        ]);
+      const [connectionsRes, meetingsRes, firstRes] = await Promise.all([
+        currentUserId
+          ? connectionService
+              .getConnections(1, 100)
+              .catch(() => emptyConnections)
+          : Promise.resolve(emptyConnections),
+        currentUserId
+          ? meetingService.getMeetings().catch(() => [])
+          : Promise.resolve([]),
+        attendeeService.getEventAttendees(EVENT_ID, "all", {
+          page: 1,
+          page_size: ATTENDEE_LIST_PAGE_SIZE,
+          ordering: ATTENDEE_LIST_ORDERING,
+        }),
+      ]);
 
-        const connectionStatusMap = new Map<string, "pending" | "accepted">();
-        const meetingPeerIds = currentUserId
-          ? getAcceptedMeetingPeerIds(meetingsRes, String(currentUserId))
-          : new Set<string>();
-        if (currentUserId && connectionsRes.connections.length > 0) {
-          const currentId = String(currentUserId);
-          for (const c of connectionsRes.connections) {
-            const fromId = String(c.from_user.id);
-            const toId = String(c.to_user.id);
-            const otherId = fromId === currentId ? toId : fromId;
-            if (c.status === "pending" || c.status === "accepted") {
-              connectionStatusMap.set(otherId, c.status);
-            }
+      const connectionStatusMap = new Map<string, "pending" | "accepted">();
+      const meetingPeerIds = currentUserId
+        ? getAcceptedMeetingPeerIds(meetingsRes, String(currentUserId))
+        : new Set<string>();
+      if (currentUserId && connectionsRes.connections.length > 0) {
+        const currentId = String(currentUserId);
+        for (const c of connectionsRes.connections) {
+          const fromId = String(c.from_user.id);
+          const toId = String(c.to_user.id);
+          const otherId = fromId === currentId ? toId : fromId;
+          if (c.status === "pending" || c.status === "accepted") {
+            connectionStatusMap.set(otherId, c.status);
           }
-        }
-
-        connectionStatusMapRef.current = connectionStatusMap;
-        acceptedMeetingPeerIdsRef.current = meetingPeerIds;
-
-        const seenIds = new Set<string>();
-        const allMapped: Attendee[] = [];
-
-        const mergeBatch = (batch: BackendAttendee[]) => {
-          for (const a of batch) {
-            const ui = mapBackendAttendeeToUI(a);
-            const status = connectionStatusMap.get(String(ui.id)) ?? null;
-            const row = {
-              ...ui,
-              connectionStatus: status,
-              hasAcceptedMeeting: meetingPeerIds.has(String(ui.id)),
-            };
-            if (!seenIds.has(row.id)) {
-              seenIds.add(row.id);
-              allMapped.push(row);
-            }
-          }
-        };
-
-        const batch = firstRes.attendees;
-        const totalCount = firstRes.pagination?.count ?? 0;
-        apiTotalCountRef.current = totalCount;
-        const hasNext = !!firstRes.pagination?.next;
-        const partialPage =
-          totalCount > 0 && batch.length > 0 && batch.length < totalCount;
-        const hasMorePages =
-          batch.length > 0 && (hasNext || partialPage);
-
-        if (batch.length > 0) {
-          mergeBatch(batch);
-        }
-
-        if (fetchGen !== attendeesFetchGenRef.current) return;
-        connectionsSyncedForListRef.current = true;
-        const now = Date.now();
-        attendeeFullListSessionCache = {
-          eventId: EVENT_ID,
-          attendees: allMapped.map((a) => ({ ...a })),
-          lastFetchedPage: 1,
-          hasMore: hasMorePages,
-          cachedAt: now,
-          apiTotalCount: totalCount,
-        };
-        setError(null);
-        setAllAttendeesBackend(allMapped);
-        setAttendeePage(1);
-        setHasMoreAttendees(hasMorePages);
-
-        if (hasMorePages) {
-          void prefetchRemainingPages(
-            fetchGen,
-            1,
-            allMapped,
-            hasMorePages,
-            totalCount
-          );
-        }
-      } catch (err: any) {
-        if (fetchGen !== attendeesFetchGenRef.current) return;
-        const errorMessage =
-          err instanceof ApiClientError
-            ? err.message
-            : "Failed to load attendees";
-        setError(errorMessage);
-      } finally {
-        if (fetchGen === attendeesFetchGenRef.current) {
-          setIsLoading(false);
-          listEndReachAllowedAfterRef.current = Date.now() + 600;
         }
       }
-    },
-    [user?.user_id, prefetchRemainingPages]
-  );
+
+      connectionStatusMapRef.current = connectionStatusMap;
+      acceptedMeetingPeerIdsRef.current = meetingPeerIds;
+
+      const seenIds = new Set<string>();
+      const allMapped: Attendee[] = [];
+
+      const mergeBatch = (batch: BackendAttendee[]) => {
+        for (const a of batch) {
+          const ui = mapBackendAttendeeToUI(a);
+          const status = connectionStatusMap.get(String(ui.id)) ?? null;
+          const row = {
+            ...ui,
+            connectionStatus: status,
+            hasAcceptedMeeting: meetingPeerIds.has(String(ui.id)),
+          };
+          if (!seenIds.has(row.id)) {
+            seenIds.add(row.id);
+            allMapped.push(row);
+          }
+        }
+      };
+
+      const batch = firstRes.attendees;
+      const totalCount = firstRes.pagination?.count ?? 0;
+      apiTotalCountRef.current = totalCount;
+      const hasNext = !!firstRes.pagination?.next;
+      const partialPage =
+        totalCount > 0 && batch.length > 0 && batch.length < totalCount;
+      const hasMorePages = batch.length > 0 && (hasNext || partialPage);
+
+      if (batch.length > 0) {
+        mergeBatch(batch);
+      }
+
+      if (fetchGen !== attendeesFetchGenRef.current) return;
+      connectionsSyncedForListRef.current = true;
+      const now = Date.now();
+      attendeeFullListSessionCache = {
+        eventId: EVENT_ID,
+        attendees: allMapped.map((a) => ({ ...a })),
+        lastFetchedPage: 1,
+        hasMore: hasMorePages,
+        cachedAt: now,
+        apiTotalCount: totalCount,
+      };
+      setError(null);
+      setAllAttendeesBackend(allMapped);
+      setAttendeePage(1);
+      setHasMoreAttendees(hasMorePages);
+
+      if (hasMorePages) {
+        void prefetchRemainingPages(
+          fetchGen,
+          1,
+          allMapped,
+          hasMorePages,
+          totalCount,
+        );
+      }
+    } catch (err: any) {
+      if (fetchGen !== attendeesFetchGenRef.current) return;
+      const errorMessage =
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to load attendees";
+      setError(errorMessage);
+    } finally {
+      if (fetchGen === attendeesFetchGenRef.current) {
+        setIsLoading(false);
+        listEndReachAllowedAfterRef.current = Date.now() + 600;
+      }
+    }
+  }, [user?.user_id, prefetchRemainingPages]);
 
   /**
    * Handle pull-to-refresh
@@ -1823,7 +1912,7 @@ export default function AttendeesScreen() {
           cache.lastFetchedPage,
           cache.attendees,
           cache.hasMore,
-          cache.apiTotalCount
+          cache.apiTotalCount,
         );
       }
       return;
@@ -1850,7 +1939,7 @@ export default function AttendeesScreen() {
         return;
       }
       void syncMessagingEligibility();
-    }, [fetchAttendees, syncMessagingEligibility])
+    }, [fetchAttendees, syncMessagingEligibility]),
   );
 
   // Mock data — disabled; API is the sole source (re-enable for local UI dev only)
@@ -1880,7 +1969,7 @@ export default function AttendeesScreen() {
 
   // Recommended attendees: those with match_info.match_score >= 5
   const recommendedAttendees = filteredAttendees.filter((attendee) =>
-    isRecommendedByMatchInfo(attendee.backendData)
+    isRecommendedByMatchInfo(attendee.backendData),
   );
 
   // Get displayed attendees based on active tab
@@ -1890,14 +1979,14 @@ export default function AttendeesScreen() {
   // Apply client-side filters (industry, interests, job title)
   if (selectedFilterIds.length > 0) {
     displayedAttendees = displayedAttendees.filter((a) =>
-      attendeeMatchesFilters(a, selectedFilterIds)
+      attendeeMatchesFilters(a, selectedFilterIds),
     );
   }
 
   // Apply search (client-side on cached list — display name, first name, or last name only).
   if (viewMode === "list" && searchQuery.trim().length > 0) {
     displayedAttendees = displayedAttendees.filter((attendee) =>
-      attendeeMatchesSearchQuery(attendee, searchQuery)
+      attendeeMatchesSearchQuery(attendee, searchQuery),
     );
   }
 
@@ -1914,17 +2003,20 @@ export default function AttendeesScreen() {
     return rows;
   }, [directoryStartups, searchQuery, activeTab]);
 
-  const switchDirectoryMode = useCallback((mode: DirectoryMode) => {
-    setDirectoryMode(mode);
-    setActiveTab("All");
-    setSearchQuery("");
-    setCurrentCardIndex(0);
-    clearHighlight();
-  }, [clearHighlight]);
+  const switchDirectoryMode = useCallback(
+    (mode: DirectoryMode) => {
+      setDirectoryMode(mode);
+      setActiveTab("All");
+      setSearchQuery("");
+      setCurrentCardIndex(0);
+      clearHighlight();
+    },
+    [clearHighlight],
+  );
 
   // List view: show all (including skipped with "Skipped" badge). Card view: exclude skipped so we don't re-show them.
   const displayedAttendeesForCards = displayedAttendees.filter(
-    (a) => !skippedAttendeeIds.has(a.id)
+    (a) => !skippedAttendeeIds.has(a.id),
   );
 
   // State for current card index
@@ -1985,7 +2077,10 @@ export default function AttendeesScreen() {
     const attendee = displayedAttendeesForCards[currentCardIndex];
     if (!attendee) return;
     setSkippedAttendeeIds((prev) => new Set(prev).add(attendee.id));
-    if (currentCardIndex >= displayedAttendeesForCards.length - LOAD_MORE_THRESHOLD) {
+    if (
+      currentCardIndex >=
+      displayedAttendeesForCards.length - LOAD_MORE_THRESHOLD
+    ) {
       loadMoreAttendees();
     }
   };
@@ -2019,14 +2114,15 @@ export default function AttendeesScreen() {
       try {
         await connectionService.createConnection(
           String(currentUserId),
-          attendee.id
+          attendee.id,
         );
       } catch (e: any) {
         const code = e?.response_code ?? e?.responseCode ?? e?.statusCode;
         const msg = (e?.message || "").toLowerCase();
         const alreadyExists =
-          msg.includes("connection already exists") || msg.includes("already exists");
-        if ((code === 409 || (code === 400 && alreadyExists))) {
+          msg.includes("connection already exists") ||
+          msg.includes("already exists");
+        if (code === 409 || (code === 400 && alreadyExists)) {
           // Treat as success
         } else {
           showToast(e?.message || "Failed to send connection request", "error");
@@ -2043,8 +2139,10 @@ export default function AttendeesScreen() {
       connectionStatusMapRef.current.set(attendee.id, "pending");
       setAllAttendeesBackend((prev) =>
         prev.map((a) =>
-          a.id === attendee.id ? { ...a, connectionStatus: "pending" as const } : a
-        )
+          a.id === attendee.id
+            ? { ...a, connectionStatus: "pending" as const }
+            : a,
+        ),
       );
       markConnectAttendeesComplete();
       setConnectedAttendeeName(attendee.name);
@@ -2053,7 +2151,10 @@ export default function AttendeesScreen() {
         const nextIndex = currentCardIndex + 1;
         if (nextIndex < displayedAttendeesForCards.length) {
           setCurrentCardIndex(nextIndex);
-          if (nextIndex >= displayedAttendeesForCards.length - LOAD_MORE_THRESHOLD) {
+          if (
+            nextIndex >=
+            displayedAttendeesForCards.length - LOAD_MORE_THRESHOLD
+          ) {
             loadMoreAttendees();
           }
         }
@@ -2067,7 +2168,7 @@ export default function AttendeesScreen() {
       displayedAttendeesForCards.length,
       markConnectAttendeesComplete,
       loadMoreAttendees,
-    ]
+    ],
   );
 
   const openMeetingForAttendee = useCallback(
@@ -2080,7 +2181,9 @@ export default function AttendeesScreen() {
       const isInvestor = await currentUserIsInvestor();
       if (!isInvestor) {
         const allowed = await canRequestMeetingWithAttendee({
-          ticketType: ticketTypeFromTicket(attendee.backendData?.ticket ?? null),
+          ticketType: ticketTypeFromTicket(
+            attendee.backendData?.ticket ?? null,
+          ),
           connectionStatus: attendee.connectionStatus,
         });
         if (!allowed) {
@@ -2109,7 +2212,7 @@ export default function AttendeesScreen() {
       try {
         const { conversationId } = await getOrCreateConversation(
           EVENT_ID,
-          attendee.id
+          attendee.id,
         );
         navigation.navigate("Conversation", {
           eventId: EVENT_ID,
@@ -2128,14 +2231,17 @@ export default function AttendeesScreen() {
         setIsOpeningChat(false);
       }
     },
-    [isOpeningChat, getOrCreateConversation, navigation, showToast]
+    [isOpeningChat, getOrCreateConversation, navigation, showToast],
   );
 
-  const openBottomSheet = useCallback((attendee: Attendee) => {
-    setFloatingNavSuppressed(true);
-    setSelectedAttendee(attendee);
-    setShowBottomSheet(true);
-  }, [setFloatingNavSuppressed]);
+  const openBottomSheet = useCallback(
+    (attendee: Attendee) => {
+      setFloatingNavSuppressed(true);
+      setSelectedAttendee(attendee);
+      setShowBottomSheet(true);
+    },
+    [setFloatingNavSuppressed],
+  );
 
   listHighlight.scrollToOffsetRef.current = useCallback(() => {
     try {
@@ -2278,7 +2384,7 @@ export default function AttendeesScreen() {
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   const renderAttendeeListItem = useCallback(
@@ -2322,12 +2428,7 @@ export default function AttendeesScreen() {
         </View>
       );
     },
-    [
-      skippedAttendeeIds,
-      openBottomSheet,
-      handleConnect,
-      listHighlight,
-    ],
+    [skippedAttendeeIds, openBottomSheet, handleConnect, listHighlight],
   );
 
   const attendeeListKeyExtractor = useCallback((item: Attendee) => item.id, []);
@@ -2353,12 +2454,10 @@ export default function AttendeesScreen() {
         {/* Mode: Attendees | Startups */}
         <View className="px-4 pt-4 pb-2">
           <View className="flex-row gap-2">
-            {(
-              [
-                { id: "attendees" as const, label: "Attendees" },
-                { id: "startups" as const, label: "Startups" },
-              ]
-            ).map((chip) => {
+            {[
+              { id: "attendees" as const, label: "Attendees" },
+              { id: "startups" as const, label: "Startups" },
+            ].map((chip) => {
               const active = directoryMode === chip.id;
               return (
                 <Pressable
@@ -2386,7 +2485,10 @@ export default function AttendeesScreen() {
 
         {/* Tabs: All Attendees/Startups (left) and Your Matches (right) */}
         <View className="px-4 pt-2 pb-3">
-          <View className="flex-row border border-neutral-200 bg-neutral-100" style={{ borderRadius: 0 }}>
+          <View
+            className="flex-row border border-neutral-200 bg-neutral-100"
+            style={{ borderRadius: 0 }}
+          >
             <Pressable
               onPress={() => setActiveTab("All")}
               className={`flex-1 py-3 px-4 mr-2 ${
@@ -2410,7 +2512,9 @@ export default function AttendeesScreen() {
                   activeTab === "All" ? "text-neutral-900" : "text-neutral-400"
                 }`}
               >
-                {directoryMode === "startups" ? "All Startups" : "All Attendees"}
+                {directoryMode === "startups"
+                  ? "All Startups"
+                  : "All Attendees"}
               </Text>
             </Pressable>
             <Pressable
@@ -2462,7 +2566,10 @@ export default function AttendeesScreen() {
                   autoCorrect={false}
                 />
                 {searchQuery.length > 0 && (
-                  <Pressable onPress={() => setSearchQuery("")} className="ml-2">
+                  <Pressable
+                    onPress={() => setSearchQuery("")}
+                    className="ml-2"
+                  >
                     <Text className="text-sm font-medium text-neutral-600">
                       Clear
                     </Text>
@@ -2531,35 +2638,37 @@ export default function AttendeesScreen() {
                           name={startup.name}
                           logo={startup.logo}
                           logoColor={startup.logoColor}
-                          tags={[
-                            startup.country
-                              ? {
-                                  label: startup.country,
-                                  kind: "country" as const,
-                                }
-                              : null,
-                            startup.growth_stage
-                              ? {
-                                  label: startup.growth_stage,
-                                  kind: "growth" as const,
-                                }
-                              : null,
-                            startup.company_sector
-                              ? {
-                                  label: startup.company_sector,
-                                  kind: "industry" as const,
-                                }
-                              : null,
-                            startup.year_founded
-                              ? {
-                                  label: startup.year_founded,
-                                  kind: "year" as const,
-                                }
-                              : null,
-                          ].filter(Boolean) as {
-                            label: string;
-                            kind: "country" | "growth" | "industry" | "year";
-                          }[]}
+                          tags={
+                            [
+                              startup.country
+                                ? {
+                                    label: startup.country,
+                                    kind: "country" as const,
+                                  }
+                                : null,
+                              startup.growth_stage
+                                ? {
+                                    label: startup.growth_stage,
+                                    kind: "growth" as const,
+                                  }
+                                : null,
+                              startup.company_sector
+                                ? {
+                                    label: startup.company_sector,
+                                    kind: "industry" as const,
+                                  }
+                                : null,
+                              startup.year_founded
+                                ? {
+                                    label: startup.year_founded,
+                                    kind: "year" as const,
+                                  }
+                                : null,
+                            ].filter(Boolean) as {
+                              label: string;
+                              kind: "country" | "growth" | "industry" | "year";
+                            }[]
+                          }
                           onPress={() => {
                             navigation.navigate("CompanyDetail", {
                               exhibitorId: startup.id.toString(),
@@ -2577,303 +2686,330 @@ export default function AttendeesScreen() {
           </>
         ) : (
           <>
-        {/* View Dropdown and Filter Dropdowns */}
-        <View className="px-4 pb-6 flex-row">
-          <View className="flex-1 mr-2" style={{ position: "relative" }}>
-          <Pressable
-              onPress={() => setShowViewDropdown(!showViewDropdown)}
-              className="flex-row items-center justify-center bg-white px-4 py-3 border border-neutral-200" style={{ borderRadius: 0 }}
-          >
-              {viewMode === "card" ? (
-            <GridIcon size={16} color="#404040" />
-              ) : (
-                <ListIcon size={16} color="#404040" />
-              )}
-            <Text className="text-sm font-medium text-neutral-900 ml-2">
-                {viewMode === "card" ? "Card View" : "List View"}
-            </Text>
-            <View className="ml-2">
-              <ChevronDownIcon size={14} color="#A3A3A3" />
-            </View>
-          </Pressable>
-            {/* Dropdown Menu */}
-            {showViewDropdown && (
-              <View
-                className="absolute top-full mt-1 w-full bg-white border border-neutral-200"
-                style={{
-                  borderRadius: 0,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 8,
-                  elevation: 5,
-                  zIndex: 50,
-                }}
-              >
-          <Pressable
-                  onPress={() => {
-                    setViewMode("card");
-                    setShowViewDropdown(false);
-                  }}
-                  className={`px-4 py-3 flex-row items-center ${
-                    viewMode === "card" ? "bg-neutral-50" : ""
-                  }`}
-                >
-                  <GridIcon size={16} color="#404040" />
-                  <Text className="text-sm font-medium text-neutral-900 ml-2">
-                    Card View
-                  </Text>
-                </Pressable>
-                <View className="h-px bg-neutral-200" />
+            {/* View Dropdown and Filter Dropdowns */}
+            <View className="px-4 pb-6 flex-row">
+              <View className="flex-1 mr-2" style={{ position: "relative" }}>
                 <Pressable
-                  onPress={() => {
-                    setViewMode("list");
-                    setShowViewDropdown(false);
-                  }}
-                  className={`px-4 py-3 flex-row items-center ${
-                    viewMode === "list" ? "bg-neutral-50" : ""
-                  }`}
+                  onPress={() => setShowViewDropdown(!showViewDropdown)}
+                  className="flex-row items-center justify-center bg-white px-4 py-3 border border-neutral-200"
+                  style={{ borderRadius: 0 }}
                 >
-                  <ListIcon size={16} color="#404040" />
+                  {viewMode === "card" ? (
+                    <GridIcon size={16} color="#404040" />
+                  ) : (
+                    <ListIcon size={16} color="#404040" />
+                  )}
                   <Text className="text-sm font-medium text-neutral-900 ml-2">
-                    List View
+                    {viewMode === "card" ? "Card View" : "List View"}
                   </Text>
+                  <View className="ml-2">
+                    <ChevronDownIcon size={14} color="#A3A3A3" />
+                  </View>
                 </Pressable>
+                {/* Dropdown Menu */}
+                {showViewDropdown && (
+                  <View
+                    className="absolute top-full mt-1 w-full bg-white border border-neutral-200"
+                    style={{
+                      borderRadius: 0,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 8,
+                      elevation: 5,
+                      zIndex: 50,
+                    }}
+                  >
+                    <Pressable
+                      onPress={() => {
+                        setViewMode("card");
+                        setShowViewDropdown(false);
+                      }}
+                      className={`px-4 py-3 flex-row items-center ${
+                        viewMode === "card" ? "bg-neutral-50" : ""
+                      }`}
+                    >
+                      <GridIcon size={16} color="#404040" />
+                      <Text className="text-sm font-medium text-neutral-900 ml-2">
+                        Card View
+                      </Text>
+                    </Pressable>
+                    <View className="h-px bg-neutral-200" />
+                    <Pressable
+                      onPress={() => {
+                        setViewMode("list");
+                        setShowViewDropdown(false);
+                      }}
+                      className={`px-4 py-3 flex-row items-center ${
+                        viewMode === "list" ? "bg-neutral-50" : ""
+                      }`}
+                    >
+                      <ListIcon size={16} color="#404040" />
+                      <Text className="text-sm font-medium text-neutral-900 ml-2">
+                        List View
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-          <Pressable
-            onPress={() => setIsFilterModalVisible(true)}
-            className="flex-1 flex-row items-center justify-center bg-white px-4 py-3 border border-neutral-200" style={{ borderRadius: 0 }}
-          >
-            <FilterIcon size={16} color="#404040" />
-            <Text className="text-sm font-medium text-neutral-900 ml-2">
-              Filter
-            </Text>
-            <View className="ml-2">
-              <ChevronDownIcon size={14} color="#A3A3A3" />
-            </View>
-          </Pressable>
-        </View>
-
-        {/* Active Filter Tags - Scrollable when many filters */}
-        {selectedFilterIds.length > 0 && (
-          <View className="px-4 pb-2" style={{ maxHeight: 80 }}>
-            <ScrollView showsVerticalScrollIndicator={true} nestedScrollEnabled>
-              <View className="flex-row flex-wrap">
-                {selectedFilterIds.map((filterId) => (
-                  <FilterTag
-                    key={filterId}
-                    label={getFilterLabel(filterId)}
-                    onRemove={() => removeFilter(filterId)}
-                  />
-                ))}
-              </View>
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Search Bar - Only shown in List View */}
-        {viewMode === "list" && (
-          <View className="px-4 pb-4">
-            <View className="flex-row items-center bg-white border border-neutral-200 px-4 py-3" style={{ borderRadius: 0 }}>
-              <SearchIcon size={18} color="#A3A3A3" />
-              <TextInput
-                className="flex-1 ml-3 text-base text-neutral-900"
-                placeholder="Search for attendees..."
-                placeholderTextColor="#A3A3A3"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {searchQuery.length > 0 && (
-                <Pressable onPress={() => setSearchQuery("")} className="ml-2">
-                  <Text className="text-sm font-medium text-neutral-600">
-                    Clear
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* Loading State */}
-        {isLoading && allAttendeesBackend.length === 0 ? (
-          <SkeletonListRows count={10} />
-        ) : error && allAttendeesBackend.length === 0 ? (
-          <View className="flex-1 items-center justify-center py-20 px-4">
-            <Text className="text-red-600 text-center mb-4">{error}</Text>
-            <Pressable
-              onPress={() => void fetchAttendees()}
-              className="bg-black px-6 py-3" style={{ borderRadius: 0 }}
-            >
-              <Text className="text-white font-medium">Retry</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <>
-            {/* Card View or List View */}
-            {viewMode === "card" ? (
-              <View
-                className="flex-1 items-center px-4"
-                style={{
-                  minHeight: 0,
-                  flexShrink: 1,
-                }}
+              <Pressable
+                onPress={() => setIsFilterModalVisible(true)}
+                className="flex-1 flex-row items-center justify-center bg-white px-4 py-3 border border-neutral-200"
+                style={{ borderRadius: 0 }}
               >
-                {displayedAttendeesForCards.length > 0 &&
-                currentCardIndex < displayedAttendeesForCards.length ? (
-              <>
-                <View
-                  className="w-full items-center justify-center"
-                  style={{
-                    position: "relative",
-                    flex: selectedFilterIds.length > 0 ? 1 : 1,
-                    minHeight: 0,
-                    flexGrow: 1,
-                    paddingTop: selectedFilterIds.length > 0 ? 4 : 8,
-                    paddingBottom: selectedFilterIds.length > 0 ? 0 : 4,
-                  }}
+                <FilterIcon size={16} color="#404040" />
+                <Text className="text-sm font-medium text-neutral-900 ml-2">
+                  Filter
+                </Text>
+                <View className="ml-2">
+                  <ChevronDownIcon size={14} color="#A3A3A3" />
+                </View>
+              </Pressable>
+            </View>
+
+            {/* Active Filter Tags - Scrollable when many filters */}
+            {selectedFilterIds.length > 0 && (
+              <View className="px-4 pb-2" style={{ maxHeight: 80 }}>
+                <ScrollView
+                  showsVerticalScrollIndicator={true}
+                  nestedScrollEnabled
                 >
-                  {/* Render stacked cards (top 5) */}
-                  {displayedAttendeesForCards
-                    .slice(currentCardIndex, currentCardIndex + 5)
-                    .map((attendee, index) => (
-              <AttendeeCard
-                key={attendee.id}
-                        attendee={attendee}
-                        onSwipeLeft={handleReject}
-                        onSwipeRight={handleAccept}
-                        onRequestMeeting={(attendee) => void openMeetingForAttendee(attendee)}
-                        onConnect={(attendee) => handleConnect(attendee, true)}
-                        onMessage={handleAttendeeMessage}
-                        messageOpening={isOpeningChat}
-                        index={index}
-                        totalCards={Math.min(
-                          5,
-                          displayedAttendeesForCards.length - currentCardIndex
-                        )}
-                        hasFilters={selectedFilterIds.length > 0}
+                  <View className="flex-row flex-wrap">
+                    {selectedFilterIds.map((filterId) => (
+                      <FilterTag
+                        key={filterId}
+                        label={getFilterLabel(filterId)}
+                        onRemove={() => removeFilter(filterId)}
                       />
                     ))}
-                </View>
-                {/* Swipe Instructions with adaptive padding */}
-                <Text
-                  className={`text-sm text-neutral-400 ${
-                    selectedFilterIds.length > 0 ? "mt-2 mb-2" : "mt-4 mb-4"
-                  } text-center px-4`}
-                >
-                  Swiping left skips, swiping right connects.
-                </Text>
-              </>
-          ) : (
-            <View className="items-center justify-center py-12">
-              <Text className="text-base text-neutral-500 mb-2">
-                  {displayedAttendeesForCards.length === 0
-                    ? "No attendees found"
-                    : "No more attendees"}
-                </Text>
+                  </View>
+                </ScrollView>
               </View>
             )}
-          </View>
-        ) : (
-          <View className="flex-1" style={{ minHeight: 0 }}>
-            {displayedAttendees.length > 0 ? (
-              <View className="flex-1 flex-row" style={{ minHeight: 0 }}>
-                <Animated.FlatList
-                  ref={attendeeListRef}
-                  style={{ flex: 1, minWidth: 0 }}
-                  data={displayedAttendees}
-                  renderItem={renderAttendeeListItem}
-                  keyExtractor={attendeeListKeyExtractor}
-                  contentContainerStyle={{
-                    paddingTop: 8,
-                    paddingBottom: FLOATING_NAV_BOTTOM_INSET,
-                  }}
-                  showsVerticalScrollIndicator={false}
-                  scrollEventThrottle={16}
-                  onScroll={onAttendeeListScroll}
-                  onContentSizeChange={onAttendeeListContentSizeChange}
-                  onLayout={onAttendeeListLayout}
-                  initialNumToRender={10}
-                  maxToRenderPerBatch={10}
-                  windowSize={5}
-                  removeClippedSubviews={Platform.OS === "android"}
-                  onEndReached={onAttendeeListEndReached}
-                  onEndReachedThreshold={0.35}
-                  refreshControl={
-                    <RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={onRefresh}
-                      tintColor="#1BB273"
-                      colors={["#1BB273"]}
-                    />
-                  }
-                  ListFooterComponent={
-                    loadingMore && hasMoreAttendees ? (
-                      <View className="py-5 items-center justify-center">
-                        <ActivityIndicator size="small" color="#000000" />
-                      </View>
-                    ) : null
-                  }
-                  ListEmptyComponent={
-                    <View className="items-center justify-center py-12">
-                      <Text className="text-base text-neutral-500">
-                        No attendees found
-                      </Text>
-                    </View>
-                  }
-                />
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    {
-                      alignSelf: "stretch",
-                      paddingVertical: 6,
-                      paddingRight: 4,
-                    },
-                    attendeeListScrollbarColumnStyle,
-                  ]}
+
+            {/* Search Bar - Only shown in List View */}
+            {viewMode === "list" && (
+              <View className="px-4 pb-4">
+                <View
+                  className="flex-row items-center bg-white border border-neutral-200 px-4 py-3"
+                  style={{ borderRadius: 0 }}
                 >
-                  <View style={{ flex: 1, position: "relative" }}>
-                    <LinearGradient
-                      colors={[...ATTENDEE_LIST_SCROLLBAR_TRACK_COLORS]}
-                      locations={[0, 0.5, 1]}
-                      start={{ x: 0.5, y: 0 }}
-                      end={{ x: 0.5, y: 1 }}
-                      style={{
-                        position: "absolute",
-                        left: ATTENDEE_LIST_SCROLLBAR_GUTTER / 2,
-                        top: 0,
-                        bottom: 0,
-                        width: ATTENDEE_LIST_SCROLLBAR_WIDTH,
-                        borderRadius: ATTENDEE_LIST_SCROLLBAR_WIDTH / 2,
-                      }}
-                    />
-                    <Animated.View style={attendeeListThumbStyle}>
-                      <LinearGradient
-                        colors={[...ATTENDEE_LIST_SCROLLBAR_THUMB_COLORS]}
-                        locations={[0, 0.45, 1]}
-                        start={{ x: 0.5, y: 0 }}
-                        end={{ x: 0.5, y: 1 }}
-                        style={{ flex: 1 }}
-                      />
-                    </Animated.View>
-                  </View>
-                </Animated.View>
+                  <SearchIcon size={18} color="#A3A3A3" />
+                  <TextInput
+                    className="flex-1 ml-3 text-base text-neutral-900"
+                    placeholder="Search for attendees..."
+                    placeholderTextColor="#A3A3A3"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {searchQuery.length > 0 && (
+                    <Pressable
+                      onPress={() => setSearchQuery("")}
+                      className="ml-2"
+                    >
+                      <Text className="text-sm font-medium text-neutral-600">
+                        Clear
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* Loading State */}
+            {isLoading && allAttendeesBackend.length === 0 ? (
+              <SkeletonListRows count={10} />
+            ) : error && allAttendeesBackend.length === 0 ? (
+              <View className="flex-1 items-center justify-center py-20 px-4">
+                <Text className="text-red-600 text-center mb-4">{error}</Text>
+                <Pressable
+                  onPress={() => void fetchAttendees()}
+                  className="bg-black px-6 py-3"
+                  style={{ borderRadius: 0 }}
+                >
+                  <Text className="text-white font-medium">Retry</Text>
+                </Pressable>
               </View>
             ) : (
-              <View className="items-center justify-center py-12">
-                <Text className="text-base text-neutral-500">
-                No attendees found
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-          </>
-        )}
+              <>
+                {/* Card View or List View */}
+                {viewMode === "card" ? (
+                  <View
+                    className="flex-1 items-center px-4"
+                    style={{
+                      minHeight: 0,
+                      flexShrink: 1,
+                    }}
+                  >
+                    {displayedAttendeesForCards.length > 0 &&
+                    currentCardIndex < displayedAttendeesForCards.length ? (
+                      <>
+                        <View
+                          className="w-full items-center justify-center"
+                          style={{
+                            position: "relative",
+                            flex: selectedFilterIds.length > 0 ? 1 : 1,
+                            minHeight: 0,
+                            flexGrow: 1,
+                            paddingTop: selectedFilterIds.length > 0 ? 4 : 8,
+                            paddingBottom: selectedFilterIds.length > 0 ? 0 : 4,
+                          }}
+                        >
+                          {/* Render stacked cards (top 5) */}
+                          {displayedAttendeesForCards
+                            .slice(currentCardIndex, currentCardIndex + 5)
+                            .map((attendee, index) => (
+                              <AttendeeCard
+                                key={attendee.id}
+                                attendee={attendee}
+                                onSwipeLeft={handleReject}
+                                onSwipeRight={handleAccept}
+                                onRequestMeeting={(attendee) =>
+                                  void openMeetingForAttendee(attendee)
+                                }
+                                onConnect={(attendee) =>
+                                  handleConnect(attendee, true)
+                                }
+                                onMessage={handleAttendeeMessage}
+                                messageOpening={isOpeningChat}
+                                index={index}
+                                totalCards={Math.min(
+                                  5,
+                                  displayedAttendeesForCards.length -
+                                    currentCardIndex,
+                                )}
+                                hasFilters={selectedFilterIds.length > 0}
+                              />
+                            ))}
+                        </View>
+                        {/* Swipe Instructions with adaptive padding */}
+                        <Text
+                          className={`text-sm text-neutral-400 ${
+                            selectedFilterIds.length > 0
+                              ? "mt-2 mb-2"
+                              : "mt-4 mb-4"
+                          } text-center px-4`}
+                        >
+                          Swiping left skips, swiping right connects.
+                        </Text>
+                      </>
+                    ) : (
+                      <View className="items-center justify-center py-12">
+                        <Text className="text-base text-neutral-500 mb-2">
+                          {displayedAttendeesForCards.length === 0
+                            ? "No attendees found"
+                            : "No more attendees"}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View className="flex-1" style={{ minHeight: 0 }}>
+                    {displayedAttendees.length > 0 ? (
+                      <View
+                        className="flex-1 flex-row"
+                        style={{ minHeight: 0 }}
+                      >
+                        <Animated.FlatList
+                          ref={attendeeListRef}
+                          style={{ flex: 1, minWidth: 0 }}
+                          data={displayedAttendees}
+                          renderItem={renderAttendeeListItem}
+                          keyExtractor={attendeeListKeyExtractor}
+                          contentContainerStyle={{
+                            paddingTop: 8,
+                            paddingBottom: FLOATING_NAV_BOTTOM_INSET,
+                          }}
+                          showsVerticalScrollIndicator={false}
+                          scrollEventThrottle={16}
+                          onScroll={onAttendeeListScroll}
+                          onContentSizeChange={onAttendeeListContentSizeChange}
+                          onLayout={onAttendeeListLayout}
+                          initialNumToRender={10}
+                          maxToRenderPerBatch={10}
+                          windowSize={5}
+                          removeClippedSubviews={Platform.OS === "android"}
+                          onEndReached={onAttendeeListEndReached}
+                          onEndReachedThreshold={0.35}
+                          refreshControl={
+                            <RefreshControl
+                              refreshing={refreshing}
+                              onRefresh={onRefresh}
+                              tintColor="#1BB273"
+                              colors={["#1BB273"]}
+                            />
+                          }
+                          ListFooterComponent={
+                            loadingMore && hasMoreAttendees ? (
+                              <View className="py-5 items-center justify-center">
+                                <ActivityIndicator
+                                  size="small"
+                                  color="#000000"
+                                />
+                              </View>
+                            ) : null
+                          }
+                          ListEmptyComponent={
+                            <View className="items-center justify-center py-12">
+                              <Text className="text-base text-neutral-500">
+                                No attendees found
+                              </Text>
+                            </View>
+                          }
+                        />
+                        <Animated.View
+                          pointerEvents="none"
+                          style={[
+                            {
+                              alignSelf: "stretch",
+                              paddingVertical: 6,
+                              paddingRight: 4,
+                            },
+                            attendeeListScrollbarColumnStyle,
+                          ]}
+                        >
+                          <View style={{ flex: 1, position: "relative" }}>
+                            <LinearGradient
+                              colors={[...ATTENDEE_LIST_SCROLLBAR_TRACK_COLORS]}
+                              locations={[0, 0.5, 1]}
+                              start={{ x: 0.5, y: 0 }}
+                              end={{ x: 0.5, y: 1 }}
+                              style={{
+                                position: "absolute",
+                                left: ATTENDEE_LIST_SCROLLBAR_GUTTER / 2,
+                                top: 0,
+                                bottom: 0,
+                                width: ATTENDEE_LIST_SCROLLBAR_WIDTH,
+                                borderRadius: ATTENDEE_LIST_SCROLLBAR_WIDTH / 2,
+                              }}
+                            />
+                            <Animated.View style={attendeeListThumbStyle}>
+                              <LinearGradient
+                                colors={[
+                                  ...ATTENDEE_LIST_SCROLLBAR_THUMB_COLORS,
+                                ]}
+                                locations={[0, 0.45, 1]}
+                                start={{ x: 0.5, y: 0 }}
+                                end={{ x: 0.5, y: 1 }}
+                                style={{ flex: 1 }}
+                              />
+                            </Animated.View>
+                          </View>
+                        </Animated.View>
+                      </View>
+                    ) : (
+                      <View className="items-center justify-center py-12">
+                        <Text className="text-base text-neutral-500">
+                          No attendees found
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </>
+            )}
           </>
         )}
       </View>
@@ -2939,7 +3075,7 @@ export default function AttendeesScreen() {
                 {
                   translateY: RNAnimated.add(
                     bottomSheetTranslateY,
-                    bottomSheetDragY
+                    bottomSheetDragY,
                   ),
                 },
               ],
@@ -2963,282 +3099,314 @@ export default function AttendeesScreen() {
               <GuidelinePatternOverlay isLightCard opacity={0.05} />
 
               <View className="relative z-10">
-              {/* Drag Handle */}
-              <View
-                className="w-12 h-1.5 bg-neutral-300 rounded-full self-center mt-3 mb-6"
-                {...bottomSheetPanResponder.panHandlers}
-              />
+                {/* Drag Handle */}
+                <View
+                  className="w-12 h-1.5 bg-neutral-300 rounded-full self-center mt-3 mb-6"
+                  {...bottomSheetPanResponder.panHandlers}
+                />
 
-              {/* Content */}
-              <ScrollView
-                className="px-4 pb-12"
-                showsVerticalScrollIndicator={false}
-              >
-                {/* Profile Header */}
-                <View className="flex-row items-start mb-4">
-                  <View className="w-16 h-16 rounded-full bg-neutral-100 items-center justify-center mr-4 overflow-hidden">
-                    {selectedAttendee.avatar && typeof selectedAttendee.avatar === "object" && "uri" in selectedAttendee.avatar && selectedAttendee.avatar.uri ? (
-                      <Image
-                        source={selectedAttendee.avatar as ImageSourcePropType}
-                        style={{ width: 64, height: 64, borderRadius: 32 }}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <PersonIcon size={32} color="#A3A3A3" />
-                    )}
-                  </View>
-                  <View className="flex-1">
-                    <View className="flex-row items-center flex-wrap gap-2 mb-1">
-                      <Text className="text-2xl font-bold text-neutral-900">
-                        {selectedAttendee.name}
-                      </Text>
-                      {selectedAttendee.connectionStatus && (
-                        <View
-                          className="px-2 py-0.5"
-                          style={{
-                            borderRadius: 0,
-                            backgroundColor:
-                              selectedAttendee.connectionStatus === "accepted"
-                                ? "#D1FAE5"
-                                : "#FEF3C7",
-                          }}
-                        >
-                          <Text
-                            className="text-xs font-medium"
+                {/* Content */}
+                <ScrollView
+                  className="px-4 pb-12"
+                  showsVerticalScrollIndicator={false}
+                >
+                  {/* Profile Header */}
+                  <View className="flex-row items-start mb-4">
+                    <View className="w-16 h-16 rounded-full bg-neutral-100 items-center justify-center mr-4 overflow-hidden">
+                      {selectedAttendee.avatar &&
+                      typeof selectedAttendee.avatar === "object" &&
+                      "uri" in selectedAttendee.avatar &&
+                      selectedAttendee.avatar.uri ? (
+                        <Image
+                          source={
+                            selectedAttendee.avatar as ImageSourcePropType
+                          }
+                          style={{ width: 64, height: 64, borderRadius: 32 }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <PersonIcon size={32} color="#A3A3A3" />
+                      )}
+                    </View>
+                    <View className="flex-1">
+                      <View className="flex-row items-center flex-wrap gap-2 mb-1">
+                        <Text className="text-2xl font-bold text-neutral-900">
+                          {selectedAttendee.name}
+                        </Text>
+                        {selectedAttendee.connectionStatus && (
+                          <View
+                            className="px-2 py-0.5"
                             style={{
-                              color:
+                              borderRadius: 0,
+                              backgroundColor:
                                 selectedAttendee.connectionStatus === "accepted"
-                                  ? "#10B981"
-                                  : "#F59E0B",
+                                  ? "#D1FAE5"
+                                  : "#FEF3C7",
                             }}
                           >
-                            {selectedAttendee.connectionStatus === "accepted"
-                              ? "Connected"
-                              : "Pending"}
-                          </Text>
-                        </View>
-                      )}
-                      {selectedAttendee.startupBadge?.kind === "linked" ? (
-                        <StartupBadge
-                          companyName={selectedAttendee.startupBadge.companyName}
-                          compact
-                        />
-                      ) : selectedAttendee.startupBadge?.kind === "pending" ? (
-                        <StartupPendingBadge compact />
-                      ) : null}
-                    </View>
-                    <Text className="text-base text-neutral-600">
-                      {selectedAttendee.role && selectedAttendee.company
-                        ? `${selectedAttendee.role} · ${selectedAttendee.company}`
-                        : selectedAttendee.role ||
-                          selectedAttendee.company ||
-                          ""}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Tags */}
-                {selectedAttendee.tags && selectedAttendee.tags.length > 0 && (
-                  <View className="flex-row flex-wrap mb-4">
-                    {selectedAttendee.tags.map((tag, index) => (
-                      <View
-                        key={index}
-                        className="bg-neutral-100 px-3 py-1.5 mr-2 mb-2" style={{ borderRadius: 0 }}
-                      >
-                        <Text className="text-sm font-medium text-neutral-700">
-                          {tag}
-                        </Text>
+                            <Text
+                              className="text-xs font-medium"
+                              style={{
+                                color:
+                                  selectedAttendee.connectionStatus ===
+                                  "accepted"
+                                    ? "#10B981"
+                                    : "#F59E0B",
+                              }}
+                            >
+                              {selectedAttendee.connectionStatus === "accepted"
+                                ? "Connected"
+                                : "Pending"}
+                            </Text>
+                          </View>
+                        )}
+                        {selectedAttendee.startupBadge?.kind === "linked" ? (
+                          <StartupBadge
+                            companyName={
+                              selectedAttendee.startupBadge.companyName
+                            }
+                            compact
+                          />
+                        ) : selectedAttendee.startupBadge?.kind ===
+                          "pending" ? (
+                          <StartupPendingBadge compact />
+                        ) : null}
                       </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* Bio */}
-                {selectedAttendee.bio && (
-                  <Text className="text-base text-neutral-700 mb-4 leading-6">
-                    {selectedAttendee.bio}
-                  </Text>
-                )}
-
-                {/* Interests Section */}
-                {selectedAttendee.interests &&
-                  selectedAttendee.interests.length > 0 && (
-                    <View className="mb-4">
-                      <Text className="text-base font-semibold text-neutral-900 mb-2">
-                        Interests
+                      <Text className="text-base text-neutral-600">
+                        {selectedAttendee.role && selectedAttendee.company
+                          ? `${selectedAttendee.role} · ${selectedAttendee.company}`
+                          : selectedAttendee.role ||
+                            selectedAttendee.company ||
+                            ""}
                       </Text>
-                      <View className="flex-row flex-wrap">
-                        {selectedAttendee.interests.map((interest, index) => (
+                    </View>
+                  </View>
+
+                  {/* Tags */}
+                  {selectedAttendee.tags &&
+                    selectedAttendee.tags.length > 0 && (
+                      <View className="flex-row flex-wrap mb-4">
+                        {selectedAttendee.tags.map((tag, index) => (
                           <View
                             key={index}
-                            className="bg-neutral-100 px-3 py-1.5 mr-2 mb-2" style={{ borderRadius: 0 }}
+                            className="bg-neutral-100 px-3 py-1.5 mr-2 mb-2"
+                            style={{ borderRadius: 0 }}
                           >
                             <Text className="text-sm font-medium text-neutral-700">
-                              {interest}
+                              {tag}
                             </Text>
                           </View>
                         ))}
                       </View>
-                    </View>
+                    )}
+
+                  {/* Bio */}
+                  {selectedAttendee.bio && (
+                    <Text className="text-base text-neutral-700 mb-4 leading-6">
+                      {selectedAttendee.bio}
+                    </Text>
                   )}
 
-                {/* LinkedIn Badge - display label (username), open full URL */}
-                {(() => {
-                  const linkedIn = getLinkedInDisplayInfo(selectedAttendee.linkedInUrl);
-                  if (!linkedIn) return null;
-                  return (
-                    <View className="mb-4">
-                      <Text className="text-base font-semibold text-neutral-900 mb-2">
-                        Social Links
-                      </Text>
-                      <Pressable
-                        onPress={async () => {
-                          try {
-                            const supported = await Linking.canOpenURL(linkedIn.url);
-                            if (supported) {
-                              await Linking.openURL(linkedIn.url);
-                            } else {
-                              try {
-                                await Linking.openURL(linkedIn.url);
-                              } catch (openError) {
-                                Alert.alert(
-                                  "Cannot Open LinkedIn",
-                                  "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
-                                  [{ text: "OK" }]
-                                );
-                              }
-                            }
-                          } catch (error) {
-                            if (__DEV__) console.error("Error opening LinkedIn URL:", error);
-                            Alert.alert("Error", "Failed to open LinkedIn profile. Please try again.", [{ text: "OK" }]);
-                          }
-                        }}
-                        className="flex-row items-center bg-neutral-100 px-4 py-2.5 self-start" style={{ borderRadius: 0 }}
-                      >
-                        <LinkedInIcon size={18} color="#0A66C2" />
-                        <Text className="text-sm font-medium text-neutral-900 ml-2">
-                          {linkedIn.displayLabel}
+                  {/* Interests Section */}
+                  {selectedAttendee.interests &&
+                    selectedAttendee.interests.length > 0 && (
+                      <View className="mb-4">
+                        <Text className="text-base font-semibold text-neutral-900 mb-2">
+                          Interests
                         </Text>
-                      </Pressable>
-                    </View>
-                  );
-                })()}
+                        <View className="flex-row flex-wrap">
+                          {selectedAttendee.interests.map((interest, index) => (
+                            <View
+                              key={index}
+                              className="bg-neutral-100 px-3 py-1.5 mr-2 mb-2"
+                              style={{ borderRadius: 0 }}
+                            >
+                              <Text className="text-sm font-medium text-neutral-700">
+                                {interest}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
 
-                {/* Request Meeting, then separated Connect | Message (matches card view) */}
-                <View className="mt-2">
-                  <Pressable
-                    onPress={async () => {
-                      closeBottomSheet();
-                      await openMeetingForAttendee(selectedAttendee);
-                    }}
-                    className="w-full flex-row items-center justify-center bg-black py-3.5 px-4" style={{ borderRadius: 0 }}
-                  >
-                    <CalendarIcon size={20} color="#FFFFFF" />
-                    <Text className="text-base font-medium text-white ml-2">
-                      Request Meeting
-                    </Text>
-                  </Pressable>
+                  {/* LinkedIn Badge - display label (username), open full URL */}
+                  {(() => {
+                    const linkedIn = getLinkedInDisplayInfo(
+                      selectedAttendee.linkedInUrl,
+                    );
+                    if (!linkedIn) return null;
+                    return (
+                      <View className="mb-4">
+                        <Text className="text-base font-semibold text-neutral-900 mb-2">
+                          Social Links
+                        </Text>
+                        <Pressable
+                          onPress={async () => {
+                            try {
+                              const supported = await Linking.canOpenURL(
+                                linkedIn.url,
+                              );
+                              if (supported) {
+                                await Linking.openURL(linkedIn.url);
+                              } else {
+                                try {
+                                  await Linking.openURL(linkedIn.url);
+                                } catch (openError) {
+                                  Alert.alert(
+                                    "Cannot Open LinkedIn",
+                                    "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
+                                    [{ text: "OK" }],
+                                  );
+                                }
+                              }
+                            } catch (error) {
+                              if (__DEV__)
+                                console.error(
+                                  "Error opening LinkedIn URL:",
+                                  error,
+                                );
+                              Alert.alert(
+                                "Error",
+                                "Failed to open LinkedIn profile. Please try again.",
+                                [{ text: "OK" }],
+                              );
+                            }
+                          }}
+                          className="flex-row items-center bg-neutral-100 px-4 py-2.5 self-start"
+                          style={{ borderRadius: 0 }}
+                        >
+                          <LinkedInIcon size={18} color="#0A66C2" />
+                          <Text className="text-sm font-medium text-neutral-900 ml-2">
+                            {linkedIn.displayLabel}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })()}
 
-                  <View className="border-t border-neutral-100 mt-3 pt-3">
-                    <View
-                      style={{
-                        width: "100%",
-                        flexDirection: "row",
-                        alignItems: "stretch",
-                        columnGap: 8,
+                  {/* Request Meeting, then separated Connect | Message (matches card view) */}
+                  <View className="mt-2">
+                    <Pressable
+                      onPress={async () => {
+                        closeBottomSheet();
+                        await openMeetingForAttendee(selectedAttendee);
                       }}
+                      className="w-full flex-row items-center justify-center bg-black py-3.5 px-4"
+                      style={{ borderRadius: 0 }}
                     >
-                      {selectedAttendee.connectionStatus === "accepted" ||
-                      selectedAttendee.connectionStatus === "pending" ? (
-                        <View
+                      <CalendarIcon size={20} color="#FFFFFF" />
+                      <Text className="text-base font-medium text-white ml-2">
+                        Request Meeting
+                      </Text>
+                    </Pressable>
+
+                    <View className="border-t border-neutral-100 mt-3 pt-3">
+                      <View
+                        style={{
+                          width: "100%",
+                          flexDirection: "row",
+                          alignItems: "stretch",
+                          columnGap: 8,
+                        }}
+                      >
+                        {selectedAttendee.connectionStatus === "accepted" ||
+                        selectedAttendee.connectionStatus === "pending" ? (
+                          <View
+                            style={{
+                              flex: 1,
+                              minHeight: 48,
+                              backgroundColor: "#F3F4F6",
+                              borderRadius: 0,
+                            }}
+                            className="flex-row items-center justify-center border border-neutral-200/80 px-3"
+                          >
+                            <PeopleIcon size={20} color="#9CA3AF" />
+                            <Text
+                              className="text-sm font-medium text-neutral-500 ml-1.5"
+                              numberOfLines={1}
+                            >
+                              {selectedAttendee.connectionStatus === "accepted"
+                                ? "Connected"
+                                : "Pending"}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Pressable
+                            onPress={() => {
+                              handleConnect(selectedAttendee);
+                              closeBottomSheet();
+                            }}
+                            style={{ flex: 1, minHeight: 48, borderRadius: 0 }}
+                            className="flex-row items-center justify-center border border-neutral-200 bg-white px-3"
+                          >
+                            <PeopleIcon size={20} color="#404040" />
+                            <Text
+                              className="text-sm font-semibold text-neutral-900 ml-1.5"
+                              numberOfLines={1}
+                            >
+                              Connect
+                            </Text>
+                          </Pressable>
+                        )}
+
+                        <Pressable
+                          onPress={() => {
+                            const a = selectedAttendee;
+                            if (attendeeCanMessage(a)) {
+                              closeBottomSheet();
+                            }
+                            void handleAttendeeMessage(a);
+                          }}
+                          disabled={isOpeningChat}
                           style={{
                             flex: 1,
                             minHeight: 48,
-                            backgroundColor: "#F3F4F6",
+                            opacity: isOpeningChat ? 0.88 : 1,
                             borderRadius: 0,
                           }}
-                          className="flex-row items-center justify-center border border-neutral-200/80 px-3"
+                          className={`flex-row items-center justify-center px-3 ${
+                            attendeeCanMessage(selectedAttendee)
+                              ? "bg-[#1BB273] shadow-sm"
+                              : "border border-dashed border-neutral-300 bg-white"
+                          }`}
                         >
-                          <PeopleIcon size={20} color="#9CA3AF" />
-                          <Text className="text-sm font-medium text-neutral-500 ml-1.5" numberOfLines={1}>
-                            {selectedAttendee.connectionStatus === "accepted"
-                              ? "Connected"
-                              : "Pending"}
-                          </Text>
-                        </View>
-                      ) : (
-                        <Pressable
-                          onPress={() => {
-                            handleConnect(selectedAttendee);
-                            closeBottomSheet();
-                          }}
-                          style={{ flex: 1, minHeight: 48, borderRadius: 0 }}
-                          className="flex-row items-center justify-center border border-neutral-200 bg-white px-3"
-                        >
-                          <PeopleIcon size={20} color="#404040" />
-                          <Text className="text-sm font-semibold text-neutral-900 ml-1.5" numberOfLines={1}>
-                            Connect
-                          </Text>
-                        </Pressable>
-                      )}
-
-                      <Pressable
-                        onPress={() => {
-                          const a = selectedAttendee;
-                          if (attendeeCanMessage(a)) {
-                            closeBottomSheet();
-                          }
-                          void handleAttendeeMessage(a);
-                        }}
-                        disabled={isOpeningChat}
-                        style={{
-                          flex: 1,
-                          minHeight: 48,
-                          opacity: isOpeningChat ? 0.88 : 1,
-                          borderRadius: 0,
-                        }}
-                        className={`flex-row items-center justify-center px-3 ${
-                          attendeeCanMessage(selectedAttendee)
-                            ? "bg-[#1BB273] shadow-sm"
-                            : "border border-dashed border-neutral-300 bg-white"
-                        }`}
-                      >
-                        {isOpeningChat ? (
-                          <LoadingSpinner
-                            size="small"
-                            color={
-                              attendeeCanMessage(selectedAttendee)
-                                ? "#FFFFFF"
-                                : "#404040"
-                            }
-                          />
-                        ) : (
-                          <>
-                            <SpeechBubbleIcon
-                              size={18}
+                          {isOpeningChat ? (
+                            <LoadingSpinner
+                              size="small"
                               color={
                                 attendeeCanMessage(selectedAttendee)
                                   ? "#FFFFFF"
-                                  : "#A3A3A3"
+                                  : "#404040"
                               }
                             />
-                            <Text
-                              className={`text-sm font-semibold ml-1.5 ${
-                                attendeeCanMessage(selectedAttendee)
-                                  ? "text-white"
-                                  : "text-neutral-400"
-                              }`}
-                              numberOfLines={1}
-                            >
-                              Message
-                            </Text>
-                          </>
-                        )}
-                      </Pressable>
+                          ) : (
+                            <>
+                              <SpeechBubbleIcon
+                                size={18}
+                                color={
+                                  attendeeCanMessage(selectedAttendee)
+                                    ? "#FFFFFF"
+                                    : "#A3A3A3"
+                                }
+                              />
+                              <Text
+                                className={`text-sm font-semibold ml-1.5 ${
+                                  attendeeCanMessage(selectedAttendee)
+                                    ? "text-white"
+                                    : "text-neutral-400"
+                                }`}
+                                numberOfLines={1}
+                              >
+                                Message
+                              </Text>
+                            </>
+                          )}
+                        </Pressable>
+                      </View>
                     </View>
                   </View>
-                </View>
-              </ScrollView>
+                </ScrollView>
               </View>
             </Pressable>
           </RNAnimated.View>
@@ -3271,7 +3439,7 @@ export default function AttendeesScreen() {
             await meetingService.submitMeetingRequestFromForm(
               EVENT_ID,
               data,
-              meetingAttendee.id
+              meetingAttendee.id,
             );
             void trackMeetingEvent("request_submitted", {
               source: "attendees_screen",
@@ -3289,7 +3457,8 @@ export default function AttendeesScreen() {
             const msg =
               e instanceof ApiClientError
                 ? e.message
-                : e?.message || "Failed to send meeting request. Please try again.";
+                : e?.message ||
+                  "Failed to send meeting request. Please try again.";
             showToast(msg, "error");
             throw e;
           }
