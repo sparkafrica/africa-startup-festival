@@ -32,6 +32,7 @@ import { HomeScrollProvider } from "./src/context/HomeScrollContext";
 import { FloatingNavVisibilityProvider } from "./src/context/FloatingNavVisibilityContext";
 import AppNavigationContainer from "./src/navigation/AppNavigationContainer";
 import { LoadingSpinner } from "./src/components";
+import { initializeCustomerIO } from "./src/services/customerioService";
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
@@ -44,6 +45,10 @@ export default function App() {
   });
 
   const [imagesPreloaded, setImagesPreloaded] = React.useState(false);
+
+  React.useEffect(() => {
+    void initializeCustomerIO();
+  }, []);
 
   // Preload banner images during app initialization
   // Render images off-screen to force React Native to load and decode them

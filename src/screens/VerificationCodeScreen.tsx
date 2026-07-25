@@ -64,12 +64,14 @@ export default function VerificationCodeScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [verifyStatus, setVerifyStatus] = useState<"idle" | "success" | "error">(
-    "idle",
-  );
+  const [verifyStatus, setVerifyStatus] = useState<
+    "idle" | "success" | "error"
+  >("idle");
 
   const hiddenInputRef = useRef<TextInput>(null);
-  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   useEffect(() => {
     return () => {
@@ -154,7 +156,7 @@ export default function VerificationCodeScreen() {
       logError(
         error,
         { screen: "VerificationCode", email, action: "resend" },
-        { error_type: ERROR_TAGS.VALIDATION }
+        { error_type: ERROR_TAGS.VALIDATION },
       );
       Alert.alert(
         "Error",
@@ -162,7 +164,7 @@ export default function VerificationCodeScreen() {
         [
           { text: "OK", style: "cancel" },
           { text: "Retry", onPress: () => handleResendCode() },
-        ]
+        ],
       );
     } finally {
       setIsResending(false);
@@ -289,8 +291,7 @@ export default function VerificationCodeScreen() {
                     <Text
                       className="text-2xl font-bold"
                       style={{
-                        color:
-                          verifyStatus === "error" ? "#991B1B" : "#171717",
+                        color: verifyStatus === "error" ? "#991B1B" : "#171717",
                       }}
                     >
                       {digits[index] ?? ""}

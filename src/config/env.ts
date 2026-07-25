@@ -79,6 +79,22 @@ export const EVENT_WEBSITE_URL =
 /** Inbox for ticket/access queries (no-ticket users, login help). */
 export const SUPPORT_EMAIL = "info@africastartupfestival.com";
 
+/** ASF Kenya festival days — used when API dates are not yet loaded. */
+export const EVENT_DAY_FILTER_LABELS = [
+  "29th October, 2026",
+  "30th October, 2026",
+] as const;
+
+export const EVENT_DAY_FILTER_ID_TO_ISO: Record<string, string> = {
+  "29th October, 2026": "2026-10-29",
+  "30th October, 2026": "2026-10-30",
+};
+
+export const EVENT_FALLBACK_MEETING_DATE_ISOS = [
+  "2026-10-29",
+  "2026-10-30",
+] as const;
+
 // Realtime chat (Pusher)
 // Public client values used to establish websocket connection.
 export const PUSHER_API_KEY = "2ed4ec1984333f9e92d1";
@@ -129,6 +145,8 @@ if (!didLogSparkKeyFingerprint) {
     source: SPARK_KEY_SOURCE,
     length: SPARK_API_KEY.length,
     fingerprint: maskKeyFingerprint(SPARK_API_KEY),
+    eventId: EVENT_ID,
+    apiBaseUrl: ENV.BASE_URL,
   });
 }
 

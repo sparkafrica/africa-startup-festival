@@ -2638,35 +2638,37 @@ export default function AttendeesScreen() {
                           name={startup.name}
                           logo={startup.logo}
                           logoColor={startup.logoColor}
-                          tags={[
-                            startup.country
-                              ? {
-                                  label: startup.country,
-                                  kind: "country" as const,
-                                }
-                              : null,
-                            startup.growth_stage
-                              ? {
-                                  label: startup.growth_stage,
-                                  kind: "growth" as const,
-                                }
-                              : null,
-                            startup.company_sector
-                              ? {
-                                  label: startup.company_sector,
-                                  kind: "industry" as const,
-                                }
-                              : null,
-                            startup.year_founded
-                              ? {
-                                  label: startup.year_founded,
-                                  kind: "year" as const,
-                                }
-                              : null,
-                          ].filter(Boolean) as {
-                            label: string;
-                            kind: "country" | "growth" | "industry" | "year";
-                          }[]}
+                          tags={
+                            [
+                              startup.country
+                                ? {
+                                    label: startup.country,
+                                    kind: "country" as const,
+                                  }
+                                : null,
+                              startup.growth_stage
+                                ? {
+                                    label: startup.growth_stage,
+                                    kind: "growth" as const,
+                                  }
+                                : null,
+                              startup.company_sector
+                                ? {
+                                    label: startup.company_sector,
+                                    kind: "industry" as const,
+                                  }
+                                : null,
+                              startup.year_founded
+                                ? {
+                                    label: startup.year_founded,
+                                    kind: "year" as const,
+                                  }
+                                : null,
+                            ].filter(Boolean) as {
+                              label: string;
+                              kind: "country" | "growth" | "industry" | "year";
+                            }[]
+                          }
                           onPress={() => {
                             navigation.navigate("CompanyDetail", {
                               exhibitorId: startup.id.toString(),

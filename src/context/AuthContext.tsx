@@ -13,6 +13,10 @@ import { isProfileComplete } from "../utils/profileCompletion";
 import { ticketService, clearTicketCache } from "../services/ticketService";
 import { notificationService } from "../services/notificationService";
 import { registerForPushNotifications } from "../utils/pushRegistration";
+import {
+  identifyCustomerIOUser,
+  clearCustomerIOUser,
+} from "../services/customerioService";
 import { clearStartupJoinAdminReminders } from "../utils/startupJoinReminders";
 import { EVENT_ID } from "../config/env";
 import { setAnalyticsUserContext } from "../utils/analytics";
@@ -267,6 +271,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     void setAnalyticsUserContext(user);
+    if (user?.user_id) {
+      void identifyCustomerIOUser(user);
+    }
   }, [user]);
 
   // Register for push notifications when user is authenticated
@@ -386,6 +393,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Clear ticket cache so next user doesn't see previous user's ticket
     clearTicketCache();
     await clearStartupJoinAdminReminders();
+    await clearCustomerIOUser();
 
     // Clear session and cached profile — restored on next login
     await AsyncStorage.multiRemove([

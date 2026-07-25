@@ -18,6 +18,7 @@ import {
 } from "@react-native-firebase/messaging";
 import { Platform } from "react-native";
 import { notificationService } from "../services/notificationService";
+import { registerCustomerIODeviceToken } from "../services/customerioService";
 import { EVENT_ID } from "../config/env";
 
 /** Device type for backend: android | ios | web */
@@ -106,6 +107,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   try {
     const deviceType = getDeviceType();
     await notificationService.registerDevice(registrationId, deviceType, EVENT_ID);
+    await registerCustomerIODeviceToken(registrationId);
     if (__DEV__) {
       console.log(
         `[push] Registered ${deviceType} device, token length: ${registrationId.length}`
