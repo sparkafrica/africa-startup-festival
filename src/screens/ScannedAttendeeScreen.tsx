@@ -16,6 +16,8 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { GestureDetector } from "react-native-gesture-handler";
+import Animated from "react-native-reanimated";
 import { useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { RootStackScreenProps } from "../navigation/types";
 import Svg, { Path } from "react-native-svg";
@@ -53,6 +55,11 @@ import {
   showInvestorConnectionRequiredAlert,
 } from "../utils/asfNetworking";
 import ScannedAttendeeProfileContent from "../components/ScannedAttendeeProfileContent";
+import {
+  getScannedAttendeeSheetHeight,
+  logScannedAttendeePayload,
+  useScannedAttendeeSheetDismiss,
+} from "../utils/scannedAttendeeSheet";
 
 function ConnectIcon({
   size = 24,
@@ -94,26 +101,6 @@ function BackChevron({
   );
 }
 
-function CloseXIcon({
-  size = 24,
-  color = "#000000",
-}: {
-  size?: number;
-  color?: string;
-}) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M18 6L6 18M6 6l12 12"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
 export default function ScannedAttendeeScreen() {
   const route = useRoute<RootStackScreenProps<"ScannedAttendee">["route"]>();
   const navigation =
@@ -138,16 +125,31 @@ export default function ScannedAttendeeScreen() {
     useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
+  const goBack = () => navigation.goBack();
+  const { panGesture, sheetAnimatedStyle, resetSheet } =
+    useScannedAttendeeSheetDismiss(goBack);
+
+  useEffect(() => {
+    resetSheet();
+  }, [routeAttendee, resetSheet]);
+
   useEffect(() => {
     const initial = routeAttendee ? normalizeAttendee(routeAttendee) : null;
     if (!initial?.user?.id) return;
+
+    logScannedAttendeePayload("route", initial);
 
     let cancelled = false;
     void attendeeService
       .getAttendeeByUserId(EVENT_ID, String(initial.user.id))
       .then((enriched) => {
         if (cancelled) return;
-        setAttendee(mergeAttendeeProfiles(initial, enriched as AttendeeLike));
+        const merged = mergeAttendeeProfiles(initial, enriched as AttendeeLike);
+        logScannedAttendeePayload("enriched", merged);
+        if (enriched) {
+          logScannedAttendeePayload("directory-only", enriched);
+        }
+        setAttendee(merged);
       })
       .catch(() => {
         if (!cancelled) setAttendee(initial);
@@ -274,70 +276,79 @@ export default function ScannedAttendeeScreen() {
     `${attendee.user.first_name ?? ""} ${attendee.user.last_name ?? ""}`.trim() ||
     "Unknown";
 
-  const goBack = () => navigation.goBack();
+  const sheetHeight = getScannedAttendeeSheetHeight();
+  const footerPaddingBottom = Math.max(insets.bottom, 12);
 
   return (
-    <SafeAreaView
-      edges={["top"]}
-      className="flex-1"
-      style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
-    >
-      {/* White card sheet - starts lower like Android modal (~top 20% dimmed) */}
+    <View className="flex-1" style={{ backgroundColor: "transparent" }}>
       <View
-        className="flex-1 rounded-t-3xl bg-white overflow-hidden"
-        style={{
-          marginTop: 250,
-          borderTopLeftRadius: 0,
-          borderTopRightRadius: 0,
-        }}
+        className="flex-1"
+        style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
       >
-        {/* Close (X) - only close control so it's clear and reliable */}
         <Pressable
-          onPress={goBack}
-          className="absolute top-2 right-4 z-10 w-10 h-10 rounded-full bg-neutral-100 items-center justify-center"
-        >
-          <CloseXIcon size={20} color="#404040" />
-        </Pressable>
-
-        <ScrollView
           className="flex-1"
-          contentContainerStyle={{
-            paddingTop: 12,
-            paddingHorizontal: 16,
-            paddingBottom: 24 + Math.max(insets.bottom, 0),
-          }}
-          showsVerticalScrollIndicator={false}
+          onPress={goBack}
+          accessibilityRole="button"
+          accessibilityLabel="Close scanned attendee"
+        />
+        <Animated.View
+          className="bg-white overflow-hidden"
+          style={[
+            {
+              height: sheetHeight,
+              flexDirection: "column",
+              borderTopWidth: 1,
+              borderTopColor: "#E5E5E5",
+            },
+            sheetAnimatedStyle,
+          ]}
         >
-          <View className="pt-12">
+          <GestureDetector gesture={panGesture}>
+            <View className="items-center justify-center py-4" style={{ minHeight: 48 }}>
+              <View className="w-12 h-1 bg-neutral-300 rounded-full" />
+            </View>
+          </GestureDetector>
+
+          <ScrollView
+            className="flex-1 px-4"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 16 }}
+            bounces
+          >
             <ScannedAttendeeProfileContent attendee={attendee} variant="screen" />
+          </ScrollView>
+
+          <View
+            className="px-4 pt-3 bg-white border-t border-neutral-100"
+            style={{ paddingBottom: footerPaddingBottom }}
+          >
+            <Pressable
+              onPress={handleRequestMeeting}
+              className="w-full flex-row items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
+            >
+              <CalendarIcon size={20} color="#FFFFFF" />
+              <Text className="text-base font-medium text-white ml-2">
+                Request Meeting
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleConnect}
+              disabled={isConnecting}
+              className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-4 px-4"
+              style={{ opacity: isConnecting ? 0.6 : 1 }}
+            >
+              {isConnecting ? (
+                <LoadingSpinner size="small" color="#000000" />
+              ) : (
+                <ConnectIcon size={20} color="#000000" />
+              )}
+              <Text className="text-base font-medium text-black ml-2">
+                {isConnecting ? "Connecting..." : "Connect"}
+              </Text>
+            </Pressable>
           </View>
-
-          <Pressable
-            onPress={handleRequestMeeting}
-            className="w-full flex-row items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
-          >
-            <CalendarIcon size={20} color="#FFFFFF" />
-            <Text className="text-base font-medium text-white ml-2">
-              Request Meeting
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleConnect}
-            disabled={isConnecting}
-            className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-4 px-4 mb-2"
-            style={{ opacity: isConnecting ? 0.6 : 1 }}
-          >
-            {isConnecting ? (
-              <LoadingSpinner size="small" color="#000000" />
-            ) : (
-              <ConnectIcon size={20} color="#000000" />
-            )}
-            <Text className="text-base font-medium text-black ml-2">
-              {isConnecting ? "Connecting..." : "Connect"}
-            </Text>
-          </Pressable>
-        </ScrollView>
+        </Animated.View>
       </View>
 
       <RequestMeetingModal
@@ -359,6 +370,6 @@ export default function ScannedAttendeeScreen() {
         duration={toast.duration}
         onHide={hideToast}
       />
-    </SafeAreaView>
+    </View>
   );
 }

@@ -139,8 +139,9 @@ export default function ContactScreen() {
             <View className="px-6">
               {/* Email Support Card */}
               <Pressable
-                className="bg-white border border-neutral-200 rounded-2xl p-4 mb-6"
+                className="bg-white border border-neutral-200 p-4 mb-6"
                 style={{
+                  borderRadius: 0,
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 1 },
                   shadowOpacity: 0.05,
@@ -151,8 +152,8 @@ export default function ContactScreen() {
               >
                 <View className="flex-row items-center">
                   <View
-                    className="w-12 h-12 rounded-xl items-center justify-center mr-4"
-                    style={{ backgroundColor: "#3B82F6" }}
+                    className="w-12 h-12 items-center justify-center mr-4"
+                    style={{ backgroundColor: "#3B82F6", borderRadius: 0 }}
                   >
                     <EmailIcon size={24} color="#FFFFFF" />
                   </View>

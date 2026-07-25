@@ -35,6 +35,12 @@ const MODAL_BOTTOM = {
   presentation: "modal" as const,
   animation: "slide_from_bottom" as const,
 };
+const SCANNED_ATTENDEE = {
+  presentation: "transparentModal" as const,
+  animation: "none" as const,
+  gestureEnabled: false,
+  contentStyle: { backgroundColor: "transparent" },
+};
 
 export default function MainNavigator() {
   return (
@@ -60,7 +66,11 @@ export default function MainNavigator() {
         options={MODAL_BOTTOM}
       />
       <Stack.Screen name="ScanQR" component={ScanQRScreen} options={FADE} />
-      <Stack.Screen name="ScannedAttendee" component={ScannedAttendeeScreen} options={FADE} />
+      <Stack.Screen
+        name="ScannedAttendee"
+        component={ScannedAttendeeScreen}
+        options={SCANNED_ATTENDEE}
+      />
       <Stack.Screen name="Exhibitors" component={ExhibitorsScreen} options={FADE} />
       <Stack.Screen
         name="CompanyDetail"

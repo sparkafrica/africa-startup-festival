@@ -850,14 +850,15 @@ function SegmentedControl({
 }) {
   return (
     <View className="px-6 pb-4">
-      <View className="flex-row bg-neutral-100 rounded-2xl p-1">
+      <View className="flex-row bg-neutral-100 p-1" style={{ borderRadius: 0 }}>
         <Pressable
           onPress={() => onTabChange("Personal")}
           className={`flex-1 py-3 px-4 ${
-            activeTab === "Personal" ? "bg-white rounded-xl" : "bg-transparent"
+            activeTab === "Personal" ? "bg-white" : "bg-transparent"
           }`}
-          style={
-            activeTab === "Personal"
+          style={{
+            borderRadius: 0,
+            ...(activeTab === "Personal"
               ? {
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 1 },
@@ -865,8 +866,8 @@ function SegmentedControl({
                   shadowRadius: 2,
                   elevation: 1,
                 }
-              : undefined
-          }
+              : {}),
+          }}
         >
           <Text
             className={`text-sm font-medium text-center ${
@@ -879,10 +880,11 @@ function SegmentedControl({
         <Pressable
           onPress={() => onTabChange("Company")}
           className={`flex-1 py-3 px-4 ${
-            activeTab === "Company" ? "bg-white rounded-xl" : "bg-transparent"
+            activeTab === "Company" ? "bg-white" : "bg-transparent"
           }`}
-          style={
-            activeTab === "Company"
+          style={{
+            borderRadius: 0,
+            ...(activeTab === "Company"
               ? {
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 1 },
@@ -890,8 +892,8 @@ function SegmentedControl({
                   shadowRadius: 2,
                   elevation: 1,
                 }
-              : undefined
-          }
+              : {}),
+          }}
         >
           <Text
             className={`text-sm font-medium text-center ${
@@ -3915,85 +3917,87 @@ function CompanyProfileSection({
           </View>
 
           {/* Social Links */}
-          <View className="rounded-2xl border border-neutral-200 mb-6 px-2">
-            <View className=" p-2">
-              <Text className="text-[14px] font-semibold text-neutral-700 mb-3">
-                Social Links
+          <View className="rounded-2xl border border-neutral-200 mb-6 px-4 py-4">
+            <Text className="text-[14px] font-semibold text-neutral-700 mb-3">
+              Social Links
+            </Text>
+
+            <View className="mb-3">
+              <Text className="text-xs font-medium text-neutral-600 mb-1.5">
+                LinkedIn <Text className="text-red-500">*</Text>
               </Text>
-
-              <View className="mb-3">
-                <View className="flex-row items-center">
-                  <View className="w-10 items-center justify-center border border-neutral-300 p-2 rounded-full mr-3">
-                    <LinkedInIcon size={22} color="#404040" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-xs font-medium text-neutral-600 mb-1">
-                      LinkedIn <Text className="text-red-500">*</Text>
+              <View className="flex-row items-center">
+                <View className="w-10 items-center justify-center mr-3">
+                  <LinkedInIcon size={22} color="#404040" />
+                </View>
+                <View className="flex-1">
+                  <TextInput
+                    className={`bg-white border px-4 py-2 text-base text-black ${
+                      validationErrors.linkedIn
+                        ? "border-red-500"
+                        : "border-neutral-300"
+                    }`}
+                    value={linkedIn}
+                    onChangeText={(t) => {
+                      setLinkedIn(t);
+                      if (validationErrors.linkedIn)
+                        setValidationErrors((e) => ({ ...e, linkedIn: "" }));
+                    }}
+                    placeholder="https://linkedin.com/in/yourprofile"
+                    placeholderTextColor="#9CA3AF"
+                    style={{ borderRadius: 0, height: 42 }}
+                  />
+                  {validationErrors.linkedIn ? (
+                    <Text className="text-red-500 text-xs mt-1">
+                      {validationErrors.linkedIn}
                     </Text>
-                    <TextInput
-                      className={`flex-1 bg-white border rounded-xl px-4 py-2 text-base text-black ${
-                        validationErrors.linkedIn ? "border-red-500" : "border-neutral-300"
-                      }`}
-                      value={linkedIn}
-                      onChangeText={(t) => {
-                        setLinkedIn(t);
-                        if (validationErrors.linkedIn)
-                          setValidationErrors((e) => ({ ...e, linkedIn: "" }));
-                      }}
-                      placeholder="https://linkedin.com/in/yourprofile"
-                      placeholderTextColor="#9CA3AF"
-                      style={{ height: 42, minHeight: 42, maxHeight: 42 }}
-                    />
-                    {validationErrors.linkedIn && (
-                      <Text className="text-red-500 text-xs mt-1">{validationErrors.linkedIn}</Text>
-                    )}
-                  </View>
+                  ) : null}
                 </View>
               </View>
+            </View>
 
-              <View className="mb-3">
-                <View className="flex-row items-center">
-                  <View className="w-10 items-center justify-center border border-neutral-300 p-2 rounded-full mr-3">
-                    <FacebookIcon size={22} color="#404040" />
-                  </View>
-                  <TextInput
-                    className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={facebook}
-                    onChangeText={setFacebook}
-                    placeholder="Facebook handle"
-                    style={{ height: 42, minHeight: 42, maxHeight: 42 }}
-                  />
+            <View className="mb-3">
+              <View className="flex-row items-center">
+                <View className="w-10 items-center justify-center mr-3">
+                  <FacebookIcon size={22} color="#404040" />
                 </View>
+                <TextInput
+                  className="flex-1 bg-white border border-neutral-300 px-4 py-2 text-base text-black"
+                  value={facebook}
+                  onChangeText={setFacebook}
+                  placeholder="Facebook handle"
+                  style={{ borderRadius: 0, height: 42 }}
+                />
               </View>
+            </View>
 
-              <View className="mb-3">
-                <View className="flex-row items-center">
-                  <View className="w-10 items-center justify-center border border-neutral-300 p-2 rounded-full mr-3">
-                    <InstagramIcon size={22} color="#404040" />
-                  </View>
-                  <TextInput
-                    className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={instagram}
-                    onChangeText={setInstagram}
-                    placeholder="Instagram handle"
-                    style={{ height: 42, minHeight: 42, maxHeight: 42 }}
-                  />
+            <View className="mb-3">
+              <View className="flex-row items-center">
+                <View className="w-10 items-center justify-center mr-3">
+                  <InstagramIcon size={22} color="#404040" />
                 </View>
+                <TextInput
+                  className="flex-1 bg-white border border-neutral-300 px-4 py-2 text-base text-black"
+                  value={instagram}
+                  onChangeText={setInstagram}
+                  placeholder="Instagram handle"
+                  style={{ borderRadius: 0, height: 42 }}
+                />
               </View>
+            </View>
 
-              <View className="mb-3">
-                <View className="flex-row items-center">
-                  <View className="w-10 items-center justify-center border border-neutral-300 p-2 rounded-full mr-3">
-                    <XIcon size={22} color="#404040" />
-                  </View>
-                  <TextInput
-                    className="flex-1 bg-white border border-neutral-300 rounded-xl px-4 py-2 text-base text-black"
-                    value={xHandle}
-                    onChangeText={setXHandle}
-                    placeholder="X handle"
-                    style={{ height: 42, minHeight: 42, maxHeight: 42 }}
-                  />
+            <View className="mb-1">
+              <View className="flex-row items-center">
+                <View className="w-10 items-center justify-center mr-3">
+                  <XIcon size={22} color="#404040" />
                 </View>
+                <TextInput
+                  className="flex-1 bg-white border border-neutral-300 px-4 py-2 text-base text-black"
+                  value={xHandle}
+                  onChangeText={setXHandle}
+                  placeholder="X handle"
+                  style={{ borderRadius: 0, height: 42 }}
+                />
               </View>
             </View>
           </View>

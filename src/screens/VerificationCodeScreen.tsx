@@ -215,8 +215,9 @@ export default function VerificationCodeScreen() {
           <View className="flex-1 justify-center px-6 py-8">
             {/* Main Content Card */}
             <View
-              className="bg-white rounded-3xl px-6 py-8"
+              className="bg-white px-6 py-8"
               style={{
+                borderRadius: 0,
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.1,
@@ -282,8 +283,8 @@ export default function VerificationCodeScreen() {
                 {[0, 1, 2, 3, 4, 5].map((index) => (
                   <View
                     key={index}
-                    className="w-11 h-14 border-2 rounded-xl items-center justify-center"
-                    style={getBoxStyle(index)}
+                    className="w-11 h-14 border-2 items-center justify-center"
+                    style={{ borderRadius: 0, ...getBoxStyle(index) }}
                   >
                     <Text
                       className="text-2xl font-bold"
@@ -306,7 +307,8 @@ export default function VerificationCodeScreen() {
               )}
               <Pressable
                 onPress={handlePaste}
-                className="mb-8 py-2 px-4 self-center rounded-lg border border-neutral-300"
+                className="mb-8 py-2 px-4 self-center border border-neutral-300"
+                style={{ borderRadius: 0 }}
               >
                 <Text className="text-sm font-medium text-neutral-700">
                   Paste code
@@ -317,12 +319,13 @@ export default function VerificationCodeScreen() {
               <Pressable
                 onPress={handleSubmit}
                 disabled={!isCodeComplete || isSubmitting}
-                className={`rounded-xl py-4 items-center justify-center ${
+                className={`py-4 items-center justify-center ${
                   isCodeComplete && !isSubmitting
                     ? "bg-black"
                     : "bg-neutral-300"
                 }`}
                 style={{
+                  borderRadius: 0,
                   opacity: isCodeComplete && !isSubmitting ? 1 : 0.6,
                 }}
               >

@@ -3,13 +3,14 @@
  * See Spark EMS.yaml: EventSchedule.venue, start_time, event.dates.
  */
 
+import {
+  EVENT_DAY_FILTER_ID_TO_ISO,
+} from "../config/env";
 import type { Event, EventSchedule } from "../services/eventService";
 
 /** Filter modal option ids → ISO date on schedule.start_time */
-export const DAY_FILTER_ID_TO_ISO_DATE: Record<string, string> = {
-  "26th June, 2026": "2026-06-26",
-  "27th June, 2026": "2026-06-27",
-};
+export const DAY_FILTER_ID_TO_ISO_DATE: Record<string, string> =
+  EVENT_DAY_FILTER_ID_TO_ISO;
 
 export function scheduleStartDateIso(startTime: string): string {
   const trimmed = startTime.trim();

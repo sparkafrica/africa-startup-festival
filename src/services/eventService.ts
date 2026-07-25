@@ -6,6 +6,8 @@
 
 import { api, ApiResponse, PaginationMeta } from "./api";
 import { ApiClientError } from "./api";
+import { EVENT_ID } from "../config/env";
+import { matchesActiveEvent } from "../utils/eventScope";
 
 // ============================================================================
 // REQUEST/RESPONSE TYPES
@@ -388,7 +390,7 @@ export const eventService = {
       page += 1;
     }
 
-    return all;
+    return all.filter((schedule) => matchesActiveEvent(schedule.event, eventId));
   },
 
   async getEventSchedules(

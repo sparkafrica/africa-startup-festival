@@ -12,7 +12,6 @@ import {
 } from "../constants/profileTagColors";
 
 const LOGO_SIZE = 88;
-const LOGO_RADIUS = 0;
 
 export type StartupDirectoryTag = {
   label: string;
@@ -24,17 +23,17 @@ interface StartupDirectoryCardProps {
   logo?: string | number;
   logoColor?: string;
   tags?: StartupDirectoryTag[];
+  /** Home featured row: logo + name only. Full directory screens show tags. */
+  compact?: boolean;
   onPress?: () => void;
 }
 
-/**
- * Mobile startups directory card — larger logo plate, clearer name + tags.
- */
 export default function StartupDirectoryCard({
   name,
   logo,
   logoColor = "#3B82F6",
   tags = [],
+  compact = false,
   onPress,
 }: StartupDirectoryCardProps) {
   const imageSource: ImageSourcePropType | undefined = logo
@@ -49,27 +48,19 @@ export default function StartupDirectoryCard({
     <Pressable
       onPress={onPress}
       className="bg-white border border-neutral-200 w-full overflow-hidden"
-      style={{
-        borderRadius: 0,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
-        elevation: 2,
-      }}
+      style={{ borderRadius: 0 }}
     >
-      {/* Logo plate — full-width white band so the mark sits larger on mobile */}
       <View
-        className="bg-neutral-50 items-center justify-center border-b border-neutral-100"
-        style={{ height: 112, paddingHorizontal: 12 }}
+        className="items-center justify-center"
+        style={{ paddingHorizontal: 12, paddingTop: compact ? 12 : 16, paddingBottom: 8 }}
       >
         {logo ? (
           <Image
             source={imageSource}
             style={{
-              width: LOGO_SIZE,
-              height: LOGO_SIZE,
-              borderRadius: LOGO_RADIUS,
+              width: compact ? 72 : LOGO_SIZE,
+              height: compact ? 72 : LOGO_SIZE,
+              borderRadius: 0,
             }}
             resizeMode="contain"
           />
@@ -77,9 +68,9 @@ export default function StartupDirectoryCard({
           <View
             className="items-center justify-center"
             style={{
-              width: LOGO_SIZE,
-              height: LOGO_SIZE,
-              borderRadius: LOGO_RADIUS,
+              width: compact ? 72 : LOGO_SIZE,
+              height: compact ? 72 : LOGO_SIZE,
+              borderRadius: 0,
               backgroundColor: logoColor,
             }}
           >
@@ -90,7 +81,7 @@ export default function StartupDirectoryCard({
         )}
       </View>
 
-      <View className="px-2.5 pt-2.5 pb-3">
+      <View className="px-2.5 pb-3">
         <Text
           className="text-[13px] text-neutral-900 text-center font-semibold leading-4 mb-2"
           numberOfLines={2}
@@ -98,7 +89,7 @@ export default function StartupDirectoryCard({
           {name}
         </Text>
 
-        {visibleTags.length > 0 ? (
+        {!compact && visibleTags.length > 0 ? (
           <View className="flex-row flex-wrap justify-start">
             {visibleTags.map((tag) => {
               const palette = PROFILE_TAG_COLORS[tag.kind];

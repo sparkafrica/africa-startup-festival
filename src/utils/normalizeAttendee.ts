@@ -66,7 +66,19 @@ export function mergeAttendeeProfiles(
   const mergedUser: AttendeeUser = {
     ...eUser,
     ...pUser,
-    company: pUser.company ?? eUser.company,
+    company:
+      pUser.company || eUser.company
+        ? {
+            ...(eUser.company ?? {}),
+            ...(pUser.company ?? {}),
+            name: pUser.company?.name ?? eUser.company?.name,
+            company_type:
+              pUser.company?.company_type ?? eUser.company?.company_type,
+            admin_user:
+              pUser.company?.admin_user ?? eUser.company?.admin_user,
+            logo: pUser.company?.logo ?? eUser.company?.logo,
+          }
+        : undefined,
     job_title:
       pUser.job_title ||
       eUser.job_title ||

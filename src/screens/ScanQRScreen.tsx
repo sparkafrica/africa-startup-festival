@@ -19,7 +19,9 @@ import {
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { GestureDetector } from "react-native-gesture-handler";
+import Reanimated from "react-native-reanimated";
 import {
   useNavigation,
   useRoute,
@@ -63,7 +65,7 @@ import QRCode from "react-native-qrcode-svg";
 import RequestMeetingModal, {
   type MeetingFormData,
 } from "../components/RequestMeetingModal";
-import { LoadingSpinner, SkeletonListRows } from "../components";
+import { LoadingSpinner, SkeletonMyTicketView } from "../components";
 import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
@@ -80,6 +82,11 @@ import { attendeeService } from "../services/attendeeService";
 import { mergeAttendeeProfiles, type AttendeeLike } from "../utils/normalizeAttendee";
 import ScannedAttendeeProfileContent from "../components/ScannedAttendeeProfileContent";
 import GuidelinePatternOverlay from "../components/GuidelinePatternOverlay";
+import {
+  getScannedAttendeeSheetHeight,
+  logScannedAttendeePayload,
+  useScannedAttendeeSheetDismiss,
+} from "../utils/scannedAttendeeSheet";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -253,14 +260,15 @@ function SegmentedControl({
 
   return (
     <View className="px-4 pb-2">
-      <View className="flex-row bg-neutral-100 rounded-2xl p-1">
+      <View className="flex-row bg-neutral-100 p-1" style={{ borderRadius: 0 }}>
         <Pressable
           onPress={() => onTabChange("My Ticket")}
           className={`flex-1 py-3 px-4 ${
-            activeTab === "My Ticket" ? "bg-white rounded-xl" : "bg-transparent"
+            activeTab === "My Ticket" ? "bg-white" : "bg-transparent"
           }`}
-          style={
-            activeTab === "My Ticket"
+          style={{
+            borderRadius: 0,
+            ...(activeTab === "My Ticket"
               ? {
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 1 },
@@ -268,8 +276,8 @@ function SegmentedControl({
                   shadowRadius: 2,
                   elevation: 1,
                 }
-              : undefined
-          }
+              : {}),
+          }}
         >
           <Text
             className={`text-sm font-medium text-center ${
@@ -283,11 +291,12 @@ function SegmentedControl({
           onPress={() => onTabChange("Scan Ticket")}
           className={`flex-1 py-3 px-4 ${
             activeTab === "Scan Ticket"
-              ? "bg-white rounded-xl"
+              ? "bg-white"
               : "bg-transparent"
           }`}
-          style={
-            activeTab === "Scan Ticket"
+          style={{
+            borderRadius: 0,
+            ...(activeTab === "Scan Ticket"
               ? {
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 1 },
@@ -295,8 +304,8 @@ function SegmentedControl({
                   shadowRadius: 2,
                   elevation: 1,
                 }
-              : undefined
-          }
+              : {}),
+          }}
         >
           <Text
             className={`text-sm font-medium text-center ${
@@ -3088,73 +3097,18 @@ function ScannedTicketProfileModal({
   attendee: Attendee | null;
   isConnecting?: boolean;
 }) {
-  const translateY = useRef(new Animated.Value(0)).current;
-  const offset = useRef(0);
-  const isClosingRef = useRef(false);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !isClosingRef.current,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return !isClosingRef.current && Math.abs(gestureState.dy) > 5;
-      },
-      onPanResponderGrant: () => {
-        if (isClosingRef.current) return;
-        translateY.stopAnimation();
-        offset.current = 0;
-        translateY.setOffset(0);
-        translateY.setValue(0);
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (isClosingRef.current) return;
-        if (gestureState.dy > 0) {
-          translateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (isClosingRef.current) return;
-        translateY.flattenOffset();
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          isClosingRef.current = true;
-          Animated.timing(translateY, {
-            toValue: 1000,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            translateY.setValue(0);
-            translateY.setOffset(0);
-            offset.current = 0;
-            isClosingRef.current = false;
-            onClose();
-          });
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 65,
-            friction: 8,
-          }).start();
-        }
-        offset.current = 0;
-      },
-    }),
-  ).current;
+  const insets = useSafeAreaInsets();
+  const sheetHeight = getScannedAttendeeSheetHeight(SCREEN_HEIGHT);
+  const footerPaddingBottom = Math.max(insets.bottom, 12);
+  const { panGesture, sheetAnimatedStyle, resetSheet } =
+    useScannedAttendeeSheetDismiss(onClose);
 
   useEffect(() => {
     if (visible) {
-      isClosingRef.current = false;
-      translateY.stopAnimation(() => {
-        translateY.setValue(0);
-        translateY.setOffset(0);
-        offset.current = 0;
-      });
-    } else {
-      translateY.setValue(0);
-      translateY.setOffset(0);
-      offset.current = 0;
-      isClosingRef.current = false;
+      resetSheet();
+      logScannedAttendeePayload("modal-visible", attendee);
     }
-  }, [visible, translateY]);
+  }, [visible, attendee, resetSheet]);
 
   return (
     <Modal
@@ -3168,26 +3122,29 @@ function ScannedTicketProfileModal({
         style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
       >
         <Pressable className="flex-1" onPress={onClose} />
-        <Animated.View
-          className="bg-white rounded-t-3xl"
-          style={{
-            transform: [{ translateY }],
-            maxHeight: Dimensions.get("window").height * 0.8,
-            borderTopWidth: 1,
-            borderTopColor: "#E5E5E5",
-          }}
+        <Reanimated.View
+          className="bg-white"
+          style={[
+            {
+              height: sheetHeight,
+              flexDirection: "column",
+              borderTopWidth: 1,
+              borderTopColor: "#E5E5E5",
+            },
+            sheetAnimatedStyle,
+          ]}
         >
-          <View
-            className="items-center pt-2 pb-2"
-            {...panResponder.panHandlers}
-          >
-            <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
-          </View>
+          <GestureDetector gesture={panGesture}>
+            <View className="items-center justify-center py-4" style={{ minHeight: 48 }}>
+              <View className="w-12 h-1 bg-neutral-300 rounded-full" />
+            </View>
+          </GestureDetector>
 
           <ScrollView
-            className="px-4"
+            className="flex-1 px-4"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 24 }}
+            contentContainerStyle={{ paddingBottom: 16 }}
+            bounces
           >
             {attendee ? (
               <ScannedAttendeeProfileContent attendee={attendee} variant="modal" />
@@ -3198,7 +3155,12 @@ function ScannedTicketProfileModal({
                 </Text>
               </View>
             )}
+          </ScrollView>
 
+          <View
+            className="px-4 pt-3 bg-white border-t border-neutral-100"
+            style={{ paddingBottom: footerPaddingBottom }}
+          >
             <Pressable
               onPress={onRequestMeeting}
               className="w-full flex-row items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
@@ -3212,7 +3174,7 @@ function ScannedTicketProfileModal({
             <Pressable
               onPress={onConnect}
               disabled={isConnecting}
-              className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-4 px-4 mb-2"
+              className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-4 px-4"
               style={{ opacity: isConnecting ? 0.6 : 1 }}
             >
               {isConnecting ? (
@@ -3224,9 +3186,8 @@ function ScannedTicketProfileModal({
                 {isConnecting ? "Connecting..." : "Connect"}
               </Text>
             </Pressable>
-          </ScrollView>
-          <SafeAreaView edges={["bottom"]} className="bg-white pb-4" />
-        </Animated.View>
+          </View>
+        </Reanimated.View>
       </View>
     </Modal>
   );
@@ -3986,8 +3947,8 @@ function MyTicketView({
 
   if (loading) {
     return (
-      <View className="flex-1 py-8">
-        <SkeletonListRows count={4} />
+      <View className="flex-1">
+        <SkeletonMyTicketView count={1} />
       </View>
     );
   }
@@ -4926,12 +4887,17 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       );
 
       let attendee = scanned;
+      logScannedAttendeePayload("scan", scanned);
       try {
         const enriched = await attendeeService.getAttendeeByUserId(
           EVENT_ID,
           String(scanned.user.id),
         );
         attendee = mergeAttendeeProfiles(scanned, enriched as AttendeeLike);
+        logScannedAttendeePayload("enriched", attendee);
+        if (enriched) {
+          logScannedAttendeePayload("directory-only", enriched);
+        }
       } catch {
         // scan payload is enough when directory lookup fails
       }

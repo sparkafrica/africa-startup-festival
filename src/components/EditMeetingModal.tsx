@@ -18,7 +18,7 @@ import { ClockIcon } from "./BottomNavIcons";
 import LoadingSpinner from "./LoadingSpinner";
 import { ChevronDownIcon, ChevronUpIcon } from "./icons";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
-import { EVENT_ID } from "../config/env";
+import { EVENT_ID, EVENT_FALLBACK_MEETING_DATE_ISOS } from "../config/env";
 import MeetingCalendarPicker from "./MeetingCalendarPicker";
 import MeetingTimePicker from "./MeetingTimePicker";
 import {
@@ -230,8 +230,7 @@ export default function EditMeetingModal({
       if (d) set.add(d);
     });
     if (set.size === 0) {
-      set.add("2026-06-26");
-      set.add("2026-06-27");
+      EVENT_FALLBACK_MEETING_DATE_ISOS.forEach((iso) => set.add(iso));
     }
     return set;
   }, [meetingSlots]);

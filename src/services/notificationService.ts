@@ -6,6 +6,8 @@
 
 import { api, ApiResponse, PaginationMeta } from "./api";
 import { ApiClientError } from "./api";
+import { EVENT_ID } from "../config/env";
+import { matchesActiveEvent } from "../utils/eventScope";
 
 // ============================================================================
 // REQUEST/RESPONSE TYPES
@@ -65,11 +67,13 @@ export const notificationService = {
     page: number = 1,
     pageSize?: number,
     ordering?: string,
-    search?: string
+    search?: string,
+    eventId: number = EVENT_ID,
   ): Promise<{ notifications: UserNotification[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {
         page: page.toString(),
+        event_id: String(eventId),
       };
       if (pageSize) {
         params.page_size = pageSize.toString();
@@ -88,6 +92,11 @@ export const notificationService = {
 
       const data = response as any;
 
+      const filterNotifications = (
+        notifications: UserNotification[],
+      ): UserNotification[] =>
+        notifications.filter((n) => matchesActiveEvent(n.event_id, eventId));
+
       // Check if response has the PaginatedUserNotificationList structure (direct)
       if (
         data &&
@@ -95,8 +104,11 @@ export const notificationService = {
         "results" in data &&
         Array.isArray(data.results)
       ) {
+        const notifications = filterNotifications(
+          data.results as UserNotification[],
+        );
         return {
-          notifications: data.results as UserNotification[],
+          notifications,
           pagination: {
             count: data.count || 0,
             next: data.next || null,
@@ -111,10 +123,13 @@ export const notificationService = {
         
         // Check if data.data is directly an array (ApiResponse with array data)
         if (Array.isArray(responseData)) {
+          const notifications = filterNotifications(
+            responseData as UserNotification[],
+          );
           return {
-            notifications: responseData as UserNotification[],
+            notifications,
             pagination: {
-              count: responseData.length,
+              count: notifications.length,
               next: null,
               previous: null,
             },
@@ -128,8 +143,11 @@ export const notificationService = {
           "results" in responseData &&
           Array.isArray(responseData.results)
         ) {
+          const notifications = filterNotifications(
+            responseData.results as UserNotification[],
+          );
           return {
-            notifications: responseData.results as UserNotification[],
+            notifications,
             pagination: {
               count: responseData.count || 0,
               next: responseData.next || null,
@@ -141,10 +159,11 @@ export const notificationService = {
 
       // Check if data is directly an array
       if (Array.isArray(data)) {
+        const notifications = filterNotifications(data as UserNotification[]);
         return {
-          notifications: data as UserNotification[],
+          notifications,
           pagination: {
-            count: data.length,
+            count: notifications.length,
             next: null,
             previous: null,
           },
@@ -196,12 +215,14 @@ export const notificationService = {
    */
   async registerDevice(
     registrationId: string,
-    type: "android" | "ios" | "web"
+    type: "android" | "ios" | "web",
+    eventId: number = EVENT_ID,
   ): Promise<void> {
     try {
       const response = await api.post<any>("/devices/", {
         registration_id: registrationId,
         type,
+        event_id: eventId,
       });
 
       if (

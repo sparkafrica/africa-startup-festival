@@ -175,6 +175,63 @@ export type AttendeeStartupBadge =
   | { kind: "pending" };
 
 /** Badge on attendee cards / profile sheets from directory user payload. */
+export type AttendeeStartupAdminInfo = {
+  companyName: string;
+  companyLogo?: string | null;
+  companyId?: number;
+};
+
+/** Scanned / directory user is the verified admin of a startup company. */
+export function resolveAttendeeStartupAdmin(
+  user: {
+    id?: string | number;
+    company?: {
+      id?: number;
+      name?: string;
+      company_type?: string;
+      admin_user?: string | number | null;
+      logo?: string | null;
+    } | null;
+    metadata?: unknown;
+  },
+  options?: { ticketTypeName?: string },
+): AttendeeStartupAdminInfo | null {
+  const company = user.company;
+  if (!company?.name || !user.id) return null;
+
+  const isAdmin =
+    !!company.admin_user && String(company.admin_user) === String(user.id);
+
+  let metadata = user.metadata;
+  if (typeof metadata === "string") {
+    try {
+      metadata = JSON.parse(metadata);
+    } catch {
+      metadata = {};
+    }
+  }
+  const meta = (metadata ?? {}) as Record<string, unknown>;
+  const metaSaysAdmin =
+    meta.is_startup_admin === true ||
+    meta.startup_admin === true ||
+    String(meta.startup_role ?? "").toLowerCase() === "admin";
+
+  if (!isAdmin && !metaSaysAdmin) return null;
+
+  const ticketIsStartup = normalizeCompanyType(
+    options?.ticketTypeName ?? "",
+  ).includes("startup");
+  const companyIsStartup = isStartupCompanyType(company.company_type);
+
+  if (!companyIsStartup && !ticketIsStartup && !metaSaysAdmin) return null;
+
+  return {
+    companyName: company.name,
+    companyLogo: company.logo,
+    companyId: company.id ? Number(company.id) : undefined,
+  };
+}
+
 export function resolveAttendeeStartupBadge(user: {
   company?: { name?: string; company_type?: string } | null;
   metadata?: unknown;

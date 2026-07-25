@@ -7,6 +7,7 @@
 import { api, ApiResponse, PaginationMeta } from "./api";
 import { ApiClientError } from "./api";
 import { EVENT_ID } from "../config/env";
+import { matchesActiveEvent } from "../utils/eventScope";
 import { parseDisplayTimeToApi } from "../utils/meetingDateTime";
 
 // ============================================================================
@@ -262,32 +263,28 @@ export const meetingService = {
     }
   },
 
-  async getMeetings(): Promise<Meeting[]> {
+  async getMeetings(eventId: number = EVENT_ID): Promise<Meeting[]> {
     try {
-      const response = await api.get<any>("/meetings/");
+      const response = await api.get<any>(`/meetings/?event_id=${eventId}`);
 
       const data = response as any;
+      let meetings: Meeting[] = [];
 
       if (Array.isArray(data)) {
-        return data as Meeting[];
-      }
-
-      if (data?.status === "success" && data?.data) {
+        meetings = data as Meeting[];
+      } else if (data?.status === "success" && data?.data) {
         if (Array.isArray(data.data)) {
-          return data.data as Meeting[];
+          meetings = data.data as Meeting[];
+        } else if (data.data?.results && Array.isArray(data.data.results)) {
+          meetings = data.data.results as Meeting[];
         }
-        // Paginated: { results: Meeting[] }
-        if (data.data?.results && Array.isArray(data.data.results)) {
-          return data.data.results as Meeting[];
-        }
+      } else if (data?.results && Array.isArray(data.results)) {
+        meetings = data.results as Meeting[];
       }
 
-      // Direct paginated: { results: Meeting[] }
-      if (data?.results && Array.isArray(data.results)) {
-        return data.results as Meeting[];
-      }
-
-      return [];
+      return meetings.filter((meeting) =>
+        matchesActiveEvent(meeting.slot?.event, eventId),
+      );
     } catch (error: any) {
       // Re-throw ApiClientError as-is
       if (error instanceof ApiClientError) {

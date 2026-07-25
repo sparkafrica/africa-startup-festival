@@ -31,6 +31,7 @@ import {
   ExhibitorCard,
   HomeDirectorySkeleton,
   PartnerCard,
+  StartupDirectoryCard,
   SpeakerCard,
   SpeakerDetailModal,
   FLOATING_NAV_BOTTOM_INSET,
@@ -468,6 +469,20 @@ export default function HomeScreen() {
                   })
                 }
               />
+            ) : companyType === "startup" ? (
+              <StartupDirectoryCard
+                name={displayName}
+                logo={item.logo ?? undefined}
+                logoColor={logoColor}
+                compact
+                onPress={() =>
+                  navigation.navigate("CompanyDetail", {
+                    exhibitorId: item.id.toString(),
+                    type: "startup",
+                    name: displayName,
+                  })
+                }
+              />
             ) : (
               <ExhibitorCard
                 name={displayName}
@@ -476,15 +491,12 @@ export default function HomeScreen() {
                 onPress={() =>
                   navigation.navigate("CompanyDetail", {
                     exhibitorId: item.id.toString(),
-                    type: companyType,
+                    type: "exhibitor",
                     name: displayName,
                   })
                 }
               />
             )}
-            <Text className="text-xs text-neutral-600 text-center mt-2">
-              {displayName}
-            </Text>
           </View>
         );
       })}
@@ -493,7 +505,7 @@ export default function HomeScreen() {
 
   const renderDirectoryTabContent = () => {
     if (directoryTab === "speakers") {
-      if (speakersLoading) return <HomeDirectorySkeleton />;
+      if (speakersLoading) return <HomeDirectorySkeleton variant="list" />;
       if (speakersError) {
         return (
           <View className="py-4">

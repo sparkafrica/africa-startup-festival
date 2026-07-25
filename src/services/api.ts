@@ -18,7 +18,7 @@ import axios, {
 } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Sentry from "@sentry/react-native";
-import { ENV } from "../config/env";
+import { ENV, EVENT_ID } from "../config/env";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -155,6 +155,10 @@ class ApiClient {
         // Backend uses "Token" prefix instead of "Bearer"
         if (token && config.headers) {
           config.headers.Authorization = `Token ${token}`;
+        }
+
+        if (config.headers) {
+          config.headers["X-Event-Id"] = String(EVENT_ID);
         }
 
         // If FormData is being sent, let axios automatically set Content-Type

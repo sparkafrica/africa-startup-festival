@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import { useAuth } from "../context/AuthContext";
-import { HomeDirectorySkeleton } from "../components/Skeleton";
+import { HomeScreenSkeleton } from "../components/Skeleton";
 import AuthNavigator from "./AuthNavigator";
 import MainNavigator from "./MainNavigator";
 import BootsplashScreen from "../screens/BootsplashScreen";
@@ -58,8 +58,8 @@ export default function AppNavigator() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 bg-white">
-        <HomeDirectorySkeleton fullScreen />
+      <View className="flex-1 bg-surface">
+        <HomeScreenSkeleton />
       </View>
     );
   }

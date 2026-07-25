@@ -23,7 +23,7 @@ import {
 } from "./icons";
 import LoadingSpinner from "./LoadingSpinner";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
-import { EVENT_ID } from "../config/env";
+import { EVENT_DAY_FILTER_LABELS, EVENT_FALLBACK_MEETING_DATE_ISOS, EVENT_ID } from "../config/env";
 import { getCanUserBookMeetings } from "../utils/meetingRestrictions";
 import { filterPhysicalSlotsExcludingRequesteeBusyWindows } from "../utils/meetingRequesteeAvailability";
 import { trackMeetingEvent } from "../utils/analytics";
@@ -467,8 +467,7 @@ export default function RequestMeetingModal({
       if (d) set.add(d);
     });
     if (set.size === 0) {
-      set.add("2026-06-26");
-      set.add("2026-06-27");
+      EVENT_FALLBACK_MEETING_DATE_ISOS.forEach((iso) => set.add(iso));
     }
     return set;
   }, [meetingSlots]);

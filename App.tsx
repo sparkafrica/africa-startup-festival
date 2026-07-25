@@ -63,7 +63,6 @@ export default function App() {
     }
   }, [fontsLoaded, fontError]);
 
-
   // Set default font family for all Text components globally
   // Using Inter Display Regular as the default font
   (Text as any).defaultProps = (Text as any).defaultProps || {};

@@ -123,6 +123,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => api.setOnSessionExpired(null);
   }, []);
 
+  /** Refresh profile from API without blocking app entry (persisted-session fast path). */
+  const refreshUserInBackground = useCallback(async () => {
+    try {
+      const userProfile = await authService.getCurrentUser();
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.USER,
+        JSON.stringify(userProfile),
+      );
+      setUser(userProfile);
+
+      const profileComplete = isProfileComplete(userProfile);
+      setHasCompletedProfile(profileComplete);
+      if (profileComplete) {
+        await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.PROFILE_COMPLETE);
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      console.warn("Background user profile refresh failed:", error);
+    }
+  }, []);
+
   const checkAuthState = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -158,20 +181,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             STORAGE_KEYS.PROFILE_COMPLETE,
           );
           if (persistedComplete === "true") {
-            let userProfile: UserProfile;
-            try {
-              userProfile = await authService.getCurrentUser();
-              await AsyncStorage.setItem(
-                STORAGE_KEYS.USER,
-                JSON.stringify(userProfile),
-              );
-            } catch (fetchError) {
-              console.warn(
-                "Failed to fetch user profile, using stored:",
-                fetchError,
-              );
-              userProfile = JSON.parse(storedUser) as UserProfile;
-            }
+            const userProfile = JSON.parse(storedUser) as UserProfile;
             setUser(userProfile);
             setHasCompletedProfile(true);
             setIsAuthenticated(true);
@@ -182,6 +192,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               (await AsyncStorage.getItem(STORAGE_KEYS.WELCOME_SEEN)) === "true",
             );
             ticketService.getUserTicket(EVENT_ID).catch(() => {});
+            void refreshUserInBackground();
             return;
           }
 
@@ -247,7 +258,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [refreshUserInBackground]);
 
   // Check for existing session on app start
   useEffect(() => {
@@ -290,7 +301,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const requestVerificationCode = async (email: string) => {
     // Service layer handles API call, error handling, and retry logic
     // Errors from service layer bubble up to screen for display
-    await authService.requestOTP(email);
+    await authService.requestOTP(email, EVENT_ID);
   };
 
   /**
@@ -309,7 +320,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   const verifyCode = async (email: string, code: string): Promise<boolean> => {
     // Step 1: Verify OTP and store token (service layer handles storage)
-    await authService.verifyOTP(email, code);
+    await authService.verifyOTP(email, code, EVENT_ID);
 
     // Step 2: Fetch user profile (token is now stored, so API client adds it to headers)
     const userProfile = await authService.getCurrentUser();
@@ -376,9 +387,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     clearTicketCache();
     await clearStartupJoinAdminReminders();
 
-    // Clear session data but keep PROFILE_COMPLETE so returning users go straight to app
+    // Clear session and cached profile — restored on next login
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.USER,
+      STORAGE_KEYS.PROFILE_COMPLETE,
       STORAGE_KEYS.WELCOME_SEEN,
       STORAGE_KEYS.PROFILE_JUST_SAVED,
       STORAGE_KEYS.ONBOARDING_COMPLETE,

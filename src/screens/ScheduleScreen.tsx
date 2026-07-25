@@ -43,7 +43,10 @@ import {
   useRefreshMessagesBadgeOnFocus,
 } from "../hooks";
 import { eventService, type EventSchedule, type PersonalSchedule } from "../services/eventService";
-import { EVENT_ID } from "../config/env";
+import {
+  EVENT_DAY_FILTER_LABELS,
+  EVENT_ID,
+} from "../config/env";
 import {
   SCHEDULE_MOCK_PREVIEW_ENABLED,
   SCHEDULE_SESSION_CTAS_ENABLED,
@@ -105,9 +108,9 @@ export const MOCK_SCHEDULE_EVENT = {
   day: "Day 1",
   startTime: "10:00 AM",
   endTime: "11:00 AM",
-  startTimeMs: Date.parse("2026-06-26T10:00:00"),
-  endTimeMs: Date.parse("2026-06-26T11:00:00"),
-  scheduleDateIso: "2026-06-26",
+  startTimeMs: Date.parse("2026-10-29T10:00:00"),
+  endTimeMs: Date.parse("2026-10-29T11:00:00"),
+  scheduleDateIso: "2026-10-29",
   sponsoredBy: {
     name: "Spark Capital",
     color: "blue" as const,
@@ -464,7 +467,7 @@ export default function ScheduleScreen() {
         SCHEDULE_MOCK_PREVIEW_ENABLED &&
         selectedVenue === "Main Stage" &&
         (selectedFilters.length === 0 ||
-          selectedFilters.includes("26th June, 2026"));
+          selectedFilters.includes(EVENT_DAY_FILTER_LABELS[0]));
 
       return showMockPreview
         ? [MOCK_SCHEDULE_EVENT, ...mappedEvents]
@@ -910,10 +913,10 @@ export default function ScheduleScreen() {
     {
       id: "days",
       title: "Days",
-      options: [
-        { id: "26th June, 2026", label: "26th June, 2026" },
-        { id: "27th June, 2026", label: "27th June, 2026" },
-      ],
+      options: EVENT_DAY_FILTER_LABELS.map((label) => ({
+        id: label,
+        label,
+      })),
     },
   ];
 

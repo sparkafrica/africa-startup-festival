@@ -6,9 +6,11 @@ import React from "react";
 import { View, Text, Pressable, Image, Linking, Alert } from "react-native";
 import Svg, { Path, Circle } from "react-native-svg";
 import { LinkedInIcon } from "./SocialIcons";
+import { StartupBadge } from "./StartupBadge";
 import type { Attendee } from "../services/ticketService";
 import { getAttendeeDisplayFields } from "../utils/normalizeAttendee";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
+import { resolveAttendeeStartupAdmin } from "../utils/startupJoinStatus";
 
 type Props = {
   attendee: Attendee;
@@ -29,9 +31,48 @@ export default function ScannedAttendeeProfileContent({
   const linkedIn = getLinkedInDisplayInfo(
     display.linkedInRaw as string | null | undefined,
   );
+  const startupAdmin = resolveAttendeeStartupAdmin(user, {
+    ticketTypeName: display.ticketTypeName,
+  });
 
   return (
     <>
+      {startupAdmin ? (
+        <View
+          className="mb-5 border border-neutral-900 bg-neutral-50 p-4"
+          style={{ borderRadius: 0 }}
+        >
+          <View className="flex-row items-center gap-3">
+            <View
+              className="w-12 h-12 bg-white border border-neutral-200 items-center justify-center overflow-hidden"
+              style={{ borderRadius: 0 }}
+            >
+              {startupAdmin.companyLogo ? (
+                <Image
+                  source={{ uri: startupAdmin.companyLogo }}
+                  className="w-full h-full"
+                  resizeMode="contain"
+                />
+              ) : (
+                <Text className="text-lg font-bold text-neutral-700">
+                  {startupAdmin.companyName.charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </View>
+            <View className="flex-1">
+              <StartupBadge companyName={startupAdmin.companyName} compact />
+              <Text className="text-sm font-semibold text-black mt-2">
+                Startup admin
+              </Text>
+              <Text className="text-sm text-neutral-600 mt-1 leading-5">
+                You scanned the admin for {startupAdmin.companyName}. Connect or
+                request a meeting with them on behalf of their startup.
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
+
       <View className="flex-row items-start mb-4">
         <View className="w-20 h-20 rounded-full bg-neutral-200 items-center justify-center mr-4 overflow-hidden">
           {user.profile_pic ? (

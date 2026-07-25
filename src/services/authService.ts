@@ -46,6 +46,7 @@ export interface RequestOTPRequest {
 export interface VerifyOTPRequest {
   email: string;
   otp: string; // 6-digit OTP code
+  event_id?: number;
 }
 
 /**
@@ -212,8 +213,15 @@ export const authService = {
    * Response schema in YAML says "No response body" but the backend does return a token (in response.data).
    * There is no /auth/refresh in the spec — backend uses a single token; we store refresh_token only if sent.
    */
-  async verifyOTP(email: string, otp: string): Promise<void> {
+  async verifyOTP(
+    email: string,
+    otp: string,
+    eventId?: number,
+  ): Promise<void> {
     const requestData: VerifyOTPRequest = { email, otp };
+    if (eventId) {
+      requestData.event_id = eventId;
+    }
 
     const response = await api.post<VerifyOTPRequest>(
       "/auth/token/",

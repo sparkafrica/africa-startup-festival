@@ -142,7 +142,7 @@ export default function Menu({
           <Text className="text-[24px] font-bold text-neutral-900">Menu</Text>
           <Pressable
             onPress={onClose}
-            className="w-10 h-10 rounded-full border border-neutral-300 items-center justify-center"
+            className="w-10 h-10 items-center justify-center"
           >
             <CloseIcon size={20} color="#444" />
           </Pressable>

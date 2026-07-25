@@ -6,6 +6,8 @@
 
 import { api, ApiResponse, PaginationMeta } from "./api";
 import { ApiClientError } from "./api";
+import { EVENT_ID } from "../config/env";
+import { matchesActiveEvent } from "../utils/eventScope";
 
 // ============================================================================
 // REQUEST/RESPONSE TYPES
@@ -145,11 +147,13 @@ export const connectionService = {
    */
   async getConnections(
     page: number = 1,
-    pageSize?: number
+    pageSize?: number,
+    eventId: number = EVENT_ID,
   ): Promise<{ connections: Connection[]; pagination: PaginationMeta }> {
     try {
       const params: Record<string, string> = {
         page: page.toString(),
+        event_id: String(eventId),
       };
       if (pageSize) {
         params.page_size = pageSize.toString();
@@ -251,12 +255,14 @@ export const connectionService = {
    */
   async createConnection(
     fromUserId: string,
-    toUserId: string
+    toUserId: string,
+    eventId: number = EVENT_ID,
   ): Promise<Connection> {
     try {
       const response = await api.post<any>("/connections/", {
         from_user_id: fromUserId,
         to_user_id: toUserId,
+        event_id: eventId,
       });
 
       // Response logged only in development if needed for debugging

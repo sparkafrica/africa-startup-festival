@@ -116,8 +116,9 @@ export default function LoginScreen() {
           <View className="flex-1 justify-center px-6 py-4">
             {/* Main Content Card */}
             <View
-              className="bg-white rounded-3xl px-6 py-14"
+              className="bg-white px-6 py-14"
               style={{
+                borderRadius: 0,
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.1,
@@ -156,7 +157,7 @@ export default function LoginScreen() {
                   Email linked to your ticket
                 </Text> */}
                 <TextInput
-                  className="bg-white border border-neutral-300 rounded-xl px-4 py-4 text-base text-neutral-900"
+                  className="bg-white border border-neutral-300 px-4 py-4 text-base text-neutral-900"
                   placeholder="you@example.com"
                   placeholderTextColor="#A3A3A3"
                   value={email}
@@ -167,6 +168,7 @@ export default function LoginScreen() {
                   autoComplete="email"
                   editable={!isSubmitting}
                   style={{
+                    borderRadius: 0,
                     borderColor:
                       isEmailValid && email.length > 0 ? "#1BB273" : "#D4D4D4",
                   }}
@@ -177,10 +179,11 @@ export default function LoginScreen() {
               <Pressable
                 onPress={handleSendCode}
                 disabled={!isEmailValid || isSubmitting}
-                className={`rounded-xl py-4 items-center justify-center ${
+                className={`py-4 items-center justify-center ${
                   isEmailValid && !isSubmitting ? "bg-black" : "bg-neutral-300"
                 }`}
                 style={{
+                  borderRadius: 0,
                   opacity: isEmailValid && !isSubmitting ? 1 : 0.6,
                 }}
               >
