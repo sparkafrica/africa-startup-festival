@@ -29,3 +29,7 @@ export const CUSTOMERIO_REGION = (
 export function isCustomerIOConfigured(): boolean {
   return CUSTOMERIO_CDP_API_KEY.length > 0;
 }
+
+/** Set EXPO_PUBLIC_CUSTOMERIO_VERBOSE=true to enable native SDK debug logs. */
+export const CUSTOMERIO_VERBOSE =
+  process.env.EXPO_PUBLIC_CUSTOMERIO_VERBOSE === "true";

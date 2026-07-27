@@ -21,11 +21,31 @@ import { notificationService } from "../services/notificationService";
 import { registerCustomerIODeviceToken } from "../services/customerioService";
 import { EVENT_ID } from "../config/env";
 
+let lastSparkRegistrationId: string | null = null;
+
+function pushLog(message: string): void {
+  if (__DEV__) console.log(`[Push] ${message}`);
+}
+
+function pushWarn(message: string): void {
+  if (__DEV__) console.warn(`[Push] ${message}`);
+}
+
 /** Device type for backend: android | ios | web */
 function getDeviceType(): "android" | "ios" | "web" {
   if (Platform.OS === "android") return "android";
   if (Platform.OS === "ios") return "ios";
   return "web";
+}
+
+function isDeviceAlreadyRegisteredError(err: unknown): boolean {
+  const message =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+        ? err
+        : "";
+  return /already exists/i.test(message);
 }
 
 /**
@@ -60,6 +80,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
       authStatus === AuthorizationStatus.AUTHORIZED ||
       authStatus === AuthorizationStatus.PROVISIONAL;
     if (!granted) {
+      pushWarn("permission denied on iOS");
       return null;
     }
     // iOS: Register with APNs BEFORE getToken. FCM requires APNs token to vend a valid FCM token.
@@ -79,6 +100,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
       finalStatus = requested;
     }
     if (finalStatus !== "granted") {
+      pushWarn("permission denied on Android");
       return null;
     }
   }
@@ -88,39 +110,42 @@ export async function registerForPushNotifications(): Promise<string | null> {
   try {
     registrationId = await getToken(messaging);
   } catch (err) {
-    if (__DEV__) {
-      console.warn(
-        "[push] getToken failed:",
-        err instanceof Error ? err.message : String(err)
-      );
-    }
+    pushWarn(`FCM token failed — ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 
   if (!registrationId || typeof registrationId !== "string") {
-    if (__DEV__) {
-      console.warn("[push] getToken returned empty or non-string:", registrationId);
-    }
+    pushWarn("FCM token empty");
     return null;
   }
 
-  try {
-    const deviceType = getDeviceType();
-    await notificationService.registerDevice(registrationId, deviceType, EVENT_ID);
-    await registerCustomerIODeviceToken(registrationId);
-    if (__DEV__) {
-      console.log(
-        `[push] Registered ${deviceType} device, token length: ${registrationId.length}`
-      );
-    }
+  if (lastSparkRegistrationId === registrationId) {
     return registrationId;
+  }
+
+  const deviceType = getDeviceType();
+  let sparkRegistered = false;
+
+  try {
+    await notificationService.registerDevice(registrationId, deviceType, EVENT_ID);
+    sparkRegistered = true;
   } catch (err) {
-    if (__DEV__) {
-      console.warn(
-        "[push] registerDevice failed:",
-        err instanceof Error ? err.message : String(err)
+    if (isDeviceAlreadyRegisteredError(err)) {
+      sparkRegistered = true;
+    } else {
+      pushWarn(
+        `Spark register failed — ${err instanceof Error ? err.message : String(err)}`,
       );
     }
-    return null;
   }
+
+  await registerCustomerIODeviceToken(registrationId);
+
+  if (sparkRegistered) {
+    lastSparkRegistrationId = registrationId;
+    pushLog(`${deviceType} registered · token ${registrationId.length} chars`);
+    return registrationId;
+  }
+
+  return null;
 }
