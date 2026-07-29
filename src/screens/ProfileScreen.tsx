@@ -35,6 +35,7 @@ import { CloseIcon } from "../components/MenuIcons";
 import { LoadingSpinner } from "../components";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
+import { useDismissKeyboardOnBackground } from "../hooks/useDismissKeyboardOnBackground";
 import { trackProfileEvent } from "../utils/analytics";
 import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
@@ -4158,6 +4159,8 @@ function CompanyProfileSection({
 }
 
 export default function ProfileScreen() {
+  useDismissKeyboardOnBackground();
+
   const route = useRoute<RouteProp<RootStackParamList, "Profile">>();
   const { user, refreshUser } = useAuth();
   const {

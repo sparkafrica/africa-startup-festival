@@ -2,3 +2,4 @@
 export { useMeetingsBadgeCount } from "./useMeetingsBadgeCount";
 export { useMessagesBadgeCount } from "./useMessagesBadgeCount";
 export { useRefreshMessagesBadgeOnFocus } from "./useRefreshMessagesBadgeOnFocus";
+export { useDismissKeyboardOnBackground } from "./useDismissKeyboardOnBackground";

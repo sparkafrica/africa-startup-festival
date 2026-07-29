@@ -38,6 +38,7 @@ import { CloseIcon } from "../components/MenuIcons";
 import { LoadingSpinner, SkeletonAppShell } from "../components";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
+import { useDismissKeyboardOnBackground } from "../hooks/useDismissKeyboardOnBackground";
 import { trackProfileEvent } from "../utils/analytics";
 import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
@@ -3830,6 +3831,8 @@ function SegmentedControl({
 }
 
 export default function CompleteProfileScreen({ route }: Props) {
+  useDismissKeyboardOnBackground();
+
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { user, completeProfile } = useAuth();
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
