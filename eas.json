@@ -45,5 +45,10 @@
         "track": "internal"
       }
     }
+  },
+  "update": {
+  "production": {
+      "channel": "production"
+    }
   }
 }
