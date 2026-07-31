@@ -11,29 +11,27 @@ import type { RootStackParamList } from "../navigation/types";
 import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
 import {
-  blocksMeetingBooking,
-  ticketTypeFromTicket,
+  blocksMeetingBookingForTicket,
+  collectTicketTypeStrings,
 } from "./asfTicketClass";
 
 const MEETING_BLOCK_MESSAGE =
-  "Explorer passes cannot book meetings in the app. Upgrade your pass or connect at the event.";
-
-function getTicketTypeForRestrictions(
-  ticket: {
-    type?: { name?: string; user_type?: string };
-    ticket_class?: { name?: string; user_type?: string };
-  } | null,
-): string {
-  return ticketTypeFromTicket(ticket);
-}
+  "Explorer passes cannot book meetings. Upgrade your pass to access the meeting booking feature.";
 
 export async function getCanUserBookMeetings(): Promise<boolean> {
   try {
     const ticket = await ticketService.getUserTicket(EVENT_ID, {
       bypassCache: true,
     });
-    const type = getTicketTypeForRestrictions(ticket ?? null);
-    return !blocksMeetingBooking(type);
+    const blocked = blocksMeetingBookingForTicket(ticket ?? null);
+    if (__DEV__) {
+      console.log("[meetingRestrictions] canBookMeetings", {
+        blocked,
+        canBook: !blocked,
+        ticketFields: collectTicketTypeStrings(ticket ?? null),
+      });
+    }
+    return !blocked;
   } catch {
     return false;
   }

@@ -11,23 +11,53 @@ function normalizeType(input?: string): string {
   return input.toLowerCase().replace(/\s+/g, " ");
 }
 
-export function ticketTypeFromTicket(ticket: {
+export type TicketShape = {
   type?: { name?: string; user_type?: string };
   ticket_class?: { name?: string; user_type?: string };
   ticket_type?: string;
   ticket_class_name?: string;
-} | null): string {
-  if (!ticket) return "";
-  if (ticket.ticket_type) {
-    return normalizeType(ticket.ticket_type);
+};
+
+/** All distinct normalized type strings from a ticket payload (name + user_type fields). */
+export function collectTicketTypeStrings(ticket: TicketShape | null): string[] {
+  if (!ticket) return [];
+  const raw = [
+    ticket.ticket_type,
+    ticket.type?.name,
+    ticket.type?.user_type,
+    ticket.ticket_class?.name,
+    ticket.ticket_class?.user_type,
+    ticket.ticket_class_name,
+  ];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of raw) {
+    const normalized = normalizeType(value);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
   }
-  return (
-    ticket.type?.user_type ??
-    ticket.type?.name ??
-    ticket.ticket_class?.user_type ??
-    ticket.ticket_class?.name ??
-    ""
-  );
+  return out;
+}
+
+export function ticketTypeFromTicket(ticket: TicketShape | null): string {
+  if (!ticket) return "";
+  const candidates = collectTicketTypeStrings(ticket);
+  if (candidates.length === 0) return "";
+  // Prefer display name (matches Menu) over generic backend user_type e.g. "attendee".
+  const nameFirst = [
+    ticket.type?.name,
+    ticket.ticket_class?.name,
+    ticket.ticket_class_name,
+    ticket.ticket_type,
+    ticket.type?.user_type,
+    ticket.ticket_class?.user_type,
+  ];
+  for (const value of nameFirst) {
+    const normalized = normalizeType(value);
+    if (normalized) return normalized;
+  }
+  return candidates[0];
 }
 
 export function ticketClassNameFromTicket(ticket: {
@@ -68,9 +98,23 @@ export async function getCurrentUserTicketType(): Promise<string> {
   return info.ticketType;
 }
 
+function isLimitedPassAlias(normalized: string): boolean {
+  return (
+    normalized.includes("exhibition") || normalized.includes("limited pass")
+  );
+}
+
 export function isExplorerPass(ticketTypeOrName?: string): boolean {
   const t = normalizeType(ticketTypeOrName);
-  return t.includes("explorer");
+  if (!t) return false;
+  return t.includes("explorer") || isLimitedPassAlias(t);
+}
+
+/** True when any ticket field identifies an Explorer / limited pass. */
+export function ticketIsExplorerPass(ticket: TicketShape | null): boolean {
+  return collectTicketTypeStrings(ticket).some((candidate) =>
+    isExplorerPass(candidate),
+  );
 }
 
 /** Startup pass — company connect flow after personal profile. Legacy "founder" tickets map here. */
@@ -112,6 +156,10 @@ export function isMediaPass(ticketTypeOrName?: string): boolean {
 /** Explorer pass: main-stage access only — no meeting booking in-app. */
 export function blocksMeetingBooking(ticketTypeOrName?: string): boolean {
   return isExplorerPass(ticketTypeOrName);
+}
+
+export function blocksMeetingBookingForTicket(ticket: TicketShape | null): boolean {
+  return ticketIsExplorerPass(ticket);
 }
 
 export function attendeeLooksLikeInvestor(attendee: {
