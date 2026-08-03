@@ -86,6 +86,7 @@ import {
 import {
   canMessagePeer,
   getAcceptedMeetingPeerIds,
+  hasPendingMeetingWithPeer,
 } from "../utils/messagingEligibility";
 import { useToast } from "../hooks/useToast";
 import {
@@ -122,6 +123,7 @@ import {
   coerceMetadataLabel,
   coerceMetadataStringArray,
 } from "../utils/metadataCoerce";
+import { getEventMetadata } from "../utils/eventMetadata";
 import Svg, { Path, Circle } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -421,7 +423,11 @@ function getAttendeeProfilePicUri(attendee: Attendee): string | undefined {
   return undefined;
 }
 
-function attendeeCanMessage(attendee: Attendee): boolean {
+function attendeeCanMessage(
+  attendee: Attendee,
+  viewerIsInvestor = false,
+): boolean {
+  if (viewerIsInvestor) return true;
   return canMessagePeer({
     connectionStatus: attendee.connectionStatus,
     hasAcceptedMeeting: attendee.hasAcceptedMeeting,
@@ -594,6 +600,8 @@ interface AttendeeCardProps {
   onMessage?: (attendee: Attendee) => void;
   /** True while opening chat from any attendee card (top card only is interactive). */
   messageOpening?: boolean;
+  /** Investor pass: Message always enabled. */
+  viewerIsInvestor?: boolean;
   index: number;
   totalCards: number;
   hasFilters?: boolean;
@@ -610,10 +618,12 @@ function AttendeeCard({
   onConnect,
   onMessage,
   messageOpening = false,
+  viewerIsInvestor = false,
   index,
   totalCards,
   hasFilters = false,
 }: AttendeeCardProps) {
+  const canMessage = attendeeCanMessage(attendee, viewerIsInvestor);
   const screenWidth = Dimensions.get("window").width;
   const cardWidth = screenWidth - 32; // 16px padding on each side
 
@@ -1122,7 +1132,7 @@ function AttendeeCard({
                   className={`flex-row items-center justify-center ${
                     hasFilters ? "px-2" : "px-3"
                   } ${
-                    attendeeCanMessage(attendee)
+                    canMessage
                       ? "bg-[#1BB273] shadow-sm"
                       : "border border-dashed border-neutral-300 bg-white"
                   }`}
@@ -1133,9 +1143,7 @@ function AttendeeCard({
                     <>
                       <SpeechBubbleIcon
                         size={hasFilters ? 16 : 18}
-                        color={
-                          attendeeCanMessage(attendee) ? "#FFFFFF" : "#A3A3A3"
-                        }
+                        color={canMessage ? "#FFFFFF" : "#A3A3A3"}
                       />
                       <Text
                         className={`${
@@ -1143,9 +1151,7 @@ function AttendeeCard({
                             ? "text-xs font-semibold"
                             : "text-sm font-semibold"
                         } ml-1.5 ${
-                          attendeeCanMessage(attendee)
-                            ? "text-white"
-                            : "text-neutral-400"
+                          canMessage ? "text-white" : "text-neutral-400"
                         }`}
                         numberOfLines={1}
                       >
@@ -1255,6 +1261,17 @@ export default function AttendeesScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
+  const [viewerIsInvestor, setViewerIsInvestor] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void currentUserIsInvestor().then((isInvestor) => {
+      if (!cancelled) setViewerIsInvestor(isInvestor);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.user_id]);
 
   // Directory startups (mode = startups)
   const [directoryStartups, setDirectoryStartups] = useState<
@@ -1520,15 +1537,7 @@ export default function AttendeesScreen() {
   ): Attendee => {
     const user = backendAttendee.user;
 
-    // Parse metadata (might be string or object)
-    let metadata = user.metadata;
-    if (typeof metadata === "string") {
-      try {
-        metadata = JSON.parse(metadata);
-      } catch (e) {
-        metadata = {};
-      }
-    }
+    const metadata = getEventMetadata(user.metadata);
 
     // Extract name
     const firstName = user.first_name || "";
@@ -1563,13 +1572,17 @@ export default function AttendeesScreen() {
     const interests = coerceMetadataStringArray(metadata?.interests);
 
     // Extract bio from metadata
-    const bio = metadata?.bio || "";
+    const bio = typeof metadata.bio === "string" ? metadata.bio : "";
 
-    // Extract LinkedIn URL
     const linkedInUrl =
-      metadata?.linkedIn || metadata?.linkedin_url || undefined;
+      (typeof metadata.linkedIn === "string" ? metadata.linkedIn : undefined) ||
+      (typeof metadata.linkedin_url === "string"
+        ? metadata.linkedin_url
+        : undefined);
 
-    const startupBadge = resolveAttendeeStartupBadge(user as any);
+    const startupBadge = resolveAttendeeStartupBadge(user as any, {
+      ticketTypeName: ticketTypeFromTicket(backendAttendee.ticket ?? null),
+    });
 
     return {
       id: String(user.id),
@@ -2191,10 +2204,25 @@ export default function AttendeesScreen() {
           return;
         }
       }
+      const currentUserId = String(user?.user_id ?? "").trim();
+      if (currentUserId) {
+        const pending = await hasPendingMeetingWithPeer(
+          attendee.id,
+          currentUserId,
+        );
+        if (pending) {
+          Alert.alert(
+            "Meeting request pending",
+            "You already have a pending meeting request with this person. Wait for them to accept or decline before sending another.",
+            [{ text: "OK" }],
+          );
+          return;
+        }
+      }
       setMeetingAttendee(attendee);
       setIsRequestMeetingModalVisible(true);
     },
-    [navigation],
+    [navigation, user?.user_id],
   );
 
   const handleAttendeeMessage = useCallback(
@@ -2874,6 +2902,7 @@ export default function AttendeesScreen() {
                                 }
                                 onMessage={handleAttendeeMessage}
                                 messageOpening={isOpeningChat}
+                                viewerIsInvestor={viewerIsInvestor}
                                 index={index}
                                 totalCards={Math.min(
                                   5,
@@ -3353,7 +3382,7 @@ export default function AttendeesScreen() {
                         <Pressable
                           onPress={() => {
                             const a = selectedAttendee;
-                            if (attendeeCanMessage(a)) {
+                            if (attendeeCanMessage(a, viewerIsInvestor)) {
                               closeBottomSheet();
                             }
                             void handleAttendeeMessage(a);
@@ -3366,7 +3395,10 @@ export default function AttendeesScreen() {
                             borderRadius: 0,
                           }}
                           className={`flex-row items-center justify-center px-3 ${
-                            attendeeCanMessage(selectedAttendee)
+                            attendeeCanMessage(
+                              selectedAttendee,
+                              viewerIsInvestor,
+                            )
                               ? "bg-[#1BB273] shadow-sm"
                               : "border border-dashed border-neutral-300 bg-white"
                           }`}
@@ -3375,7 +3407,10 @@ export default function AttendeesScreen() {
                             <LoadingSpinner
                               size="small"
                               color={
-                                attendeeCanMessage(selectedAttendee)
+                                attendeeCanMessage(
+                                  selectedAttendee,
+                                  viewerIsInvestor,
+                                )
                                   ? "#FFFFFF"
                                   : "#404040"
                               }
@@ -3385,14 +3420,20 @@ export default function AttendeesScreen() {
                               <SpeechBubbleIcon
                                 size={18}
                                 color={
-                                  attendeeCanMessage(selectedAttendee)
+                                  attendeeCanMessage(
+                                    selectedAttendee,
+                                    viewerIsInvestor,
+                                  )
                                     ? "#FFFFFF"
                                     : "#A3A3A3"
                                 }
                               />
                               <Text
                                 className={`text-sm font-semibold ml-1.5 ${
-                                  attendeeCanMessage(selectedAttendee)
+                                  attendeeCanMessage(
+                                    selectedAttendee,
+                                    viewerIsInvestor,
+                                  )
                                     ? "text-white"
                                     : "text-neutral-400"
                                 }`}
@@ -3424,16 +3465,13 @@ export default function AttendeesScreen() {
         onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
         virtualOnly={isPostEventMode()}
         onSubmit={async (data: MeetingFormData) => {
-          if (!meetingAttendee) {
-            showToast("No attendee selected", "error");
-            throw new Error("No attendee");
-          }
           if (isPostEventMode() && data.meetingType === "Physical") {
-            showToast(
+            throw new Error(
               "Africa Startup Festival has ended — only virtual meetings are available.",
-              "error",
             );
-            return;
+          }
+          if (!meetingAttendee) {
+            throw new Error("No attendee selected");
           }
           try {
             await meetingService.submitMeetingRequestFromForm(
@@ -3459,8 +3497,8 @@ export default function AttendeesScreen() {
                 ? e.message
                 : e?.message ||
                   "Failed to send meeting request. Please try again.";
-            showToast(msg, "error");
-            throw e;
+            // RequestMeetingModal shows toast above the sheet; rethrow to keep form open.
+            throw e instanceof Error ? e : new Error(msg);
           }
         }}
         attendeeName={meetingAttendee?.name}

@@ -27,3 +27,22 @@ export function matchesActiveEvent(
   const resolved = resolveEventId(event);
   return resolved == null ? true : resolved === eventId;
 }
+
+/** Strict event match for meetings — excludes rows with missing/unknown event. */
+export function meetingBelongsToEvent(
+  meeting: {
+    slot?: { event?: number | { id?: number } } | null;
+    event?: number | { id?: number } | null;
+    event_id?: number | null;
+  },
+  eventId: number = EVENT_ID,
+): boolean {
+  const fromSlot = resolveEventId(meeting.slot?.event ?? null);
+  const fromEvent = resolveEventId(meeting.event ?? null);
+  const fromId =
+    typeof meeting.event_id === "number" && Number.isFinite(meeting.event_id)
+      ? meeting.event_id
+      : null;
+  const resolved = fromSlot ?? fromEvent ?? fromId;
+  return resolved === eventId;
+}

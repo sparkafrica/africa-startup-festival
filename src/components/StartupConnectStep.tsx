@@ -189,7 +189,7 @@ export default function StartupConnectStep({
   variant = "onboarding",
   onComplete,
 }: StartupConnectStepProps) {
-  const { completeProfile } = useAuth();
+  const { completeProfile, user, refreshUser } = useAuth();
   const {
     viewState,
     isLoading: isJoinStatusLoading,
@@ -249,13 +249,20 @@ export default function StartupConnectStep({
   }, [completeProfile, onComplete, variant]);
 
   const runSearch = useCallback(async (query: string) => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setResults([]);
+      setSearchError(null);
+      setIsSearching(false);
+      return;
+    }
     setIsSearching(true);
     setSearchError(null);
     try {
       const { companies } = await eventService.getDirectoryCompanies(
         EVENT_ID,
         "startup",
-        { search: query.trim() || undefined, page_size: 30 },
+        { search: trimmed, page_size: 20 },
       );
       setResults(companies);
     } catch (e: unknown) {
@@ -323,6 +330,27 @@ export default function StartupConnectStep({
   };
 
   const handleRequestJoin = async () => {
+    if (viewState.phase === "linked") {
+      Alert.alert(
+        "Already linked",
+        `You're already linked to ${viewState.companyName ?? "a startup"}. You can't request to join another startup.`,
+      );
+      return;
+    }
+    if (viewState.phase === "pending") {
+      Alert.alert(
+        "Request pending",
+        `You already have a pending request${viewState.companyName ? ` for ${viewState.companyName}` : ""}. Wait for the admin to approve or decline before sending another.`,
+      );
+      return;
+    }
+    if (user?.company?.id) {
+      Alert.alert(
+        "Already linked",
+        `You're already a member of ${user.company.name ?? "a startup"}.`,
+      );
+      return;
+    }
     if (!selectedCompanyId) {
       Alert.alert(
         "Select your startup",
@@ -334,6 +362,8 @@ export default function StartupConnectStep({
     try {
       await companyService.requestJoinCompany(selectedCompanyId);
       await refresh();
+      await refreshUser();
+      onComplete?.();
       Alert.alert(
         "Request sent",
         `Your request to join ${selectedCompanyName || "the startup"} is pending. You can use the app right away — once the startup admin approves, you'll get a badge on your profile.`,
@@ -341,8 +371,22 @@ export default function StartupConnectStep({
           ? [{ text: "Continue to app", onPress: () => void finishFlow() }]
           : [{ text: "OK" }],
       );
-    } catch (e: any) {
-      Alert.alert("Error", e?.message || "Could not send join request.");
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e
+          ? String((e as { message?: string }).message)
+          : "Could not send join request.";
+      const lower = msg.toLowerCase();
+      if (lower.includes("already a member") || lower.includes("already linked")) {
+        Alert.alert(
+          "Already linked",
+          "You're already linked to a startup. Refresh your profile if this looks wrong.",
+        );
+        await refreshUser();
+        onComplete?.();
+      } else {
+        Alert.alert("Error", msg);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -556,9 +600,11 @@ export default function StartupConnectStep({
               ) : results.length === 0 ? (
                 <View className="py-4 px-2">
                   <Text className="text-sm text-neutral-600 text-center leading-5">
-                    {search.trim()
-                      ? "No startups match that name yet."
-                      : "Type your startup name to search the directory."}
+                    {search.trim().length < 2
+                      ? "Type at least 2 characters to search the directory."
+                      : search.trim()
+                        ? "No startups match that name yet."
+                        : "Type your startup name to search the directory."}
                   </Text>
                 </View>
               ) : (

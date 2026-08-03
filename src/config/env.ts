@@ -66,6 +66,16 @@ export const CDN_BASE_URL = CDN_CONFIG[environment];
 // TODO: Consider fetching current event from backend API in the future
 export const EVENT_ID = 11;
 
+/** Stable metadata namespace keys — same across dev/prod (numeric event IDs differ). */
+export const EVENT_METADATA_KEYS_BY_ID: Record<number, string> = {
+  11: "asfkenya26",
+  13: "asflagos26",
+};
+
+/** Active festival metadata bag inside user.metadata (paired with EVENT_ID). */
+export const EVENT_METADATA_KEY =
+  EVENT_METADATA_KEYS_BY_ID[EVENT_ID] ?? `event_${EVENT_ID}`;
+
 /** Public marketing / ticket-purchase site per event (Kenya = 11, Lagos = 13). */
 const EVENT_WEBSITE_URLS: Record<number, string> = {
   11: "https://kenya.africastartupfestival.com/",

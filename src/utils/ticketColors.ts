@@ -12,7 +12,6 @@ const TICKET_COLORS: Record<string, string> = {
   operator: "#1D4ED8",
   investor: "#0F766E",
   exhibitor: "#7C3AED",
-  sponsor: "#4F46E5",
   partner: "#4F46E5",
   media: "#EAB308",
   speaker: "#EA580C",
@@ -25,7 +24,6 @@ const TICKET_GRADIENTS: Record<string, [string, string]> = {
   operator: ["#1D4ED8", "#3B82F6"],
   investor: ["#0F766E", "#14B8A6"],
   exhibitor: ["#7C3AED", "#8B5CF6"],
-  sponsor: ["#4F46E5", "#6366F1"],
   partner: ["#4F46E5", "#6366F1"],
   media: ["#EAB308", "#FACC15"],
   speaker: ["#EA580C", "#F97316"],
@@ -37,8 +35,7 @@ const TICKET_LABELS: Record<string, string> = {
   operator: "Operator",
   investor: "Investor",
   exhibitor: "Exhibitor",
-  sponsor: "Sponsor",
-  partner: "Sponsor",
+  partner: "Partner",
   media: "Media",
   speaker: "Speaker",
 };
@@ -70,8 +67,7 @@ export function getTicketBackgroundColor(ticketTypeOrName?: string): string {
   if (t.includes("operator")) return TICKET_COLORS.operator;
   if (isStartupPassAlias(t)) return TICKET_COLORS.startup;
   if (t.includes("investor")) return TICKET_COLORS.investor;
-  if (t.includes("sponsor")) return TICKET_COLORS.sponsor;
-  if (t.includes("partner")) return TICKET_COLORS.partner;
+  if (t.includes("partner") || t.includes("sponsor")) return TICKET_COLORS.partner;
   if (t.includes("exhibitor")) return TICKET_COLORS.exhibitor;
   if (t.includes("media")) return TICKET_COLORS.media;
   if (t.includes("speaker")) return TICKET_COLORS.speaker;
@@ -99,9 +95,7 @@ export function getTicketTypeDisplay(ticketTypeOrName?: string): {
     return { label: TICKET_LABELS.startup, color: TICKET_COLORS.startup };
   if (t.includes("investor"))
     return { label: TICKET_LABELS.investor, color: TICKET_COLORS.investor };
-  if (t.includes("sponsor"))
-    return { label: TICKET_LABELS.sponsor, color: TICKET_COLORS.sponsor };
-  if (t.includes("partner"))
+  if (t.includes("partner") || t.includes("sponsor"))
     return { label: TICKET_LABELS.partner, color: TICKET_COLORS.partner };
   if (t.includes("exhibitor"))
     return { label: TICKET_LABELS.exhibitor, color: TICKET_COLORS.exhibitor };
@@ -126,8 +120,8 @@ export function getTicketGradientColors(
   if (t.includes("operator")) return TICKET_GRADIENTS.operator;
   if (isStartupPassAlias(t)) return TICKET_GRADIENTS.startup;
   if (t.includes("investor")) return TICKET_GRADIENTS.investor;
-  if (t.includes("sponsor") || t.includes("partner"))
-    return TICKET_GRADIENTS.sponsor;
+  if (t.includes("partner") || t.includes("sponsor"))
+    return TICKET_GRADIENTS.partner;
   if (t.includes("exhibitor")) return TICKET_GRADIENTS.exhibitor;
   if (t.includes("media")) return TICKET_GRADIENTS.media;
   if (t.includes("speaker")) return TICKET_GRADIENTS.speaker;
@@ -151,8 +145,7 @@ function hexToLuminance(hex: string): number {
 /** True when the pass gradient is light enough for dark foreground text. */
 export function isLightTicketCard(ticketTypeOrName?: string): boolean {
   const [start, end] = getTicketGradientColors(ticketTypeOrName);
-  const averageLuminance =
-    (hexToLuminance(start) + hexToLuminance(end)) / 2;
+  const averageLuminance = (hexToLuminance(start) + hexToLuminance(end)) / 2;
   return averageLuminance > 0.45;
 }
 

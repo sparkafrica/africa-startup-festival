@@ -35,6 +35,12 @@ export function todayIsoLocal(): string {
   return toDateIso(now.getFullYear(), now.getMonth() + 1, now.getDate());
 }
 
+/** Last day of the current calendar year (e.g. virtual meetings through December). */
+export function endOfDecemberIsoCurrentYear(): string {
+  const year = new Date().getFullYear();
+  return toDateIso(year, 12, 31);
+}
+
 export function addDaysToIso(iso: string, days: number): string {
   const { y, m, d } = parseDateIso(iso);
   const dt = new Date(y, m - 1, d);
@@ -103,6 +109,29 @@ export function shiftMonth(
 ): { year: number; month: number } {
   const dt = new Date(year, month - 1 + delta, 1);
   return { year: dt.getFullYear(), month: dt.getMonth() + 1 };
+}
+
+/** Inclusive month range from min ISO through max ISO (same calendar month granularity). */
+export function listMonthsBetween(
+  minDateIso: string,
+  maxDateIso: string,
+): { year: number; month: number }[] {
+  const start = parseDateIso(minDateIso);
+  const end = parseDateIso(maxDateIso);
+  const months: { year: number; month: number }[] = [];
+  let year = start.y;
+  let month = start.m;
+  const endKey = end.y * 12 + end.m;
+
+  while (year * 12 + month <= endKey) {
+    months.push({ year, month });
+    ({ year, month } = shiftMonth(year, month, 1));
+  }
+  return months;
+}
+
+export function monthKey(year: number, month: number): string {
+  return `${year}-${pad2(month)}`;
 }
 
 export interface TimeOption {

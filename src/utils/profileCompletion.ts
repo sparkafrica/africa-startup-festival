@@ -6,6 +6,7 @@
  */
 
 import { UserProfile, Company } from "../services/authService";
+import { getEventMetadata } from "./eventMetadata";
 
 /**
  * Check if personal profile fields are complete
@@ -18,28 +19,12 @@ function isPersonalProfileComplete(user: UserProfile): boolean {
   const hasBio = !!(user.bio && user.bio.trim().length >= 10);
   const hasCountry = !!(user.country && user.country.trim().length > 0);
 
-  // Check if interests exist in metadata (required: at least 2)
+  // Check if interests exist in event-scoped metadata (required: at least 2)
   let hasInterests = false;
-  if (user.metadata) {
-    // Handle case where metadata might be a JSON string (backend might serialize it)
-    let metadataObj: any;
-    if (typeof user.metadata === "string") {
-      try {
-        metadataObj = JSON.parse(user.metadata);
-      } catch (e) {
-        console.warn("Failed to parse metadata as JSON:", e);
-        metadataObj = null;
-      }
-    } else if (typeof user.metadata === "object") {
-      metadataObj = user.metadata;
-    }
-
-    if (metadataObj && typeof metadataObj === "object") {
-      const interests = metadataObj.interests;
-      if (Array.isArray(interests) && interests.length >= 2) {
-        hasInterests = true;
-      }
-    }
+  const metadataObj = getEventMetadata(user.metadata);
+  const interests = metadataObj.interests;
+  if (Array.isArray(interests) && interests.length >= 2) {
+    hasInterests = true;
   }
 
   // Debug logging removed for production - uncomment if needed for debugging

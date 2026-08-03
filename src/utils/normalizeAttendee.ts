@@ -5,6 +5,7 @@
 
 import type { Attendee, AttendeeUser } from "../services/ticketService";
 import { coerceMetadataLabel, coerceMetadataStringArray } from "./metadataCoerce";
+import { getEventMetadata } from "./eventMetadata";
 
 /** Loose attendee shape from directory APIs (ticket may be partial). */
 export type AttendeeLike = {
@@ -29,7 +30,7 @@ export function parseUserMetadata(raw: unknown): Record<string, unknown> {
 }
 
 export function normalizeAttendeeUser(user: AttendeeUser): AttendeeUser {
-  const metadata = parseUserMetadata(user.metadata);
+  const metadata = getEventMetadata(user.metadata);
   const interests = coerceMetadataStringArray(metadata.interests);
 
   return {
@@ -59,8 +60,8 @@ export function mergeAttendeeProfiles(
   const pUser = primary.user;
   const eUser = enriched.user as AttendeeUser;
   const mergedMeta = {
-    ...parseUserMetadata(eUser.metadata),
-    ...parseUserMetadata(pUser.metadata),
+    ...getEventMetadata(eUser.metadata),
+    ...getEventMetadata(pUser.metadata),
   };
 
   const mergedUser: AttendeeUser = {

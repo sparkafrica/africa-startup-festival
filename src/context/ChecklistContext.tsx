@@ -7,9 +7,13 @@ import React, {
   useRef,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { EVENT_METADATA_KEY } from "../config/env";
 import { useAuth } from "./AuthContext";
 import { authService } from "../services/authService";
-import { getSafeMetadataObjectForMerge } from "../utils/sanitizeUserMetadata";
+import {
+  getEventMetadata,
+  mergeEventMetadata,
+} from "../utils/eventMetadata";
 
 const CHECKLIST_STORAGE_KEY_PREFIX = "@spark:checklist_user:";
 const DAY2_CHECKLIST_STORAGE_KEY_PREFIX = "@spark:checklist_day2_user:";
@@ -64,46 +68,28 @@ const defaultDay2State: Day2ChecklistState = {
   sessionFeedback: false,
 };
 
-function parseChecklistFromMetadata(metadata: any): ChecklistState | null {
-  if (metadata == null) return null;
-  const raw =
-    typeof metadata === "string"
-      ? (() => {
-          try {
-            return JSON.parse(metadata);
-          } catch {
-            return null;
-          }
-        })()
-      : metadata;
-  const checklist = raw?.[METADATA_CHECKLIST_KEY];
+function parseChecklistFromMetadata(metadata: unknown): ChecklistState | null {
+  const eventMeta = getEventMetadata(metadata);
+  const checklist = eventMeta[METADATA_CHECKLIST_KEY];
   if (!checklist || typeof checklist !== "object") return null;
   return {
-    connectAttendees: !!checklist.connectAttendees,
-    requestMeeting: !!checklist.requestMeeting,
-    addSessions: !!checklist.addSessions,
+    connectAttendees: !!(checklist as ChecklistState).connectAttendees,
+    requestMeeting: !!(checklist as ChecklistState).requestMeeting,
+    addSessions: !!(checklist as ChecklistState).addSessions,
   };
 }
 
-function parseDay2ChecklistFromMetadata(metadata: any): Day2ChecklistState | null {
-  if (metadata == null) return null;
-  const raw =
-    typeof metadata === "string"
-      ? (() => {
-          try {
-            return JSON.parse(metadata);
-          } catch {
-            return null;
-          }
-        })()
-      : metadata;
-  const checklist = raw?.[METADATA_DAY2_CHECKLIST_KEY];
+function parseDay2ChecklistFromMetadata(
+  metadata: unknown,
+): Day2ChecklistState | null {
+  const eventMeta = getEventMetadata(metadata);
+  const checklist = eventMeta[METADATA_DAY2_CHECKLIST_KEY];
   if (!checklist || typeof checklist !== "object") return null;
   return {
-    addSession: !!checklist.addSession,
-    scanAttendee: !!checklist.scanAttendee,
-    viewVenueMap: !!checklist.viewVenueMap,
-    sessionFeedback: !!checklist.sessionFeedback,
+    addSession: !!(checklist as Day2ChecklistState).addSession,
+    scanAttendee: !!(checklist as Day2ChecklistState).scanAttendee,
+    viewVenueMap: !!(checklist as Day2ChecklistState).viewVenueMap,
+    sessionFeedback: !!(checklist as Day2ChecklistState).sessionFeedback,
   };
 }
 
@@ -117,9 +103,11 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
   const isMountedRef = useRef(false);
   const isDay2MountedRef = useRef(false);
 
-  const storageKey = userId ? `${CHECKLIST_STORAGE_KEY_PREFIX}${userId}` : null;
+  const storageKey = userId
+    ? `${CHECKLIST_STORAGE_KEY_PREFIX}${userId}:${EVENT_METADATA_KEY}`
+    : null;
   const day2StorageKey = userId
-    ? `${DAY2_CHECKLIST_STORAGE_KEY_PREFIX}${userId}`
+    ? `${DAY2_CHECKLIST_STORAGE_KEY_PREFIX}${userId}:${EVENT_METADATA_KEY}`
     : null;
 
   const persistChecklist = useCallback(
@@ -153,8 +141,9 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
   const syncChecklistToBackend = useCallback(
     async (state: ChecklistState) => {
       if (!user) return;
-      const current = getSafeMetadataObjectForMerge(user.metadata);
-      const nextMetadataObj = { ...current, [METADATA_CHECKLIST_KEY]: state };
+      const nextMetadataObj = mergeEventMetadata(user.metadata, {
+        [METADATA_CHECKLIST_KEY]: state,
+      });
       try {
         await authService.updateProfile({
           metadata: JSON.stringify(nextMetadataObj),
@@ -171,11 +160,9 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
   const syncDay2ChecklistToBackend = useCallback(
     async (state: Day2ChecklistState) => {
       if (!user) return;
-      const current = getSafeMetadataObjectForMerge(user.metadata);
-      const nextMetadataObj = {
-        ...current,
+      const nextMetadataObj = mergeEventMetadata(user.metadata, {
         [METADATA_DAY2_CHECKLIST_KEY]: state,
-      };
+      });
       try {
         await authService.updateProfile({
           metadata: JSON.stringify(nextMetadataObj),
@@ -203,9 +190,9 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     const load = async () => {
       try {
-        const raw = await AsyncStorage.getItem(
-          `${CHECKLIST_STORAGE_KEY_PREFIX}${userId}`,
-        );
+        const raw = storageKey
+          ? await AsyncStorage.getItem(storageKey)
+          : null;
         if (cancelled) return;
         if (raw) {
           const parsed = JSON.parse(raw) as ChecklistState;
@@ -225,7 +212,7 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [userId, user?.metadata, persistChecklist]);
+  }, [userId, user?.metadata, persistChecklist, storageKey]);
 
   useEffect(() => {
     if (!userId) {
@@ -241,9 +228,9 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     const load = async () => {
       try {
-        const raw = await AsyncStorage.getItem(
-          `${DAY2_CHECKLIST_STORAGE_KEY_PREFIX}${userId}`,
-        );
+        const raw = day2StorageKey
+          ? await AsyncStorage.getItem(day2StorageKey)
+          : null;
         if (cancelled) return;
         if (raw) {
           const parsed = JSON.parse(raw) as Day2ChecklistState;
@@ -264,7 +251,7 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [userId, user?.metadata, persistDay2Checklist]);
+  }, [userId, user?.metadata, persistDay2Checklist, day2StorageKey]);
 
   useEffect(() => {
     if (!isMountedRef.current) {
@@ -343,12 +330,10 @@ export function ChecklistProvider({ children }: { children: React.ReactNode }) {
     setChecklistCompleted(defaultState);
     setDay2ChecklistCompleted(defaultDay2State);
     if (user) {
-      const current = getSafeMetadataObjectForMerge(user.metadata);
-      const nextMetadataObj = {
-        ...current,
+      const nextMetadataObj = mergeEventMetadata(user.metadata, {
         [METADATA_CHECKLIST_KEY]: defaultState,
         [METADATA_DAY2_CHECKLIST_KEY]: defaultDay2State,
-      };
+      });
       authService
         .updateProfile({ metadata: JSON.stringify(nextMetadataObj) })
         .catch(() => {});

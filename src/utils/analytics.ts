@@ -15,6 +15,7 @@ import {
   setUserId,
   setUserProperty,
 } from "@react-native-firebase/analytics";
+import { getEventMetadata } from "./eventMetadata";
 
 /** Modular API — avoids namespaced `analytics()` deprecation warnings in RN Firebase v22+. */
 const analytics = getAnalytics();
@@ -34,28 +35,12 @@ function safeEventName(name: string): string {
   return s.length > 0 ? s : "event";
 }
 
-function parseMetadata(meta: unknown): Record<string, unknown> | null {
-  if (meta == null) return null;
-  if (typeof meta === "object" && !Array.isArray(meta)) {
-    return meta as Record<string, unknown>;
-  }
-  if (typeof meta === "string") {
-    try {
-      return JSON.parse(meta) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
 /** Exported for tests / debugging; used when syncing auth → analytics. */
 export function deriveUserTypeForAnalytics(user: {
   metadata?: unknown;
 } | null): string | undefined {
   if (!user) return undefined;
-  const m = parseMetadata(user.metadata);
-  if (!m) return undefined;
+  const m = getEventMetadata(user.metadata);
   const t =
     m.ticket_type ??
     m.ticketType ??

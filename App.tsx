@@ -23,6 +23,7 @@ Notifications.setNotificationHandler({
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/context/AuthContext";
+import { StartupJoinProvider } from "./src/context/StartupJoinContext";
 import { ChecklistProvider } from "./src/context/ChecklistContext";
 import { MeetingsBadgeProvider } from "./src/context/MeetingsBadgeContext";
 import { NotificationsProvider } from "./src/context/NotificationsContext";
@@ -97,6 +98,7 @@ export default function App() {
       <SafeAreaProvider>
       <View className="flex-1 font-sans">
         <AuthProvider>
+          <StartupJoinProvider>
           <ChecklistProvider>
             <MeetingsBadgeProvider>
               <NotificationsProvider>
@@ -112,6 +114,7 @@ export default function App() {
               </NotificationsProvider>
             </MeetingsBadgeProvider>
           </ChecklistProvider>
+          </StartupJoinProvider>
         </AuthProvider>
       </View>
       </SafeAreaProvider>

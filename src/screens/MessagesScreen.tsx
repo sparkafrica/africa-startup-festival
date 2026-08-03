@@ -30,6 +30,7 @@ import { EVENT_ID } from "../config/env";
 import { useAuth } from "../context/AuthContext";
 import { useMessagesBadgeContext } from "../context/MessagesBadgeContext";
 import { loadMessagingEligiblePeerIds } from "../utils/messagingEligibility";
+import { currentUserIsInvestor } from "../utils/asfNetworking";
 import * as Sentry from "@sentry/react-native";
 import {
   subscribeToConversationChannel,
@@ -183,6 +184,7 @@ export default function MessagesScreen() {
         setError(null);
 
         const currentUserId = String(user?.user_id ?? "").trim();
+        const investor = await currentUserIsInvestor();
 
         const [conversationResponse, messagingPeers] = await Promise.all([
           listConversations(EVENT_ID, {
@@ -190,7 +192,7 @@ export default function MessagesScreen() {
             page: 1,
             page_size: 100,
           }),
-          currentUserId
+          !investor && currentUserId
             ? loadMessagingEligiblePeerIds(currentUserId)
             : Promise.resolve({
                 eligiblePeerIds: new Set<string>(),
@@ -198,9 +200,9 @@ export default function MessagesScreen() {
               }),
         ]);
 
-        // Filter inbox when eligibility data loaded successfully (connections and/or meetings).
+        // Investors see all threads. Others: connection or accepted meeting only.
         let filteredConversations = conversationResponse.conversations;
-        if (messagingPeers.shouldFilterInbox && currentUserId) {
+        if (!investor && messagingPeers.shouldFilterInbox && currentUserId) {
           const { eligiblePeerIds } = messagingPeers;
           filteredConversations = conversationResponse.conversations.filter((c) => {
             const otherPartyId = getConversationListItemPeerUserId(c);

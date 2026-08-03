@@ -89,13 +89,13 @@ export const joinRequestService = {
     } catch (e) {
       if (
         e instanceof ApiClientError &&
-        e.responseCode !== 404 &&
-        e.responseCode !== 405
+        (e.responseCode === 404 || e.responseCode === 405)
       ) {
-        throw e;
+        // Fallback when POST /join-requests/ is not exposed — associates company_id on user.
+        await authService.updateProfile({ company_id: companyId } as any);
+        return;
       }
-      // Fallback when POST /join-requests/ is not exposed — associates company_id on user.
-      await authService.updateProfile({ company_id: companyId } as any);
+      throw e;
     }
   },
 

@@ -29,11 +29,13 @@ import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
 } from "../utils/meetingRestrictions";
+import { hasPendingMeetingWithPeer } from "../utils/messagingEligibility";
 import { trackMeetingEvent, trackConnectionEvent } from "../utils/analytics";
 import {
   coerceMetadataLabel,
   coerceMetadataStringArray,
 } from "../utils/metadataCoerce";
+import { getEventMetadata } from "../utils/eventMetadata";
 import { SearchIcon, ChevronRightIcon, SpeechBubbleIcon } from "../components/icons";
 import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
@@ -348,26 +350,19 @@ export default function ConnectionsScreen() {
         : "";
 
     // Backend schema types metadata as string (JSON); normalize to object so we can read interests, bio, industry, etc.
-    const rawMeta = otherUser?.metadata;
-    const metadata =
-      typeof rawMeta === "string"
-        ? (() => {
-            try {
-              return rawMeta ? JSON.parse(rawMeta) : {};
-            } catch {
-              return {};
-            }
-          })()
-        : (typeof rawMeta === "object" && rawMeta !== null ? rawMeta : {});
+    const metadata = getEventMetadata(otherUser?.metadata);
 
     // Interests may be strings or `{ label, value }` from registration forms.
     const interestsArray = coerceMetadataStringArray(metadata.interests);
 
     // Extract bio from metadata
-    const bio = metadata.bio || "";
+    const bio = typeof metadata.bio === "string" ? metadata.bio : "";
 
-    // Extract LinkedIn URL from metadata
-    const linkedInUrl = metadata.linkedIn || metadata.linkedin_url || undefined;
+    const linkedInUrl =
+      (typeof metadata.linkedIn === "string" ? metadata.linkedIn : undefined) ||
+      (typeof metadata.linkedin_url === "string"
+        ? metadata.linkedin_url
+        : undefined);
 
     // Build tags — industry/sector only (country omitted from cards; interests shown separately)
     const tags: ConnectionTag[] = [];
@@ -1439,14 +1434,32 @@ export default function ConnectionsScreen() {
                     <Pressable
                       onPress={async () => {
                         const canBook = await getCanUserBookMeetings();
-                        if (canBook) {
-                          setMeetingConnection(selectedConnection);
-                          closeBottomSheet();
-                          setIsRequestMeetingModalVisible(true);
-                        } else {
+                        if (!canBook) {
                           closeBottomSheet();
                           showExpoCannotBookMeetingAlert(navigation);
+                          return;
                         }
+                        const peerId = String(
+                          selectedConnection.userId ?? "",
+                        ).trim();
+                        const me = String(user?.user_id ?? "").trim();
+                        if (peerId && me) {
+                          const pending = await hasPendingMeetingWithPeer(
+                            peerId,
+                            me,
+                          );
+                          if (pending) {
+                            Alert.alert(
+                              "Meeting request pending",
+                              "You already have a pending meeting request with this person. Wait for them to accept or decline before sending another.",
+                              [{ text: "OK" }],
+                            );
+                            return;
+                          }
+                        }
+                        setMeetingConnection(selectedConnection);
+                        closeBottomSheet();
+                        setIsRequestMeetingModalVisible(true);
                       }}
                       className="w-full flex-row items-center justify-center bg-neutral-900 py-3.5 px-4 mb-3" style={{ borderRadius: 0 }}
                     >

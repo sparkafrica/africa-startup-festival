@@ -1,11 +1,11 @@
 /**
  * ScannedAttendeeScreen
  *
- * Full-screen view for a successfully scanned attendee (used on iOS after scan
- * to avoid modal presentation issues; Android can keep using the modal on ScanQR).
+ * Full-screen profile sheet for a scanned attendee (deep links / legacy navigation).
+ * Primary scan flow uses AttendeeQRScannerFlow on ScanQRScreen.
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -26,7 +26,6 @@ import { LoadingSpinner } from "../components";
 import RequestMeetingModal, {
   type MeetingFormData,
 } from "../components/RequestMeetingModal";
-import type { Attendee } from "../services/ticketService";
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { useAuth } from "../context/AuthContext";
@@ -42,24 +41,21 @@ import {
 } from "../utils/meetingRestrictions";
 import { ApiClientError } from "../services/api";
 import Toast from "../components/Toast";
-import { attendeeService } from "../services/attendeeService";
-import {
-  mergeAttendeeProfiles,
-  normalizeAttendee,
-  getAttendeeDisplayFields,
-  type AttendeeLike,
-} from "../utils/normalizeAttendee";
+import { normalizeAttendee, getAttendeeDisplayFields } from "../utils/normalizeAttendee";
 import {
   canRequestMeetingWithAttendee,
   currentUserIsInvestor,
   showInvestorConnectionRequiredAlert,
 } from "../utils/asfNetworking";
+import { hasPendingMeetingWithPeer } from "../utils/messagingEligibility";
 import ScannedAttendeeProfileContent from "../components/ScannedAttendeeProfileContent";
 import {
   getScannedAttendeeSheetHeight,
-  logScannedAttendeePayload,
   useScannedAttendeeSheetDismiss,
 } from "../utils/scannedAttendeeSheet";
+import { useScannedAttendeeEnrich } from "../hooks/useScannedAttendeeEnrich";
+
+type ScreenPhase = "profile" | "requestMeeting";
 
 function ConnectIcon({
   size = 24,
@@ -118,74 +114,70 @@ export default function ScannedAttendeeScreen() {
   const { toast, showToast, hideToast } = useToast();
 
   const insets = useSafeAreaInsets();
-  const [attendee, setAttendee] = useState<Attendee | null>(
-    routeAttendee ? normalizeAttendee(routeAttendee) : null,
-  );
-  const [requestMeetingModalVisible, setRequestMeetingModalVisible] =
-    useState(false);
+  const initial = routeAttendee ? normalizeAttendee(routeAttendee) : null;
+  const { attendee, isEnriching } = useScannedAttendeeEnrich(initial);
+  const [phase, setPhase] = useState<ScreenPhase>("profile");
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isRequestMeetingLoading, setIsRequestMeetingLoading] = useState(false);
 
   const goBack = () => navigation.goBack();
   const { panGesture, sheetAnimatedStyle, resetSheet } =
     useScannedAttendeeSheetDismiss(goBack);
 
-  useEffect(() => {
+  React.useEffect(() => {
     resetSheet();
+    setPhase("profile");
   }, [routeAttendee, resetSheet]);
 
-  useEffect(() => {
-    const initial = routeAttendee ? normalizeAttendee(routeAttendee) : null;
-    if (!initial?.user?.id) return;
-
-    logScannedAttendeePayload("route", initial);
-
-    let cancelled = false;
-    void attendeeService
-      .getAttendeeByUserId(EVENT_ID, String(initial.user.id))
-      .then((enriched) => {
-        if (cancelled) return;
-        const merged = mergeAttendeeProfiles(initial, enriched as AttendeeLike);
-        logScannedAttendeePayload("enriched", merged);
-        if (enriched) {
-          logScannedAttendeePayload("directory-only", enriched);
-        }
-        setAttendee(merged);
-      })
-      .catch(() => {
-        if (!cancelled) setAttendee(initial);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [routeAttendee]);
-
-  const handleRequestMeeting = async () => {
-    if (!attendee) return;
-    const canBook = await getCanUserBookMeetings();
-    if (!canBook) {
-      showExpoCannotBookMeetingAlert(navigation);
-      return;
-    }
-    const isInvestor = await currentUserIsInvestor();
-    if (!isInvestor) {
-      const { ticketTypeName } = getAttendeeDisplayFields(attendee);
-      const allowed = await canRequestMeetingWithAttendee({
-        ticketType: ticketTypeName,
-        connectionStatus: null,
-      });
-      if (!allowed) {
-        showInvestorConnectionRequiredAlert();
+  const handleRequestMeetingPress = useCallback(async () => {
+    if (!attendee || isRequestMeetingLoading || phase === "requestMeeting") return;
+    setIsRequestMeetingLoading(true);
+    try {
+      const canBook = await getCanUserBookMeetings();
+      if (!canBook) {
+        showExpoCannotBookMeetingAlert(navigation);
         return;
       }
+      const isInvestor = await currentUserIsInvestor();
+      if (!isInvestor) {
+        const { ticketTypeName } = getAttendeeDisplayFields(attendee);
+        const allowed = await canRequestMeetingWithAttendee({
+          ticketType: ticketTypeName,
+          connectionStatus: null,
+        });
+        if (!allowed) {
+          showInvestorConnectionRequiredAlert();
+          return;
+        }
+      }
+      const peerId = String(attendee.user?.id ?? "").trim();
+      const me = String(user?.user_id ?? "").trim();
+      if (peerId && me) {
+        const pending = await hasPendingMeetingWithPeer(peerId, me);
+        if (pending) {
+          showToast(
+            "You already have a pending meeting request with this person. Wait for them to accept or decline before sending another.",
+            "info",
+          );
+          return;
+        }
+      }
+      setPhase("requestMeeting");
+    } finally {
+      setIsRequestMeetingLoading(false);
     }
-    setRequestMeetingModalVisible(true);
-  };
+  }, [
+    attendee,
+    isRequestMeetingLoading,
+    navigation,
+    phase,
+    showToast,
+    user?.user_id,
+  ]);
 
   const handleMeetingSubmit = async (formData: MeetingFormData) => {
     if (!attendee) {
-      showToast("No attendee data available", "error");
-      throw new Error("No attendee");
+      throw new Error("No attendee data available");
     }
     await meetingService.submitMeetingRequestFromForm(
       EVENT_ID,
@@ -196,8 +188,8 @@ export default function ScannedAttendeeScreen() {
       source: "scanned_attendee_screen",
     });
     markRequestMeetingComplete();
+    setPhase("profile");
     showToast("Meeting request sent successfully!", "success");
-    setRequestMeetingModalVisible(false);
     navigation.replace("Meetings", {
       primaryTab: "requests",
       secondaryTab: "outbound",
@@ -211,24 +203,28 @@ export default function ScannedAttendeeScreen() {
       return;
     }
 
-    // Limited Pass: no connect + no message features
-    const canInitiateConnection = await getCanUserInitiateConnection();
-    if (!canInitiateConnection) {
-      showExhibitionCannotInitiateConnectionAlert(navigation);
-      return;
-    }
-
     setIsConnecting(true);
     try {
+      const canInitiateConnection = await getCanUserInitiateConnection();
+      if (!canInitiateConnection) {
+        showExhibitionCannotInitiateConnectionAlert(navigation);
+        return;
+      }
+
       await connectionService.createConnection(user.user_id, attendee.user.id);
       void trackConnectionEvent("sent", { source: "scanned_attendee_screen" });
       markConnectAttendeesComplete();
       showToast("Connection request sent successfully!", "success");
       navigation.replace("Connections");
-    } catch (error: any) {
-      const code =
-        error?.responseCode ?? error?.response_code ?? error?.statusCode;
-      const msg = (error?.message ?? "").toLowerCase();
+    } catch (error: unknown) {
+      const err = error as {
+        responseCode?: number;
+        response_code?: number;
+        statusCode?: number;
+        message?: string;
+      };
+      const code = err?.responseCode ?? err?.response_code ?? err?.statusCode;
+      const msg = (err?.message ?? "").toLowerCase();
       const isAlreadyExists =
         msg.includes("connection already exists") ||
         msg.includes("already exists");
@@ -278,6 +274,7 @@ export default function ScannedAttendeeScreen() {
 
   const sheetHeight = getScannedAttendeeSheetHeight();
   const footerPaddingBottom = Math.max(insets.bottom, 12);
+  const profileVisible = phase === "profile";
 
   return (
     <View className="flex-1" style={{ backgroundColor: "transparent" }}>
@@ -315,52 +312,67 @@ export default function ScannedAttendeeScreen() {
             contentContainerStyle={{ paddingBottom: 16 }}
             bounces
           >
-            <ScannedAttendeeProfileContent attendee={attendee} variant="screen" />
+            <ScannedAttendeeProfileContent
+              attendee={attendee}
+              variant="screen"
+              isEnriching={isEnriching}
+            />
           </ScrollView>
 
-          <View
-            className="px-4 pt-3 bg-white border-t border-neutral-100"
-            style={{ paddingBottom: footerPaddingBottom }}
-          >
-            <Pressable
-              onPress={handleRequestMeeting}
-              className="w-full flex-row items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
+          {profileVisible ? (
+            <View
+              className="px-4 pt-3 bg-white border-t border-neutral-100"
+              style={{ paddingBottom: footerPaddingBottom }}
             >
-              <CalendarIcon size={20} color="#FFFFFF" />
-              <Text className="text-base font-medium text-white ml-2">
-                Request Meeting
-              </Text>
-            </Pressable>
+              <Pressable
+                onPress={() => void handleRequestMeetingPress()}
+                disabled={isRequestMeetingLoading || isConnecting}
+                className="w-full flex-row items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
+                style={{
+                  opacity: isRequestMeetingLoading || isConnecting ? 0.6 : 1,
+                }}
+              >
+                {isRequestMeetingLoading ? (
+                  <LoadingSpinner size="small" color="#FFFFFF" />
+                ) : (
+                  <CalendarIcon size={20} color="#FFFFFF" />
+                )}
+                <Text className="text-base font-medium text-white ml-2">
+                  {isRequestMeetingLoading ? "Checking..." : "Request Meeting"}
+                </Text>
+              </Pressable>
 
-            <Pressable
-              onPress={handleConnect}
-              disabled={isConnecting}
-              className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-4 px-4"
-              style={{ opacity: isConnecting ? 0.6 : 1 }}
-            >
-              {isConnecting ? (
-                <LoadingSpinner size="small" color="#000000" />
-              ) : (
-                <ConnectIcon size={20} color="#000000" />
-              )}
-              <Text className="text-base font-medium text-black ml-2">
-                {isConnecting ? "Connecting..." : "Connect"}
-              </Text>
-            </Pressable>
-          </View>
+              <Pressable
+                onPress={() => void handleConnect()}
+                disabled={isConnecting || isRequestMeetingLoading}
+                className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-4 px-4"
+                style={{
+                  opacity: isConnecting || isRequestMeetingLoading ? 0.6 : 1,
+                }}
+              >
+                {isConnecting ? (
+                  <LoadingSpinner size="small" color="#000000" />
+                ) : (
+                  <ConnectIcon size={20} color="#000000" />
+                )}
+                <Text className="text-base font-medium text-black ml-2">
+                  {isConnecting ? "Connecting..." : "Connect"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
         </Animated.View>
       </View>
 
       <RequestMeetingModal
-        visible={requestMeetingModalVisible}
+        presentation="embedded"
+        visible={phase === "requestMeeting"}
         analyticsSource="scanned_attendee_screen"
-        onClose={() => setRequestMeetingModalVisible(false)}
+        onClose={() => setPhase("profile")}
         onSubmit={handleMeetingSubmit}
         onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
         attendeeName={attendeeName}
-        requesteeUserId={
-          attendee ? String(attendee.user.id) : undefined
-        }
+        requesteeUserId={String(attendee.user.id)}
       />
 
       <Toast

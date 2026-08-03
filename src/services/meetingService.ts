@@ -7,7 +7,7 @@
 import { api, ApiResponse, PaginationMeta } from "./api";
 import { ApiClientError } from "./api";
 import { EVENT_ID } from "../config/env";
-import { matchesActiveEvent } from "../utils/eventScope";
+import { meetingBelongsToEvent } from "../utils/eventScope";
 import { parseDisplayTimeToApi } from "../utils/meetingDateTime";
 
 // ============================================================================
@@ -147,6 +147,9 @@ export interface VirtualMeeting {
   requester_company: SimpleCompany | null;
   metadata?: any;
   created_at?: string;
+  /** Present when backend scopes virtual meetings per event. */
+  event?: number;
+  event_id?: number;
 }
 
 /**
@@ -283,7 +286,7 @@ export const meetingService = {
       }
 
       return meetings.filter((meeting) =>
-        matchesActiveEvent(meeting.slot?.event, eventId),
+        meetingBelongsToEvent(meeting, eventId),
       );
     } catch (error: any) {
       // Re-throw ApiClientError as-is
@@ -801,30 +804,30 @@ export const meetingService = {
    *
    * Backend Endpoint: GET /virtual-meetings/
    */
-  async getVirtualMeetings(): Promise<VirtualMeeting[]> {
+  async getVirtualMeetings(eventId: number = EVENT_ID): Promise<VirtualMeeting[]> {
     try {
-      const response = await api.get<any>("/virtual-meetings/");
+      const response = await api.get<any>(
+        `/virtual-meetings/?event_id=${eventId}`,
+      );
 
       const data = response as any;
+      let meetings: VirtualMeeting[] = [];
 
       if (Array.isArray(data)) {
-        return data as VirtualMeeting[];
-      }
-
-      if (data?.status === "success" && data?.data) {
+        meetings = data as VirtualMeeting[];
+      } else if (data?.status === "success" && data?.data) {
         if (Array.isArray(data.data)) {
-          return data.data as VirtualMeeting[];
+          meetings = data.data as VirtualMeeting[];
+        } else if (data.data?.results && Array.isArray(data.data.results)) {
+          meetings = data.data.results as VirtualMeeting[];
         }
-        if (data.data?.results && Array.isArray(data.data.results)) {
-          return data.data.results as VirtualMeeting[];
-        }
+      } else if (data?.results && Array.isArray(data.results)) {
+        meetings = data.results as VirtualMeeting[];
       }
 
-      if (data?.results && Array.isArray(data.results)) {
-        return data.results as VirtualMeeting[];
-      }
-
-      return [];
+      return meetings.filter((meeting) =>
+        meetingBelongsToEvent(meeting, eventId),
+      );
     } catch (error: any) {
       if (error instanceof ApiClientError) {
         throw error;

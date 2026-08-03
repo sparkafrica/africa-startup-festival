@@ -3,7 +3,7 @@
     "name": "Africa Startup Festival",
     "slug": "africa-startup-festival",
     "scheme": "spark-asf",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sparkllc.asf",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "googleServicesFile": "./GoogleService-Info.plist",
       "associatedDomains": ["applinks:app.africastartupfestival.com"],
       "infoPlist": {
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "com.sparkllc.asf",
-      "versionCode": 4,
+      "versionCode": 5,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

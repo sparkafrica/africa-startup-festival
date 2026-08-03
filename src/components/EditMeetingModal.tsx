@@ -22,7 +22,8 @@ import { EVENT_ID, EVENT_FALLBACK_MEETING_DATE_ISOS } from "../config/env";
 import MeetingCalendarPicker from "./MeetingCalendarPicker";
 import MeetingTimePicker from "./MeetingTimePicker";
 import {
-  addDaysToIso,
+  compareIso,
+  endOfDecemberIsoCurrentYear,
   extractStartTimeDisplay,
   formatDateLong,
   parseDisplayTimeToApi,
@@ -218,7 +219,7 @@ export default function EditMeetingModal({
 
   const isVirtualMeeting = meetingType === "virtual";
   const virtualMinDateIso = todayIsoLocal();
-  const virtualMaxDateIso = addDaysToIso(virtualMinDateIso, 90);
+  const virtualMaxDateIso = endOfDecemberIsoCurrentYear();
 
   const slotDateNorm = (slot: MeetingSlot): string | null =>
     slot.date ? slot.date.slice(0, 10) : null;
@@ -234,6 +235,20 @@ export default function EditMeetingModal({
     }
     return set;
   }, [meetingSlots]);
+
+  const physicalEventDateIso = useMemo(() => {
+    if (physicalEnabledDates.size === 0) {
+      return EVENT_FALLBACK_MEETING_DATE_ISOS[0] ?? null;
+    }
+    const sorted = Array.from(physicalEnabledDates).sort(compareIso);
+    return sorted[0] ?? null;
+  }, [physicalEnabledDates]);
+
+  useEffect(() => {
+    if (!visible || isVirtualMeeting || !physicalEventDateIso) return;
+    setSelectedDateValue(physicalEventDateIso);
+    setDate(formatDateLong(physicalEventDateIso));
+  }, [visible, isVirtualMeeting, physicalEventDateIso]);
 
   // Reset form when modal opens with initial data
   useEffect(() => {
@@ -545,11 +560,13 @@ export default function EditMeetingModal({
           errors.date ? "border-red-500" : "border-neutral-300"
         }`}
         onPress={() => {
+          if (!isVirtualMeeting) return;
           setShowDatePicker(!showDatePicker);
           setShowTimePicker(false);
           setShowTablePicker(false);
           clearError("date");
         }}
+        disabled={!isVirtualMeeting}
       >
         <Text className="text-lg mr-2">📅</Text>
         <Text
@@ -557,21 +574,29 @@ export default function EditMeetingModal({
             !selectedDateValue ? "text-neutral-500" : "text-black"
           }`}
         >
-          {selectedDateValue ? formatDateLong(selectedDateValue) : "Select date"}
+          {selectedDateValue
+            ? formatDateLong(selectedDateValue)
+            : isVirtualMeeting
+              ? "Select date"
+              : isLoadingSlots
+                ? "Loading event date..."
+                : "Event date unavailable"}
         </Text>
-        {showDatePicker ? (
-          <ChevronUpIcon size={20} color="#6B7280" />
-        ) : (
-          <ChevronDownIcon size={20} color="#6B7280" />
-        )}
+        {isVirtualMeeting ? (
+          showDatePicker ? (
+            <ChevronUpIcon size={20} color="#6B7280" />
+          ) : (
+            <ChevronDownIcon size={20} color="#6B7280" />
+          )
+        ) : null}
       </Pressable>
-      {showDatePicker ? (
+      {isVirtualMeeting && showDatePicker ? (
         <View className="mb-3 bg-neutral-50 border border-neutral-300 rounded-xl p-3">
           <MeetingCalendarPicker
             selectedDateIso={selectedDateValue}
             minDateIso={virtualMinDateIso}
-            maxDateIso={isVirtualMeeting ? virtualMaxDateIso : undefined}
-            enabledDatesIso={isVirtualMeeting ? null : physicalEnabledDates}
+            maxDateIso={virtualMaxDateIso}
+            enabledDatesIso={null}
             onSelectDate={handleSelectCalendarDate}
           />
         </View>

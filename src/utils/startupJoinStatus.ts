@@ -2,6 +2,7 @@ import type { UserProfile } from "../services/authService";
 import type { JoinRequest } from "../services/joinRequestService";
 import {
   isStartupCompanyType,
+  normalizeCompanyType,
   resolveCompanyType,
 } from "./companyProfileFields";
 
@@ -115,6 +116,30 @@ export function resolveStartupJoinViewState(input: {
       phase: "pending",
       myRequest,
       companyName: myRequest.company || badge?.companyName,
+    };
+  }
+
+  const companyOnProfile = profile?.company;
+  const companyTypeResolved = resolveCompanyType(companyOnProfile ?? null, ticketType);
+  const hasLinkedStartupCompany =
+    !!companyOnProfile?.id &&
+    !!companyOnProfile?.name &&
+    isStartupCompanyType(companyTypeResolved);
+
+  if (hasLinkedStartupCompany && !isStartupAdmin && myRequest?.status !== "denied") {
+    return {
+      phase: "linked",
+      badge: {
+        companyName: companyOnProfile!.name!,
+        companyId: Number(companyOnProfile!.id),
+      },
+      companyName: companyOnProfile!.name,
+      isStartupAdmin: false,
+      myRequest,
+      adminPendingRequests:
+        isStartupAdmin && adminPendingRequests.length > 0
+          ? adminPendingRequests
+          : undefined,
     };
   }
 
@@ -232,10 +257,14 @@ export function resolveAttendeeStartupAdmin(
   };
 }
 
-export function resolveAttendeeStartupBadge(user: {
-  company?: { name?: string; company_type?: string } | null;
-  metadata?: unknown;
-}): AttendeeStartupBadge | null {
+export function resolveAttendeeStartupBadge(
+  user: {
+    company?: { name?: string; company_type?: string; id?: number } | null;
+    metadata?: unknown;
+    organisation?: string | null;
+  },
+  options?: { ticketTypeName?: string },
+): AttendeeStartupBadge | null {
   let metadata = user.metadata;
   if (typeof metadata === "string") {
     try {
@@ -252,12 +281,33 @@ export function resolveAttendeeStartupBadge(user: {
     return { kind: "pending" };
   }
 
+  const ticketNorm = normalizeCompanyType(options?.ticketTypeName ?? "");
+  const ticketIsStartup =
+    ticketNorm.includes("startup") || ticketNorm.includes("founder");
+
   const company = user.company;
-  if (company?.name && isStartupCompanyType(company.company_type)) {
-    return { kind: "linked", companyName: company.name };
+  if (company?.name) {
+    if (isStartupCompanyType(company.company_type)) {
+      return { kind: "linked", companyName: company.name };
+    }
+    const metaLinked =
+      meta.startup_join_status === "accepted" ||
+      meta.join_request_status === "accepted" ||
+      meta.is_startup_member === true;
+    if (metaLinked) {
+      return { kind: "linked", companyName: company.name };
+    }
+    // Approved startup member: startup pass + company on profile (directory may omit company_type).
+    if (ticketIsStartup) {
+      return { kind: "linked", companyName: company.name };
+    }
   }
 
-  const linkedName = meta.linked_startup_name ?? meta.startup_name;
+  const linkedName =
+    meta.linked_startup_name ??
+    meta.startup_name ??
+    meta.startup_company_name ??
+    meta.verified_startup_name;
   if (typeof linkedName === "string" && linkedName.trim()) {
     return { kind: "linked", companyName: linkedName.trim() };
   }

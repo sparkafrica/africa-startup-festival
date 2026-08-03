@@ -22,6 +22,7 @@ import {
   ChevronUpIcon,
 } from "./icons";
 import LoadingSpinner from "./LoadingSpinner";
+import Toast from "./Toast";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
 import { EVENT_DAY_FILTER_LABELS, EVENT_FALLBACK_MEETING_DATE_ISOS, EVENT_ID } from "../config/env";
 import { getCanUserBookMeetings } from "../utils/meetingRestrictions";
@@ -30,10 +31,12 @@ import { trackMeetingEvent } from "../utils/analytics";
 import MeetingCalendarPicker from "./MeetingCalendarPicker";
 import MeetingTimePicker from "./MeetingTimePicker";
 import {
-  addDaysToIso,
+  compareIso,
+  endOfDecemberIsoCurrentYear,
   formatDateLong,
   todayIsoLocal,
 } from "../utils/meetingDateTime";
+import { ApiClientError } from "../services/api";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -58,6 +61,11 @@ interface RequestMeetingModalProps {
   analyticsSource?: string;
   /** Post-event: virtual meetings only (via connections). */
   virtualOnly?: boolean;
+  /**
+   * `modal` (default): native RN Modal.
+   * `embedded`: in-tree absolute overlay — use inside another modal so iOS does not stack modals.
+   */
+  presentation?: "modal" | "embedded";
 }
 
 export interface MeetingFormData {
@@ -85,6 +93,7 @@ export default function RequestMeetingModal({
   eventId = EVENT_ID,
   analyticsSource = "unknown",
   virtualOnly = false,
+  presentation = "modal",
 }: RequestMeetingModalProps) {
   const [meetingType, setMeetingType] = useState<"Physical" | "Virtual">(
     virtualOnly ? "Virtual" : "Physical",
@@ -119,6 +128,18 @@ export default function RequestMeetingModal({
     description?: string;
   }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error" | "info" | "warning">("error");
+
+  const showModalToast = (
+    message: string,
+    type: "success" | "error" | "info" | "warning" = "error",
+  ) => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+  };
 
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const scrollViewRef = useRef<ScrollView>(null);
@@ -188,6 +209,7 @@ export default function RequestMeetingModal({
   // Strict Expo pass enforcement: when modal opens, re-verify user can book meetings; if not, close and notify.
   useEffect(() => {
     if (!visible) return;
+    setToastVisible(false);
     let cancelled = false;
     getCanUserBookMeetings().then((canBook) => {
       if (cancelled) return;
@@ -426,8 +448,14 @@ export default function RequestMeetingModal({
       setDescription("");
       setErrors({});
       onClose();
-    } catch {
-      // Caller shows toast; keep modal open
+    } catch (err: unknown) {
+      const msg =
+        err instanceof ApiClientError
+          ? err.message
+          : err && typeof err === "object" && "message" in err
+            ? String((err as { message?: string }).message)
+            : "Failed to send meeting request. Please try again.";
+      showModalToast(msg || "Failed to send meeting request. Please try again.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -458,7 +486,7 @@ export default function RequestMeetingModal({
 
   const isVirtualMeeting = meetingType === "Virtual";
   const virtualMinDateIso = todayIsoLocal();
-  const virtualMaxDateIso = addDaysToIso(virtualMinDateIso, 90);
+  const virtualMaxDateIso = endOfDecemberIsoCurrentYear();
 
   const physicalEnabledDates = useMemo(() => {
     const set = new Set<string>();
@@ -471,6 +499,25 @@ export default function RequestMeetingModal({
     }
     return set;
   }, [meetingSlots]);
+
+  const physicalEventDateIso = useMemo(() => {
+    if (physicalEnabledDates.size === 0) {
+      return EVENT_FALLBACK_MEETING_DATE_ISOS[0] ?? null;
+    }
+    const sorted = Array.from(physicalEnabledDates).sort(compareIso);
+    return sorted[0] ?? null;
+  }, [physicalEnabledDates]);
+
+  useEffect(() => {
+    if (!visible || isVirtualMeeting || !physicalEventDateIso) return;
+    setSelectedDateValue(physicalEventDateIso);
+    setSelectedDate(formatDateLong(physicalEventDateIso));
+    setSelectedTime(null);
+    setSelectedTimeApi(null);
+    setSelectedTimeKey(null);
+    setTableNumber("");
+    setSelectedSlot(null);
+  }, [visible, isVirtualMeeting, physicalEventDateIso]);
 
   // Get slots for selected date only (so we don't mix 26th and 27th — each day has its own slots)
   const getAvailableSlotsForDate = (): MeetingSlot[] => {
@@ -520,14 +567,13 @@ export default function RequestMeetingModal({
         }))
     : [];
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalContainer}>
+  if (!visible) return null;
+
+  const containerStyle =
+    presentation === "embedded" ? styles.embeddedContainer : styles.modalContainer;
+
+  const sheet = (
+      <View style={containerStyle}>
         <Pressable style={styles.backdrop} onPress={onClose} />
         <Animated.View
           style={[styles.bottomSheet, { transform: [{ translateY }] }]}
@@ -764,63 +810,70 @@ export default function RequestMeetingModal({
               {/* Date */}
               <View style={styles.fieldContainer}>
                 <Text style={styles.label}>Date</Text>
-                <Pressable
-                  style={[styles.input, errors.date && styles.inputError]}
-                  onPress={() => {
-                    setShowDatePicker(!showDatePicker);
-                    setShowTimePicker(false);
-                    setShowTablePicker(false);
-                    clearError("date");
-                  }}
-                >
-                  <CalendarIcon size={20} />
-                  <Text
-                    style={[
-                      styles.inputText,
-                      { marginLeft: 12 },
-                      !selectedDateValue && styles.placeholderText,
-                    ]}
-                  >
-                    {selectedDateValue
-                      ? formatDateLong(selectedDateValue)
-                      : "Select date"}
-                  </Text>
-                  {showDatePicker ? (
-                    <ChevronUpIcon size={20} color="#A3A3A3" />
-                  ) : (
-                    <ChevronDownIcon size={20} color="#A3A3A3" />
-                  )}
-                </Pressable>
-
-                {showDatePicker ? (
-                  <View style={styles.calendarWrap}>
-                    <MeetingCalendarPicker
-                      selectedDateIso={selectedDateValue}
-                      minDateIso={
-                        isVirtualMeeting
-                          ? virtualMinDateIso
-                          : virtualMinDateIso
-                      }
-                      maxDateIso={
-                        isVirtualMeeting ? virtualMaxDateIso : undefined
-                      }
-                      enabledDatesIso={
-                        isVirtualMeeting ? null : physicalEnabledDates
-                      }
-                      onSelectDate={(iso) => {
-                        setSelectedDateValue(iso);
-                        setSelectedDate(formatDateLong(iso));
-                        setSelectedTime(null);
-                        setSelectedTimeApi(null);
-                        setSelectedTimeKey(null);
-                        setTableNumber("");
-                        setSelectedSlot(null);
-                        setShowDatePicker(false);
+                {isVirtualMeeting ? (
+                  <>
+                    <Pressable
+                      style={[styles.input, errors.date && styles.inputError]}
+                      onPress={() => {
+                        setShowDatePicker(!showDatePicker);
+                        setShowTimePicker(false);
+                        setShowTablePicker(false);
                         clearError("date");
                       }}
-                    />
+                    >
+                      <CalendarIcon size={20} />
+                      <Text
+                        style={[
+                          styles.inputText,
+                          { marginLeft: 12 },
+                          !selectedDateValue && styles.placeholderText,
+                        ]}
+                      >
+                        {selectedDateValue
+                          ? formatDateLong(selectedDateValue)
+                          : "Select date"}
+                      </Text>
+                      {showDatePicker ? (
+                        <ChevronUpIcon size={20} color="#A3A3A3" />
+                      ) : (
+                        <ChevronDownIcon size={20} color="#A3A3A3" />
+                      )}
+                    </Pressable>
+
+                    {showDatePicker ? (
+                      <View style={styles.calendarWrap}>
+                        <MeetingCalendarPicker
+                          selectedDateIso={selectedDateValue}
+                          minDateIso={virtualMinDateIso}
+                          maxDateIso={virtualMaxDateIso}
+                          enabledDatesIso={null}
+                          onSelectDate={(iso) => {
+                            setSelectedDateValue(iso);
+                            setSelectedDate(formatDateLong(iso));
+                            setSelectedTime(null);
+                            setSelectedTimeApi(null);
+                            setSelectedTimeKey(null);
+                            setTableNumber("");
+                            setSelectedSlot(null);
+                            setShowDatePicker(false);
+                            clearError("date");
+                          }}
+                        />
+                      </View>
+                    ) : null}
+                  </>
+                ) : (
+                  <View style={[styles.input, styles.physicalDateReadOnly]}>
+                    <CalendarIcon size={20} />
+                    <Text style={[styles.inputText, { marginLeft: 12 }]}>
+                      {physicalEventDateIso
+                        ? formatDateLong(physicalEventDateIso)
+                        : isLoadingSlots
+                          ? "Loading event date..."
+                          : "Event date unavailable"}
+                    </Text>
                   </View>
-                ) : null}
+                )}
                 {errors.date && (
                   <Text style={styles.errorText}>{errors.date}</Text>
                 )}
@@ -1029,7 +1082,28 @@ export default function RequestMeetingModal({
             </Pressable>
           </SafeAreaView>
         </Animated.View>
+        <Toast
+          visible={toastVisible}
+          message={toastMessage}
+          type={toastType}
+          duration={4000}
+          onHide={() => setToastVisible(false)}
+        />
       </View>
+  );
+
+  if (presentation === "embedded") {
+    return sheet;
+  }
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      {sheet}
     </Modal>
   );
 }
@@ -1038,6 +1112,11 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     justifyContent: "flex-end",
+  },
+  embeddedContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "flex-end",
+    zIndex: 50,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -1300,6 +1379,9 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: "#EF4444",
     borderWidth: 1,
+  },
+  physicalDateReadOnly: {
+    backgroundColor: "#F5F5F5",
   },
   errorText: {
     fontSize: 12,

@@ -1,6 +1,6 @@
 /**
  * Messaging access: accepted connection (primary) or accepted meeting (secondary).
- * Applies to all pass tiers — including investors.
+ * Investors bypass this check at the call site (see asfNetworking.canMessageAttendee).
  */
 
 import { connectionService, type Connection } from "../services/connectionService";
@@ -36,6 +36,44 @@ export function getAcceptedMeetingPeerIds(
     else if (requestee === me && requester) peers.add(requester);
   }
   return peers;
+}
+
+/** Peer user ids for meetings still awaiting response. */
+export function getPendingMeetingPeerIds(
+  meetings: Meeting[],
+  currentUserId: string
+): Set<string> {
+  const peers = new Set<string>();
+  const me = String(currentUserId).trim();
+  if (!me) return peers;
+
+  for (const meeting of meetings) {
+    if (meeting.status !== "pending") continue;
+    const requester = String(meeting.requester ?? "").trim();
+    const requestee = String(meeting.requestee ?? "").trim();
+    if (requester === me && requestee) peers.add(requestee);
+    else if (requestee === me && requester) peers.add(requester);
+  }
+  return peers;
+}
+
+/**
+ * True when current user already has a pending meeting with this peer
+ * (either direction). Used to block duplicate requests in the UI.
+ */
+export async function hasPendingMeetingWithPeer(
+  peerUserId: string,
+  currentUserId: string
+): Promise<boolean> {
+  const peer = String(peerUserId).trim();
+  const me = String(currentUserId).trim();
+  if (!peer || !me) return false;
+  try {
+    const meetings = await meetingService.getMeetings();
+    return getPendingMeetingPeerIds(meetings, me).has(peer);
+  } catch {
+    return false;
+  }
 }
 
 export function canMessagePeer(ctx: {

@@ -36,7 +36,10 @@ import {
   isPeerMessagingEligible,
   loadMessagingEligiblePeerIds,
 } from "../utils/messagingEligibility";
-import { MESSAGING_ACCESS_REQUIRED_MESSAGE } from "../utils/asfNetworking";
+import {
+  currentUserIsInvestor,
+  MESSAGING_ACCESS_REQUIRED_MESSAGE,
+} from "../utils/asfNetworking";
 import Svg, { Path } from "react-native-svg";
 
 function formatMessageTime(iso: string): string {
@@ -157,21 +160,26 @@ export default function ConversationScreen() {
         const peerId = String(otherPartyUserId ?? "").trim();
         const currentUserId = String(user?.user_id ?? "").trim();
         if (peerId && currentUserId) {
-          const { eligiblePeerIds } = await loadMessagingEligiblePeerIds(
-            currentUserId
-          );
-          if (!isActive) return;
-          const allowed = isPeerMessagingEligible(peerId, eligiblePeerIds);
-          setCanSendMessages(allowed);
-          if (!allowed && !messagingBlockedAlertShownRef.current) {
-            messagingBlockedAlertShownRef.current = true;
-            Alert.alert("Messaging unavailable", MESSAGING_ACCESS_REQUIRED_MESSAGE, [
-              {
-                text: "OK",
-                onPress: () => navigation.goBack(),
-              },
-            ]);
-            return;
+          if (await currentUserIsInvestor()) {
+            if (!isActive) return;
+            setCanSendMessages(true);
+          } else {
+            const { eligiblePeerIds } = await loadMessagingEligiblePeerIds(
+              currentUserId
+            );
+            if (!isActive) return;
+            const allowed = isPeerMessagingEligible(peerId, eligiblePeerIds);
+            setCanSendMessages(allowed);
+            if (!allowed && !messagingBlockedAlertShownRef.current) {
+              messagingBlockedAlertShownRef.current = true;
+              Alert.alert("Messaging unavailable", MESSAGING_ACCESS_REQUIRED_MESSAGE, [
+                {
+                  text: "OK",
+                  onPress: () => navigation.goBack(),
+                },
+              ]);
+              return;
+            }
           }
         } else {
           setCanSendMessages(true);

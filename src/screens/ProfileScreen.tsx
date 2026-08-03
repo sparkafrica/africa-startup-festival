@@ -24,7 +24,7 @@ import { authService, type UserProfile, readImageAsBase64 } from "../services/au
 import { companyService } from "../services/companyService";
 import { EVENT_ID } from "../config/env";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
-import { getSafeMetadataObjectForMerge } from "../utils/sanitizeUserMetadata";
+import { getEventMetadata, mergeEventMetadata } from "../utils/eventMetadata";
 import {
   hasRequiredImage,
   REQUIRED_PROFILE_PHOTO_MESSAGE,
@@ -70,9 +70,11 @@ import {
   isStartupPass,
 } from "../utils/asfTicketClass";
 import StartupConnectStep from "../components/StartupConnectStep";
+import StartupMemberDetailsView from "../components/StartupMemberDetailsView";
 import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
 import { StartupJoinAdminPanel } from "../components/StartupJoinAdminPanel";
 import { useStartupJoin } from "../hooks/useStartupJoin";
+import { shouldShowStartupJoinForm } from "../utils/startupJoinStatus";
 
 const INPUT_PLACEHOLDER_COLOR = "#9CA3AF";
 
@@ -989,15 +991,7 @@ function PersonalProfileSection({
       );
       if (opt) setSelectedCountry(opt.id);
     }
-    let metadata = source.metadata;
-    if (typeof metadata === "string") {
-      try {
-        metadata = JSON.parse(metadata) as Record<string, unknown>;
-      } catch {
-        metadata = {};
-      }
-    }
-    const meta = (metadata ?? {}) as Record<string, unknown>;
+    const meta = getEventMetadata(source.metadata);
     const li = meta.linkedIn ?? meta.linkedin_url;
     if (typeof li === "string") setLinkedIn(li);
     if (meta.industry && typeof meta.industry === "string") {
@@ -1218,23 +1212,23 @@ function PersonalProfileSection({
       const countryLabel =
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
-      // Build metadata: industry & interests are shown on attendee cards; merge with existing so we don't overwrite e.g. event_checklist
-      const metadata: any = { ...getSafeMetadataObjectForMerge(user?.metadata) };
+      const eventMetadataPatch: Record<string, unknown> = {};
       if (industryLabel) {
-        metadata.industry = industryLabel;
+        eventMetadataPatch.industry = industryLabel;
       }
       if (selectedInterests.length > 0) {
-        metadata.interests = selectedInterests;
+        eventMetadataPatch.interests = selectedInterests;
       }
       if (linkedIn.trim()) {
-        metadata.linkedIn = linkedIn.trim();
+        eventMetadataPatch.linkedIn = linkedIn.trim();
       }
       if (eventGoals.trim()) {
-        metadata.event_goals = eventGoals.trim();
+        eventMetadataPatch.event_goals = eventGoals.trim();
       }
       if (industriesToMeet.length > 0) {
-        metadata.industries_to_meet = industriesToMeet;
+        eventMetadataPatch.industries_to_meet = industriesToMeet;
       }
+      const metadata = mergeEventMetadata(user?.metadata, eventMetadataPatch);
 
       // Prepare API request payload
       const profileData: any = {
@@ -1871,15 +1865,7 @@ function AttendeeProfileSection({
       );
       if (opt) setSelectedCountry(opt.id);
     }
-    let metadata = source.metadata;
-    if (typeof metadata === "string") {
-      try {
-        metadata = JSON.parse(metadata) as Record<string, unknown>;
-      } catch {
-        metadata = {};
-      }
-    }
-    const meta = (metadata ?? {}) as Record<string, unknown>;
+    const meta = getEventMetadata(source.metadata);
     if (meta.industry && typeof meta.industry === "string") {
       const opt = INDUSTRY_OPTIONS.find(
         (o) => o.label.toLowerCase() === (meta.industry as string).toLowerCase()
@@ -2090,21 +2076,21 @@ function AttendeeProfileSection({
       const countryLabel =
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
-      // Build metadata: industry & interests for attendee cards; merge with existing so we don't overwrite e.g. event_checklist
-      const metadata: any = { ...getSafeMetadataObjectForMerge(user?.metadata) };
+      const eventMetadataPatch: Record<string, unknown> = {};
       if (industryLabel) {
-        metadata.industry = industryLabel;
+        eventMetadataPatch.industry = industryLabel;
       }
       if (selectedInterests.length > 0) {
-        metadata.interests = selectedInterests;
+        eventMetadataPatch.interests = selectedInterests;
       }
-      metadata.linkedIn = linkedIn.trim();
+      eventMetadataPatch.linkedIn = linkedIn.trim();
       if (eventGoals.trim()) {
-        metadata.event_goals = eventGoals.trim();
+        eventMetadataPatch.event_goals = eventGoals.trim();
       }
       if (industriesToMeet.length > 0) {
-        metadata.industries_to_meet = industriesToMeet;
+        eventMetadataPatch.industries_to_meet = industriesToMeet;
       }
+      const metadata = mergeEventMetadata(user?.metadata, eventMetadataPatch);
 
       // Prepare API request payload
       const profileData: any = {
@@ -4006,7 +3992,7 @@ function CompanyProfileSection({
           {/* Recruiting */}
           <View className="rounded-2xl border border-neutral-200 mb-6 p-2">
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-sm font-medium text-neutral-700">
+              <Text className="text-[15px] font-medium text-neutral-700">
                 Recruiting
               </Text>
               <ToggleSwitch
@@ -4248,7 +4234,16 @@ export default function ProfileScreen() {
     isStartupPassHolder || isStartupCompanyType(companyType);
   const showSegmentedProfile = isCompanyAdmin || isStartupPassHolder;
   const showStartupConnect =
-    useStartupSecondTab && activeTab === "Company" && !isCompanyAdmin;
+    useStartupSecondTab &&
+    activeTab === "Company" &&
+    !isCompanyAdmin &&
+    shouldShowStartupJoinForm(startupJoinState);
+
+  const isLinkedStartupMember =
+    startupJoinState.phase === "linked" && !isCompanyAdmin;
+
+  const showStartupMemberDetails =
+    useStartupSecondTab && activeTab === "Company" && isLinkedStartupMember;
 
   useEffect(() => {
     if (!__DEV__ || !ticketType) return;
@@ -4350,6 +4345,12 @@ export default function ProfileScreen() {
                   void refreshStartupJoin();
                 }}
               />
+            ) : showStartupMemberDetails ? (
+              <StartupMemberDetailsView
+                profile={sourceUser}
+                onRefresh={onRefresh}
+                refreshing={refreshing}
+              />
             ) : (
               <CompanyProfileSection
                 initialProfile={profile}
@@ -4366,7 +4367,7 @@ export default function ProfileScreen() {
                 joinAdminActing={joinAdminActing}
               />
             )}
-            {!showStartupConnect ? (
+            {!showStartupConnect && !showStartupMemberDetails ? (
             <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-6 pb-10 pt-4">
               <Pressable
                 className="bg-black rounded-xl items-center justify-center flex-row gap-2"

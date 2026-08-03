@@ -1,13 +1,24 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  ScrollView,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from "react-native";
+import {
+  addDaysToIso,
   buildMonthGrid,
   compareIso,
   formatMonthYear,
+  listMonthsBetween,
   parseDateIso,
-  shiftMonth,
   todayIsoLocal,
   WEEKDAY_LABELS,
+  type CalendarCell,
 } from "../utils/meetingDateTime";
 
 interface MeetingCalendarPickerProps {
@@ -19,22 +30,45 @@ interface MeetingCalendarPickerProps {
   enabledDatesIso?: Set<string> | null;
 }
 
-export default function MeetingCalendarPicker({
-  selectedDateIso,
-  onSelectDate,
-  minDateIso = todayIsoLocal(),
-  maxDateIso,
-  enabledDatesIso = null,
-}: MeetingCalendarPickerProps) {
-  const initial = selectedDateIso
-    ? parseDateIso(selectedDateIso)
-    : parseDateIso(minDateIso);
-  const [viewYear, setViewYear] = useState(initial.y);
-  const [viewMonth, setViewMonth] = useState(initial.m);
+function resolveMonthRange(
+  minDateIso: string,
+  maxDateIso: string | undefined,
+  enabledDatesIso: Set<string> | null,
+): { year: number; month: number }[] {
+  let rangeEnd = maxDateIso;
+  if (!rangeEnd && enabledDatesIso && enabledDatesIso.size > 0) {
+    const sorted = Array.from(enabledDatesIso).sort(compareIso);
+    rangeEnd = sorted[sorted.length - 1];
+  }
+  if (!rangeEnd) {
+    rangeEnd = addDaysToIso(minDateIso, 90);
+  }
+  if (compareIso(rangeEnd, minDateIso) < 0) {
+    rangeEnd = minDateIso;
+  }
+  return listMonthsBetween(minDateIso, rangeEnd);
+}
 
+function MonthGrid({
+  year,
+  month,
+  selectedDateIso,
+  minDateIso,
+  maxDateIso,
+  enabledDatesIso,
+  onSelectDate,
+}: {
+  year: number;
+  month: number;
+  selectedDateIso: string | null;
+  minDateIso: string;
+  maxDateIso?: string;
+  enabledDatesIso: Set<string> | null;
+  onSelectDate: (iso: string) => void;
+}) {
   const cells = useMemo(
-    () => buildMonthGrid(viewYear, viewMonth),
-    [viewYear, viewMonth],
+    () => buildMonthGrid(year, month),
+    [year, month],
   );
 
   const isSelectable = (iso: string, inMonth: boolean) => {
@@ -45,53 +79,24 @@ export default function MeetingCalendarPicker({
     return true;
   };
 
-  const goPrev = () => {
-    const next = shiftMonth(viewYear, viewMonth, -1);
-    setViewYear(next.year);
-    setViewMonth(next.month);
-  };
-
-  const goNext = () => {
-    const next = shiftMonth(viewYear, viewMonth, 1);
-    setViewYear(next.year);
-    setViewMonth(next.month);
-  };
-
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Pressable onPress={goPrev} style={styles.navBtn} hitSlop={8}>
-          <Text style={styles.navText}>‹</Text>
-        </Pressable>
-        <Text style={styles.monthLabel}>
-          {formatMonthYear(viewYear, viewMonth)}
-        </Text>
-        <Pressable onPress={goNext} style={styles.navBtn} hitSlop={8}>
-          <Text style={styles.navText}>›</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.weekRow}>
-        {WEEKDAY_LABELS.map((d) => (
-          <Text key={d} style={styles.weekday}>
-            {d}
-          </Text>
-        ))}
-      </View>
-
-      <View style={styles.grid}>
-        {cells.map((cell) => {
-          const selectable = isSelectable(cell.iso, cell.inMonth);
-          const selected = selectedDateIso === cell.iso;
-          return (
-            <Pressable
-              key={`${cell.iso}-${cell.inMonth}`}
-              disabled={!selectable}
-              onPress={() => onSelectDate(cell.iso)}
+    <View style={styles.grid}>
+      {cells.map((cell: CalendarCell) => {
+        const selectable = isSelectable(cell.iso, cell.inMonth);
+        const selected = selectedDateIso === cell.iso;
+        return (
+          <Pressable
+            key={`${cell.iso}-${cell.inMonth}`}
+            disabled={!selectable}
+            onPress={() => onSelectDate(cell.iso)}
+            style={styles.dayCell}
+          >
+            <View
               style={[
-                styles.dayCell,
-                selected && styles.dayCellSelected,
-                !cell.inMonth && styles.dayCellOutside,
+                styles.dayCellInner,
+                selected && styles.dayCellInnerSelected,
+                selectable && !selected && styles.dayCellInnerSelectable,
+                !cell.inMonth && styles.dayCellInnerOutside,
               ]}
             >
               <Text
@@ -104,10 +109,136 @@ export default function MeetingCalendarPicker({
               >
                 {cell.day}
               </Text>
-            </Pressable>
-          );
-        })}
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+export default function MeetingCalendarPicker({
+  selectedDateIso,
+  onSelectDate,
+  minDateIso = todayIsoLocal(),
+  maxDateIso,
+  enabledDatesIso = null,
+}: MeetingCalendarPickerProps) {
+  const months = useMemo(
+    () => resolveMonthRange(minDateIso, maxDateIso, enabledDatesIso),
+    [minDateIso, maxDateIso, enabledDatesIso],
+  );
+
+  const initialIndex = useMemo(() => {
+    const anchor = selectedDateIso ?? minDateIso;
+    const { y, m } = parseDateIso(anchor);
+    const idx = months.findIndex((mo) => mo.year === y && mo.month === m);
+    return idx >= 0 ? idx : 0;
+  }, [months, minDateIso, selectedDateIso]);
+
+  const [pageWidth, setPageWidth] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const scrollRef = useRef<ScrollView>(null);
+  const didInitialScroll = useRef(false);
+
+  const onLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && w !== pageWidth) setPageWidth(w);
+  }, [pageWidth]);
+
+  useEffect(() => {
+    if (pageWidth <= 0 || didInitialScroll.current) return;
+    didInitialScroll.current = true;
+    setActiveIndex(initialIndex);
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        x: initialIndex * pageWidth,
+        animated: false,
+      });
+    });
+  }, [initialIndex, pageWidth]);
+
+  const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (pageWidth <= 0) return;
+    const idx = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
+    const clamped = Math.max(0, Math.min(months.length - 1, idx));
+    setActiveIndex(clamped);
+  };
+
+  const activeMonth = months[activeIndex] ?? months[0];
+
+  return (
+    <View style={styles.root} onLayout={onLayout}>
+      <Text style={styles.monthLabel}>
+        {activeMonth
+          ? formatMonthYear(activeMonth.year, activeMonth.month)
+          : ""}
+      </Text>
+
+      {months.length > 1 ? (
+        <Text style={styles.swipeHint}>Swipe left or right for other months</Text>
+      ) : null}
+
+      <View style={styles.weekRow}>
+        {WEEKDAY_LABELS.map((d) => (
+          <Text key={d} style={styles.weekday}>
+            {d}
+          </Text>
+        ))}
       </View>
+
+      {pageWidth > 0 ? (
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          onMomentumScrollEnd={onScrollEnd}
+          contentContainerStyle={{ width: pageWidth * months.length }}
+        >
+          {months.map(({ year, month }) => (
+            <View
+              key={`${year}-${month}`}
+              style={{ width: pageWidth }}
+            >
+              <MonthGrid
+                year={year}
+                month={month}
+                selectedDateIso={selectedDateIso}
+                minDateIso={minDateIso}
+                maxDateIso={maxDateIso}
+                enabledDatesIso={enabledDatesIso}
+                onSelectDate={onSelectDate}
+              />
+            </View>
+          ))}
+        </ScrollView>
+      ) : (
+        activeMonth ? (
+          <MonthGrid
+            year={activeMonth.year}
+            month={activeMonth.month}
+            selectedDateIso={selectedDateIso}
+            minDateIso={minDateIso}
+            maxDateIso={maxDateIso}
+            enabledDatesIso={enabledDatesIso}
+            onSelectDate={onSelectDate}
+          />
+        ) : null
+      )}
+
+      {months.length > 1 ? (
+        <View style={styles.dotsRow}>
+          {months.map((mo, i) => (
+            <View
+              key={`${mo.year}-${mo.month}-dot`}
+              style={[styles.dot, i === activeIndex && styles.dotActive]}
+            />
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -116,29 +247,18 @@ const styles = StyleSheet.create({
   root: {
     paddingTop: 4,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  navBtn: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 18,
-    backgroundColor: "#F5F5F5",
-  },
-  navText: {
-    fontSize: 22,
-    color: "#171717",
-    lineHeight: 24,
-  },
   monthLabel: {
     fontSize: 16,
     fontWeight: "600",
     color: "#171717",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  swipeHint: {
+    fontSize: 11,
+    color: "#A3A3A3",
+    textAlign: "center",
+    marginBottom: 8,
   },
   weekRow: {
     flexDirection: "row",
@@ -160,12 +280,25 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  dayCellInner: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 0,
   },
-  dayCellSelected: {
-    backgroundColor: "#171717",
+  dayCellInnerSelectable: {
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
+    backgroundColor: "#FFFFFF",
   },
-  dayCellOutside: {
+  dayCellInnerSelected: {
+    backgroundColor: "#171717",
+    borderWidth: 2,
+    borderColor: "#171717",
+  },
+  dayCellInnerOutside: {
     opacity: 0.35,
   },
   dayText: {
@@ -182,5 +315,25 @@ const styles = StyleSheet.create({
   dayTextSelected: {
     color: "#FFFFFF",
     fontWeight: "700",
+  },
+  dotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    flexWrap: "wrap",
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#D4D4D4",
+  },
+  dotActive: {
+    backgroundColor: "#171717",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });

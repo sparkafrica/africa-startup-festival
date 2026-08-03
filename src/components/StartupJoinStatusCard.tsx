@@ -62,16 +62,13 @@ export function StartupJoinStatusCard({
   if (state.phase === "linked" && state.badge) {
     return (
       <View className="mb-5 border border-neutral-200 bg-neutral-50 px-4 py-4" style={{ borderRadius: 0 }}>
-        <View className="flex-row items-center flex-wrap gap-2 mb-2">
-          <Text className="text-base font-semibold text-neutral-900">
-            Linked to startup
-          </Text>
+        <View className="mb-2">
           <StartupBadge companyName={state.badge.companyName} />
         </View>
         <Text className="text-sm text-neutral-600 leading-5">
           {state.isStartupAdmin
             ? "You're the admin for this startup. Keep your startup profile up to date below."
-            : "You're verified with this startup. Your profile shows a startup badge, but you'll still appear as a regular attendee in the directory."}
+            : "You're verified with this startup. Other attendees will see your startup badge on your profile."}
         </Text>
       </View>
     );

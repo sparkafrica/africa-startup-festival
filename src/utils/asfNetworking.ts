@@ -30,12 +30,14 @@ export function targetIsInvestor(attendee: {
 }
 
 /**
- * Messaging requires an accepted connection or an accepted meeting — all pass tiers.
+ * Investors may message anyone (PRD shortcut).
+ * Everyone else: accepted connection or accepted meeting.
  */
 export async function canMessageAttendee(attendee: {
   connectionStatus?: "pending" | "accepted" | null;
   hasAcceptedMeeting?: boolean;
 }): Promise<boolean> {
+  if (await currentUserIsInvestor()) return true;
   return canMessagePeer(attendee);
 }
 

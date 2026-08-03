@@ -13,15 +13,11 @@ import {
   Platform,
   Keyboard,
   StyleSheet,
-  InteractionManager,
   Linking,
   Alert,
 } from "react-native";
-import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { GestureDetector } from "react-native-gesture-handler";
-import Reanimated from "react-native-reanimated";
 import {
   useNavigation,
   useRoute,
@@ -62,9 +58,7 @@ import {
 import TicketBenefitsModal from "../components/TicketBenefitsModal";
 import { getTicketBenefits } from "../constants/ticketBenefits";
 import QRCode from "react-native-qrcode-svg";
-import RequestMeetingModal, {
-  type MeetingFormData,
-} from "../components/RequestMeetingModal";
+import type { MeetingFormData } from "../components/RequestMeetingModal";
 import { LoadingSpinner, SkeletonMyTicketView } from "../components";
 import {
   getCanUserBookMeetings,
@@ -72,21 +66,23 @@ import {
   getCanUserInitiateConnection,
   showExhibitionCannotInitiateConnectionAlert,
 } from "../utils/meetingRestrictions";
+import { hasPendingMeetingWithPeer } from "../utils/messagingEligibility";
+import {
+  canRequestMeetingWithAttendee,
+  currentUserIsInvestor,
+  showInvestorConnectionRequiredAlert,
+} from "../utils/asfNetworking";
+import { getAttendeeDisplayFields } from "../utils/normalizeAttendee";
 import {
   isTicketTransferBlockedForEvent,
   showTicketTransferDeadlineAlert,
 } from "../utils/ticketTransferRestrictions";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import { logError, ERROR_TAGS } from "../utils/logError";
-import { attendeeService } from "../services/attendeeService";
-import { mergeAttendeeProfiles, type AttendeeLike } from "../utils/normalizeAttendee";
-import ScannedAttendeeProfileContent from "../components/ScannedAttendeeProfileContent";
+import AttendeeQRScannerFlow, {
+  type ScanFlowHelpers,
+} from "../components/scan/AttendeeQRScannerFlow";
 import GuidelinePatternOverlay from "../components/GuidelinePatternOverlay";
-import {
-  getScannedAttendeeSheetHeight,
-  logScannedAttendeePayload,
-  useScannedAttendeeSheetDismiss,
-} from "../utils/scannedAttendeeSheet";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -2803,396 +2799,6 @@ function TicketRevokedConfirmationModal({
   );
 }
 
-// QR Code Scanner Modal Component
-function QRScannerModal({
-  visible,
-  onClose,
-  onScan,
-  isProcessing,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onScan: (data: string) => void;
-  isProcessing?: boolean;
-}) {
-  const [permission, requestPermission] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
-  const sheetHeight = useRef(new Animated.Value(180)).current; // Base height for Close button only
-  const translateYPermission = useRef(
-    new Animated.Value(SCREEN_HEIGHT),
-  ).current; // For permission modals
-  const isProcessingRef = useRef(false);
-
-  // Animate sheet height based on whether "Tap to Scan Again" button is shown
-  useEffect(() => {
-    if (visible) {
-      // Reset to base height when modal opens
-      setScanned(false);
-      isProcessingRef.current = false;
-      sheetHeight.setValue(180); // Base height (Close button only)
-    } else {
-      sheetHeight.setValue(180);
-      setScanned(false);
-      isProcessingRef.current = false;
-    }
-  }, [visible, sheetHeight]);
-
-  useEffect(() => {
-    if (visible) {
-      // When scanned state changes, animate height
-      if (scanned && !isProcessing) {
-        // Expand to show "Tap to Scan Again" button (base + button height)
-        Animated.spring(sheetHeight, {
-          toValue: 280, // Increased height for both buttons
-          useNativeDriver: false, // height animations don't support native driver
-          tension: 65,
-          friction: 11,
-        }).start();
-      } else {
-        // Collapse to base height (Close button only)
-        Animated.spring(sheetHeight, {
-          toValue: 180,
-          useNativeDriver: false,
-          tension: 65,
-          friction: 11,
-        }).start();
-      }
-    }
-  }, [scanned, isProcessing, visible, sheetHeight]);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dy) > 5 && gestureState.dy > 0;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        // Allow dragging down to close
-        if (gestureState.dy > 0) {
-          // Could implement drag-to-close here if needed
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        // Close on drag down
-        if (gestureState.dy > DRAG_THRESHOLD || gestureState.vy > 0.5) {
-          onClose();
-        }
-      },
-    }),
-  ).current;
-
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
-    // Prevent multiple scans - ONLY check ref (state is async)
-    if (isProcessingRef.current || !data) {
-      return;
-    }
-
-    // Immediately set ref to prevent any other calls (before async operations)
-    isProcessingRef.current = true;
-
-    setScanned(true);
-    onScan(data);
-  };
-
-  // Handle permission modal animations
-  useEffect(() => {
-    if (visible && (permission === null || !permission.granted)) {
-      Animated.spring(translateYPermission, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
-    } else {
-      translateYPermission.setValue(SCREEN_HEIGHT);
-    }
-  }, [visible, permission, translateYPermission]);
-
-  if (permission === null) {
-    return (
-      <Modal
-        visible={visible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={onClose}
-      >
-        <View className="flex-1 bg-black/50">
-          <Pressable className="flex-1" onPress={onClose} />
-          <Animated.View
-            className="bg-white rounded-t-3xl"
-            style={{
-              transform: [{ translateY: translateYPermission }],
-            }}
-          >
-            <View className="items-center justify-center p-8">
-              <Text className="text-base text-neutral-600">
-                Requesting camera permission...
-              </Text>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <Modal
-        visible={visible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={onClose}
-      >
-        <View className="flex-1 bg-black/50">
-          <Pressable className="flex-1" onPress={onClose} />
-          <Animated.View
-            className="bg-white rounded-t-3xl"
-            style={{
-              transform: [{ translateY: translateYPermission }],
-            }}
-          >
-            <View className="px-4 py-6">
-              <Text className="text-xl font-semibold text-black mb-4 text-center">
-                Camera Permission Required
-              </Text>
-              <Text className="text-base text-neutral-600 mb-6 text-center">
-                We need access to your camera to scan QR codes.
-              </Text>
-              <Pressable
-                onPress={requestPermission}
-                className="w-full items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
-              >
-                <Text className="text-base font-medium text-white">
-                  Grant Permission
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={onClose}
-                className="w-full items-center justify-center bg-white border border-neutral-300 rounded-xl py-4 px-4"
-              >
-                <Text className="text-base font-medium text-black">Cancel</Text>
-              </Pressable>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
-    );
-  }
-
-  const maxBottomSheetHeight = 280; // Maximum height when "Tap to Scan Again" is shown
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      onRequestClose={onClose}
-      transparent={false}
-      statusBarTranslucent={true}
-    >
-      <View className="flex-1 bg-black">
-        {/* Camera view - fills screen */}
-        <CameraView
-          style={StyleSheet.absoluteFillObject}
-          facing="back"
-          onBarcodeScanned={
-            scanned || isProcessing ? undefined : handleBarCodeScanned
-          }
-          barcodeScannerSettings={{
-            barcodeTypes: ["qr"],
-          }}
-        />
-        {/* Overlay with scan frame */}
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
-          <View className="flex-1">
-            {/* Top overlay */}
-            <View className="flex-1 bg-black/50" />
-            {/* Middle section with scan frame */}
-            <View className="flex-row">
-              <View className="flex-1 bg-black/50" />
-              <View className="w-64 h-64 border-2 border-white rounded-2xl" />
-              <View className="flex-1 bg-black/50" />
-            </View>
-            {/* Bottom overlay */}
-            <View className="flex-1 bg-black/50" />
-          </View>
-        </View>
-
-        {/* Bottom controls sheet - positioned absolutely at bottom of screen */}
-        <SafeAreaView
-          edges={["bottom"]}
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            backgroundColor: "white",
-          }}
-        >
-          <Animated.View
-            className="bg-white rounded-t-3xl overflow-hidden"
-            style={{
-              height: sheetHeight,
-            }}
-          >
-            <View
-              className="items-center pt-2 pb-4"
-              {...panResponder.panHandlers}
-            >
-              <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
-            </View>
-            <View className="px-4 pb-6">
-              <Text className="text-xl font-semibold text-black mb-2 text-center">
-                Scan QR Code
-              </Text>
-              <Text className="text-sm text-neutral-500 text-center mb-6">
-                Position the QR code within the frame
-              </Text>
-              {isProcessing && (
-                <View className="w-full items-center justify-center bg-neutral-100 rounded-xl py-4 px-4 mb-3 flex-row gap-2">
-                  <LoadingSpinner size="small" color="#000000" />
-                  <Text className="text-base font-medium text-black">
-                    Processing...
-                  </Text>
-                </View>
-              )}
-              {scanned && !isProcessing && (
-                <Pressable
-                  onPress={() => {
-                    setScanned(false);
-                    isProcessingRef.current = false;
-                  }}
-                  className="w-full items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
-                >
-                  <Text className="text-base font-medium text-white">
-                    Tap to Scan Again
-                  </Text>
-                </Pressable>
-              )}
-              <Pressable
-                onPress={onClose}
-                className="w-full items-center justify-center bg-white border border-neutral-300 rounded-xl py-4 px-4"
-              >
-                <Text className="text-base font-medium text-black">Close</Text>
-              </Pressable>
-            </View>
-          </Animated.View>
-        </SafeAreaView>
-      </View>
-    </Modal>
-  );
-}
-
-function ScannedTicketProfileModal({
-  visible,
-  onClose,
-  onRequestMeeting,
-  onConnect,
-  attendee,
-  isConnecting,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onRequestMeeting: () => void;
-  onConnect: () => void;
-  attendee: Attendee | null;
-  isConnecting?: boolean;
-}) {
-  const insets = useSafeAreaInsets();
-  const sheetHeight = getScannedAttendeeSheetHeight(SCREEN_HEIGHT);
-  const footerPaddingBottom = Math.max(insets.bottom, 12);
-  const { panGesture, sheetAnimatedStyle, resetSheet } =
-    useScannedAttendeeSheetDismiss(onClose);
-
-  useEffect(() => {
-    if (visible) {
-      resetSheet();
-      logScannedAttendeePayload("modal-visible", attendee);
-    }
-  }, [visible, attendee, resetSheet]);
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
-      <View
-        className="flex-1"
-        style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
-      >
-        <Pressable className="flex-1" onPress={onClose} />
-        <Reanimated.View
-          className="bg-white"
-          style={[
-            {
-              height: sheetHeight,
-              flexDirection: "column",
-              borderTopWidth: 1,
-              borderTopColor: "#E5E5E5",
-            },
-            sheetAnimatedStyle,
-          ]}
-        >
-          <GestureDetector gesture={panGesture}>
-            <View className="items-center justify-center py-4" style={{ minHeight: 48 }}>
-              <View className="w-12 h-1 bg-neutral-300 rounded-full" />
-            </View>
-          </GestureDetector>
-
-          <ScrollView
-            className="flex-1 px-4"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 16 }}
-            bounces
-          >
-            {attendee ? (
-              <ScannedAttendeeProfileContent attendee={attendee} variant="modal" />
-            ) : (
-              <View className="items-center justify-center py-8">
-                <Text className="text-base text-neutral-500">
-                  No attendee data available
-                </Text>
-              </View>
-            )}
-          </ScrollView>
-
-          <View
-            className="px-4 pt-3 bg-white border-t border-neutral-100"
-            style={{ paddingBottom: footerPaddingBottom }}
-          >
-            <Pressable
-              onPress={onRequestMeeting}
-              className="w-full flex-row items-center justify-center bg-black rounded-xl py-4 px-4 mb-3"
-            >
-              <CalendarIcon size={20} color="#FFFFFF" />
-              <Text className="text-base font-medium text-white ml-2">
-                Request Meeting
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={onConnect}
-              disabled={isConnecting}
-              className="w-full flex-row items-center justify-center bg-neutral-100 rounded-xl py-4 px-4"
-              style={{ opacity: isConnecting ? 0.6 : 1 }}
-            >
-              {isConnecting ? (
-                <LoadingSpinner size="small" color="#000000" />
-              ) : (
-                <ConnectIcon size={20} color="#000000" />
-              )}
-              <Text className="text-base font-medium text-black ml-2">
-                {isConnecting ? "Connecting..." : "Connect"}
-              </Text>
-            </Pressable>
-          </View>
-        </Reanimated.View>
-      </View>
-    </Modal>
-  );
-}
-
 function EditAssignedTicketModal({
   visible,
   onClose,
@@ -4259,14 +3865,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     ticketRevokedConfirmationVisible,
     setTicketRevokedConfirmationVisible,
   ] = useState(false);
-  const [scannedTicketProfileVisible, setScannedTicketProfileVisible] =
-    useState(false);
-  const [scannedAttendee, setScannedAttendee] = useState<Attendee | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [qrScannerModalVisible, setQrScannerModalVisible] = useState(false);
-  const [requestMeetingModalVisible, setRequestMeetingModalVisible] =
-    useState(false);
   const [recipientData, setRecipientData] = useState<{
     firstName: string;
     lastName: string;
@@ -4850,190 +4450,122 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     setEditAssignedTicketData(null);
   };
 
-  // Handle QR code scanner press - open camera scanner modal
+  // Handle QR code scanner press - open unified scan flow
   const handleQRCodePress = () => {
     void trackQrEvent("started", { source: "scan_qr_screen" });
     setQrScannerModalVisible(true);
   };
 
-  // Handle QR code scanned from camera
-  const handleQRCodeScanned = async (scannedData: string) => {
-    if (!scannedData || !scannedData.trim()) {
-      void trackQrEvent("failed", {
-        source: "scan_qr_screen",
-        reason: "empty_payload",
-      });
-      showToast("Invalid QR code. Please try again.", "error");
-      return;
-    }
-
-    const trimmedData = scannedData.trim();
-    const validation = validateUUID(trimmedData);
-    if (!validation.valid) {
-      void trackQrEvent("failed", {
-        source: "scan_qr_screen",
-        reason: "invalid_format",
-      });
-      showToast(validation.error || "Invalid QR code format", "error");
-      return;
-    }
-
-    setIsScanning(true);
-
-    try {
-      const scanned = await ticketService.scanTicketByCode(
-        EVENT_ID,
-        trimmedData,
-      );
-
-      let attendee = scanned;
-      logScannedAttendeePayload("scan", scanned);
-      try {
-        const enriched = await attendeeService.getAttendeeByUserId(
-          EVENT_ID,
-          String(scanned.user.id),
-        );
-        attendee = mergeAttendeeProfiles(scanned, enriched as AttendeeLike);
-        logScannedAttendeePayload("enriched", attendee);
-        if (enriched) {
-          logScannedAttendeePayload("directory-only", enriched);
-        }
-      } catch {
-        // scan payload is enough when directory lookup fails
-      }
-
-      setScannedAttendee(attendee);
-      setQrScannerModalVisible(false);
-      void trackQrEvent("success", { source: "scan_qr_screen" });
-      showToast("Ticket scanned successfully!", "success");
-
-      if (Platform.OS === "ios") {
-        // iOS: navigate to full screen instead of modal (avoids native modal stacking issue)
-        navigation.navigate("ScannedAttendee", { attendee });
-      } else {
-        // Android: keep seamless modal flow
-        const showProfileModal = () => {
-          setScannedTicketProfileVisible(true);
-        };
-        InteractionManager.runAfterInteractions(() => showProfileModal());
-      }
-    } catch (error: any) {
-      // Handle different error types - show user-friendly messages based on status code only
-      // Never use error.message directly to avoid showing technical details
-      const responseCode =
-        error?.responseCode || error?.response_code || error?.statusCode;
-
-      let errorMessage = "Failed to scan ticket. Please try again.";
-
-      if (responseCode === 404) {
-        errorMessage =
-          "Ticket not found. Please check the QR code and try again.";
-      } else if (responseCode === 401) {
-        errorMessage = "Unauthorized. Please log in and try again.";
-      } else if (responseCode === 403) {
-        errorMessage = "You don't have permission to scan this ticket.";
-      } else if (responseCode >= 500) {
-        errorMessage = "Server error. Please try again later.";
-      }
-
-      void trackQrEvent("failed", {
-        source: "scan_qr_screen",
-        reason: "api_error",
-        response_code: responseCode ?? "unknown",
-      });
-      showToast(errorMessage, "error");
-      // Reset the processing ref so user can try scanning again
-      // The modal will stay open, and user can click "Tap to Scan Again" to reset scanned state
-    } finally {
-      setIsScanning(false);
-    }
+  const handleScannerClose = () => {
+    setQrScannerModalVisible(false);
   };
 
   const { markRequestMeetingComplete, markConnectAttendeesComplete } =
     useChecklist();
 
-  const handleRequestMeeting = async () => {
+  const handleRequestMeetingGuard = async (
+    attendee: Attendee,
+    helpers: ScanFlowHelpers,
+  ): Promise<boolean> => {
     const canBook = await getCanUserBookMeetings();
-    if (canBook) setRequestMeetingModalVisible(true);
-    else showExpoCannotBookMeetingAlert(navigation);
+    if (!canBook) {
+      showExpoCannotBookMeetingAlert(navigation);
+      return false;
+    }
+    const isInvestor = await currentUserIsInvestor();
+    if (!isInvestor) {
+      const { ticketTypeName } = getAttendeeDisplayFields(attendee);
+      const allowed = await canRequestMeetingWithAttendee({
+        ticketType: ticketTypeName,
+        connectionStatus: null,
+      });
+      if (!allowed) {
+        showInvestorConnectionRequiredAlert();
+        return false;
+      }
+    }
+    const peerId = String(attendee.user?.id ?? "").trim();
+    const me = String(user?.user_id ?? "").trim();
+    if (peerId && me) {
+      const pending = await hasPendingMeetingWithPeer(peerId, me);
+      if (pending) {
+        helpers.showToast(
+          "You already have a pending meeting request with this person. Wait for them to accept or decline before sending another.",
+          "info",
+        );
+        return false;
+      }
+    }
+    return true;
   };
 
-  const handleMeetingRequestSubmit = async (formData: MeetingFormData) => {
-    if (!scannedAttendee) {
-      showToast("No attendee data available", "error");
-      throw new Error("No attendee");
-    }
+  const handleMeetingRequestSubmit = async (
+    formData: MeetingFormData,
+    attendee: Attendee,
+    helpers: ScanFlowHelpers,
+  ) => {
     try {
       await meetingService.submitMeetingRequestFromForm(
         EVENT_ID,
         formData,
-        String(scannedAttendee.user.id),
+        String(attendee.user.id),
       );
       void trackMeetingEvent("request_submitted", { source: "scan_qr_screen" });
       markRequestMeetingComplete();
-      showToast("Meeting request sent successfully!", "success");
-      setRequestMeetingModalVisible(false);
-      setScannedTicketProfileVisible(false);
-      setScannedAttendee(null);
+      helpers.showToast("Meeting request sent successfully!", "success");
+      helpers.closeScanner();
       navigation.navigate("Meetings", {
         primaryTab: "requests",
         secondaryTab: "outbound",
       });
-    } catch (e: any) {
-      const msg =
-        e instanceof ApiClientError
-          ? e.message
-          : e?.message || "Failed to send meeting request. Please try again.";
-      showToast(msg, "error");
+    } catch (e: unknown) {
       throw e;
     }
   };
 
-  const handleConnect = async () => {
-    // Prevent duplicate requests
+  const handleConnect = async (
+    attendee: Attendee,
+    helpers: ScanFlowHelpers,
+  ) => {
     if (isConnecting) {
       return;
     }
 
-    if (!scannedAttendee) {
-      showToast("No attendee data available", "error");
-      return;
-    }
-
-    // Get current user ID from auth context
     const currentUser = user;
     if (!currentUser?.user_id) {
-      showToast("User authentication required", "error");
-      return;
-    }
-
-    // Limited Pass: no connect + no message features
-    const canInitiateConnection = await getCanUserInitiateConnection();
-    if (!canInitiateConnection) {
-      showExhibitionCannotInitiateConnectionAlert(navigation);
+      helpers.showToast("User authentication required", "error");
       return;
     }
 
     setIsConnecting(true);
 
     try {
+      const canInitiateConnection = await getCanUserInitiateConnection();
+      if (!canInitiateConnection) {
+        showExhibitionCannotInitiateConnectionAlert(navigation);
+        return;
+      }
+
       await connectionService.createConnection(
         currentUser.user_id,
-        scannedAttendee.user.id,
+        attendee.user.id,
       );
       void trackConnectionEvent("sent", { source: "scan_qr_screen" });
       markConnectAttendeesComplete();
-      showToast("Connection request sent successfully!", "success");
-      setScannedTicketProfileVisible(false);
-      setScannedAttendee(null);
+      helpers.showToast("Connection request sent successfully!", "success");
+      helpers.closeScanner();
       navigation.navigate("Connections");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as {
+        responseCode?: number;
+        response_code?: number;
+        statusCode?: number;
+        message?: string;
+      };
       const responseCode =
-        error?.responseCode || error?.response_code || error?.statusCode;
-      const errorMessageText = error?.message || "";
+        err?.responseCode || err?.response_code || err?.statusCode;
+      const errorMessageText = err?.message || "";
 
-      // Check if error message contains "Connection already exists"
-      // Backend returns 400 with this message, but connection might have been created
       const isAlreadyExists =
         errorMessageText.toLowerCase().includes("connection already exists") ||
         errorMessageText.toLowerCase().includes("already exists");
@@ -5041,9 +4573,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       let errorMessage = "Failed to send connection request. Please try again.";
       let isSuccessCase = false;
 
-      // Handle specific error codes and messages
       if (responseCode === 400 && isAlreadyExists) {
-        // Connection already exists - treat as success since connection was likely created
         errorMessage = "Connection request already exists.";
         isSuccessCase = true;
         void trackConnectionEvent("sent", {
@@ -5051,9 +4581,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           outcome: "already_exists",
         });
         markConnectAttendeesComplete();
-        showToast(errorMessage, "success");
-        setScannedTicketProfileVisible(false);
-        setScannedAttendee(null);
+        helpers.showToast(errorMessage, "success");
+        helpers.closeScanner();
         navigation.navigate("Connections");
       } else if (responseCode === 409) {
         errorMessage = "Connection request already exists.";
@@ -5063,21 +4592,19 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           outcome: "already_exists",
         });
         markConnectAttendeesComplete();
-        showToast(errorMessage, "success");
-        setScannedTicketProfileVisible(false);
-        setScannedAttendee(null);
+        helpers.showToast(errorMessage, "success");
+        helpers.closeScanner();
         navigation.navigate("Connections");
       } else if (responseCode === 400) {
         errorMessage = "Invalid connection request.";
-        showToast(errorMessage, "error");
+        helpers.showToast(errorMessage, "error");
       } else if (responseCode === 404) {
         errorMessage = "User not found.";
-        showToast(errorMessage, "error");
+        helpers.showToast(errorMessage, "error");
       } else {
-        showToast(errorMessage, "error");
+        helpers.showToast(errorMessage, "error");
       }
 
-      // Only log actual errors, not "already exists" cases (which are success scenarios)
       if (__DEV__ && !isSuccessCase) {
         console.error("Error creating connection:", error);
         console.error("Error response code:", responseCode);
@@ -5234,43 +4761,15 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           onClose={handleRevokedConfirmationClose}
           onConfirm={handleRevokedConfirmationClose}
         />
-        {/* Only mount scanner when open so iOS never has two Modals in tree (scanner + profile).
-            When closed we unmount it; then profile modal can present without a stuck/invisible scanner blocking touches. */}
-        {qrScannerModalVisible && (
-          <QRScannerModal
-            visible={true}
-            onClose={() => setQrScannerModalVisible(false)}
-            onScan={handleQRCodeScanned}
-            isProcessing={isScanning}
-          />
-        )}
-        <ScannedTicketProfileModal
-          visible={scannedTicketProfileVisible}
-          onClose={() => {
-            setScannedTicketProfileVisible(false);
-            setScannedAttendee(null);
-          }}
-          onRequestMeeting={handleRequestMeeting}
-          onConnect={handleConnect}
-          attendee={scannedAttendee}
-          isConnecting={isConnecting}
-        />
-        <RequestMeetingModal
-          visible={requestMeetingModalVisible}
-          analyticsSource="scan_qr_screen"
-          onClose={() => setRequestMeetingModalVisible(false)}
-          onSubmit={handleMeetingRequestSubmit}
+        <AttendeeQRScannerFlow
+          visible={qrScannerModalVisible}
+          onClose={handleScannerClose}
+          onRequestMeetingGuard={handleRequestMeetingGuard}
+          onMeetingSubmit={handleMeetingRequestSubmit}
           onExpoBlocked={() => showExpoCannotBookMeetingAlert(navigation)}
-          attendeeName={
-            scannedAttendee
-              ? `${scannedAttendee.user.first_name} ${scannedAttendee.user.last_name}`.trim()
-              : undefined
-          }
-          requesteeUserId={
-            scannedAttendee
-              ? String(scannedAttendee.user.id)
-              : undefined
-          }
+          onConnect={handleConnect}
+          isConnecting={isConnecting}
+          analyticsSource="scan_qr_screen"
         />
         <Toast
           message={toast.message}

@@ -27,7 +27,7 @@ import { EVENT_ID } from "../config/env";
 import { authService, type UserProfile } from "../services/authService";
 import { companyService } from "../services/companyService";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
-import { getSafeMetadataObjectForMerge } from "../utils/sanitizeUserMetadata";
+import { getEventMetadata, mergeEventMetadata } from "../utils/eventMetadata";
 import {
   hasRequiredImage,
   REQUIRED_PROFILE_PHOTO_MESSAGE,
@@ -903,15 +903,7 @@ function AttendeeProfileForm({
       );
       if (opt) setSelectedCountry(opt.id);
     }
-    let metadata = source.metadata;
-    if (typeof metadata === "string") {
-      try {
-        metadata = JSON.parse(metadata) as Record<string, unknown>;
-      } catch {
-        metadata = {};
-      }
-    }
-    const meta = (metadata ?? {}) as Record<string, unknown>;
+    const meta = getEventMetadata(source.metadata);
     if (meta.industry && typeof meta.industry === "string") {
       const opt = INDUSTRY_OPTIONS.find(
         (o) => o.label.toLowerCase() === (meta.industry as string).toLowerCase()
@@ -1130,20 +1122,22 @@ function AttendeeProfileForm({
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
       // Build metadata for attendee directory cards and matching
-      const metadata: any = { ...getSafeMetadataObjectForMerge(user?.metadata) };
-      metadata.linkedIn = linkedIn.trim();
+      const eventMetadataPatch: Record<string, unknown> = {
+        linkedIn: linkedIn.trim(),
+      };
       if (industryLabel) {
-        metadata.industry = industryLabel;
+        eventMetadataPatch.industry = industryLabel;
       }
       if (selectedInterests.length > 0) {
-        metadata.interests = selectedInterests;
+        eventMetadataPatch.interests = selectedInterests;
       }
       if (eventGoals.trim()) {
-        metadata.event_goals = eventGoals.trim();
+        eventMetadataPatch.event_goals = eventGoals.trim();
       }
       if (industriesToMeet.length > 0) {
-        metadata.industries_to_meet = industriesToMeet;
+        eventMetadataPatch.industries_to_meet = industriesToMeet;
       }
+      const metadata = mergeEventMetadata(user?.metadata, eventMetadataPatch);
       // Note: company field is not sent to backend (company association is separate)
 
       // Prepare API request payload
@@ -1775,15 +1769,7 @@ function PersonalProfileForm({
       );
       if (opt) setSelectedCountry(opt.id);
     }
-    let metadata = initialProfile.metadata;
-    if (typeof metadata === "string") {
-      try {
-        metadata = JSON.parse(metadata) as Record<string, unknown>;
-      } catch {
-        metadata = {};
-      }
-    }
-    const meta = (metadata ?? {}) as Record<string, unknown>;
+    const meta = getEventMetadata(initialProfile.metadata);
     if (meta.industry && typeof meta.industry === "string") {
       const opt = INDUSTRY_OPTIONS.find(
         (o) => o.label.toLowerCase() === (meta.industry as string).toLowerCase()
@@ -2001,20 +1987,22 @@ function PersonalProfileForm({
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
       // Build metadata: industry & interests for attendee cards; merge with existing so we don't overwrite e.g. event_checklist
-      const metadata: any = { ...getSafeMetadataObjectForMerge(user?.metadata) };
-      metadata.linkedIn = linkedIn.trim();
+      const eventMetadataPatch: Record<string, unknown> = {
+        linkedIn: linkedIn.trim(),
+      };
       if (industryLabel) {
-        metadata.industry = industryLabel;
+        eventMetadataPatch.industry = industryLabel;
       }
       if (selectedInterests.length > 0) {
-        metadata.interests = selectedInterests;
+        eventMetadataPatch.interests = selectedInterests;
       }
       if (eventGoals.trim()) {
-        metadata.event_goals = eventGoals.trim();
+        eventMetadataPatch.event_goals = eventGoals.trim();
       }
       if (industriesToMeet.length > 0) {
-        metadata.industries_to_meet = industriesToMeet;
+        eventMetadataPatch.industries_to_meet = industriesToMeet;
       }
+      const metadata = mergeEventMetadata(user?.metadata, eventMetadataPatch);
 
       // Prepare API request payload
       const profileData: any = {
