@@ -202,6 +202,8 @@ export default function StartupConnectStep({
   const showConnectForm = shouldShowStartupJoinForm(viewState);
   const [screenPhase, setScreenPhase] = useState<ScreenPhase>("search");
   const [search, setSearch] = useState("");
+  const [featuredStartups, setFeaturedStartups] = useState<Company[]>([]);
+  const [isLoadingFeatured, setIsLoadingFeatured] = useState(false);
   const [results, setResults] = useState<Company[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -248,6 +250,22 @@ export default function StartupConnectStep({
     }
   }, [completeProfile, onComplete, variant]);
 
+  const loadFeaturedStartups = useCallback(async () => {
+    setIsLoadingFeatured(true);
+    try {
+      const { companies } = await eventService.getDirectoryCompanies(
+        EVENT_ID,
+        "startup",
+        { page_size: 20 },
+      );
+      setFeaturedStartups(companies);
+    } catch {
+      setFeaturedStartups([]);
+    } finally {
+      setIsLoadingFeatured(false);
+    }
+  }, []);
+
   const runSearch = useCallback(async (query: string) => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
@@ -279,11 +297,23 @@ export default function StartupConnectStep({
 
   useEffect(() => {
     if (!showConnectForm || screenPhase !== "search") return;
+    void loadFeaturedStartups();
+  }, [showConnectForm, screenPhase, loadFeaturedStartups]);
+
+  useEffect(() => {
+    if (!showConnectForm || screenPhase !== "search") return;
+    const trimmed = search.trim();
+    if (trimmed.length < 2) return;
     const t = setTimeout(() => {
       void runSearch(search);
     }, 300);
     return () => clearTimeout(t);
   }, [search, runSearch, screenPhase, showConnectForm]);
+
+  const displayedStartups =
+    search.trim().length >= 2 ? results : featuredStartups;
+  const isStartupListLoading =
+    search.trim().length >= 2 ? isSearching : isLoadingFeatured;
 
   const pickLogo = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -366,7 +396,7 @@ export default function StartupConnectStep({
       onComplete?.();
       Alert.alert(
         "Request sent",
-        `Your request to join ${selectedCompanyName || "the startup"} is pending. You can use the app right away — once the startup admin approves, you'll get a badge on your profile.`,
+        `Your request to join ${selectedCompanyName || "the startup"} is pending. You can use the app right away — once the startup admin approves, you'll be linked to the startup.`,
         variant === "onboarding"
           ? [{ text: "Continue to app", onPress: () => void finishFlow() }]
           : [{ text: "OK" }],
@@ -571,7 +601,7 @@ export default function StartupConnectStep({
                 Find your startup
               </Text>
               <Text className="text-sm text-neutral-600 mt-1 leading-5">
-                Next, search for your startup's name.
+                Pick your startup from the list below or search by name.
               </Text>
             </View>
 
@@ -593,23 +623,27 @@ export default function StartupConnectStep({
                 <Text className="text-sm text-red-600 mb-3">{searchError}</Text>
               ) : null}
 
-              {isSearching ? (
+              {search.trim().length < 2 && displayedStartups.length > 0 ? (
+                <Text className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-3">
+                  Startups in the directory
+                </Text>
+              ) : null}
+
+              {isStartupListLoading ? (
                 <View className="py-6 items-center">
                   <LoadingSpinner size="small" />
                 </View>
-              ) : results.length === 0 ? (
+              ) : displayedStartups.length === 0 ? (
                 <View className="py-4 px-2">
                   <Text className="text-sm text-neutral-600 text-center leading-5">
-                    {search.trim().length < 2
-                      ? "Type at least 2 characters to search the directory."
-                      : search.trim()
-                        ? "No startups match that name yet."
-                        : "Type your startup name to search the directory."}
+                    {search.trim().length >= 2
+                      ? "No startups match that name yet."
+                      : "No startups in the directory yet. Search by name or register a new startup below."}
                   </Text>
                 </View>
               ) : (
                 <View className="mb-2">
-                  {results.map((c) => {
+                  {displayedStartups.map((c) => {
                     const id = Number(c.id);
                     const selected = selectedCompanyId === id;
                     return (

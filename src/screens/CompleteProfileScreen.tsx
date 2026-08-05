@@ -1618,11 +1618,12 @@ function AttendeeProfileForm({
                         });
                       }
                     }}
-                    className={`px-4 py-2 rounded-full ${
+                    className={`px-4 py-2 ${
                       isSelected
                         ? "bg-black"
                         : "bg-neutral-100 border border-neutral-300"
                     }`}
+                    style={{ borderRadius: 0 }}
                   >
                     <Text
                       className={`text-sm font-medium ${
@@ -2477,11 +2478,12 @@ function PersonalProfileForm({
                         });
                       }
                     }}
-                    className={`px-4 py-2 rounded-full ${
+                    className={`px-4 py-2 ${
                       isSelected
                         ? "bg-black"
                         : "bg-neutral-100 border border-neutral-300"
                     }`}
+                    style={{ borderRadius: 0 }}
                   >
                     <Text
                       className={`text-sm font-medium ${
@@ -3670,7 +3672,8 @@ function CompanyProfileForm({
                   {positions.map((position) => (
                     <View
                       key={position.id}
-                      className="flex-row items-center rounded-full px-4 py-2 bg-white border border-neutral-300"
+                      className="flex-row items-center px-4 py-2 bg-white border border-neutral-300"
+                      style={{ borderRadius: 0 }}
                     >
                       <Text className="text-black text-sm font-medium mr-2">
                         {position.role}

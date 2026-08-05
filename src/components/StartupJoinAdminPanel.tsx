@@ -45,8 +45,8 @@ export function StartupJoinAdminPanel({
           Pending join requests ({requests.length})
         </Text>
         <Text className="text-xs text-neutral-500 mt-1 leading-4">
-          Approve to link them to your startup and add a badge to their profile.
-          You'll get reminders every 24 hours until these are handled.
+          Approve to add them to your startup. You'll get reminders every 24
+          hours until these are handled.
         </Text>
       </View>
 

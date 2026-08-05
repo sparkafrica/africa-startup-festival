@@ -36,6 +36,8 @@ import {
   coerceMetadataStringArray,
 } from "../utils/metadataCoerce";
 import { getEventMetadata } from "../utils/eventMetadata";
+import { resolveAttendeeStartupBadge } from "../utils/startupJoinStatus";
+import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
 import { SearchIcon, ChevronRightIcon, SpeechBubbleIcon } from "../components/icons";
 import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
@@ -128,6 +130,7 @@ interface Connection {
   speakingSessions?: SpeakingSession[];
   linkedInUrl?: string;
   isSpeaker?: boolean; // Only speakers have speaking sessions
+  startupBadge?: { kind: "linked"; companyName: string } | { kind: "pending" };
   status: "pending" | "accepted" | "rejected" | "blocked";
   isFromCurrentUser: boolean; // Whether the current user sent the request
 }
@@ -210,17 +213,26 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
         {/* Name and Title/Company - Stacked vertically */}
         <View className="flex-1">
           {/* Name - Bold and prominent */}
-          <View className="flex-row items-center mb-0.5">
+          <View className="flex-row items-center flex-wrap mb-0.5" style={{ gap: 8 }}>
             <Text
-              className="text-base font-bold text-neutral-900 flex-1"
+              className="text-base font-bold text-neutral-900"
               numberOfLines={1}
+              style={{ flexShrink: 1 }}
             >
               {connection.name}
             </Text>
+            {connection.startupBadge?.kind === "linked" ? (
+              <StartupBadge
+                companyName={connection.startupBadge.companyName}
+                compact
+              />
+            ) : connection.startupBadge?.kind === "pending" ? (
+              <StartupPendingBadge compact />
+            ) : null}
             {/* Status Indicator */}
             {statusIndicator && (
               <View
-                className="px-2 py-0.5 ml-2"
+                className="px-2 py-0.5"
                 style={{ backgroundColor: statusIndicator.bgColor, borderRadius: 0 }}
               >
                 <Text
@@ -383,6 +395,15 @@ export default function ConnectionsScreen() {
       otherUser.organisation ||
       undefined;
 
+    const startupBadge = resolveAttendeeStartupBadge(
+      {
+        company: (otherUser as any).company,
+        metadata: otherUser?.metadata,
+        organisation: otherUser.organisation,
+      },
+      {},
+    );
+
     return {
       id: backendConnection.id.toString(),
       backendConnectionId: backendConnection.id,
@@ -395,6 +416,7 @@ export default function ConnectionsScreen() {
       about: bio || undefined,
       interests: interestsArray.length > 0 ? interestsArray : undefined,
       linkedInUrl,
+      startupBadge: startupBadge ?? undefined,
       isSpeaker: false, // TODO: Determine from backend data if needed
       status: backendConnection.status,
       isFromCurrentUser,
@@ -1296,9 +1318,25 @@ export default function ConnectionsScreen() {
                     )}
                   </View>
                   <View className="flex-1">
-                    <Text className="text-2xl font-bold text-neutral-900 mb-1">
-                      {displayConnection.name}
-                    </Text>
+                    <View
+                      className="flex-row items-center flex-wrap mb-1"
+                      style={{ gap: 8 }}
+                    >
+                      <Text
+                        className="text-2xl font-bold text-neutral-900"
+                        style={{ flexShrink: 1 }}
+                      >
+                        {displayConnection.name}
+                      </Text>
+                      {displayConnection.startupBadge?.kind === "linked" ? (
+                        <StartupBadge
+                          companyName={displayConnection.startupBadge.companyName}
+                          compact
+                        />
+                      ) : displayConnection.startupBadge?.kind === "pending" ? (
+                        <StartupPendingBadge compact />
+                      ) : null}
+                    </View>
                     <Text className="text-base text-neutral-500 mb-3">
                       {displayConnection.title && displayConnection.company
                         ? `${displayConnection.title} · ${displayConnection.company}`

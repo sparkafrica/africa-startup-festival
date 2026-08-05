@@ -479,39 +479,17 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
           </View>
 
           <View className="flex-1 pt-2">
-            <View className="flex-row items-center flex-wrap gap-2 mb-0.5">
+            <View
+              className="flex-row items-center flex-wrap mb-1"
+              style={{ gap: 8 }}
+            >
               <Text
                 className="text-base font-bold text-neutral-900"
                 numberOfLines={1}
+                style={{ flexShrink: 1 }}
               >
                 {item.name}
               </Text>
-              {item.connectionStatus && (
-                <View
-                  className="px-2 py-0.5"
-                  style={{
-                    borderRadius: 0,
-                    backgroundColor:
-                      item.connectionStatus === "accepted"
-                        ? "#D1FAE5"
-                        : "#FEF3C7",
-                  }}
-                >
-                  <Text
-                    className="text-xs font-medium"
-                    style={{
-                      color:
-                        item.connectionStatus === "accepted"
-                          ? "#10B981"
-                          : "#F59E0B",
-                    }}
-                  >
-                    {item.connectionStatus === "accepted"
-                      ? "Connected"
-                      : "Pending"}
-                  </Text>
-                </View>
-              )}
               {item.startupBadge?.kind === "linked" ? (
                 <StartupBadge
                   companyName={item.startupBadge.companyName}
@@ -3158,37 +3136,16 @@ export default function AttendeesScreen() {
                       )}
                     </View>
                     <View className="flex-1">
-                      <View className="flex-row items-center flex-wrap gap-2 mb-1">
-                        <Text className="text-2xl font-bold text-neutral-900">
+                      <View
+                        className="flex-row items-center flex-wrap mb-1"
+                        style={{ gap: 8 }}
+                      >
+                        <Text
+                          className="text-2xl font-bold text-neutral-900"
+                          style={{ flexShrink: 1 }}
+                        >
                           {selectedAttendee.name}
                         </Text>
-                        {selectedAttendee.connectionStatus && (
-                          <View
-                            className="px-2 py-0.5"
-                            style={{
-                              borderRadius: 0,
-                              backgroundColor:
-                                selectedAttendee.connectionStatus === "accepted"
-                                  ? "#D1FAE5"
-                                  : "#FEF3C7",
-                            }}
-                          >
-                            <Text
-                              className="text-xs font-medium"
-                              style={{
-                                color:
-                                  selectedAttendee.connectionStatus ===
-                                  "accepted"
-                                    ? "#10B981"
-                                    : "#F59E0B",
-                              }}
-                            >
-                              {selectedAttendee.connectionStatus === "accepted"
-                                ? "Connected"
-                                : "Pending"}
-                            </Text>
-                          </View>
-                        )}
                         {selectedAttendee.startupBadge?.kind === "linked" ? (
                           <StartupBadge
                             companyName={

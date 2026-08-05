@@ -53,7 +53,7 @@ const chipStyles = StyleSheet.create({
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 999,
+    borderRadius: 0,
     maxWidth: "100%",
   },
   chipSelected: {
@@ -130,7 +130,8 @@ const SelectedChip = memo(function SelectedChip({
   return (
     <Pressable
       onPress={handleRemove}
-      className="flex-row items-center bg-black rounded-full px-3 py-1.5"
+      className="flex-row items-center bg-black px-3 py-1.5"
+      style={{ borderRadius: 0 }}
     >
       <Text className="text-white text-xs font-medium mr-1.5" numberOfLines={1}>
         {label}
@@ -210,7 +211,7 @@ export const IndustriesToMeetModal = memo(function IndustriesToMeetModal({
             </Text>
 
             {draft.length > 0 ? (
-              <View className="mb-4 border border-neutral-200 rounded-xl overflow-hidden">
+              <View className="mb-4 border border-neutral-200 overflow-hidden" style={{ borderRadius: 0 }}>
                 <Pressable
                   onPress={() => setShowSelected((prev) => !prev)}
                   className="flex-row items-center justify-between px-4 py-3 bg-neutral-50"
@@ -270,7 +271,8 @@ export const IndustriesToMeetModal = memo(function IndustriesToMeetModal({
 
             <Pressable
               onPress={handleDone}
-              className="bg-black rounded-xl py-3.5 items-center mt-4"
+              className="bg-black py-3.5 items-center mt-4"
+              style={{ borderRadius: 0 }}
             >
               <Text className="text-white font-semibold">Done</Text>
             </Pressable>
@@ -305,9 +307,10 @@ export function IndustriesToMeetField({
     <View>
       <Pressable
         onPress={onOpenModal}
-        className={`${inputClassName} border rounded-xl px-4 py-3 flex-row items-center justify-between ${
+        className={`${inputClassName} border px-4 py-3 flex-row items-center justify-between ${
           hasError ? "border-red-500" : "border-neutral-300"
         }`}
+        style={{ borderRadius: 0 }}
       >
         <View className="flex-1 pr-3">
           <Text
@@ -331,7 +334,7 @@ export function IndustriesToMeetField({
       </Pressable>
 
       {selected.length > 0 ? (
-        <View className="mt-2 border border-neutral-200 rounded-xl overflow-hidden">
+        <View className="mt-2 border border-neutral-200 overflow-hidden" style={{ borderRadius: 0 }}>
           <Pressable
             onPress={onToggleExpanded}
             className="flex-row items-center justify-between px-3 py-2.5 bg-neutral-50"
@@ -346,7 +349,8 @@ export function IndustriesToMeetField({
               {selected.map((label) => (
                 <View
                   key={label}
-                  className="flex-row items-center bg-neutral-900 rounded-full pl-3 pr-1.5 py-1.5 max-w-full"
+                  className="flex-row items-center bg-neutral-900 pl-3 pr-1.5 py-1.5 max-w-full"
+                  style={{ borderRadius: 0 }}
                 >
                   <Text
                     className="text-white text-xs font-medium mr-1 flex-shrink"
