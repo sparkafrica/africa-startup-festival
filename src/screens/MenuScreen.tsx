@@ -6,6 +6,7 @@ import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import Menu from "../components/Menu";
 import { getEventFeatures } from "../config/eventFeatures";
+import { APP_SUGGESTIONS_FORM_URL } from "../config/externalForms";
 
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -42,7 +43,7 @@ export default function MenuScreen() {
           navigation.navigate("Contact");
           break;
         case "AppSuggestions":
-          Linking.openURL("https://forms.gle/cc3W9UvfeXV1Zufu7").catch(() => {
+          Linking.openURL(APP_SUGGESTIONS_FORM_URL).catch(() => {
             Alert.alert("Cannot Open Link", "The link could not be opened.");
           });
           break;

@@ -50,8 +50,8 @@ import {
 import {
   SCHEDULE_MOCK_PREVIEW_ENABLED,
   SCHEDULE_SESSION_CTAS_ENABLED,
-  SESSION_FEEDBACK_FORM_URL,
 } from "../config/scheduleFeatures";
+import { SESSION_FEEDBACK_FORM_URL } from "../config/externalForms";
 import { parseScheduleCardMetadata } from "../utils/scheduleMetadata";
 import type { ScheduleBadgeColor } from "../utils/scheduleMetadata";
 import { ApiClientError } from "../services/api";
@@ -131,10 +131,10 @@ export const MOCK_SCHEDULE_EVENT = {
 };
 
 // ============================================================================
-// SCHEDULE EXTERNAL LINKS
+// SCHEDULE EXTERNAL LINKS (see src/config/externalForms.ts)
 // ============================================================================
 // - Leave a Feedback → SESSION_FEEDBACK_FORM_URL (Typeform), cards + detail sheet
-// - AMA Q&A → schedule.metadata.slidoUrl, detail sheet only (EventViewModal)
+// - AMA Q&A → schedule.metadata.slidoUrl from backend, detail sheet only (EventViewModal)
 // - sessionBadge (e.g. "AMA Session") → schedule.metadata, cards + detail sheet
 // ============================================================================
 

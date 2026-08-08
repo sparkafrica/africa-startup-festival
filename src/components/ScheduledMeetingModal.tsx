@@ -33,6 +33,7 @@ import MeetingCancelledModal from "./MeetingCancelledModal";
 import FeedbackSentModal from "./FeedbackSentModal";
 import EditMeetingModal from "./EditMeetingModal";
 import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
+import { MEETING_FEEDBACK_FORM_URL } from "../config/externalForms";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -507,19 +508,19 @@ export default function ScheduledMeetingModal({
                 style={styles.feedbackButton}
                 onPress={async () => {
                   try {
-                    const FEEDBACK_FORM_URL = "https://forms.gle/sfCP4Y9CzEtXTQ7u9";
-                    const supported = await Linking.canOpenURL(FEEDBACK_FORM_URL);
+                    const supported = await Linking.canOpenURL(
+                      MEETING_FEEDBACK_FORM_URL,
+                    );
                     if (supported) {
-                      await Linking.openURL(FEEDBACK_FORM_URL);
+                      await Linking.openURL(MEETING_FEEDBACK_FORM_URL);
                     } else {
-                      // Still try to open - might work even if canOpenURL returns false
                       try {
-                        await Linking.openURL(FEEDBACK_FORM_URL);
+                        await Linking.openURL(MEETING_FEEDBACK_FORM_URL);
                       } catch (openError) {
                         Alert.alert(
                           "Cannot Open Feedback Form",
                           "Please check your internet connection and try again.",
-                          [{ text: "OK" }]
+                          [{ text: "OK" }],
                         );
                       }
                     }
@@ -603,7 +604,7 @@ export default function ScheduledMeetingModal({
         location={location}
       />
 
-      {/* Leave Feedback - Now uses external URL (https://forms.gle/sfCP4Y9CzEtXTQ7u9) */}
+      {/* Leave Feedback — opens MEETING_FEEDBACK_FORM_URL (externalForms.ts) */}
       {/* Feedback modals removed - feedback now opens external form directly */}
       {/* 
       <LeaveFeedbackModal

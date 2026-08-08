@@ -523,7 +523,7 @@ export default function OutboundMeetingModal({
               style={styles.feedbackButton}
               onPress={async () => {
                 try {
-                  const FEEDBACK_FORM_URL = "https://forms.gle/sfCP4Y9CzEtXTQ7u9";
+                  const FEEDBACK_FORM_URL = "https://forms.gle/iaWtbKvP1kjC4QAj7"; // MEETING_FEEDBACK_FORM_URL
                   const supported = await Linking.canOpenURL(FEEDBACK_FORM_URL);
                   if (supported) {
                     await Linking.openURL(FEEDBACK_FORM_URL);

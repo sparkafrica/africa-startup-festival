@@ -12,9 +12,6 @@ export const EVENT_POST_EVENT_START_ISO = "2099-01-01";
  */
 export const POST_EVENT_MODE_PREVIEW = false;
 
-/** Overall event feedback form — configure when ASF feedback URL is ready. */
-export const EVENT_FEEDBACK_FORM_URL = "";
-
 export function isPostEventMode(_now = Date.now()): boolean {
   return false;
 }
