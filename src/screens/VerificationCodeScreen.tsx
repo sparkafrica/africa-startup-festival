@@ -20,6 +20,10 @@ import type {
 import { useAuth } from "../context/AuthContext";
 import { LoadingSpinner } from "../components";
 import { logError, ERROR_TAGS } from "../utils/logError";
+import {
+  isOtpNoTicketError,
+  OTP_NO_TICKET_ALERT,
+} from "../utils/authErrors";
 import Svg, { Path, Rect } from "react-native-svg";
 
 const OTP_SUCCESS_TO_BOOTSPLASH_MS = 1250;
@@ -152,20 +156,36 @@ export default function VerificationCodeScreen() {
       setCode("");
       setVerifyStatus("idle");
       hiddenInputRef.current?.focus();
-    } catch (error) {
-      logError(
-        error,
-        { screen: "VerificationCode", email, action: "resend" },
-        { error_type: ERROR_TAGS.VALIDATION },
-      );
-      Alert.alert(
-        "Error",
-        "Failed to resend verification code. Please try again.",
-        [
-          { text: "OK", style: "cancel" },
-          { text: "Retry", onPress: () => handleResendCode() },
-        ],
-      );
+    } catch (error: unknown) {
+      if (isOtpNoTicketError(error)) {
+        logError(
+          error,
+          {
+            screen: "VerificationCode",
+            email,
+            action: "resend",
+            reason: "no_ticket",
+          },
+          { error_type: ERROR_TAGS.VALIDATION },
+        );
+        Alert.alert(OTP_NO_TICKET_ALERT.title, OTP_NO_TICKET_ALERT.message, [
+          { text: "OK", onPress: () => navigation.navigate("Login") },
+        ]);
+      } else {
+        logError(error, {
+          screen: "VerificationCode",
+          email,
+          action: "resend",
+        });
+        Alert.alert(
+          "Error",
+          "Failed to resend verification code. Please try again.",
+          [
+            { text: "OK", style: "cancel" },
+            { text: "Retry", onPress: () => handleResendCode() },
+          ],
+        );
+      }
     } finally {
       setIsResending(false);
     }

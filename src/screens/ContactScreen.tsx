@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
+import { SUPPORT_EMAIL } from "../config/env";
 import Svg, { Path, Rect } from "react-native-svg";
 import { CloseIcon, ChevronRightIcon } from "../components/MenuIcons";
 
@@ -73,8 +74,6 @@ function Header() {
     </View>
   );
 }
-
-const SUPPORT_EMAIL = "contact@africastartupfestival.com";
 
 export default function ContactScreen() {
   const [name, setName] = useState("");

@@ -18,6 +18,10 @@ import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import { LoadingSpinner } from "../components";
 import { logError, ERROR_TAGS } from "../utils/logError";
+import {
+  isOtpNoTicketError,
+  OTP_NO_TICKET_ALERT,
+} from "../utils/authErrors";
 import { EVENT_WEBSITE_URL, SUPPORT_EMAIL } from "../config/env";
 
 // Logo import
@@ -53,21 +57,14 @@ export default function LoginScreen() {
 
       // Navigate to verification code screen
       navigation.navigate("VerificationCode", { email });
-    } catch (error: any) {
-      const msg = error?.message ?? "";
-      const isNoTicket =
-        /user with this email does not exist/i.test(msg) ||
-        /does not exist/i.test(msg);
-      if (isNoTicket) {
+    } catch (error: unknown) {
+      if (isOtpNoTicketError(error)) {
         logError(
           error,
           { screen: "Login", email, reason: "no_ticket" },
-          { error_type: ERROR_TAGS.VALIDATION }
+          { error_type: ERROR_TAGS.VALIDATION },
         );
-        Alert.alert(
-          "Error",
-          "You don't have a valid festival ticket. Please purchase one and return to login."
-        );
+        Alert.alert(OTP_NO_TICKET_ALERT.title, OTP_NO_TICKET_ALERT.message);
       } else {
         logError(error, { screen: "Login", email });
         Alert.alert("Error", "Failed to send verification code. Please try again.", [
