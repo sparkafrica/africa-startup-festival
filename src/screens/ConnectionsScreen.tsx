@@ -475,6 +475,9 @@ export default function ConnectionsScreen() {
     [user?.user_id, showToast],
   );
 
+  const fetchConnectionsRef = useRef(fetchConnections);
+  fetchConnectionsRef.current = fetchConnections;
+
   const connectionsCountRef = useRef(0);
   useEffect(() => {
     connectionsCountRef.current = connections.length;
@@ -484,9 +487,9 @@ export default function ConnectionsScreen() {
     useCallback(() => {
       refreshMeetingsBadge();
       if (shouldRefetchConnectionsOnFocus(connectionsCountRef.current > 0)) {
-        void fetchConnections({ silent: true, force: true });
+        void fetchConnectionsRef.current({ silent: true, force: true });
       }
-    }, [fetchConnections, refreshMeetingsBadge]),
+    }, [refreshMeetingsBadge]),
   );
 
   useEffect(() => {
@@ -495,11 +498,11 @@ export default function ConnectionsScreen() {
     if (cached) {
       setConnections(cached.connections.map(mapBackendConnectionToUI));
     }
-    void fetchConnections({
+    void fetchConnectionsRef.current({
       silent: !!cached,
       force: !isConnectionsListCacheFresh(),
     });
-  }, [user?.user_id, fetchConnections]);
+  }, [user?.user_id]);
 
   // Filter connections based on search query (commented out for now)
   // const filteredConnections = connections.filter((connection) => {
@@ -1704,8 +1707,11 @@ export default function ConnectionsScreen() {
                     <Pressable
                       onPress={() => handleDeleteConnection(selectedConnection)}
                       disabled={isProcessingAction}
-                      className="w-full flex-row items-center justify-center py-3.5 px-4 mt-3" style={{ borderRadius: 0 }}
-                      style={{ backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
+                      className="w-full flex-row items-center justify-center py-3.5 px-4 mt-3"
+                      style={{
+                        borderRadius: 0,
+                        backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444",
+                      }}
                     >
                       {isProcessingAction ? (
                         <LoadingSpinner size="small" color="#FFFFFF" />

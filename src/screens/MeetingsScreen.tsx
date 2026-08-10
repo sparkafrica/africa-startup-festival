@@ -167,6 +167,13 @@ export default function MeetingsScreen({ route }: Props) {
 
   const meetingsScrollRef = useRef<ScrollView>(null);
   const listHighlight = useListRowHighlight<number>();
+  const {
+    highlightTargetId,
+    setHighlightTargetId: setMeetingHighlightTargetId,
+    clearHighlight: clearMeetingHighlight,
+    clearHighlightTimers,
+    tryScrollAndHighlight,
+  } = listHighlight;
 
   // Handle navigation params to set tabs when navigating from notifications / deeplinks
   useEffect(() => {
@@ -182,11 +189,11 @@ export default function MeetingsScreen({ route }: Props) {
         setSecondaryTab(route.params.secondaryTab);
       }
       if (route.params.highlightMeetingId != null) {
-        listHighlight.setHighlightTargetId(route.params.highlightMeetingId);
+        setMeetingHighlightTargetId(route.params.highlightMeetingId);
         navigation.setParams({ highlightMeetingId: undefined });
       }
     }
-  }, [route.params, navigation, listHighlight]);
+  }, [route.params, navigation, setMeetingHighlightTargetId]);
 
   listHighlight.scrollToOffsetRef.current = useCallback((y = 0) => {
     meetingsScrollRef.current?.scrollTo({ y, animated: true });
@@ -194,8 +201,8 @@ export default function MeetingsScreen({ route }: Props) {
 
   useFocusEffect(
     useCallback(() => {
-      return () => listHighlight.clearHighlight();
-    }, [listHighlight]),
+      return () => clearMeetingHighlight();
+    }, [clearMeetingHighlight]),
   );
 
   // DEPRECATED: isTerminated was for Cancelled tab - kept for potential future use
@@ -752,7 +759,7 @@ export default function MeetingsScreen({ route }: Props) {
   };
 
   React.useEffect(() => {
-    const targetId = listHighlight.highlightTargetId;
+    const targetId = highlightTargetId;
     if (targetId == null || isLoading || !user?.user_id) return;
 
     const index = meetings.findIndex((m) => m.backendMeetingId === targetId);
@@ -778,20 +785,23 @@ export default function MeetingsScreen({ route }: Props) {
       };
     }
 
-    listHighlight.clearHighlightTimers();
+    clearHighlightTimers();
     const capturedId = targetId;
     const timer = setTimeout(() => {
-      listHighlight.setHighlightTargetId(null);
-      listHighlight.tryScrollAndHighlight(capturedId, index);
+      setMeetingHighlightTargetId(null);
+      tryScrollAndHighlight(capturedId, index);
     }, 300);
     return () => clearTimeout(timer);
+    // mapBackendMeetingToUI is intentionally omitted — stable enough for deeplink resolve only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    listHighlight.highlightTargetId,
+    highlightTargetId,
     meetings,
     isLoading,
     user?.user_id,
-    mapBackendMeetingToUI,
-    listHighlight,
+    clearHighlightTimers,
+    setMeetingHighlightTargetId,
+    tryScrollAndHighlight,
   ]);
 
   // ============================================================================
@@ -876,20 +886,27 @@ export default function MeetingsScreen({ route }: Props) {
     [user?.user_id, applyMeetingsToState],
   );
 
+  const fetchMeetingsRef = useRef(fetchMeetings);
+  fetchMeetingsRef.current = fetchMeetings;
+  const applyMeetingsToStateRef = useRef(applyMeetingsToState);
+  applyMeetingsToStateRef.current = applyMeetingsToState;
+
   useEffect(() => {
+    if (!user?.user_id) return;
+
     const cached = getCachedMeetingsList();
-    if (cached && user?.user_id) {
-      applyMeetingsToState(
+    if (cached) {
+      applyMeetingsToStateRef.current(
         cached.physical,
         cached.virtual,
         user.user_id,
       );
     }
-    void fetchMeetings({
+    void fetchMeetingsRef.current({
       silent: !!cached,
       force: !isMeetingsListCacheFresh(),
     });
-  }, [fetchMeetings, applyMeetingsToState, user?.user_id]);
+  }, [user?.user_id]);
 
   const meetingsCountRef = React.useRef(0);
   React.useEffect(() => {
@@ -900,9 +917,9 @@ export default function MeetingsScreen({ route }: Props) {
     useCallback(() => {
       refreshMeetingsBadge();
       if (shouldRefetchMeetingsOnFocus(meetingsCountRef.current > 0)) {
-        void fetchMeetings({ silent: true, force: true });
+        void fetchMeetingsRef.current({ silent: true, force: true });
       }
-    }, [refreshMeetingsBadge, fetchMeetings]),
+    }, [refreshMeetingsBadge]),
   );
 
   // ============================================================================
