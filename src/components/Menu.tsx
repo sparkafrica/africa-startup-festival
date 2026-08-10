@@ -55,7 +55,7 @@ export default function Menu({
     }
     setTicketLoading(true);
     ticketService
-      .getUserTicket(EVENT_ID, { bypassCache: true })
+      .getUserTicket(EVENT_ID, { bypassCache: false })
       .then((ticket) => {
         const type =
           ticket?.type?.name ??

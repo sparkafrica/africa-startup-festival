@@ -64,6 +64,8 @@ import { useListRowHighlight } from "../hooks/useListRowHighlight";
 import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
+import { ensureConnectionsList } from "../utils/connectionsListCache";
+import { ensureMeetingsList } from "../utils/meetingsListCache";
 import { EVENT_ID } from "../config/env";
 import { isPostEventMode } from "../config/eventMode";
 import {
@@ -1593,10 +1595,15 @@ export default function AttendeesScreen() {
       connections: [] as any[],
       pagination: { count: 0, next: null, previous: null },
     };
-    const [connectionsRes, meetings] = await Promise.all([
-      connectionService.getConnections(1, 100).catch(() => emptyConnections),
-      meetingService.getMeetings().catch(() => []),
+    const [connectionsRes, meetingsSnap] = await Promise.all([
+      ensureConnectionsList().catch(() => emptyConnections),
+      ensureMeetingsList().catch(() => ({
+        physical: [],
+        virtual: [],
+        fetchedAt: 0,
+      })),
     ]);
+    const meetings = meetingsSnap.physical;
     const map = new Map<string, "pending" | "accepted">();
     for (const c of connectionsRes.connections) {
       const fromId = String(c.from_user.id);
@@ -1705,21 +1712,24 @@ export default function AttendeesScreen() {
         pagination: { count: 0, next: null, previous: null },
       };
 
-      const [connectionsRes, meetingsRes, firstRes] = await Promise.all([
+      const [connectionsRes, meetingsSnap, firstRes] = await Promise.all([
         currentUserId
-          ? connectionService
-              .getConnections(1, 100)
-              .catch(() => emptyConnections)
+          ? ensureConnectionsList().catch(() => emptyConnections)
           : Promise.resolve(emptyConnections),
         currentUserId
-          ? meetingService.getMeetings().catch(() => [])
-          : Promise.resolve([]),
+          ? ensureMeetingsList().catch(() => ({
+              physical: [],
+              virtual: [],
+              fetchedAt: 0,
+            }))
+          : Promise.resolve({ physical: [], virtual: [], fetchedAt: 0 }),
         attendeeService.getEventAttendees(EVENT_ID, "all", {
           page: 1,
           page_size: ATTENDEE_LIST_PAGE_SIZE,
           ordering: ATTENDEE_LIST_ORDERING,
         }),
       ]);
+      const meetingsRes = meetingsSnap.physical;
 
       const connectionStatusMap = new Map<string, "pending" | "accepted">();
       const meetingPeerIds = currentUserId

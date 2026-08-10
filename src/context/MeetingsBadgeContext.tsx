@@ -6,7 +6,12 @@ import React, {
   useState,
 } from "react";
 import { useAuth } from "./AuthContext";
-import { meetingService } from "../services/meetingService";
+import {
+  countMeetingsForBadge,
+  countMeetingsForBadgeFromCache,
+  ensureMeetingsList,
+  isMeetingsListCacheFresh,
+} from "../utils/meetingsListCache";
 
 interface MeetingsBadgeContextValue {
   count: number;
@@ -14,15 +19,13 @@ interface MeetingsBadgeContextValue {
 }
 
 const MeetingsBadgeContext = createContext<MeetingsBadgeContextValue | null>(
-  null
+  null,
 );
 
-const REFRESH_THROTTLE_MS = 30_000; // Refetch at most every 30s when refresh() is called
+const REFRESH_THROTTLE_MS = 30_000;
 
 /**
- * Single source of truth for the Meetings tab badge count (scheduled + meeting requests).
- * Fetches when user is set; refresh() refetches (throttled) so any tab can trigger an update.
- * This makes the badge consistent and visible on all screens (including Home for assignees).
+ * Meetings tab badge — reads from shared meetingsListCache (deduped with Meetings screen).
  */
 export function MeetingsBadgeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -34,32 +37,33 @@ export function MeetingsBadgeProvider({ children }: { children: React.ReactNode 
       setCount(0);
       return;
     }
+
     const now = Date.now();
-    if (!force && now - lastFetchedAtRef.current < REFRESH_THROTTLE_MS) {
+    if (!force && isMeetingsListCacheFresh()) {
+      setCount(countMeetingsForBadgeFromCache());
       return;
     }
+
+    if (!force && now - lastFetchedAtRef.current < REFRESH_THROTTLE_MS) {
+      setCount(countMeetingsForBadgeFromCache());
+      return;
+    }
+
     lastFetchedAtRef.current = now;
     try {
-      const [physicalMeetings, virtualMeetings] = await Promise.all([
-        meetingService.getMeetings(),
-        meetingService.getVirtualMeetings(),
-      ]);
-      const include = (status: string) =>
-        status === "pending" || status === "accepted";
-      const physicalCount = physicalMeetings.filter((m) => include(m.status)).length;
-      const virtualCount = virtualMeetings.filter((m) => include(m.status)).length;
-      setCount(physicalCount + virtualCount);
+      const snap = await ensureMeetingsList({ force });
+      setCount(countMeetingsForBadge(snap.physical, snap.virtual));
     } catch {
-      setCount(0);
+      setCount(countMeetingsForBadgeFromCache());
     }
   }, [user?.user_id]);
 
   useEffect(() => {
-    fetchCount(true); // initial fetch always runs
+    void fetchCount(true);
   }, [fetchCount]);
 
   const refresh = useCallback(async () => {
-    await fetchCount(false); // throttled when called from focus
+    await fetchCount(false);
   }, [fetchCount]);
 
   const value: MeetingsBadgeContextValue = { count, refresh };
@@ -75,7 +79,7 @@ export function useMeetingsBadgeContext(): MeetingsBadgeContextValue {
   const ctx = useContext(MeetingsBadgeContext);
   if (!ctx) {
     throw new Error(
-      "useMeetingsBadgeContext must be used within MeetingsBadgeProvider"
+      "useMeetingsBadgeContext must be used within MeetingsBadgeProvider",
     );
   }
   return ctx;

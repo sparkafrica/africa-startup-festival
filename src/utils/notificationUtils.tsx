@@ -692,11 +692,10 @@ export async function fetchNotificationDetails(
   // Search both physical and virtual meetings (Item 6: fix inbound/outbound metadata)
   if (notification.meeting_id) {
     try {
-      const { meetingService } = await import("../services/meetingService");
-      const [physicalMeetings, virtualMeetings] = await Promise.all([
-        meetingService.getMeetings(),
-        meetingService.getVirtualMeetings(),
-      ]);
+      const { ensureMeetingsList } = await import("./meetingsListCache");
+      const snap = await ensureMeetingsList();
+      const physicalMeetings = snap.physical;
+      const virtualMeetings = snap.virtual;
 
       const formatTime = (timeStr: string): string => {
         const [hours, minutes] = timeStr.split(":").map(Number);

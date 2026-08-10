@@ -33,7 +33,12 @@ import { CalendarIcon } from "../components/BottomNavIcons";
 import { LinkedInIcon } from "../components/SocialIcons";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
-import { ticketService, type Attendee } from "../services/ticketService";
+import { ticketService, type Attendee, clearTicketCache } from "../services/ticketService";
+import {
+  invalidateTicketsFetchedAt,
+  markTicketsFetched,
+  shouldRefetchTicketsOnFocus,
+} from "../utils/ticketsListCache";
 import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { useAuth } from "../context/AuthContext";
@@ -4006,13 +4011,20 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
     setTickets(allTickets);
     setTicketsLoading(false);
+    markTicketsFetched();
     return allTickets;
   }, []);
 
-  // Fetch on mount and when screen gains focus (e.g. returning from another tab)
+  const ticketsCountRef = React.useRef(0);
+  React.useEffect(() => {
+    ticketsCountRef.current = tickets.length;
+  }, [tickets.length]);
+
   useFocusEffect(
     React.useCallback(() => {
-      fetchTickets();
+      if (shouldRefetchTicketsOnFocus(ticketsCountRef.current > 0)) {
+        void fetchTickets();
+      }
     }, [fetchTickets]),
   );
 
@@ -4230,6 +4242,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           countryCode: data.countryCode || "",
         });
         setRecipientModalVisible(false);
+        clearTicketCache();
+        invalidateTicketsFetchedAt();
         await fetchTickets();
         void trackTicketEvent("assigned", {
           source: "scan_qr_screen",
@@ -4274,6 +4288,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         countryCode: data.countryCode || "",
       });
       setRecipientModalVisible(false);
+      clearTicketCache();
+      invalidateTicketsFetchedAt();
       const updatedTickets = await fetchTickets();
       const hasPersonalTicket = updatedTickets.some((t) => t.isPersonal);
       if (!hasPersonalTicket) {
@@ -4423,6 +4439,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
       await ticketService.revokeAllocation(allocationId, reason);
       void trackTicketEvent("revoked", { source: "scan_qr_screen" });
       setRevokeAccessModalVisible(false);
+      clearTicketCache();
+      invalidateTicketsFetchedAt();
       await fetchTickets();
       setTimeout(() => setTicketRevokedConfirmationVisible(true), 300);
     } catch (error: any) {

@@ -41,9 +41,11 @@ import {
 } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
 import {
-  markMeetingsFetched,
+  ensureMeetingsList,
+  getCachedMeetingsList,
+  isMeetingsListCacheFresh,
   shouldRefetchMeetingsOnFocus,
-} from "../utils/eventDataCache";
+} from "../utils/meetingsListCache";
 import { trackMeetingEvent } from "../utils/analytics";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
@@ -797,67 +799,97 @@ export default function MeetingsScreen({ route }: Props) {
   // ============================================================================
 
   /**
-   * Fetch meetings from backend and filter by status and direction
-   * Fetches both physical and virtual meetings and merges them
+   * Fetch meetings from shared cache / API and map to UI.
    */
-  const fetchMeetings = useCallback(async (isRefresh = false) => {
-    if (!user?.user_id) {
-      setError("User not authenticated");
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      if (isRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-      setError(null);
-      const currentUserId = user.user_id;
-      const postEventVirtualOnly = isPostEventMode();
-
-      // Post-event: virtual meetings only (booked via connections).
-      const [physicalMeetings, virtualMeetings] = postEventVirtualOnly
-        ? [[], await meetingService.getVirtualMeetings()] as const
-        : await Promise.all([
-            meetingService.getMeetings(),
-            meetingService.getVirtualMeetings(),
-          ]);
-
-      // Map physical meetings to UI format
+  const applyMeetingsToState = useCallback(
+    (
+      physicalMeetings: BackendMeeting[],
+      virtualMeetings: VirtualMeeting[],
+      currentUserId: string,
+    ) => {
       const physicalUIMeetings = physicalMeetings.map((meeting) =>
-        mapBackendMeetingToUI(meeting, currentUserId)
+        mapBackendMeetingToUI(meeting, currentUserId),
       );
-
-      // Map virtual meetings to UI format
       const virtualUIMeetings = virtualMeetings.map((meeting) =>
-        mapVirtualMeetingToUI(meeting, currentUserId)
+        mapVirtualMeetingToUI(meeting, currentUserId),
       );
+      setAllMeetingsForCounts([...physicalUIMeetings, ...virtualUIMeetings]);
+    },
+    [mapBackendMeetingToUI, mapVirtualMeetingToUI],
+  );
 
-      // Simple: API is source of truth. Whatever backend returns, we display.
-      const fromApi = [...physicalUIMeetings, ...virtualUIMeetings];
-      setAllMeetingsForCounts(fromApi);
-      markMeetingsFetched();
-    } catch (err: any) {
-      const errorMessage =
-        err instanceof ApiClientError
-          ? err.message
-          : "Failed to fetch meetings. Please try again.";
-      setError(errorMessage);
-      if (__DEV__) {
-        console.error("Error fetching meetings:", err);
+  const fetchMeetings = useCallback(
+    async (options?: {
+      isRefresh?: boolean;
+      force?: boolean;
+      silent?: boolean;
+    }) => {
+      const isRefresh = options?.isRefresh ?? false;
+      const force = options?.force ?? isRefresh;
+      const silent = options?.silent ?? false;
+
+      if (!user?.user_id) {
+        setError("User not authenticated");
+        setIsLoading(false);
+        return;
       }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [user?.user_id]);
 
-  // Fetch meetings on mount and when tabs change
+      const currentUserId = user.user_id;
+      const cached = getCachedMeetingsList();
+
+      if (!silent && cached && isMeetingsListCacheFresh()) {
+        applyMeetingsToState(
+          cached.physical,
+          cached.virtual,
+          currentUserId,
+        );
+        setIsLoading(false);
+        if (!force) return;
+      }
+
+      try {
+        if (isRefresh) {
+          setIsRefreshing(true);
+        } else if (!silent && !cached) {
+          setIsLoading(true);
+        }
+        setError(null);
+
+        const snap = await ensureMeetingsList({ force });
+        applyMeetingsToState(snap.physical, snap.virtual, currentUserId);
+      } catch (err: any) {
+        const errorMessage =
+          err instanceof ApiClientError
+            ? err.message
+            : "Failed to fetch meetings. Please try again.";
+        if (!cached) {
+          setError(errorMessage);
+        }
+        if (__DEV__) {
+          console.error("Error fetching meetings:", err);
+        }
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [user?.user_id, applyMeetingsToState],
+  );
+
   useEffect(() => {
-    fetchMeetings(false);
-  }, [fetchMeetings]);
+    const cached = getCachedMeetingsList();
+    if (cached && user?.user_id) {
+      applyMeetingsToState(
+        cached.physical,
+        cached.virtual,
+        user.user_id,
+      );
+    }
+    void fetchMeetings({
+      silent: !!cached,
+      force: !isMeetingsListCacheFresh(),
+    });
+  }, [fetchMeetings, applyMeetingsToState, user?.user_id]);
 
   const meetingsCountRef = React.useRef(0);
   React.useEffect(() => {
@@ -868,7 +900,7 @@ export default function MeetingsScreen({ route }: Props) {
     useCallback(() => {
       refreshMeetingsBadge();
       if (shouldRefetchMeetingsOnFocus(meetingsCountRef.current > 0)) {
-        fetchMeetings(false);
+        void fetchMeetings({ silent: true, force: true });
       }
     }, [refreshMeetingsBadge, fetchMeetings]),
   );
@@ -917,7 +949,7 @@ export default function MeetingsScreen({ route }: Props) {
           action === "accept" ? "Meeting accepted" : "Meeting declined",
           "success"
         );
-        await fetchMeetings(false);
+        await fetchMeetings({ force: true, silent: true });
         refreshMeetingsBadge();
       } catch (err: any) {
         const message =
@@ -951,7 +983,7 @@ export default function MeetingsScreen({ route }: Props) {
         showToast("Meeting cancelled", "success");
         setIsModalVisible(false);
         setSelectedMeeting(null);
-        await fetchMeetings(false);
+        await fetchMeetings({ force: true, silent: true });
         refreshMeetingsBadge();
       } catch (err: any) {
         let message =
@@ -967,7 +999,7 @@ export default function MeetingsScreen({ route }: Props) {
             setIsModalVisible(false);
             setSelectedMeeting(null);
             showToast(message, "error");
-            await fetchMeetings(false);
+            await fetchMeetings({ force: true, silent: true });
             refreshMeetingsBadge();
             return; // Exit early - already handled the error
           }
@@ -1176,7 +1208,7 @@ export default function MeetingsScreen({ route }: Props) {
         
         // Refresh after modal closes and toast is visible
         setTimeout(async () => {
-          await fetchMeetings(false);
+          await fetchMeetings({ force: true, silent: true });
         }, 800);
       } catch (err: any) {
         const message =
@@ -1333,7 +1365,7 @@ export default function MeetingsScreen({ route }: Props) {
         refreshControl={
           <RefreshControl
             refreshing={false}
-            onRefresh={() => fetchMeetings(true)}
+            onRefresh={() => fetchMeetings({ isRefresh: true, force: true })}
             tintColor="#1BB273"
             colors={["#1BB273"]}
           />
@@ -1352,7 +1384,7 @@ export default function MeetingsScreen({ route }: Props) {
                 {error}
               </Text>
               <Pressable
-                onPress={() => fetchMeetings(false)}
+                onPress={() => fetchMeetings({ force: true })}
                 className="bg-neutral-900 px-6 py-3"
                 style={{ borderRadius: 0 }}
               >

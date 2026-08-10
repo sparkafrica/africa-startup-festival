@@ -24,6 +24,7 @@ import {
 import LoadingSpinner from "./LoadingSpinner";
 import Toast from "./Toast";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
+import { ensureMeetingsList } from "../utils/meetingsListCache";
 import { EVENT_DAY_FILTER_LABELS, EVENT_FALLBACK_MEETING_DATE_ISOS, EVENT_ID } from "../config/env";
 import { getCanUserBookMeetings } from "../utils/meetingRestrictions";
 import { filterPhysicalSlotsExcludingRequesteeBusyWindows } from "../utils/meetingRequesteeAvailability";
@@ -269,10 +270,9 @@ export default function RequestMeetingModal({
 
       if (requesteeUserId?.trim()) {
         try {
-          const [meetings, virtualMeetings] = await Promise.all([
-            meetingService.getMeetings(),
-            meetingService.getVirtualMeetings(),
-          ]);
+          const snap = await ensureMeetingsList();
+          const meetings = snap.physical;
+          const virtualMeetings = snap.virtual;
           const before = availableSlots.length;
           availableSlots = filterPhysicalSlotsExcludingRequesteeBusyWindows(
             availableSlots,

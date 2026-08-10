@@ -308,13 +308,18 @@ export default function HomeScreen() {
     }
   };
 
-  // Featured home rows + warm programme/speakers for Schedule & speaker modals
+  // Featured home rows (staggered) + warm programme/speakers for Schedule & speaker modals
   useEffect(() => {
-    fetchFeaturedSpeakers();
-    fetchFeaturedExhibitors();
-    fetchFeaturedPartners();
-    fetchFeaturedStartups();
     void bootstrapEventData();
+    fetchFeaturedSpeakers();
+    const exhibitorsTimer = setTimeout(() => fetchFeaturedExhibitors(), 150);
+    const partnersTimer = setTimeout(() => fetchFeaturedPartners(), 300);
+    const startupsTimer = setTimeout(() => fetchFeaturedStartups(), 450);
+    return () => {
+      clearTimeout(exhibitorsTimer);
+      clearTimeout(partnersTimer);
+      clearTimeout(startupsTimer);
+    };
   }, []);
 
   // Handle pull-to-refresh

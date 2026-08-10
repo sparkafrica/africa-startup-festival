@@ -55,9 +55,11 @@ import { connectionService, type Connection as BackendConnection } from "../serv
 import { meetingService } from "../services/meetingService";
 import { ApiClientError } from "../services/api";
 import {
-  markConnectionsFetched,
+  ensureConnectionsList,
+  getCachedConnectionsList,
+  isConnectionsListCacheFresh,
   shouldRefetchConnectionsOnFocus,
-} from "../utils/eventDataCache";
+} from "../utils/connectionsListCache";
 import { useChat } from "../context/ChatContext";
 import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContext";
 import { useToast } from "../hooks/useToast";
@@ -430,33 +432,48 @@ export default function ConnectionsScreen() {
    * (from_user vs to_user). Without it we can show the wrong profile (e.g. only "Nigeria"
    * for new users whose own profile is minimal until they save).
    */
-  const fetchConnections = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await connectionService.getConnections(1, 50);
+  const fetchConnections = useCallback(
+    async (options?: { force?: boolean; silent?: boolean }) => {
+      const force = options?.force ?? false;
+      const silent = options?.silent ?? false;
       const currentUserId = user?.user_id != null ? String(user.user_id) : null;
       if (!currentUserId) {
         setConnections([]);
         return;
       }
-      const mappedConnections = response.connections.map(mapBackendConnectionToUI);
-      setConnections(mappedConnections);
-      markConnectionsFetched();
-    } catch (err: any) {
-      const errorMessage =
-        err instanceof ApiClientError
-          ? err.message
-          : "Failed to load connections. Please try again.";
-      setError(errorMessage);
-      showToast(errorMessage, "error");
-      if (__DEV__) {
-        console.error("Error fetching connections:", err);
+
+      const cached = getCachedConnectionsList();
+      if (!silent && cached && isConnectionsListCacheFresh()) {
+        setConnections(cached.connections.map(mapBackendConnectionToUI));
+        setIsLoading(false);
+        if (!force) return;
       }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.user_id, showToast]);
+
+      try {
+        if (!silent && !cached) {
+          setIsLoading(true);
+        }
+        setError(null);
+        const snap = await ensureConnectionsList({ force });
+        setConnections(snap.connections.map(mapBackendConnectionToUI));
+      } catch (err: any) {
+        const errorMessage =
+          err instanceof ApiClientError
+            ? err.message
+            : "Failed to load connections. Please try again.";
+        if (!cached) {
+          setError(errorMessage);
+          showToast(errorMessage, "error");
+        }
+        if (__DEV__) {
+          console.error("Error fetching connections:", err);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user?.user_id, showToast],
+  );
 
   const connectionsCountRef = useRef(0);
   useEffect(() => {
@@ -467,17 +484,21 @@ export default function ConnectionsScreen() {
     useCallback(() => {
       refreshMeetingsBadge();
       if (shouldRefetchConnectionsOnFocus(connectionsCountRef.current > 0)) {
-        fetchConnections();
+        void fetchConnections({ silent: true, force: true });
       }
     }, [fetchConnections, refreshMeetingsBadge]),
   );
 
-  // Refetch when current user becomes available (e.g. auth restore from storage).
-  // Avoids showing wrong/missing connection details for new users until profile is loaded.
   useEffect(() => {
-    if (user?.user_id) {
-      fetchConnections();
+    if (!user?.user_id) return;
+    const cached = getCachedConnectionsList();
+    if (cached) {
+      setConnections(cached.connections.map(mapBackendConnectionToUI));
     }
+    void fetchConnections({
+      silent: !!cached,
+      force: !isConnectionsListCacheFresh(),
+    });
   }, [user?.user_id, fetchConnections]);
 
   // Filter connections based on search query (commented out for now)
@@ -753,7 +774,7 @@ export default function ConnectionsScreen() {
       markConnectAttendeesComplete();
       showToast("Connection accepted successfully!", "success");
       // Refresh connections list
-      await fetchConnections();
+      await fetchConnections({ force: true, silent: true });
       closeBottomSheet();
     } catch (err: any) {
       let errorMessage = "Failed to accept connection. Please try again.";
@@ -768,7 +789,7 @@ export default function ConnectionsScreen() {
           showToast(errorMessage, "error");
           // Still refresh connections to see if it was actually accepted
           try {
-            await fetchConnections();
+            await fetchConnections({ force: true, silent: true });
           } catch (refreshErr) {
             if (__DEV__) {
               console.error("Error refreshing connections:", refreshErr);
@@ -813,7 +834,7 @@ export default function ConnectionsScreen() {
       void trackConnectionEvent("declined", { source: "connections_screen" });
       showToast("Connection declined", "error");
       // Refresh connections list
-      await fetchConnections();
+      await fetchConnections({ force: true, silent: true });
       closeBottomSheet();
     } catch (err: any) {
       const errorMessage =
@@ -851,7 +872,7 @@ export default function ConnectionsScreen() {
       await connectionService.deleteConnection(connection.backendConnectionId);
       showToast("Connection removed", "error");
       // Refresh connections list
-      await fetchConnections();
+      await fetchConnections({ force: true, silent: true });
       closeBottomSheet();
     } catch (err: any) {
       // If connection not found, it might have been deleted by the other party
@@ -861,7 +882,7 @@ export default function ConnectionsScreen() {
       if (responseCode === 404) {
         // Connection already deleted - treat as success
         showToast("Connection removed", "error");
-        await fetchConnections();
+        await fetchConnections({ force: true, silent: true });
         closeBottomSheet();
       } else {
         const errorMessage =
@@ -1168,7 +1189,7 @@ export default function ConnectionsScreen() {
               {error}
             </Text>
             <Pressable
-              onPress={fetchConnections}
+              onPress={() => fetchConnections({ force: true })}
               className="bg-neutral-900 px-6 py-3"
               style={{ borderRadius: 0 }}
             >
@@ -1201,7 +1222,7 @@ export default function ConnectionsScreen() {
             refreshControl={
               <RefreshControl
                 refreshing={false}
-                onRefresh={fetchConnections}
+                onRefresh={() => fetchConnections({ force: true })}
                 tintColor="#1BB273"
                 colors={["#1BB273"]}
               />

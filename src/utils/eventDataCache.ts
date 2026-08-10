@@ -30,9 +30,6 @@ let speakersFetchedAt = 0;
 let programmeFetchPromise: Promise<EventSchedule[]> | null = null;
 let speakersFetchPromise: Promise<Speaker[]> | null = null;
 
-let meetingsListFetchedAt = 0;
-let connectionsListFetchedAt = 0;
-
 function isStale(fetchedAt: number): boolean {
   if (fetchedAt === 0) return true;
   return Date.now() - fetchedAt > EVENT_DATA_STALE_MS;
@@ -226,20 +223,26 @@ export function bootstrapEventData(options?: {
   ]).then(() => undefined);
 }
 
-export function shouldRefetchMeetingsOnFocus(hasLocalData: boolean): boolean {
-  if (!hasLocalData) return true;
-  return Date.now() - meetingsListFetchedAt > FOCUS_LIST_STALE_MS;
-}
+export {
+  ensureMeetingsList,
+  getCachedMeetingsList,
+  getCachedPhysicalMeetings,
+  getCachedVirtualMeetings,
+  invalidateMeetingsListCache,
+  isMeetingsListCacheFresh,
+  markMeetingsFetched,
+  shouldRefetchMeetingsOnFocus,
+  countMeetingsForBadge,
+  countMeetingsForBadgeFromCache,
+} from "./meetingsListCache";
 
-export function markMeetingsFetched(): void {
-  meetingsListFetchedAt = Date.now();
-}
-
-export function shouldRefetchConnectionsOnFocus(hasLocalData: boolean): boolean {
-  if (!hasLocalData) return true;
-  return Date.now() - connectionsListFetchedAt > FOCUS_LIST_STALE_MS;
-}
-
-export function markConnectionsFetched(): void {
-  connectionsListFetchedAt = Date.now();
-}
+export {
+  ensureConnectionsList,
+  getCachedConnections,
+  getCachedConnectionsList,
+  invalidateConnectionsListCache,
+  isConnectionsListCacheFresh,
+  markConnectionsFetched,
+  shouldRefetchConnectionsOnFocus,
+  CONNECTIONS_CACHE_PAGE_SIZE,
+} from "./connectionsListCache";

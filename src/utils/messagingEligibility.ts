@@ -3,12 +3,17 @@
  * Investors bypass this check at the call site (see asfNetworking.canMessageAttendee).
  */
 
-import { connectionService, type Connection } from "../services/connectionService";
-import { meetingService, type Meeting } from "../services/meetingService";
+import type { Connection } from "../services/connectionService";
+import type { Meeting } from "../services/meetingService";
+import { ensureConnectionsList } from "../utils/connectionsListCache";
+import {
+  ensureMeetingsList,
+  getCachedPhysicalMeetings,
+} from "../utils/meetingsListCache";
 
 export function getConnectionPeerUserId(
   connection: Connection,
-  currentUserId: string
+  currentUserId: string,
 ): string | null {
   const fromId = String(connection.from_user?.id ?? "").trim();
   const toId = String(connection.to_user?.id ?? "").trim();
@@ -22,7 +27,7 @@ export function getConnectionPeerUserId(
 /** Peer user ids for meetings with status `accepted` involving the current user. */
 export function getAcceptedMeetingPeerIds(
   meetings: Meeting[],
-  currentUserId: string
+  currentUserId: string,
 ): Set<string> {
   const peers = new Set<string>();
   const me = String(currentUserId).trim();
@@ -41,7 +46,7 @@ export function getAcceptedMeetingPeerIds(
 /** Peer user ids for meetings still awaiting response. */
 export function getPendingMeetingPeerIds(
   meetings: Meeting[],
-  currentUserId: string
+  currentUserId: string,
 ): Set<string> {
   const peers = new Set<string>();
   const me = String(currentUserId).trim();
@@ -63,13 +68,17 @@ export function getPendingMeetingPeerIds(
  */
 export async function hasPendingMeetingWithPeer(
   peerUserId: string,
-  currentUserId: string
+  currentUserId: string,
 ): Promise<boolean> {
   const peer = String(peerUserId).trim();
   const me = String(currentUserId).trim();
   if (!peer || !me) return false;
   try {
-    const meetings = await meetingService.getMeetings();
+    const cached = getCachedPhysicalMeetings();
+    const meetings =
+      cached.length > 0
+        ? cached
+        : (await ensureMeetingsList()).physical;
     return getPendingMeetingPeerIds(meetings, me).has(peer);
   } catch {
     return false;
@@ -95,7 +104,7 @@ export type MessagingEligiblePeersResult = {
  * Load peer ids the current user may message (accepted connection OR accepted meeting).
  */
 export async function loadMessagingEligiblePeerIds(
-  currentUserId: string
+  currentUserId: string,
 ): Promise<MessagingEligiblePeersResult> {
   const me = String(currentUserId).trim();
   if (!me) {
@@ -108,19 +117,17 @@ export async function loadMessagingEligiblePeerIds(
   let connectionsRequestOk = false;
   let meetingsRequestOk = false;
 
-  const [connectionsResult, meetings] = await Promise.all([
-    connectionService
-      .getConnections(1, 200)
-      .then((r) => {
+  const [connectionsResult, meetingsSnap] = await Promise.all([
+    ensureConnectionsList()
+      .then((snap) => {
         connectionsRequestOk = true;
-        return r.connections;
+        return snap.connections;
       })
       .catch(() => [] as Connection[]),
-    meetingService
-      .getMeetings()
-      .then((rows) => {
+    ensureMeetingsList()
+      .then((snap) => {
         meetingsRequestOk = true;
-        return rows;
+        return snap.physical;
       })
       .catch(() => [] as Meeting[]),
   ]);
@@ -133,7 +140,7 @@ export async function loadMessagingEligiblePeerIds(
     if (peerId) eligiblePeerIds.add(peerId);
   }
 
-  for (const peerId of getAcceptedMeetingPeerIds(meetings, me)) {
+  for (const peerId of getAcceptedMeetingPeerIds(meetingsSnap, me)) {
     eligiblePeerIds.add(peerId);
   }
 
@@ -145,7 +152,7 @@ export async function loadMessagingEligiblePeerIds(
 
 export function isPeerMessagingEligible(
   peerUserId: string,
-  eligiblePeerIds: Set<string>
+  eligiblePeerIds: Set<string>,
 ): boolean {
   const id = String(peerUserId).trim();
   if (!id) return false;

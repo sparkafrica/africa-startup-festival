@@ -4,8 +4,9 @@
 
 import { EVENT_ID } from "../config/env";
 import { eventService } from "../services/eventService";
-import { meetingService, type Meeting, type VirtualMeeting } from "../services/meetingService";
+import type { Meeting, VirtualMeeting } from "../services/meetingService";
 import { enrichEventScheduleFromCache } from "./eventDataCache";
+import { ensureMeetingsList } from "./meetingsListCache";
 import { getWatDateIso } from "./eventDay";
 import { formatCountdownToStart } from "./scheduleUpcoming";
 
@@ -103,11 +104,12 @@ export async function fetchNowAndNextItems(
   const candidates: NowAndNextItem[] = [];
 
   try {
-    const [physical, virtual, personal] = await Promise.all([
-      meetingService.getMeetings(),
-      meetingService.getVirtualMeetings(),
+    const [meetingsSnap, personal] = await Promise.all([
+      ensureMeetingsList(),
       eventService.getPersonalSchedules(EVENT_ID),
     ]);
+    const physical = meetingsSnap.physical;
+    const virtual = meetingsSnap.virtual;
 
     for (const m of physical) {
       const startMs = physicalMeetingStartMs(m);
