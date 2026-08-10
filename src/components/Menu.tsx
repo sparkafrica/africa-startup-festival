@@ -114,7 +114,7 @@ export default function Menu({
       route: "FloorPlan",
     },
     {
-      label: "Startup Directory",
+      label: "Startups",
       icon: <PeopleIcon size={20} color="#444" />,
       route: "Startups",
     },

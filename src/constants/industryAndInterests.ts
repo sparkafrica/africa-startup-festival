@@ -2,7 +2,7 @@
  * Industry/Sector and Top Interest options used across:
  * - Complete Profile & Manage Profile (industry dropdown, top interests multi-select)
  * - Attendees filter modal (Industry/Sector, Top Interests)
- * - Attendee cards display backend metadata.industry and metadata.interests
+ * - Attendee cards display backend metadata.industry (canonical id or label) and metadata.interests
  */
 
 export interface IndustryOption {
@@ -58,6 +58,70 @@ export const INDUSTRY_OPTIONS: IndustryOption[] = [
   { id: "consultancy", label: "Consultancy" },
   { id: "others", label: "Others" },
 ];
+
+function normalizeIndustryKey(value: string): string {
+  return value.toLowerCase().trim();
+}
+
+/** Web/ticket registration values that predate canonical ids. */
+const LEGACY_INDUSTRY_ALIASES: Record<string, string> = {
+  healthcareandpharmaceuticals: "healthtech",
+  renewableenergytechnology: "cleantech-renewable",
+};
+
+function legacyIndustryId(value: string): string | undefined {
+  const key = normalizeIndustryKey(value).replace(/[^a-z0-9]/g, "");
+  return LEGACY_INDUSTRY_ALIASES[key];
+}
+
+/** Match stored metadata (id or label) to a canonical industry option. */
+export function findIndustryOption(
+  value: string | undefined | null,
+): IndustryOption | undefined {
+  if (!value?.trim()) return undefined;
+  const raw = value.trim();
+  const key = normalizeIndustryKey(raw);
+
+  const legacyId = legacyIndustryId(raw);
+  if (legacyId) {
+    const legacy = INDUSTRY_OPTIONS.find((o) => o.id === legacyId);
+    if (legacy) return legacy;
+  }
+
+  const byId = INDUSTRY_OPTIONS.find((o) => normalizeIndustryKey(o.id) === key);
+  if (byId) return byId;
+
+  const byLabel = INDUSTRY_OPTIONS.find(
+    (o) => normalizeIndustryKey(o.label) === key,
+  );
+  if (byLabel) return byLabel;
+
+  const slug = raw
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase()
+    .replace(/\s*&\s*/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+  return INDUSTRY_OPTIONS.find(
+    (o) => o.id === slug || normalizeIndustryKey(o.id) === slug,
+  );
+}
+
+/** Display label for cards and profile UI (accepts canonical id or legacy label). */
+export function resolveIndustryLabel(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return findIndustryOption(trimmed)?.label ?? trimmed;
+}
+
+/** Canonical id for prefill and API writes (accepts id or legacy label). */
+export function resolveIndustryId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return findIndustryOption(trimmed)?.id;
+}
 
 /** Top Interest labels (stored in metadata.interests). Validation: select 3–7. */
 export const TOP_INTERESTS: string[] = [

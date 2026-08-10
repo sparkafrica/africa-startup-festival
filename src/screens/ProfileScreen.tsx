@@ -37,7 +37,7 @@ import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
 import { useDismissKeyboardOnBackground } from "../hooks/useDismissKeyboardOnBackground";
 import { trackProfileEvent } from "../utils/analytics";
-import { INDUSTRY_OPTIONS, TOP_INTERESTS } from "../constants/industryAndInterests";
+import { INDUSTRY_OPTIONS, TOP_INTERESTS, resolveIndustryId } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
 import {
   GROWTH_STAGE_OPTIONS,
@@ -994,12 +994,8 @@ function PersonalProfileSection({
     const meta = getEventMetadata(source.metadata);
     const li = meta.linkedIn ?? meta.linkedin_url;
     if (typeof li === "string") setLinkedIn(li);
-    if (meta.industry && typeof meta.industry === "string") {
-      const opt = INDUSTRY_OPTIONS.find(
-        (o) => o.label.toLowerCase() === (meta.industry as string).toLowerCase()
-      );
-      if (opt) setSelectedIndustry(opt.id);
-    }
+    const industryId = resolveIndustryId(meta.industry);
+    if (industryId) setSelectedIndustry(industryId);
     if (Array.isArray(meta.interests)) {
       setSelectedInterests(meta.interests as string[]);
     }
@@ -1203,18 +1199,13 @@ function PersonalProfileSection({
       const first_name = nameParts[0] || "";
       const last_name = nameParts.slice(1).join(" ") || "";
 
-      // Get selected industry label
-      const industryLabel =
-        INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
-        "";
-
       // Get selected country label
       const countryLabel =
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
       const eventMetadataPatch: Record<string, unknown> = {};
-      if (industryLabel) {
-        eventMetadataPatch.industry = industryLabel;
+      if (selectedIndustry) {
+        eventMetadataPatch.industry = selectedIndustry;
       }
       if (selectedInterests.length > 0) {
         eventMetadataPatch.interests = selectedInterests;
@@ -1866,12 +1857,8 @@ function AttendeeProfileSection({
       if (opt) setSelectedCountry(opt.id);
     }
     const meta = getEventMetadata(source.metadata);
-    if (meta.industry && typeof meta.industry === "string") {
-      const opt = INDUSTRY_OPTIONS.find(
-        (o) => o.label.toLowerCase() === (meta.industry as string).toLowerCase()
-      );
-      if (opt) setSelectedIndustry(opt.id);
-    }
+    const industryId = resolveIndustryId(meta.industry);
+    if (industryId) setSelectedIndustry(industryId);
     if (Array.isArray(meta.interests)) setSelectedInterests(meta.interests as string[]);
     const li = meta.linkedIn ?? meta.linkedin_url;
     if (typeof li === "string") setLinkedIn(li);
@@ -2067,18 +2054,13 @@ function AttendeeProfileSection({
       const first_name = nameParts[0] || "";
       const last_name = nameParts.slice(1).join(" ") || "";
 
-      // Get selected industry label
-      const industryLabel =
-        INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
-        "";
-
       // Get selected country label
       const countryLabel =
         COUNTRY_OPTIONS.find((opt) => opt.id === selectedCountry)?.label || "";
 
       const eventMetadataPatch: Record<string, unknown> = {};
-      if (industryLabel) {
-        eventMetadataPatch.industry = industryLabel;
+      if (selectedIndustry) {
+        eventMetadataPatch.industry = selectedIndustry;
       }
       if (selectedInterests.length > 0) {
         eventMetadataPatch.interests = selectedInterests;
@@ -2763,12 +2745,8 @@ function CompanyProfileSection({
     if (!c) return;
     if (c.name) setCompanyName(c.name);
     if (c.company_description) setCompanyDescription(c.company_description);
-    if (c.company_sector) {
-      const opt = INDUSTRY_OPTIONS.find(
-        (o) => o.label.toLowerCase() === c.company_sector!.toLowerCase()
-      );
-      if (opt) setSelectedIndustry(opt.id);
-    }
+    const sectorIndustryId = resolveIndustryId(c.company_sector);
+    if (sectorIndustryId) setSelectedIndustry(sectorIndustryId);
     if (c.country) {
       const opt = COUNTRY_OPTIONS.find(
         (o) => o.label.toLowerCase() === c.country!.toLowerCase()
@@ -3134,7 +3112,6 @@ function CompanyProfileSection({
         return false;
       }
 
-      // Get selected industry label
       const industryLabel =
         INDUSTRY_OPTIONS.find((opt) => opt.id === selectedIndustry)?.label ||
         "";

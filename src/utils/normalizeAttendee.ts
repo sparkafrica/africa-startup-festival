@@ -4,7 +4,8 @@
  */
 
 import type { Attendee, AttendeeUser } from "../services/ticketService";
-import { coerceMetadataLabel, coerceMetadataStringArray } from "./metadataCoerce";
+import { coerceMetadataStringArray } from "./metadataCoerce";
+import { resolveIndustryLabel } from "../constants/industryAndInterests";
 import { getEventMetadata } from "./eventMetadata";
 
 /** Loose attendee shape from directory APIs (ticket may be partial). */
@@ -115,7 +116,7 @@ export type AttendeeDisplayFields = {
 export function getAttendeeDisplayFields(attendee: Attendee): AttendeeDisplayFields {
   const user = normalizeAttendeeUser(attendee.user);
   const meta = user.metadata as Record<string, unknown>;
-  const industry = coerceMetadataLabel(
+  const industry = resolveIndustryLabel(
     meta.industry ?? meta.sector ?? user.company?.company_sector,
   );
 

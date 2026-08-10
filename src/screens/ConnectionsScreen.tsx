@@ -36,6 +36,7 @@ import {
   coerceMetadataStringArray,
 } from "../utils/metadataCoerce";
 import { getEventMetadata } from "../utils/eventMetadata";
+import { resolveIndustryLabel } from "../constants/industryAndInterests";
 import { resolveAttendeeStartupBadge } from "../utils/startupJoinStatus";
 import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
 import { SearchIcon, ChevronRightIcon, SpeechBubbleIcon } from "../components/icons";
@@ -378,10 +379,10 @@ export default function ConnectionsScreen() {
 
     // Build tags — industry/sector only (country omitted from cards; interests shown separately)
     const tags: ConnectionTag[] = [];
-    const sector = coerceMetadataLabel(
+    const sector = resolveIndustryLabel(
       (otherUser as any).company?.company_sector ||
         metadata.sector ||
-        metadata.industry
+        metadata.industry,
     );
     if (sector) {
       tags.push({ label: sector, borderColor: "#ADD8E6" });

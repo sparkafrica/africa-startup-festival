@@ -13,7 +13,7 @@ import {
 import type { UserProfile } from "../services/authService";
 import { StartupBadge } from "./StartupBadge";
 import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
-import { INDUSTRY_OPTIONS } from "../constants/industryAndInterests";
+import { resolveIndustryLabel } from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
 import { growthStageLabelFromId } from "../constants/startupGrowthStages";
 
@@ -101,11 +101,9 @@ export default function StartupMemberDetailsView({
   }
   const meta = (metadata ?? {}) as Record<string, unknown>;
 
-  const industryLabel =
-    company.company_sector ||
-    INDUSTRY_OPTIONS.find(
-      (o) => o.id === String(meta.industry ?? "").toLowerCase(),
-    )?.label;
+  const industryLabel = resolveIndustryLabel(
+    company.company_sector || meta.industry,
+  );
 
   const countryLabel =
     company.country ||

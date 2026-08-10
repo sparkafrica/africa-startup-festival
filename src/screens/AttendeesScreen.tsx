@@ -66,7 +66,10 @@ import { connectionService } from "../services/connectionService";
 import { meetingService } from "../services/meetingService";
 import { EVENT_ID } from "../config/env";
 import { isPostEventMode } from "../config/eventMode";
-import { getIndustryAndInterestFilterCategories } from "../constants/industryAndInterests";
+import {
+  getIndustryAndInterestFilterCategories,
+  resolveIndustryLabel,
+} from "../constants/industryAndInterests";
 import { ApiClientError } from "../services/api";
 import { trackConnectionEvent, trackMeetingEvent } from "../utils/analytics";
 import {
@@ -1537,7 +1540,7 @@ export default function AttendeesScreen() {
 
     // Extract tags (industry/sector only — country omitted from cards)
     const tags: string[] = [];
-    const industry = coerceMetadataLabel(
+    const industry = resolveIndustryLabel(
       metadata?.industry ||
         metadata?.sector ||
         (user as any).company?.company_sector,

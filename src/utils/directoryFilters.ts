@@ -9,6 +9,10 @@ export type FilterCategoryLike = {
 };
 
 import { coerceMetadataStringArray } from "./metadataCoerce";
+import {
+  findIndustryOption,
+  resolveIndustryLabel,
+} from "../constants/industryAndInterests";
 
 function coerceStringArray(value: unknown): string[] {
   return coerceMetadataStringArray(value);
@@ -54,18 +58,37 @@ export function directoryCompanyMatchesFilters(
   for (const catId of Object.keys(byCategory)) {
     const labels = byCategory[catId];
     if (catId === "industry") {
-      const sector = normalize(company.company_sector || "");
-      const metaInd =
-        typeof meta.industry === "string" ? normalize(meta.industry) : "";
+      const metaIndRaw =
+        typeof meta.industry === "string" ? meta.industry.trim() : "";
+      const sectorRaw = (company.company_sector || "").trim();
+      const companyIds = new Set(
+        [metaIndRaw, sectorRaw]
+          .map((v) => findIndustryOption(v)?.id)
+          .filter(Boolean) as string[],
+      );
+      const companyLabels = new Set(
+        [metaIndRaw, sectorRaw]
+          .map((v) => resolveIndustryLabel(v))
+          .filter((v): v is string => Boolean(v))
+          .map(normalize),
+      );
+      const industryFilterIds = filterIds.filter((fid) =>
+        categories
+          .find((c) => c.id === "industry")
+          ?.options.some((o) => o.id === fid),
+      );
       const desc = normalize(company.company_description || "");
-      const blob = [sector, metaInd, desc].filter(Boolean).join(" ");
-      const ok = labels.some((l) => {
-        const nl = normalize(l);
-        return (
-          blob.includes(nl) ||
-          (sector && nl.includes(sector)) ||
-          (metaInd && nl.includes(metaInd))
-        );
+      const ok = industryFilterIds.some((fid) => {
+        if (companyIds.has(fid)) return true;
+        const opt = categories
+          .find((c) => c.id === "industry")
+          ?.options.find((o) => o.id === fid);
+        if (!opt) return false;
+        const nl = normalize(opt.label);
+        if ([...companyLabels].some((cl) => cl === nl || cl.includes(nl))) {
+          return true;
+        }
+        return desc.includes(nl);
       });
       if (!ok) return false;
       continue;
