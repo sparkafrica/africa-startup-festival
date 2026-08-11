@@ -38,11 +38,24 @@ export async function getCanUserBookMeetings(): Promise<boolean> {
 }
 
 export function showExpoCannotBookMeetingAlert(
-  _navigation: NavigationProp<RootStackParamList>,
+  navigation: NavigationProp<RootStackParamList>,
 ): void {
-  Alert.alert("Access restricted", MEETING_BLOCK_MESSAGE, [{ text: "OK" }], {
-    cancelable: true,
-  });
+  Alert.alert(
+    "Access restricted",
+    MEETING_BLOCK_MESSAGE,
+    [
+      {
+        text: "Upgrade ticket",
+        onPress: () =>
+          navigation.navigate("ScanQR", {
+            initialTab: "My Ticket",
+            openUpgrade: true,
+          }),
+      },
+      { text: "OK" },
+    ],
+    { cancelable: true },
+  );
 }
 
 /** ASF: all pass holders may initiate connections (investor rules handled separately). */

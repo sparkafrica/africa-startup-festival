@@ -61,7 +61,9 @@ import {
   trackEvent,
 } from "../utils/analytics";
 import TicketBenefitsModal from "../components/TicketBenefitsModal";
+import UpgradeTicketModal from "../components/UpgradeTicketModal";
 import { getTicketBenefits } from "../constants/ticketBenefits";
+import { isUpgradeableAttendeeTier } from "../utils/ticketUpgrade";
 import QRCode from "react-native-qrcode-svg";
 import type { MeetingFormData } from "../components/RequestMeetingModal";
 import { LoadingSpinner, SkeletonMyTicketView } from "../components";
@@ -3485,6 +3487,7 @@ function MyTicketView({
   onEditAssignment,
   user,
   eventId,
+  showUpgrade,
 }: {
   tickets: Ticket[];
   loading?: boolean;
@@ -3521,6 +3524,7 @@ function MyTicketView({
     company?: { admin_user?: string | null } | null;
   } | null;
   eventId: number;
+  showUpgrade?: boolean;
 }) {
   // Calculate ticket counts
   const personalTickets = tickets.filter((t) => t.isPersonal);
@@ -3595,6 +3599,10 @@ function MyTicketView({
         </Text>
         {myPersonalTickets.map((ticket) => {
           const benefits = getTicketBenefits(ticket.ticketType ?? ticket.title);
+          const canUpgrade =
+            !!showUpgrade &&
+            ticket.backendTicketId != null &&
+            isUpgradeableAttendeeTier(ticket.ticketType ?? ticket.title);
           return (
             <View
               key={ticket.id}
@@ -3620,7 +3628,7 @@ function MyTicketView({
                 availableToAssignCount={availableToAssignSlots}
                 isAdminBlocked={isAdminBlocked}
                 eventId={eventId}
-                canUpgrade={false}
+                canUpgrade={canUpgrade}
                 onViewQR={() =>
                   onViewQR(
                     ticket.title,
@@ -3641,7 +3649,9 @@ function MyTicketView({
                       )
                     : undefined
                 }
-                onUpgrade={undefined}
+                onUpgrade={
+                  canUpgrade ? () => onUpgrade?.(ticket) : undefined
+                }
                 onViewBenefits={
                   benefits
                     ? () => {
@@ -3804,6 +3814,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const { toast, showToast, hideToast } = useToast();
   const { user, logout } = useAuth();
   const postEventMode = isPostEventMode();
+  const showUpgradeTicket = getEventFeatures().showUpgradeTicket;
   const initialTab =
     route.params?.initialTab || (postEventMode ? "My Ticket" : "Scan Ticket");
   const [activeTab, setActiveTab] = useState<"My Ticket" | "Scan Ticket">(
@@ -3872,6 +3883,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   ] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [qrScannerModalVisible, setQrScannerModalVisible] = useState(false);
+  const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
+  const [upgradeTicket, setUpgradeTicket] = useState<Ticket | null>(null);
   const [recipientData, setRecipientData] = useState<{
     firstName: string;
     lastName: string;
@@ -4152,6 +4165,57 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     navigation,
     showToast,
   ]);
+
+  const openingUpgradeFromRouteRef = useRef(false);
+  useEffect(() => {
+    if (!route.params?.openUpgrade) {
+      openingUpgradeFromRouteRef.current = false;
+      return;
+    }
+    if (ticketsLoading) return;
+    if (openingUpgradeFromRouteRef.current) return;
+    openingUpgradeFromRouteRef.current = true;
+
+    navigation.setParams({ openUpgrade: undefined });
+
+    const personal = tickets.find((t) => t.isPersonal);
+    if (!personal?.backendTicketId) {
+      showToast(
+        "No upgradeable ticket found. Check your connection and try again.",
+        "error",
+      );
+      return;
+    }
+    if (!isUpgradeableAttendeeTier(personal.ticketType ?? personal.title)) {
+      showToast("Your current pass cannot be upgraded.", "info");
+      return;
+    }
+
+    setActiveTab("My Ticket");
+    setUpgradeTicket(personal);
+    setUpgradeModalVisible(true);
+  }, [
+    route.params?.openUpgrade,
+    ticketsLoading,
+    tickets,
+    navigation,
+    showToast,
+  ]);
+
+  const handleOpenUpgrade = (ticket: Ticket) => {
+    setUpgradeTicket(ticket);
+    setUpgradeModalVisible(true);
+    void trackEvent("ticket_upgrade_opened", {
+      source: "my_ticket",
+      ticket_type: ticket.ticketType ?? ticket.title,
+    });
+  };
+
+  const handleUpgradeSuccess = () => {
+    clearTicketCache();
+    invalidateTicketsFetchedAt();
+    void fetchTickets();
+  };
 
   const handleTransfer = (
     title: string,
@@ -4650,9 +4714,11 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
             error={ticketsError}
             onViewQR={handleViewQR}
             onTransfer={handleTransfer}
+            onUpgrade={handleOpenUpgrade}
             onEditAssignment={handleEditAssignment}
             user={user}
             eventId={EVENT_ID}
+            showUpgrade={showUpgradeTicket}
           />
         ) : (
           <>
@@ -4789,6 +4855,23 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           isConnecting={isConnecting}
           analyticsSource="scan_qr_screen"
         />
+        {upgradeTicket?.backendTicketId != null ? (
+          <UpgradeTicketModal
+            visible={upgradeModalVisible}
+            onClose={() => {
+              setUpgradeModalVisible(false);
+              setUpgradeTicket(null);
+            }}
+            currentTierLabel={
+              getTicketTypeDisplay(
+                upgradeTicket.ticketType ?? upgradeTicket.title,
+              ).label
+            }
+            ticketId={upgradeTicket.backendTicketId}
+            eventId={EVENT_ID}
+            onSuccess={handleUpgradeSuccess}
+          />
+        ) : null}
         <Toast
           message={toast.message}
           visible={toast.visible}

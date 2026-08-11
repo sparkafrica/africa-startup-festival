@@ -1,7 +1,6 @@
 /**
- * Upgrade Ticket Modal – single step for ATE2026 (Paystack only).
- * 1) Select new ticket tier, tap "Upgrade to [tier]" → upgrade runs with Paystack and user is redirected to payment link.
- * Other payment methods have been removed; only Paystack is used.
+ * ASF2026 ticket upgrade modal.
+ * Select target tier → choose Korapay (KES) or Stripe (USD) → redirect to payment_url.
  */
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -17,62 +16,25 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ticketService, type TicketClass } from "../services/ticketService";
-
-/** ATE2026: Paystack only. Value sent to backend as payment_method. */
-const PAYSTACK_METHOD = "PAYSTACK";
+import {
+  ticketService,
+  UPGRADE_PAYMENT_METHODS,
+  type UpgradePaymentMethod,
+} from "../services/ticketService";
 import { ApiClientError } from "../services/api";
-import { getTicketBackgroundColor, getTicketGradientColors } from "../utils/ticketColors";
+import {
+  getTicketBackgroundColor,
+  getTicketGradientColors,
+} from "../utils/ticketColors";
+import {
+  ASF_UPGRADE_TIER_ORDER_LABEL,
+  filterUpgradeClasses,
+} from "../utils/ticketUpgrade";
 import { colors, typography, spacing, borderRadius } from "../theme/theme";
 import { LinearGradient } from "expo-linear-gradient";
 import { getTicketBenefits } from "../constants/ticketBenefits";
 import { trackEvent } from "../utils/analytics";
 import TicketBenefitsModal from "./TicketBenefitsModal";
-
-const TIER_ORDER = "Limited Pass → Expo → Oasis → Delegate → Chairperson";
-
-/** Tier sort order (lowest to highest): Expo=0, Oasis=1, Delegate=2, Chairperson=3 */
-function tierSortKey(nameOrType?: string): number {
-  const t = (nameOrType ?? "").toLowerCase();
-  // Lowest → highest
-  if (t.includes("chairperson") || t.includes("founder")) return 4;
-  if (t.includes("delegate")) return 3;
-  if (t.includes("oasis")) return 2;
-  if (t.includes("expo") || t.includes("attendee") || t.includes("general")) return 1;
-  if (t.includes("exhibition")) return 0;
-  return 0; // unknown -> treat as lowest for upgrade ordering
-}
-
-/**
- * Filter ticket classes to upgrade targets only (Oasis, Delegate, Chairperson),
- * then keep only tiers strictly above the user's current tier (no same-tier or downgrade).
- * Deduplicates by tier label so production APIs that return duplicate classes don't show repeated options.
- * - Exhibition (0) → Expo, Oasis, Delegate, Chairperson
- * - Expo (1) → Oasis, Delegate, Chairperson
- * - Oasis (2) → Delegate, Chairperson
- * - Delegate (3) → Chairperson only
- * - Chairperson (4) → none
- */
-function filterAndSortUpgradeClasses(
-  classes: TicketClass[],
-  currentTierLabel: string
-): TicketClass[] {
-  const userTierKey = tierSortKey(currentTierLabel);
-  const filtered = classes
-    .filter((c) => {
-      const tierKey = tierSortKey(c.name || c.user_type);
-      return tierKey > 0 && tierKey > userTierKey;
-    })
-    .sort((a, b) => tierSortKey(a.name || a.user_type) - tierSortKey(b.name || b.user_type));
-  // Deduplicate by tier label (production backend may return multiple classes per tier name)
-  const seen = new Set<string>();
-  return filtered.filter((c) => {
-    const label = (c.name || c.user_type || "").toLowerCase();
-    if (seen.has(label)) return false;
-    seen.add(label);
-    return true;
-  });
-}
 
 export interface UpgradeTicketModalProps {
   visible: boolean;
@@ -96,10 +58,13 @@ export default function UpgradeTicketModal({
   const [upgradeOptions, setUpgradeOptions] = useState<
     { ticket_class_id: number; value: string; label: string }[]
   >([]);
-  const [selectedTicketClassId, setSelectedTicketClassId] = useState<number | null>(null);
+  const [selectedTicketClassId, setSelectedTicketClassId] = useState<
+    number | null
+  >(null);
+  const [paymentMethod, setPaymentMethod] =
+    useState<UpgradePaymentMethod>("KORAPAY");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Nested full-benefits modal target (when user taps "View benefits" on a row). */
   const [fullBenefitsTarget, setFullBenefitsTarget] = useState<{
     tierLabel: string;
     items: string[];
@@ -112,19 +77,21 @@ export default function UpgradeTicketModal({
     setClassesError(null);
     try {
       const classes = await ticketService.getTicketClasses(eventId);
-      const sorted = filterAndSortUpgradeClasses(classes, currentTierLabel);
+      const sorted = filterUpgradeClasses(classes, currentTierLabel);
       const options = sorted.map((c) => ({
         ticket_class_id: c.id,
-        // Use name first for value so color lookup gets "oasis"/"delegate"/"chairperson" (name), not generic user_type e.g. "attendee"
         value: (c.name || c.user_type || "").toLowerCase(),
         label: c.name || c.user_type || "Ticket",
       }));
       setUpgradeOptions(options);
-      // Always set selection to first available option (only higher tiers are in the list)
-      setSelectedTicketClassId(options.length > 0 ? options[0].ticket_class_id : null);
+      setSelectedTicketClassId(
+        options.length > 0 ? options[0].ticket_class_id : null,
+      );
     } catch (err) {
       const msg =
-        err instanceof ApiClientError ? err.message : "Failed to load ticket options.";
+        err instanceof ApiClientError
+          ? err.message
+          : "Failed to load ticket options.";
       setClassesError(msg);
     } finally {
       setClassesLoading(false);
@@ -134,7 +101,8 @@ export default function UpgradeTicketModal({
   useEffect(() => {
     if (visible && eventId) {
       setError(null);
-      fetchClasses();
+      setPaymentMethod("KORAPAY");
+      void fetchClasses();
     }
     if (!visible) {
       setFullBenefitsTarget(null);
@@ -142,36 +110,48 @@ export default function UpgradeTicketModal({
   }, [visible, eventId, fetchClasses]);
 
   const selectedOption = upgradeOptions.find(
-    (o) => o.ticket_class_id === selectedTicketClassId
+    (o) => o.ticket_class_id === selectedTicketClassId,
   );
   const selectedLabel = selectedOption?.label ?? "";
+  const selectedCurrency =
+    UPGRADE_PAYMENT_METHODS.find((m) => m.value === paymentMethod)?.currency ??
+    "KES";
 
-  const handleUpgrade = async (paymentMethod: string) => {
+  const handleUpgrade = async () => {
     if (selectedTicketClassId == null) return;
     setError(null);
     setLoading(true);
-    const currency = "NGN";
     try {
       const result = await ticketService.upgradeTicket(
         eventId,
         ticketId,
         selectedTicketClassId,
         paymentMethod,
-        currency
+        selectedCurrency,
       );
       const paymentUrl = result?.payment_url;
       const amount = result?.amount ?? "";
+      void trackEvent("ticket_upgrade_initiated", {
+        from_tier: currentTierLabel,
+        to_tier: selectedLabel,
+        payment_method: paymentMethod,
+        currency: selectedCurrency,
+      });
       if (paymentUrl) {
         onSuccess();
         onClose();
-        const message =
+        const amountLine =
           amount !== ""
-            ? `Amount to pay: ${amount}. You will be redirected to complete payment.`
-            : "You will be redirected to complete payment.";
-        Alert.alert("Complete payment", message, [
-          { text: "Open payment", onPress: () => Linking.openURL(paymentUrl) },
-          { text: "Later" },
-        ]);
+            ? `Amount to pay: ${amount} ${selectedCurrency}.`
+            : "";
+        Alert.alert(
+          "Complete payment",
+          `${amountLine} You will be redirected to complete payment.`.trim(),
+          [
+            { text: "Open payment", onPress: () => Linking.openURL(paymentUrl) },
+            { text: "Later" },
+          ],
+        );
       } else {
         onSuccess();
         onClose();
@@ -187,10 +167,10 @@ export default function UpgradeTicketModal({
             typeof errList === "object" && !Array.isArray(errList)
               ? Object.entries(errList).map(
                   ([k, v]) =>
-                    `${k}: ${Array.isArray(v) ? (v as any[]).join(", ") : v}`
+                    `${k}: ${Array.isArray(v) ? (v as unknown[]).join(", ") : v}`,
                 )
               : [String(errList)];
-          if (parts.length) message = message + "\n\n" + parts.join("\n");
+          if (parts.length) message = `${message}\n\n${parts.join("\n")}`;
         }
       }
       setError(message);
@@ -212,162 +192,204 @@ export default function UpgradeTicketModal({
         <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
-
-          {(
-            <>
-              <Text style={styles.title}>Upgrade your ticket</Text>
-              <Text style={styles.subtitle}>
-                You have a {currentTierLabel} pass. Choose the pass you want to upgrade to.
-              </Text>
-              <View style={styles.tierInfo}>
-                <Text style={styles.tierInfoLabel}>Ticket tiers</Text>
-                <Text style={styles.tierOrder}>{TIER_ORDER}</Text>
+          <ScrollView
+            style={styles.mainScroll}
+            contentContainerStyle={styles.mainScrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.title}>Upgrade your ticket</Text>
+            <Text style={styles.subtitle}>
+              You have a {currentTierLabel} pass. Choose the pass you want to
+              upgrade to.
+            </Text>
+            <View style={styles.tierInfo}>
+              <Text style={styles.tierInfoLabel}>Ticket tiers</Text>
+              <Text style={styles.tierOrder}>{ASF_UPGRADE_TIER_ORDER_LABEL}</Text>
+            </View>
+            {classesLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color={colors.text.primary} />
+                <Text style={styles.loadingText}>Loading ticket options...</Text>
               </View>
-              {classesLoading ? (
-                <View style={styles.loadingRow}>
-                  <ActivityIndicator size="small" color={colors.text.primary} />
-                  <Text style={styles.loadingText}>Loading ticket options...</Text>
-                </View>
-              ) : classesError ? (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>{classesError}</Text>
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.chooseLabel}>Upgrade to</Text>
-                  <View style={styles.options}>
-                    {upgradeOptions.map((opt) => {
-                      const isSelected = selectedTicketClassId === opt.ticket_class_id;
-                      const tierColor = getTicketBackgroundColor(opt.value);
-                      const gradientColors = getTicketGradientColors(opt.value);
-                      const benefits = getTicketBenefits(opt.value);
-                      return (
-                        <View
-                          key={opt.ticket_class_id}
-                          style={[
-                            styles.optionRow,
-                            isSelected && {
-                              borderColor: tierColor,
-                              backgroundColor: colors.neutral[50],
-                            },
-                          ]}
+            ) : classesError ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{classesError}</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.chooseLabel}>Upgrade to</Text>
+                <View style={styles.options}>
+                  {upgradeOptions.map((opt) => {
+                    const isSelected =
+                      selectedTicketClassId === opt.ticket_class_id;
+                    const tierColor = getTicketBackgroundColor(opt.value);
+                    const gradientColors = getTicketGradientColors(opt.value);
+                    const benefits = getTicketBenefits(opt.value);
+                    return (
+                      <View
+                        key={opt.ticket_class_id}
+                        style={[
+                          styles.optionRow,
+                          isSelected && {
+                            borderColor: tierColor,
+                            backgroundColor: colors.neutral[50],
+                          },
+                        ]}
+                      >
+                        {isSelected ? (
+                          <LinearGradient
+                            colors={gradientColors}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.optionRowAccent}
+                          />
+                        ) : null}
+                        <Pressable
+                          onPress={() =>
+                            setSelectedTicketClassId(opt.ticket_class_id)
+                          }
+                          style={styles.optionRowSelectArea}
                         >
-                          {isSelected ? (
-                            <LinearGradient
-                              colors={gradientColors}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 0 }}
-                              style={styles.optionRowAccent}
-                            />
-                          ) : null}
-                          <Pressable
-                            onPress={() =>
-                              setSelectedTicketClassId(opt.ticket_class_id)
-                            }
-                            style={styles.optionRowSelectArea}
+                          <View
+                            style={[
+                              styles.radioOuter,
+                              isSelected && { borderColor: tierColor },
+                            ]}
                           >
-                            <View
-                              style={[
-                                styles.radioOuter,
-                                isSelected && { borderColor: tierColor },
-                              ]}
-                            >
-                              {isSelected ? (
-                                <View
-                                  style={[
-                                    styles.radioInner,
-                                    { backgroundColor: tierColor },
-                                  ]}
-                                />
-                              ) : null}
-                            </View>
-                            <Text
-                              style={[
-                                styles.optionLabel,
-                                isSelected && {
-                                  color: tierColor,
-                                  fontWeight: "600",
-                                },
-                              ]}
-                            >
-                              {opt.label}
+                            {isSelected ? (
+                              <View
+                                style={[
+                                  styles.radioInner,
+                                  { backgroundColor: tierColor },
+                                ]}
+                              />
+                            ) : null}
+                          </View>
+                          <Text
+                            style={[
+                              styles.optionLabel,
+                              isSelected && {
+                                color: tierColor,
+                                fontWeight: "600",
+                              },
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </Pressable>
+                        {benefits ? (
+                          <Pressable
+                            onPress={() => {
+                              setFullBenefitsTarget({
+                                tierLabel: benefits.tierLabel,
+                                items: benefits.items,
+                                ticketType: opt.value,
+                              });
+                              void trackEvent("ticket_upgrade_benefits_viewed", {
+                                source: "upgrade_modal",
+                                from_tier: currentTierLabel,
+                                to_tier: opt.label,
+                              });
+                            }}
+                            hitSlop={8}
+                            style={styles.viewBenefitsLink}
+                          >
+                            <Text style={styles.viewBenefitsText}>
+                              View benefits
                             </Text>
+                            <Text style={styles.viewBenefitsArrow}>↓</Text>
                           </Pressable>
-                          {benefits && (
-                            <Pressable
-                              onPress={() => {
-                                setFullBenefitsTarget({
-                                  tierLabel: benefits.tierLabel,
-                                  items: benefits.items,
-                                  ticketType: opt.value,
-                                });
-                                void trackEvent(
-                                  "ticket_upgrade_benefits_viewed",
-                                  {
-                                    source: "upgrade_modal",
-                                    from_tier: currentTierLabel,
-                                    to_tier: opt.label,
-                                  }
-                                );
-                              }}
-                              hitSlop={8}
-                              style={styles.viewBenefitsLink}
-                            >
-                              <Text  style={styles.viewBenefitsText}>
-                                View benefits
-                              </Text>
-                              <Text style={styles.viewBenefitsArrow}>↓</Text>
-                            </Pressable>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-              {error ? (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>{error}</Text>
+                        ) : null}
+                      </View>
+                    );
+                  })}
                 </View>
-              ) : null}
-              <ScrollView
-                style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-              >
-                <Pressable
-                  onPress={() => handleUpgrade(PAYSTACK_METHOD)}
-                  disabled={classesLoading || upgradeOptions.length === 0}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-                    pressed && styles.primaryButtonPressed,
-                    (classesLoading || upgradeOptions.length === 0) &&
-                      styles.primaryButtonDisabled,
-                  ]}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color={colors.text.inverse} />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>
-                      {upgradeOptions.length === 0
-                        ? "No options"
-                        : `Upgrade to ${selectedLabel}`}
-                    </Text>
-                  )}
-                </Pressable>
-                <Pressable
-                  onPress={onClose}
-                  disabled={loading}
-                  style={({ pressed }) => [
-                    styles.secondaryButton,
-                    pressed && styles.secondaryButtonPressed,
-                  ]}
-                >
-                  <Text style={styles.secondaryButtonText}>Cancel</Text>
-                </Pressable>
-              </ScrollView>
-            </>
-          )}
+              </>
+            )}
+
+            {!classesLoading && upgradeOptions.length > 0 ? (
+              <>
+                <Text style={styles.chooseLabel}>Payment method</Text>
+                <View style={styles.paymentList}>
+                  {UPGRADE_PAYMENT_METHODS.map((method) => {
+                    const isSelected = paymentMethod === method.value;
+                    return (
+                      <Pressable
+                        key={method.value}
+                        onPress={() => setPaymentMethod(method.value)}
+                        style={({ pressed }) => [
+                          styles.paymentMethodRow,
+                          isSelected && styles.paymentMethodRowSelected,
+                          pressed && styles.paymentMethodRowPressed,
+                        ]}
+                      >
+                        <View style={styles.paymentMethodLeft}>
+                          <View
+                            style={[
+                              styles.radioOuter,
+                              isSelected && {
+                                borderColor: colors.text.primary,
+                              },
+                            ]}
+                          >
+                            {isSelected ? (
+                              <View
+                                style={[
+                                  styles.radioInner,
+                                  { backgroundColor: colors.text.primary },
+                                ]}
+                              />
+                            ) : null}
+                          </View>
+                          <Text style={styles.paymentMethodLabel}>
+                            {method.label}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
+
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
+            <Pressable
+              onPress={() => void handleUpgrade()}
+              disabled={classesLoading || upgradeOptions.length === 0 || loading}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed && styles.primaryButtonPressed,
+                (classesLoading || upgradeOptions.length === 0 || loading) &&
+                  styles.primaryButtonDisabled,
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={colors.text.inverse} />
+              ) : (
+                <Text style={styles.primaryButtonText}>
+                  {upgradeOptions.length === 0
+                    ? "No upgrade options"
+                    : `Upgrade to ${selectedLabel}`}
+                </Text>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={onClose}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                pressed && styles.secondaryButtonPressed,
+              ]}
+            >
+              <Text style={styles.secondaryButtonText}>Cancel</Text>
+            </Pressable>
+          </ScrollView>
           <SafeAreaView edges={["bottom"]} style={styles.safeBottom} />
         </View>
       </View>
@@ -393,10 +415,9 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: colors.background,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    paddingHorizontal: spacing[6],
-    paddingTop: spacing[2],
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: "92%",
   },
   handle: {
     width: 48,
@@ -404,7 +425,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral[300],
     borderRadius: 2,
     alignSelf: "center",
-    marginBottom: spacing[4],
+    marginTop: spacing[2],
+    marginBottom: spacing[2],
+  },
+  mainScroll: {
+    flexGrow: 0,
+  },
+  mainScrollContent: {
+    paddingHorizontal: spacing[6],
+    paddingBottom: spacing[4],
   },
   title: {
     fontSize: typography.fontSize["2xl"],
@@ -489,7 +518,6 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     fontFamily: typography.fontFamily["inter-semibold"],
     paddingTop: 4,
-    // textDecorationLine: "underline",
   },
   viewBenefitsArrow: {
     fontSize: typography.fontSize.lg,
@@ -525,59 +553,37 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontFamily: typography.fontFamily.sans,
   },
-  stepHeader: {
-    marginBottom: spacing[5],
-  },
-  backButton: {
-    alignSelf: "flex-start",
-    paddingVertical: spacing[2],
-    paddingHorizontal: spacing[1],
-    marginBottom: spacing[3],
-  },
-  backButtonText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    fontFamily: typography.fontFamily.sans,
-  },
-  stepTitle: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: "700",
-    color: colors.text.primary,
-    fontFamily: typography.fontFamily["inter-bold"],
-    marginBottom: spacing[2],
-  },
-  stepSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    fontFamily: typography.fontFamily.sans,
-    marginBottom: spacing[4],
-  },
   paymentList: {
     gap: spacing[2],
+    marginBottom: spacing[5],
   },
   paymentMethodRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: spacing[4],
+    paddingVertical: spacing[3],
     paddingHorizontal: spacing[4],
     borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.neutral[200],
     backgroundColor: colors.background,
   },
+  paymentMethodRowSelected: {
+    borderColor: colors.text.primary,
+    backgroundColor: colors.neutral[50],
+  },
   paymentMethodRowPressed: {
     opacity: 0.8,
+  },
+  paymentMethodLeft: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   paymentMethodLabel: {
     fontSize: typography.fontSize.base,
     fontWeight: "500",
     color: colors.text.primary,
     fontFamily: typography.fontFamily["inter-medium"],
-  },
-  paymentMethodChevron: {
-    fontSize: typography.fontSize.lg,
-    color: colors.neutral[400],
   },
   errorBox: {
     backgroundColor: "#FEF2F2",
@@ -592,12 +598,6 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontFamily: typography.fontFamily.sans,
   },
-  scroll: {
-    maxHeight: 160,
-  },
-  scrollContent: {
-    paddingBottom: spacing[10],
-  },
   primaryButton: {
     backgroundColor: colors.text.primary,
     borderRadius: borderRadius.md,
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[5],
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing[4],
+    marginBottom: spacing[2],
     minHeight: 52,
   },
   primaryButtonPressed: {
@@ -625,6 +625,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: spacing[4],
     minHeight: 48,
+    marginBottom: spacing[2],
   },
   secondaryButtonPressed: {
     opacity: 0.7,
@@ -636,6 +637,5 @@ const styles = StyleSheet.create({
   },
   safeBottom: {
     backgroundColor: colors.background,
-    paddingTop: spacing[4],
   },
 });

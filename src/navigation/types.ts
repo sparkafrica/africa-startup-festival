@@ -47,6 +47,8 @@ export type RootStackParamList = {
         initialTab?: "My Ticket" | "Scan Ticket";
         /** After tickets load, open the personal ticket QR modal (same as View QR Code). */
         openPersonalTicketQr?: boolean;
+        /** After tickets load, open the upgrade ticket modal for the personal pass. */
+        openUpgrade?: boolean;
       }
     | undefined;
   ScannedAttendee: { attendee: Attendee } | undefined;

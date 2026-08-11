@@ -220,11 +220,14 @@ export interface UpgradeTicketResponse {
   [key: string]: any;
 }
 
-/** Payment method enum for upgrade-ticket (backend). Must match backend TicketUpgradeRequest.payment_method enum. */
-/** ATE2026: Paystack only. Re-add others here if needed: KORAPAY, PAYAZA, STRIPE, INVOICE, OTHER, FREE. */
+/** Payment methods for ASF upgrade-ticket (backend enum + currency). */
 export const UPGRADE_PAYMENT_METHODS = [
-  { value: "PAYSTACK", label: "Paystack" },
+  { value: "KORAPAY", label: "Korapay (KES)", currency: "KES" },
+  { value: "STRIPE", label: "Stripe (USD)", currency: "USD" },
 ] as const;
+
+export type UpgradePaymentMethod =
+  (typeof UPGRADE_PAYMENT_METHODS)[number]["value"];
 
 /**
  * Allocation Request - for allocate-ticket API

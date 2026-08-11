@@ -213,45 +213,29 @@ const TIER_ORDER: { value: string; label: string }[] = [
 ];
 
 /**
- * Upgradeable tiers: Exhibition → Expo → Oasis → Delegate. Chairperson, Partner, Exhibitor, Media, Speaker cannot.
+ * Upgradeable tiers: Explorer → Startup → Operator. Investor and special passes cannot.
+ * @deprecated Prefer importing from `ticketUpgrade.ts`.
  */
-export function isUpgradeableAttendeeTier(ticketTypeOrName?: string): boolean {
-  const t = normalizeType(ticketTypeOrName);
-  if (!t) return false;
-  if (t.includes("chairperson") || t.includes("founder")) return false;
-  if (t.includes("exhibitor") || t.includes("partner")) return false;
-  if (t.includes("media") || t.includes("speaker")) return false;
-  if (t.includes("delegate") || t.includes("oasis")) return true;
-  if (isLimitedPassAlias(t)) return true;
-  if (t.includes("expo") || t.includes("attendee") || t.includes("general"))
-    return true;
-  return false;
-}
+export { isUpgradeableAttendeeTier } from "./ticketUpgrade";
 
+/** @deprecated ASF ladder — use filterUpgradeClasses + backend classes instead. */
 export function getHigherTierOptions(
   ticketTypeOrName?: string,
 ): { value: string; label: string }[] {
   const t = normalizeType(ticketTypeOrName);
-  if (!t || t.includes("chairperson") || t.includes("founder")) return [];
-  if (t.includes("delegate"))
-    return [{ value: "chairperson", label: "Chairperson" }];
-  if (t.includes("oasis"))
+  if (!t || t.includes("investor")) return [];
+  if (t.includes("operator"))
+    return [{ value: "investor", label: "Investor" }];
+  if (t.includes("startup") || t.includes("founder"))
     return [
-      { value: "delegate", label: "Delegate" },
-      { value: "chairperson", label: "Chairperson" },
+      { value: "operator", label: "Operator" },
+      { value: "investor", label: "Investor" },
     ];
-  if (t.includes("expo") || t.includes("attendee") || t.includes("general"))
+  if (t.includes("explorer") || isLimitedPassAlias(t))
     return [
-      { value: "oasis", label: "Oasis" },
-      { value: "delegate", label: "Delegate" },
-      { value: "chairperson", label: "Chairperson" },
+      { value: "startup", label: "Startup" },
+      { value: "operator", label: "Operator" },
+      { value: "investor", label: "Investor" },
     ];
-  if (isLimitedPassAlias(t))
-    return [
-      { value: "expo", label: "Expo" },
-      { value: "oasis", label: "Oasis" },
-      { value: "delegate", label: "Delegate" },
-      { value: "chairperson", label: "Chairperson" },
-    ];
-  return TIER_ORDER;
+  return [];
 }

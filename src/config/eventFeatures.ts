@@ -35,7 +35,7 @@ export function getEventFeatures(now = Date.now()): EventFeatures {
     showAttendeesTab: true,
     virtualMeetingsOnly: postEvent,
     scanNetworkingEnabled: !postEvent,
-    showUpgradeTicket: false,
+    showUpgradeTicket: !postEvent,
     hiddenMenuRoutes: [...ASF_HIDDEN_MENU_ROUTES],
   };
 }
