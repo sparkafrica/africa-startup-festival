@@ -148,8 +148,8 @@ export default function UpgradeTicketModal({
           "Complete payment",
           `${amountLine} You will be redirected to complete payment.`.trim(),
           [
+            { text: "Later", style: "cancel" },
             { text: "Open payment", onPress: () => Linking.openURL(paymentUrl) },
-            { text: "Later" },
           ],
         );
       } else {
