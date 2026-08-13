@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PersonProfileIcon } from "./icons";
-import { LinkedInIcon } from "./SocialIcons";
+import { LinkedInLinkLabel } from "./LinkedInLinkLabel";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
 
@@ -142,14 +142,7 @@ export default function ParticipantDetailModal({
                         }
                       }}
                     >
-                      <LinkedInIcon size={18} color="#0A66C2" />
-                      <Text
-                        style={styles.socialButtonText}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        {info.displayLabel}
-                      </Text>
+                      <LinkedInLinkLabel />
                     </Pressable>
                   </View>
                 );
@@ -299,13 +292,5 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     backgroundColor: "#F3F4F6",
     alignSelf: "flex-start",
-    maxWidth: 200,
-  },
-  socialButtonText: {
-    marginLeft: 8,
-    fontSize: 13,
-    fontWeight: "500",
-    color: "#111827",
-    flexShrink: 1,
   },
 });

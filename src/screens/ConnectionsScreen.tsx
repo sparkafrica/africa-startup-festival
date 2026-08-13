@@ -40,7 +40,8 @@ import { resolveIndustryLabel } from "../constants/industryAndInterests";
 import { resolveAttendeeStartupBadge } from "../utils/startupJoinStatus";
 import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
 import { SearchIcon, ChevronRightIcon, SpeechBubbleIcon } from "../components/icons";
-import { LinkedInIcon, CalendarIconWhite } from "../components/SocialIcons";
+import { LinkedInLinkLabel } from "../components/LinkedInLinkLabel";
+import { CalendarIconWhite } from "../components/SocialIcons";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
@@ -1582,13 +1583,11 @@ export default function ConnectionsScreen() {
                             className="flex-row items-center justify-center bg-neutral-200 py-3.5 px-3"
                             style={{ flex: 1, marginRight: 6, borderRadius: 0 }}
                           >
-                            <LinkedInIcon size={20} color="#0A66C2" />
-                            <Text
-                              className="text-sm font-semibold text-neutral-700 ml-1.5"
-                              numberOfLines={1}
-                            >
-                              {linkedIn.displayLabel}
-                            </Text>
+                            <LinkedInLinkLabel
+                              iconSize={18}
+                              textColor="#404040"
+                              fontWeight="600"
+                            />
                           </Pressable>
                         ) : (
                           <View style={{ flex: 1, marginRight: 6 }} />
@@ -1677,10 +1676,11 @@ export default function ConnectionsScreen() {
                           }}
                           className="w-full flex-row items-center justify-center bg-neutral-200 py-3.5 px-4 mb-3" style={{ borderRadius: 0 }}
                         >
-                          <LinkedInIcon size={20} color="#0A66C2" />
-                          <Text className="text-base font-semibold text-neutral-700 ml-2">
-                            {linkedIn.displayLabel}
-                          </Text>
+                          <LinkedInLinkLabel
+                            iconSize={18}
+                            textColor="#404040"
+                            fontWeight="600"
+                          />
                         </Pressable>
                       );
                     })()

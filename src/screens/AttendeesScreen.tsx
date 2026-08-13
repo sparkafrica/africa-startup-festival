@@ -122,7 +122,7 @@ import {
   SearchIcon,
   SpeechBubbleIcon,
 } from "../components/icons";
-import { LinkedInIcon } from "../components/SocialIcons";
+import { LinkedInLinkLabel } from "../components/LinkedInLinkLabel";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import {
   coerceMetadataLabel,
@@ -3229,7 +3229,7 @@ export default function AttendeesScreen() {
                       </View>
                     )}
 
-                  {/* LinkedIn Badge - display label (username), open full URL */}
+                  {/* LinkedIn Badge — icon + "LinkedIn" + chevron, open full URL */}
                   {(() => {
                     const linkedIn = getLinkedInDisplayInfo(
                       selectedAttendee.linkedInUrl,
@@ -3275,10 +3275,7 @@ export default function AttendeesScreen() {
                           className="flex-row items-center bg-neutral-100 px-4 py-2.5 self-start"
                           style={{ borderRadius: 0 }}
                         >
-                          <LinkedInIcon size={18} color="#0A66C2" />
-                          <Text className="text-sm font-medium text-neutral-900 ml-2">
-                            {linkedIn.displayLabel}
-                          </Text>
+                          <LinkedInLinkLabel />
                         </Pressable>
                       </View>
                     );

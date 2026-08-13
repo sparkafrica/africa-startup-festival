@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import MeetingActionToast from "./MeetingActionToast";
-import { LinkedInIcon } from "./SocialIcons";
+import { LinkedInLinkLabel } from "./LinkedInLinkLabel";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -478,10 +478,11 @@ export default function NotificationDetailModal({
                               }}
                               className="px-3 py-1 bg-neutral-100 rounded-full flex-row items-center"
                             >
-                              <LinkedInIcon size={14} color="#0A66C2" />
-                              <Text className="text-xs text-neutral-700 ml-1.5 font-medium">
-                                in {notification.requester.socialLabel}
-                              </Text>
+                              <LinkedInLinkLabel
+                                iconSize={16}
+                                textSize={12}
+                                textColor="#404040"
+                              />
                             </Pressable>
                           </View>
                         )}

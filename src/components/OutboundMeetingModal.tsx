@@ -20,7 +20,7 @@ import { ClockIcon } from "./BottomNavIcons";
 import { LocationPinIcon, TableIcon, PersonProfileIcon, ChevronRightIcon } from "./icons";
 import { VideoIcon } from "./MenuIcons";
 import MeetingLinkPressable from "./MeetingLinkPressable";
-import { LinkedInIcon } from "./SocialIcons";
+import { LinkedInLinkLabel } from "./LinkedInLinkLabel";
 import EditMeetingModal, { EditMeetingModalProps } from "./EditMeetingModal";
 import MeetingCancelModal from "./MeetingCancelModal";
 import MeetingCancelledModal from "./MeetingCancelledModal";
@@ -696,14 +696,11 @@ export default function OutboundMeetingModal({
                               }
                             }}
                           >
-                            <LinkedInIcon size={14} color="#0A66C2" />
-                            <Text 
-                              style={styles.participantInterestText}
-                              numberOfLines={1}
-                              ellipsizeMode="tail"
-                            >
-                              {participantSocialLabel}
-                            </Text>
+                            <LinkedInLinkLabel
+                              iconSize={16}
+                              textSize={12}
+                              textColor="#404040"
+                            />
                           </Pressable>
                         </View>
                       </View>

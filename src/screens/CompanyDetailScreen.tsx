@@ -32,6 +32,7 @@ import {
   CalendarIconWhite,
 } from "../components/SocialIcons";
 import { ArrowUpRightIcon } from "../components/icons";
+import { LinkedInLinkLabel } from "../components/LinkedInLinkLabel";
 import {
   RequestMeetingModal,
   MeetingRequestMessageModal,
@@ -931,14 +932,24 @@ function CompanyDetailScreenInner({ route }: Props) {
                     style={{ borderRadius: 0 }}
                     onPress={() => social.url && openUrl(social.url)}
                   >
-                    <IconComponent size={16} color={brand.black} />
-                    <Text
-                      className="text-xs ml-2 font-medium"
-                      style={{ color: brand.black }}
-                      numberOfLines={1}
-                    >
-                      {social.handle}
-                    </Text>
+                    {social.id === "linkedin" ? (
+                      <LinkedInLinkLabel
+                        iconSize={16}
+                        textSize={12}
+                        textColor={brand.black}
+                      />
+                    ) : (
+                      <>
+                        <IconComponent size={16} color={brand.black} />
+                        <Text
+                          className="text-xs ml-2 font-medium"
+                          style={{ color: brand.black }}
+                          numberOfLines={1}
+                        >
+                          {social.handle}
+                        </Text>
+                      </>
+                    )}
                   </Pressable>
                 );
               })}

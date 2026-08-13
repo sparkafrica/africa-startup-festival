@@ -6,7 +6,7 @@ import React from "react";
 import { View, Text, Pressable, Image, Linking, Alert, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path, Circle } from "react-native-svg";
-import { LinkedInIcon } from "./SocialIcons";
+import { LinkedInLinkLabel } from "./LinkedInLinkLabel";
 import { StartupBadge, StartupPendingBadge } from "./StartupBadge";
 import { Skeleton } from "./Skeleton";
 import type { Attendee } from "../services/ticketService";
@@ -265,10 +265,7 @@ export default function ScannedAttendeeProfileContent({
             }}
             style={styles.linkedInBtn}
           >
-            <LinkedInIcon size={18} color="#0A66C2" />
-            <Text style={styles.linkedInText}>
-              {linkedIn.displayLabel}
-            </Text>
+            <LinkedInLinkLabel />
           </Pressable>
         </View>
       ) : null}
@@ -390,11 +387,5 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    gap: 8,
-  },
-  linkedInText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#171717",
   },
 });
