@@ -1,13 +1,15 @@
 import React from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { LinkedInIcon } from "./SocialIcons";
 import { ChevronRightIcon } from "./icons";
 import { LINKEDIN_DISPLAY_LABEL } from "../utils/linkedInUtils";
 
+/** Shared optical nudge — same on iOS and Android so the row stays in parity. */
+const LABEL_NUDGE_Y = 3;
+
 /**
- * Icon + "LinkedIn" + chevron, optically centered.
- * "LinkedIn" has no descenders so RN centers the line-box, not the glyphs —
- * we nudge the label down to sit with the SVGs.
+ * Icon + "LinkedIn" + chevron.
+ * Text and chevron share one transform so they cannot drift apart across platforms.
  */
 export function LinkedInLinkLabel({
   iconSize = 18,
@@ -22,13 +24,10 @@ export function LinkedInLinkLabel({
   chevronColor?: string;
   fontWeight?: "500" | "600";
 }) {
-  const slot = Math.max(iconSize, 20);
   return (
-    <View style={[styles.row, { height: slot }]}>
-      <View style={[styles.slot, { width: iconSize, height: slot }]}>
-        <LinkedInIcon size={iconSize} color="#0A66C2" />
-      </View>
-      <View style={[styles.slot, { height: slot, marginLeft: 6, marginRight: 2 }]}>
+    <View style={styles.row}>
+      <LinkedInIcon size={iconSize} color="#0A66C2" />
+      <View style={styles.labelGroup}>
         <Text
           style={[
             styles.label,
@@ -42,9 +41,7 @@ export function LinkedInLinkLabel({
         >
           {LINKEDIN_DISPLAY_LABEL}
         </Text>
-      </View>
-      <View style={[styles.slot, { width: slot, height: slot }]}>
-        <ChevronRightIcon size={slot} color={chevronColor} />
+        <ChevronRightIcon size={textSize + 2} color={chevronColor} />
       </View>
     </View>
   );
@@ -55,14 +52,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  slot: {
-    justifyContent: "center",
+  labelGroup: {
+    flexDirection: "row",
     alignItems: "center",
+    marginLeft: 6,
+    transform: [{ translateY: LABEL_NUDGE_Y }],
   },
   label: {
     includeFontPadding: false,
     textAlignVertical: "center",
-    // No descenders in "LinkedIn" — glyphs sit high in the line box.
-    transform: [{ translateY: Platform.OS === "ios" ? 2 : 1 }],
+    marginRight: 2,
   },
 });

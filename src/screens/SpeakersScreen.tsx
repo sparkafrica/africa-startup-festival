@@ -170,14 +170,12 @@ export default function SpeakersScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (speakers.length === 0 && !isLoading) {
-        void fetchSpeakers();
-        return;
-      }
+      // Silent only: never flip the skeleton back on while focused, or empty
+      // copy and loaders stack/cascade. Mount fetch covers the first load.
       if (!isSpeakersCacheFresh()) {
         void fetchSpeakers({ silent: true });
       }
-    }, [speakers.length, isLoading, fetchSpeakers]),
+    }, [fetchSpeakers]),
   );
 
   const displayedSpeakers = useMemo(() => {

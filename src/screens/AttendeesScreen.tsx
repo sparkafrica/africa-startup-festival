@@ -51,8 +51,6 @@ import { useChat } from "../context/ChatContext";
 import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContext";
 import { useMeetingsBadgeContext } from "../context/MeetingsBadgeContext";
 import { useNotifications } from "../context/NotificationsContext";
-import { resolveAttendeeStartupBadge } from "../utils/startupJoinStatus";
-import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
 import {
   attendeeService,
   type Attendee as BackendAttendee,
@@ -68,6 +66,7 @@ import { ensureConnectionsList } from "../utils/connectionsListCache";
 import { ensureMeetingsList } from "../utils/meetingsListCache";
 import { EVENT_ID } from "../config/env";
 import { isPostEventMode } from "../config/eventMode";
+import { getEventFeatures } from "../config/eventFeatures";
 import {
   getIndustryAndInterestFilterCategories,
   resolveIndustryLabel,
@@ -371,7 +370,6 @@ interface Attendee {
   industry?: string;
   connectionStatus?: "pending" | "accepted" | null;
   hasAcceptedMeeting?: boolean;
-  startupBadge?: { kind: "linked"; companyName: string } | { kind: "pending" };
   backendData?: BackendAttendee;
 }
 
@@ -484,26 +482,12 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
           </View>
 
           <View className="flex-1 pt-2">
-            <View
-              className="flex-row items-center flex-wrap mb-1"
-              style={{ gap: 8 }}
+            <Text
+              className="text-base font-bold text-neutral-900 mb-1"
+              numberOfLines={1}
             >
-              <Text
-                className="text-base font-bold text-neutral-900"
-                numberOfLines={1}
-                style={{ flexShrink: 1 }}
-              >
-                {item.name}
-              </Text>
-              {item.startupBadge?.kind === "linked" ? (
-                <StartupBadge
-                  companyName={item.startupBadge.companyName}
-                  compact
-                />
-              ) : item.startupBadge?.kind === "pending" ? (
-                <StartupPendingBadge compact />
-              ) : null}
-            </View>
+              {item.name}
+            </Text>
 
             <Text className="text-sm text-neutral-600" numberOfLines={1}>
               {item.role && item.company
@@ -1156,8 +1140,13 @@ export default function AttendeesScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Attendees">>();
   const route = useRoute<RouteProp<RootStackParamList, "Attendees">>();
+  const showStartupsDirectory = !getEventFeatures().hiddenHomeDirectoryTabs.includes(
+    "startups",
+  );
   const [directoryMode, setDirectoryMode] = useState<DirectoryMode>(() =>
-    route.params?.roleFilter === "startup" ? "startups" : "attendees",
+    showStartupsDirectory && route.params?.roleFilter === "startup"
+      ? "startups"
+      : "attendees",
   );
   const attendeeListRef = useRef<Animated.FlatList<Attendee>>(null);
   const listHighlight = useListRowHighlight<string>();
@@ -1187,15 +1176,16 @@ export default function AttendeesScreen() {
   const { setFloatingNavSuppressed } = useFloatingNavVisibility();
 
   useEffect(() => {
-    if (route.params?.roleFilter === "startup") {
+    if (showStartupsDirectory && route.params?.roleFilter === "startup") {
       setDirectoryMode("startups");
     } else if (
       route.params?.roleFilter === "all" ||
-      route.params?.roleFilter === "investor"
+      route.params?.roleFilter === "investor" ||
+      !showStartupsDirectory
     ) {
       setDirectoryMode("attendees");
     }
-  }, [route.params?.roleFilter]);
+  }, [route.params?.roleFilter, showStartupsDirectory]);
 
   useEffect(() => {
     const detailOpen = showBottomSheet && selectedAttendee != null;
@@ -1563,10 +1553,6 @@ export default function AttendeesScreen() {
         ? metadata.linkedin_url
         : undefined);
 
-    const startupBadge = resolveAttendeeStartupBadge(user as any, {
-      ticketTypeName: ticketTypeFromTicket(backendAttendee.ticket ?? null),
-    });
-
     return {
       id: String(user.id),
       name: fullName,
@@ -1578,7 +1564,6 @@ export default function AttendeesScreen() {
       interests: interests.length > 0 ? interests : undefined,
       linkedInUrl: linkedInUrl,
       industry: industry || undefined,
-      startupBadge: startupBadge ?? undefined,
       backendData: backendAttendee,
     };
   };
@@ -2471,7 +2456,8 @@ export default function AttendeesScreen() {
 
       <View className="flex-1">
         {/* Mode: Attendees | Startups */}
-        <View className="px-4 pt-4 pb-2">
+        <View className={`px-4 ${showStartupsDirectory ? "pt-4 pb-2" : "pt-2 pb-0"}`}>
+          {showStartupsDirectory ? (
           <View className="flex-row gap-2">
             {[
               { id: "attendees" as const, label: "Attendees" },
@@ -2500,6 +2486,7 @@ export default function AttendeesScreen() {
               );
             })}
           </View>
+          ) : null}
         </View>
 
         {/* Tabs: All Attendees/Startups (left) and Your Matches (right) */}
@@ -3149,28 +3136,9 @@ export default function AttendeesScreen() {
                       )}
                     </View>
                     <View className="flex-1">
-                      <View
-                        className="flex-row items-center flex-wrap mb-1"
-                        style={{ gap: 8 }}
-                      >
-                        <Text
-                          className="text-2xl font-bold text-neutral-900"
-                          style={{ flexShrink: 1 }}
-                        >
-                          {selectedAttendee.name}
-                        </Text>
-                        {selectedAttendee.startupBadge?.kind === "linked" ? (
-                          <StartupBadge
-                            companyName={
-                              selectedAttendee.startupBadge.companyName
-                            }
-                            compact
-                          />
-                        ) : selectedAttendee.startupBadge?.kind ===
-                          "pending" ? (
-                          <StartupPendingBadge compact />
-                        ) : null}
-                      </View>
+                      <Text className="text-2xl font-bold text-neutral-900 mb-1">
+                        {selectedAttendee.name}
+                      </Text>
                       <Text className="text-base text-neutral-600">
                         {selectedAttendee.role && selectedAttendee.company
                           ? `${selectedAttendee.role} · ${selectedAttendee.company}`

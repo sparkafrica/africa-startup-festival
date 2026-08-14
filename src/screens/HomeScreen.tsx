@@ -42,9 +42,12 @@ import HomePushNotificationOverlay from "../components/HomePushNotificationOverl
 import EventChecklist from "../components/EventChecklist";
 import { ArrowUpRightIcon } from "../components/icons";
 // import { ArrowRightIcon } from "../components/icons";
-import { getEventFeatures } from "../config/eventFeatures";
+import {
+  getEventFeatures,
+  type HomeDirectoryTabId,
+} from "../config/eventFeatures";
 
-type DirectoryTabId = "exhibitors" | "partners" | "startups" | "speakers";
+type DirectoryTabId = HomeDirectoryTabId;
 
 type FeaturedCompany = {
   id: number;
@@ -160,8 +163,14 @@ export default function HomeScreen() {
   const [startupsLoading, setStartupsLoading] = useState(true);
   const [startupsError, setStartupsError] = useState<string | null>(null);
 
+  const hiddenDirectoryTabs = new Set(eventFeatures.hiddenHomeDirectoryTabs);
+  const visibleDirectoryTabs = DIRECTORY_TABS.filter(
+    (tab) => !hiddenDirectoryTabs.has(tab.id),
+  );
+  const defaultDirectoryTab: DirectoryTabId =
+    visibleDirectoryTabs[0]?.id ?? "speakers";
   const [directoryTab, setDirectoryTab] =
-    useState<DirectoryTabId>("exhibitors");
+    useState<DirectoryTabId>(defaultDirectoryTab);
 
   // Speaker detail modal
   const [selectedSpeakerId, setSelectedSpeakerId] = useState<string | null>(
@@ -312,13 +321,19 @@ export default function HomeScreen() {
   useEffect(() => {
     void bootstrapEventData();
     fetchFeaturedSpeakers();
-    const exhibitorsTimer = setTimeout(() => fetchFeaturedExhibitors(), 150);
-    const partnersTimer = setTimeout(() => fetchFeaturedPartners(), 300);
-    const startupsTimer = setTimeout(() => fetchFeaturedStartups(), 450);
+    const exhibitorsTimer = hiddenDirectoryTabs.has("exhibitors")
+      ? null
+      : setTimeout(() => fetchFeaturedExhibitors(), 150);
+    const partnersTimer = hiddenDirectoryTabs.has("partners")
+      ? null
+      : setTimeout(() => fetchFeaturedPartners(), 300);
+    const startupsTimer = hiddenDirectoryTabs.has("startups")
+      ? null
+      : setTimeout(() => fetchFeaturedStartups(), 450);
     return () => {
-      clearTimeout(exhibitorsTimer);
-      clearTimeout(partnersTimer);
-      clearTimeout(startupsTimer);
+      if (exhibitorsTimer) clearTimeout(exhibitorsTimer);
+      if (partnersTimer) clearTimeout(partnersTimer);
+      if (startupsTimer) clearTimeout(startupsTimer);
     };
   }, []);
 
@@ -326,13 +341,20 @@ export default function HomeScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
+      const jobs: Promise<unknown>[] = [
         fetchFeaturedSpeakers(),
-        fetchFeaturedExhibitors(),
-        fetchFeaturedPartners(),
-        fetchFeaturedStartups(),
         bootstrapEventData({ force: true }),
-      ]);
+      ];
+      if (!hiddenDirectoryTabs.has("exhibitors")) {
+        jobs.push(fetchFeaturedExhibitors());
+      }
+      if (!hiddenDirectoryTabs.has("partners")) {
+        jobs.push(fetchFeaturedPartners());
+      }
+      if (!hiddenDirectoryTabs.has("startups")) {
+        jobs.push(fetchFeaturedStartups());
+      }
+      await Promise.all(jobs);
     } catch (err) {
       // Errors already handled in individual fetch functions
     } finally {
@@ -349,13 +371,25 @@ export default function HomeScreen() {
       if (featuredSpeakers.length === 0 && !speakersLoading) {
         fetchFeaturedSpeakers();
       }
-      if (featuredExhibitors.length === 0 && !exhibitorsLoading) {
+      if (
+        !hiddenDirectoryTabs.has("exhibitors") &&
+        featuredExhibitors.length === 0 &&
+        !exhibitorsLoading
+      ) {
         fetchFeaturedExhibitors();
       }
-      if (featuredPartners.length === 0 && !partnersLoading) {
+      if (
+        !hiddenDirectoryTabs.has("partners") &&
+        featuredPartners.length === 0 &&
+        !partnersLoading
+      ) {
         fetchFeaturedPartners();
       }
-      if (featuredStartups.length === 0 && !startupsLoading) {
+      if (
+        !hiddenDirectoryTabs.has("startups") &&
+        featuredStartups.length === 0 &&
+        !startupsLoading
+      ) {
         fetchFeaturedStartups();
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -398,14 +432,7 @@ export default function HomeScreen() {
 
   const renderHeroBanners = () => (
     <>
-      {/* <BannerCard
-        title="Explore the programme"
-        description="Sessions, panels, and keynotes across Africa Startup Festival."
-        buttonText="See schedule"
-        gradient={gradients.sparkBlack}
-        backgroundImage={require("../assets/images/8th-card.jpeg")}
-        onPress={() => navigation.navigate("Schedule")}
-      /> */}
+      
       {/* <BannerCard
         title="Discover startups"
         description="Browse the startup directory and connect with founders on the floor."
@@ -424,16 +451,26 @@ export default function HomeScreen() {
         backgroundImage={require("../assets/images/1st-card.jpg")}
         onPress={() => navigation.navigate("Attendees")}
       />
+      {hiddenDirectoryTabs.has("startups") ? null : (
+        <BannerCard
+          title="Connect with our 2026 Startups"
+          description="Discover the startups attending ASF 2026 and connect with founders on the floor."
+          buttonText="View startups"
+          gradient={gradients.sparkWhite}
+          variant="white"
+          square
+          backgroundImage={require("../assets/images/2nd-card.jpg")}
+          onPress={() => navigation.navigate("Startups")}
+        />
+      )}
       <BannerCard
-        title="Connect with our 2026 Startups"
-        description="Discover the startups attending ASF 2026 and connect with founders on the floor."
-        buttonText="View startups"
-        gradient={gradients.sparkWhite}
-        variant="white"
-        square
+        title="Your ticket"
+        description="View your ticket and access to the event."
+        buttonText="View ticket"
+        gradient={gradients.sparkBlack}
         backgroundImage={require("../assets/images/2nd-card.jpg")}
-        onPress={() => navigation.navigate("Startups")}
-      />
+        onPress={() => navigation.navigate("ScanQR", { initialTab: "My Ticket" })}
+      /> 
       {/* <BannerCard
         title="Connect with our 2026 Startups"
         description="Discover the startups attending ASF 2026 and connect with founders on the floor."
@@ -446,7 +483,10 @@ export default function HomeScreen() {
     </>
   );
 
-  const activeDirectory = DIRECTORY_TABS.find((t) => t.id === directoryTab)!;
+  const activeDirectory =
+    visibleDirectoryTabs.find((t) => t.id === directoryTab) ??
+    visibleDirectoryTabs[0] ??
+    DIRECTORY_TABS[DIRECTORY_TABS.length - 1];
 
   const renderDirectoryCompanyGrid = (
     items: FeaturedCompany[],
@@ -675,36 +715,38 @@ export default function HomeScreen() {
           <View className="px-4">
             {renderChecklist()}
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="mb-3"
-              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-            >
-              {DIRECTORY_TABS.map((tab) => {
-                const active = directoryTab === tab.id;
-                return (
-                  <Pressable
-                    key={tab.id}
-                    onPress={() => setDirectoryTab(tab.id)}
-                    className={`px-4 py-2.5 border ${
-                      active
-                        ? "bg-black border-black"
-                        : "bg-white border-neutral-300"
-                    }`}
-                    style={{ borderRadius: 0 }}
-                  >
-                    <Text
-                      className={`text-sm font-semibold ${
-                        active ? "text-white" : "text-neutral-700"
+            {visibleDirectoryTabs.length > 1 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                className="mb-3"
+                contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+              >
+                {visibleDirectoryTabs.map((tab) => {
+                  const active = directoryTab === tab.id;
+                  return (
+                    <Pressable
+                      key={tab.id}
+                      onPress={() => setDirectoryTab(tab.id)}
+                      className={`px-4 py-2.5 border ${
+                        active
+                          ? "bg-black border-black"
+                          : "bg-white border-neutral-300"
                       }`}
+                      style={{ borderRadius: 0 }}
                     >
-                      {tab.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+                      <Text
+                        className={`text-sm font-semibold ${
+                          active ? "text-white" : "text-neutral-700"
+                        }`}
+                      >
+                        {tab.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            ) : null}
 
             <Card
               title={activeDirectory.title}

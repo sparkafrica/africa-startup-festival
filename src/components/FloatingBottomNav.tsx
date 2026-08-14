@@ -82,9 +82,17 @@ export default function FloatingBottomNav({
       <View pointerEvents="box-none" style={[styles.safe, { paddingBottom: bottomPad }]}>
         <View style={styles.pillShell}>
           {Platform.OS === "ios" ? (
-            <BlurView intensity={80} tint="light" style={styles.pill}>
+            <View style={[styles.pill, styles.pillFallback]}>
+              {!hidden ? (
+                <BlurView
+                  key="floating-nav-blur"
+                  intensity={80}
+                  tint="light"
+                  style={StyleSheet.absoluteFill}
+                />
+              ) : null}
               {tabs}
-            </BlurView>
+            </View>
           ) : (
             <View style={[styles.pill, styles.pillAndroid]}>{tabs}</View>
           )}
@@ -103,8 +111,9 @@ const styles = StyleSheet.create({
     zIndex: 100,
     elevation: 100,
   },
+  /** Slide off-screen — never use opacity or iOS BlurView can stay invisible. */
   hidden: {
-    opacity: 0,
+    transform: [{ translateY: 200 }],
   },
   safe: {
     paddingHorizontal: 16,
@@ -126,6 +135,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 4,
     overflow: "hidden",
+  },
+  pillFallback: {
+    backgroundColor: "rgba(255, 255, 255, 0.88)",
   },
   pillAndroid: {
     backgroundColor: "rgba(255, 255, 255, 0.8)",

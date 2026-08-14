@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, StyleSheet, ScrollView, type ViewStyle, type StyleProp } from "react-native";
+import { View, StyleSheet, type ViewStyle, type StyleProp } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import Animated, {
@@ -212,22 +212,6 @@ export function HomeScreenSkeleton() {
           style={styles.homeBanner}
         />
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.homeTabRow}
-        >
-          {["Exhibitors", "Partners", "Startups", "Speakers"].map((label) => (
-            <Skeleton
-              key={label}
-              width={label.length > 8 ? 96 : 88}
-              height={40}
-              borderRadius={SKELETON_SQUARE}
-              style={styles.homeTabChip}
-            />
-          ))}
-        </ScrollView>
-
         <View style={styles.homeDirectoryCard}>
           <Skeleton width="38%" height={20} borderRadius={SKELETON_SQUARE} />
           <Skeleton
@@ -413,15 +397,6 @@ const styles = StyleSheet.create({
   },
   homeBanner: {
     marginBottom: 12,
-  },
-  homeTabRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    paddingVertical: 4,
-  },
-  homeTabChip: {
-    marginRight: 8,
   },
   homeDirectoryCard: {
     backgroundColor: "#FFFFFF",

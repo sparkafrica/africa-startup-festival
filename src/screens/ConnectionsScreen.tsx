@@ -37,8 +37,6 @@ import {
 } from "../utils/metadataCoerce";
 import { getEventMetadata } from "../utils/eventMetadata";
 import { resolveIndustryLabel } from "../constants/industryAndInterests";
-import { resolveAttendeeStartupBadge } from "../utils/startupJoinStatus";
-import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
 import { SearchIcon, ChevronRightIcon, SpeechBubbleIcon } from "../components/icons";
 import { LinkedInLinkLabel } from "../components/LinkedInLinkLabel";
 import { CalendarIconWhite } from "../components/SocialIcons";
@@ -134,7 +132,6 @@ interface Connection {
   speakingSessions?: SpeakingSession[];
   linkedInUrl?: string;
   isSpeaker?: boolean; // Only speakers have speaking sessions
-  startupBadge?: { kind: "linked"; companyName: string } | { kind: "pending" };
   status: "pending" | "accepted" | "rejected" | "blocked";
   isFromCurrentUser: boolean; // Whether the current user sent the request
 }
@@ -225,14 +222,6 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
             >
               {connection.name}
             </Text>
-            {connection.startupBadge?.kind === "linked" ? (
-              <StartupBadge
-                companyName={connection.startupBadge.companyName}
-                compact
-              />
-            ) : connection.startupBadge?.kind === "pending" ? (
-              <StartupPendingBadge compact />
-            ) : null}
             {/* Status Indicator */}
             {statusIndicator && (
               <View
@@ -399,15 +388,6 @@ export default function ConnectionsScreen() {
       otherUser.organisation ||
       undefined;
 
-    const startupBadge = resolveAttendeeStartupBadge(
-      {
-        company: (otherUser as any).company,
-        metadata: otherUser?.metadata,
-        organisation: otherUser.organisation,
-      },
-      {},
-    );
-
     return {
       id: backendConnection.id.toString(),
       backendConnectionId: backendConnection.id,
@@ -420,7 +400,6 @@ export default function ConnectionsScreen() {
       about: bio || undefined,
       interests: interestsArray.length > 0 ? interestsArray : undefined,
       linkedInUrl,
-      startupBadge: startupBadge ?? undefined,
       isSpeaker: false, // TODO: Determine from backend data if needed
       status: backendConnection.status,
       isFromCurrentUser,
@@ -1344,25 +1323,9 @@ export default function ConnectionsScreen() {
                     )}
                   </View>
                   <View className="flex-1">
-                    <View
-                      className="flex-row items-center flex-wrap mb-1"
-                      style={{ gap: 8 }}
-                    >
-                      <Text
-                        className="text-2xl font-bold text-neutral-900"
-                        style={{ flexShrink: 1 }}
-                      >
-                        {displayConnection.name}
-                      </Text>
-                      {displayConnection.startupBadge?.kind === "linked" ? (
-                        <StartupBadge
-                          companyName={displayConnection.startupBadge.companyName}
-                          compact
-                        />
-                      ) : displayConnection.startupBadge?.kind === "pending" ? (
-                        <StartupPendingBadge compact />
-                      ) : null}
-                    </View>
+                    <Text className="text-2xl font-bold text-neutral-900 mb-1">
+                      {displayConnection.name}
+                    </Text>
                     <Text className="text-base text-neutral-500 mb-3">
                       {displayConnection.title && displayConnection.company
                         ? `${displayConnection.title} · ${displayConnection.company}`

@@ -176,7 +176,11 @@ export function resolveActiveTabRoute(
   return "Home";
 }
 
-export function isNavVisibleRoute(routeName: string | undefined): boolean {
-  if (!routeName) return false;
+export function isNavVisibleRoute(
+  routeName: string | undefined,
+  options?: { mainStackMounted?: boolean },
+): boolean {
+  // Cold start: nav state may lag behind Home mounting — show bar on main tabs.
+  if (!routeName) return options?.mainStackMounted ?? false;
   return NAV_VISIBLE_ROUTES.includes(routeName as keyof RootStackParamList);
 }

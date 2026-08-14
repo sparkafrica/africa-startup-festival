@@ -7,7 +7,6 @@ import { View, Text, Pressable, Image, Linking, Alert, StyleSheet } from "react-
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path, Circle } from "react-native-svg";
 import { LinkedInLinkLabel } from "./LinkedInLinkLabel";
-import { StartupBadge, StartupPendingBadge } from "./StartupBadge";
 import { Skeleton } from "./Skeleton";
 import type { Attendee } from "../services/ticketService";
 import { getAttendeeDisplayFields } from "../utils/normalizeAttendee";
@@ -17,10 +16,6 @@ import {
   getTicketTypeDisplay,
   isLightTicketCard,
 } from "../utils/ticketColors";
-import {
-  resolveAttendeeStartupAdmin,
-  resolveAttendeeStartupBadge,
-} from "../utils/startupJoinStatus";
 
 type Props = {
   attendee: Attendee;
@@ -77,54 +72,12 @@ export default function ScannedAttendeeProfileContent({
   const linkedIn = getLinkedInDisplayInfo(
     display.linkedInRaw as string | null | undefined,
   );
-  const startupAdmin = resolveAttendeeStartupAdmin(user, {
-    ticketTypeName: display.ticketTypeName,
-  });
-  const startupBadge = resolveAttendeeStartupBadge(user, {
-    ticketTypeName: display.ticketTypeName,
-  });
   const fullName =
     `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || "Unknown User";
   const showHeaderClose = variant === "modal" && !!onClose;
 
   return (
     <>
-      {startupAdmin ? (
-        <View
-          className="mb-5 border border-neutral-900 bg-neutral-50 p-4"
-          style={{ borderRadius: 0 }}
-        >
-          <View className="flex-row items-center gap-3">
-            <View
-              className="w-12 h-12 bg-white border border-neutral-200 items-center justify-center overflow-hidden"
-              style={{ borderRadius: 0 }}
-            >
-              {startupAdmin.companyLogo ? (
-                <Image
-                  source={{ uri: startupAdmin.companyLogo }}
-                  className="w-full h-full"
-                  resizeMode="contain"
-                />
-              ) : (
-                <Text className="text-lg font-bold text-neutral-700">
-                  {startupAdmin.companyName.charAt(0).toUpperCase()}
-                </Text>
-              )}
-            </View>
-            <View className="flex-1">
-              <StartupBadge companyName={startupAdmin.companyName} compact />
-              <Text className="text-sm font-semibold text-black mt-2">
-                Startup admin
-              </Text>
-              <Text className="text-sm text-neutral-600 mt-1 leading-5">
-                You scanned the admin for {startupAdmin.companyName}. Connect or
-                request a meeting with them on behalf of their startup.
-              </Text>
-            </View>
-          </View>
-        </View>
-      ) : null}
-
       <View style={styles.headerBlock}>
         <View style={styles.headerRow}>
           <View style={styles.avatar}>
@@ -163,16 +116,6 @@ export default function ScannedAttendeeProfileContent({
                 </Pressable>
               ) : null}
             </View>
-            {!startupAdmin && (startupBadge?.kind === "linked" || startupBadge?.kind === "pending") ? (
-              <View style={styles.badgeRow}>
-                {startupBadge?.kind === "linked" ? (
-                  <StartupBadge companyName={startupBadge.companyName} compact />
-                ) : null}
-                {startupBadge?.kind === "pending" ? (
-                  <StartupPendingBadge compact />
-                ) : null}
-              </View>
-            ) : null}
             {(display.role || display.company) ? (
               <Text style={styles.subtitle}>
                 {display.role}
@@ -321,12 +264,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-  },
-  badgeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,

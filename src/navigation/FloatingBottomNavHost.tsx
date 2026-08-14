@@ -1,10 +1,8 @@
 import React, { useCallback, useMemo } from "react";
-import { useNavigationState } from "@react-navigation/native";
 import FloatingBottomNav from "../components/FloatingBottomNav";
 import { useMeetingsBadgeCount } from "../hooks/useMeetingsBadgeCount";
 import { useHomeScroll } from "../context/HomeScrollContext";
 import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContext";
-import { getActiveRouteName } from "../utils/analytics";
 import { navigate } from "./navigationRef";
 import { getEventFeatures } from "../config/eventFeatures";
 import {
@@ -15,10 +13,17 @@ import {
   type MainTabRoute,
 } from "./mainTabConfig";
 
-export default function FloatingBottomNavHost() {
-  const routeName = useNavigationState(
-    (state) => getActiveRouteName(state) ?? "",
-  );
+type Props = {
+  /** Active stack route from NavigationContainer onReady/onStateChange. */
+  routeName?: string;
+  /** True once MainNavigator is mounted (Home exists in root state). */
+  mainStackMounted: boolean;
+};
+
+export default function FloatingBottomNavHost({
+  routeName = "",
+  mainStackMounted,
+}: Props) {
   const meetingsBadgeCount = useMeetingsBadgeCount();
   const { scrollHomeToTop } = useHomeScroll();
   const { suppressed } = useFloatingNavVisibility();
@@ -33,7 +38,7 @@ export default function FloatingBottomNavHost() {
   );
 
   const activeRoute = resolveActiveTabRoute(routeName, postEvent);
-  const visible = isNavVisibleRoute(routeName);
+  const visible = isNavVisibleRoute(routeName, { mainStackMounted });
 
   const handleNavigate = useCallback(
     (route: string) => {
