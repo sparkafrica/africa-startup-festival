@@ -27,7 +27,9 @@ import {
 import ConnectionsExportBanner from "../components/ConnectionsExportBanner";
 import {
   getCanUserBookMeetings,
+  getCanUserAcceptConnection,
   showExpoCannotBookMeetingAlert,
+  showLimitedPassNetworkingAlert,
 } from "../utils/meetingRestrictions";
 import { hasPendingMeetingWithPeer } from "../utils/messagingEligibility";
 import { trackMeetingEvent, trackConnectionEvent } from "../utils/analytics";
@@ -749,6 +751,12 @@ export default function ConnectionsScreen() {
       return;
     }
 
+    const canAccept = await getCanUserAcceptConnection();
+    if (!canAccept) {
+      showLimitedPassNetworkingAlert(navigation);
+      return;
+    }
+
     try {
       isProcessingActionRef.current = true;
       setIsProcessingAction(true);
@@ -799,7 +807,7 @@ export default function ConnectionsScreen() {
       isProcessingActionRef.current = false;
       setIsProcessingAction(false);
     }
-  }, [showToast, fetchConnections, closeBottomSheet, markConnectAttendeesComplete]);
+  }, [showToast, fetchConnections, closeBottomSheet, markConnectAttendeesComplete, navigation]);
 
   /**
    * Handle reject connection

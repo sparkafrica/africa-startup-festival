@@ -1,27 +1,23 @@
 /**
- * ASF2026 ticket upgrade ladder: Explorer → Startup → Operator → Investor.
+ * ASF2026 ticket upgrade ladder:
+ * Limited Pass → Explorer → Startup → Operator → Investor.
  * Exhibitor / Partner / Media / Speaker are not upgradeable.
  */
 
 import type { TicketClass } from "../services/ticketService";
 
 export const ASF_UPGRADE_TIER_ORDER_LABEL =
-  "Explorer → Startup → Operator → Gold Investor";
+  "Limited Pass → Explorer → Startup → Operator → Gold Investor";
 
-/** Lowest (0) to highest (3) for upgradeable attendee passes. */
+/** Lowest (0) to highest (4) for upgradeable attendee passes. */
 export function asfTierSortKey(nameOrType?: string): number {
   const t = (nameOrType ?? "").toLowerCase();
   if (!t) return -1;
-  if (t.includes("investor")) return 3;
-  if (t.includes("operator")) return 2;
-  if (t.includes("startup") || t.includes("founder")) return 1;
-  if (
-    t.includes("explorer") ||
-    t.includes("exhibition") ||
-    t.includes("limited pass")
-  ) {
-    return 0;
-  }
+  if (t.includes("investor")) return 4;
+  if (t.includes("operator")) return 3;
+  if (t.includes("startup") || t.includes("founder")) return 2;
+  if (t.includes("explorer")) return 1;
+  if (t.includes("exhibition") || t.includes("limited pass")) return 0;
   return -1;
 }
 
@@ -35,11 +31,11 @@ export function isNonUpgradeablePassType(nameOrType?: string): boolean {
   return false;
 }
 
-/** True for Explorer, Startup, and Operator — not Investor or special passes. */
+/** True for Limited Pass, Explorer, Startup, and Operator — not Investor or special passes. */
 export function isUpgradeableAttendeeTier(ticketTypeOrName?: string): boolean {
   if (isNonUpgradeablePassType(ticketTypeOrName)) return false;
   const key = asfTierSortKey(ticketTypeOrName);
-  return key >= 0 && key < 3;
+  return key >= 0 && key < 4;
 }
 
 /**

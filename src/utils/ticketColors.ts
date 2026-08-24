@@ -7,6 +7,7 @@ const DEFAULT_PASS = "explorer";
 
 // Solid (left) color per pass type – used for fallbacks and badge text
 const TICKET_COLORS: Record<string, string> = {
+  limited: "#78716C",
   explorer: "#525252",
   startup: "#171717",
   operator: "#1D4ED8",
@@ -19,6 +20,7 @@ const TICKET_COLORS: Record<string, string> = {
 
 /** Left-to-right gradient [start, end] for each pass type */
 const TICKET_GRADIENTS: Record<string, [string, string]> = {
+  limited: ["#78716C", "#A8A29E"],
   explorer: ["#525252", "#737373"],
   startup: ["#171717", "#404040"],
   operator: ["#1D4ED8", "#3B82F6"],
@@ -30,6 +32,7 @@ const TICKET_GRADIENTS: Record<string, [string, string]> = {
 };
 
 const TICKET_LABELS: Record<string, string> = {
+  limited: "Limited Pass",
   explorer: "Explorer",
   startup: "Startup",
   operator: "Operator",
@@ -51,7 +54,7 @@ function normalizeType(input?: string): string {
 
 function isLimitedPassAlias(normalized: string): boolean {
   return (
-    normalized.includes("exhibition") || normalized.includes("limited pass")
+    normalized.includes("limited pass") || normalized.includes("exhibition")
   );
 }
 
@@ -62,8 +65,8 @@ export function getTicketBackgroundColor(ticketTypeOrName?: string): string {
   const t = normalizeType(ticketTypeOrName);
   if (!t) return TICKET_COLORS[DEFAULT_PASS];
 
-  if (t.includes("explorer") || isLimitedPassAlias(t))
-    return TICKET_COLORS.explorer;
+  if (isLimitedPassAlias(t)) return TICKET_COLORS.limited;
+  if (t.includes("explorer")) return TICKET_COLORS.explorer;
   if (t.includes("operator")) return TICKET_COLORS.operator;
   if (isStartupPassAlias(t)) return TICKET_COLORS.startup;
   if (t.includes("investor")) return TICKET_COLORS.investor;
@@ -87,7 +90,9 @@ export function getTicketTypeDisplay(ticketTypeOrName?: string): {
     };
   }
 
-  if (t.includes("explorer") || isLimitedPassAlias(t))
+  if (isLimitedPassAlias(t))
+    return { label: TICKET_LABELS.limited, color: TICKET_COLORS.limited };
+  if (t.includes("explorer"))
     return { label: TICKET_LABELS.explorer, color: TICKET_COLORS.explorer };
   if (t.includes("operator"))
     return { label: TICKET_LABELS.operator, color: TICKET_COLORS.operator };
@@ -115,8 +120,8 @@ export function getTicketGradientColors(
 ): [string, string] {
   const t = normalizeType(ticketTypeOrName);
   if (!t) return TICKET_GRADIENTS[DEFAULT_PASS];
-  if (t.includes("explorer") || isLimitedPassAlias(t))
-    return TICKET_GRADIENTS.explorer;
+  if (isLimitedPassAlias(t)) return TICKET_GRADIENTS.limited;
+  if (t.includes("explorer")) return TICKET_GRADIENTS.explorer;
   if (t.includes("operator")) return TICKET_GRADIENTS.operator;
   if (isStartupPassAlias(t)) return TICKET_GRADIENTS.startup;
   if (t.includes("investor")) return TICKET_GRADIENTS.investor;
@@ -152,7 +157,7 @@ export function isLightTicketCard(ticketTypeOrName?: string): boolean {
 export function isExhibitionPass(ticketTypeOrName?: string): boolean {
   const t = normalizeType(ticketTypeOrName);
   if (!t) return false;
-  return isLimitedPassAlias(t) || t.includes("explorer");
+  return isLimitedPassAlias(t);
 }
 
 /** @deprecated ASF uses explorer pass — kept for call-site compatibility */
@@ -162,7 +167,8 @@ export function isExpoPass(ticketTypeOrName?: string): boolean {
 
 export function isExplorerPass(ticketTypeOrName?: string): boolean {
   const t = normalizeType(ticketTypeOrName);
-  return t.includes("explorer") || isLimitedPassAlias(t);
+  if (!t || isLimitedPassAlias(t)) return false;
+  return t.includes("explorer");
 }
 
 /** Tier order (lowest to highest): Limited Pass → Expo → Oasis → Delegate → Chairperson */
@@ -231,7 +237,14 @@ export function getHigherTierOptions(
       { value: "operator", label: "Operator" },
       { value: "investor", label: "Investor" },
     ];
-  if (t.includes("explorer") || isLimitedPassAlias(t))
+  if (isLimitedPassAlias(t))
+    return [
+      { value: "explorer", label: "Explorer" },
+      { value: "startup", label: "Startup" },
+      { value: "operator", label: "Operator" },
+      { value: "investor", label: "Investor" },
+    ];
+  if (t.includes("explorer"))
     return [
       { value: "startup", label: "Startup" },
       { value: "operator", label: "Operator" },

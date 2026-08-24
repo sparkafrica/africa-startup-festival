@@ -57,6 +57,10 @@ import {
   parseFlexibleDateToIso,
 } from "../utils/meetingDateTime";
 import { resolveVirtualMeetingLink } from "../utils/meetingLink";
+import {
+  getCanUserAcceptMeeting,
+  showLimitedPassNetworkingAlert,
+} from "../utils/meetingRestrictions";
 import { useListRowHighlight } from "../hooks/useListRowHighlight";
 import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 
@@ -929,6 +933,14 @@ export default function MeetingsScreen({ route }: Props) {
   const handleRespondToMeeting = useCallback(
     async (meeting: UIMeeting, action: "accept" | "reject", rejectionReason?: string) => {
       if (isActionLoading) return;
+
+      if (action === "accept") {
+        const canAccept = await getCanUserAcceptMeeting();
+        if (!canAccept) {
+          showLimitedPassNetworkingAlert(navigation);
+          return;
+        }
+      }
       
       try {
         setIsActionLoading(true);
@@ -978,7 +990,7 @@ export default function MeetingsScreen({ route }: Props) {
         setIsActionLoading(false);
       }
     },
-    [fetchMeetings, isActionLoading, showToast, refreshMeetingsBadge, markRequestMeetingComplete]
+    [fetchMeetings, isActionLoading, showToast, refreshMeetingsBadge, markRequestMeetingComplete, navigation]
   );
 
   const handleCancelMeeting = useCallback(

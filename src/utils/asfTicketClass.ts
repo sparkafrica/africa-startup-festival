@@ -98,19 +98,26 @@ export async function getCurrentUserTicketType(): Promise<string> {
   return info.ticketType;
 }
 
-function isLimitedPassAlias(normalized: string): boolean {
-  return (
-    normalized.includes("exhibition") || normalized.includes("limited pass")
+export function isLimitedPass(ticketTypeOrName?: string): boolean {
+  const t = normalizeType(ticketTypeOrName);
+  if (!t) return false;
+  return t.includes("limited pass") || t.includes("exhibition");
+}
+
+/** True when any ticket field identifies a Limited Pass. */
+export function ticketIsLimitedPass(ticket: TicketShape | null): boolean {
+  return collectTicketTypeStrings(ticket).some((candidate) =>
+    isLimitedPass(candidate),
   );
 }
 
 export function isExplorerPass(ticketTypeOrName?: string): boolean {
   const t = normalizeType(ticketTypeOrName);
-  if (!t) return false;
-  return t.includes("explorer") || isLimitedPassAlias(t);
+  if (!t || isLimitedPass(ticketTypeOrName)) return false;
+  return t.includes("explorer");
 }
 
-/** True when any ticket field identifies an Explorer / limited pass. */
+/** True when any ticket field identifies an Explorer pass (not Limited Pass). */
 export function ticketIsExplorerPass(ticket: TicketShape | null): boolean {
   return collectTicketTypeStrings(ticket).some((candidate) =>
     isExplorerPass(candidate),
@@ -153,13 +160,48 @@ export function isMediaPass(ticketTypeOrName?: string): boolean {
   return t.includes("media");
 }
 
-/** Explorer pass: main-stage access only — no meeting booking in-app. */
+/** Limited Pass and Explorer: no in-app meeting booking. */
 export function blocksMeetingBooking(ticketTypeOrName?: string): boolean {
-  return isExplorerPass(ticketTypeOrName);
+  return (
+    isLimitedPass(ticketTypeOrName) || isExplorerPass(ticketTypeOrName)
+  );
 }
 
 export function blocksMeetingBookingForTicket(ticket: TicketShape | null): boolean {
-  return ticketIsExplorerPass(ticket);
+  return (
+    ticketIsLimitedPass(ticket) || ticketIsExplorerPass(ticket)
+  );
+}
+
+/** Limited Pass: no connection requests, accepts, or meeting accepts. */
+export function blocksInitiatingConnection(ticketTypeOrName?: string): boolean {
+  return isLimitedPass(ticketTypeOrName);
+}
+
+export function blocksInitiatingConnectionForTicket(
+  ticket: TicketShape | null,
+): boolean {
+  return ticketIsLimitedPass(ticket);
+}
+
+export function blocksAcceptingConnection(ticketTypeOrName?: string): boolean {
+  return isLimitedPass(ticketTypeOrName);
+}
+
+export function blocksAcceptingConnectionForTicket(
+  ticket: TicketShape | null,
+): boolean {
+  return ticketIsLimitedPass(ticket);
+}
+
+export function blocksAcceptingMeeting(ticketTypeOrName?: string): boolean {
+  return isLimitedPass(ticketTypeOrName);
+}
+
+export function blocksAcceptingMeetingForTicket(
+  ticket: TicketShape | null,
+): boolean {
+  return ticketIsLimitedPass(ticket);
 }
 
 export function attendeeLooksLikeInvestor(attendee: {

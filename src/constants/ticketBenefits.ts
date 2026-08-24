@@ -4,12 +4,17 @@
  */
 
 export type TicketBenefitTier =
+  | "limited"
   | "explorer"
   | "startup"
   | "operator"
   | "investor";
 
 export const TICKET_BENEFITS: Record<TicketBenefitTier, string[]> = {
+  limited: [
+    "Access to Exhibition floor only",
+    "Access to Food Court only",
+  ],
   explorer: [
     "Access to the Main Stage only (first-come, first-served)",
     "Access to Exhibitions",
@@ -56,6 +61,7 @@ export const TICKET_BENEFITS: Record<TicketBenefitTier, string[]> = {
 };
 
 const TIER_LABEL: Record<TicketBenefitTier, string> = {
+  limited: "Limited Pass",
   explorer: "Explorer",
   startup: "Startup",
   operator: "Operator",
@@ -75,13 +81,8 @@ export function resolveBenefitTier(
   if (t.includes("investor")) return "investor";
   if (t.includes("operator")) return "operator";
   if (t.includes("startup") || t.includes("founder")) return "startup";
-  if (
-    t.includes("explorer") ||
-    t.includes("exhibition") ||
-    t.includes("limited pass")
-  ) {
-    return "explorer";
-  }
+  if (t.includes("explorer")) return "explorer";
+  if (t.includes("exhibition") || t.includes("limited pass")) return "limited";
   return null;
 }
 
