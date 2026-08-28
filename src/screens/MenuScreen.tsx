@@ -39,6 +39,9 @@ export default function MenuScreen() {
         case "Startups":
           navigation.navigate("Startups");
           break;
+        case "AppGuide":
+          navigation.navigate("AppGuide");
+          break;
         case "Contact":
           navigation.navigate("Contact");
           break;

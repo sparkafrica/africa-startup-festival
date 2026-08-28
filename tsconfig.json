@@ -3,6 +3,7 @@
   "compilerOptions": {
     "module": "ESNext",
     "strict": true,
+    "resolveJsonModule": true,
     "paths": {
       "@/*": [
         "./src/*"
@@ -12,6 +13,7 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "**/*.json",
     "global.d.ts"
   ],
   "exclude": [

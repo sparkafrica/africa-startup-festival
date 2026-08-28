@@ -22,6 +22,7 @@ import {
   ChevronRightIcon,
   LightbulbIcon,
   MapIcon,
+  HelpIcon,
 } from "./MenuIcons";
 import { PeopleIcon } from "./BottomNavIcons";
 import { getEventFeatures } from "../config/eventFeatures";
@@ -117,6 +118,11 @@ export default function Menu({
       label: "Startups",
       icon: <PeopleIcon size={20} color="#444" />,
       route: "Startups",
+    },
+    {
+      label: "App Guide",
+      icon: <HelpIcon size={20} color="#444" />,
+      route: "AppGuide",
     },
     {
       label: "Contact Us",

@@ -14,11 +14,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { RootStackScreenProps } from "../navigation/types";
 import { ChevronLeftIcon } from "../components/HeaderIcons";
-import { APP_GUIDE_CONTENT } from "../constants/appGuideContent";
 import {
+  APP_GUIDE_CONTENT,
   searchGuide,
   getTopicPrimarySection,
-} from "../constants/appGuideIndex";
+  POPULAR_TOPIC_LABELS,
+} from "../constants/faqData";
 
 const WATERMARK_IMG = require("../assets/images/logo.png");
 
@@ -52,18 +53,8 @@ function getSectionNumber(line: string): number | null {
   return m ? parseInt(m[1], 10) : null;
 }
 
-/** Popular keywords for quick access */
-const POPULAR_KEYWORDS = [
-  "tickets",
-  "login",
-  "profile",
-  "assign ticket",
-  "transfer ticket",
-  "meetings",
-  "scan",
-  "connections",
-  "attendees",
-];
+/** Popular keywords for quick access — synced with content/app-faq.json browseTopics */
+const POPULAR_KEYWORDS = POPULAR_TOPIC_LABELS;
 
 function GuideContent({
   onSectionLayout,

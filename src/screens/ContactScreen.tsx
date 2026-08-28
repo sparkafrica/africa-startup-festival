@@ -15,6 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { SUPPORT_EMAIL } from "../config/env";
+import { FAQ_DOCUMENT } from "../constants/faqData";
 import Svg, { Path, Rect } from "react-native-svg";
 import { CloseIcon, ChevronRightIcon } from "../components/MenuIcons";
 
@@ -58,6 +59,27 @@ function SendIcon({ size = 20, color = "#FFFFFF" }: IconProps) {
   );
 }
 
+function BookIcon({ size = 24, color = "#FFFFFF" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4 19.5C4 18.837 4.263 18.201 4.732 17.732C5.201 17.263 5.837 17 6.5 17H20"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M6.5 2H20V22H6.5C5.837 22 5.201 21.737 4.732 21.268C4.263 20.799 4 20.163 4 19.5V4.5C4 3.837 4.263 3.201 4.732 2.732C5.201 2.263 5.837 2 6.5 2Z"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 function Header() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
@@ -76,6 +98,7 @@ function Header() {
 }
 
 export default function ContactScreen() {
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [subject, setSubject] = useState("");
@@ -136,6 +159,41 @@ export default function ContactScreen() {
             keyboardDismissMode="interactive"
           >
             <View className="px-6">
+              {/* Browse FAQs */}
+              <Pressable
+                className="bg-white border border-neutral-200 p-4 mb-4"
+                style={{
+                  borderRadius: 0,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 4,
+                  elevation: 2,
+                }}
+                onPress={() => navigation.navigate("AppGuide")}
+              >
+                <View className="flex-row items-center">
+                  <View
+                    className="w-12 h-12 items-center justify-center mr-4"
+                    style={{ backgroundColor: "#111827", borderRadius: 0 }}
+                  >
+                    <BookIcon size={24} color="#FFFFFF" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-base font-bold text-black mb-1">
+                      Browse FAQs
+                    </Text>
+                    <Text className="text-sm text-neutral-600 mb-1">
+                      Search the in-app guide for tickets, meetings, and more
+                    </Text>
+                    <Text className="text-xs text-neutral-500">
+                      Web guide: {FAQ_DOCUMENT.meta.webUrl}
+                    </Text>
+                  </View>
+                  <ChevronRightIcon size={18} color="#C4C4C4" />
+                </View>
+              </Pressable>
+
               {/* Email Support Card */}
               <Pressable
                 className="bg-white border border-neutral-200 p-4 mb-6"

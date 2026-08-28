@@ -26,12 +26,11 @@ export interface EventFeatures {
   hiddenHomeDirectoryTabs: HomeDirectoryTabId[];
 }
 
-/** ASF v1 — Tag Pickup, Talent, Partner Offers, App Guide deferred. */
+/** ASF v1 — Tag Pickup, Talent, Partner Offers deferred. App Guide is live. */
 export const ASF_HIDDEN_MENU_ROUTES = [
   "Offers",
   "Talent",
   "TagPickup",
-  "AppGuide",
   "Startups",
 ] as const;
 
