@@ -1,12 +1,23 @@
 /**
  * ASF2026 ticket benefits — informational copy for My Ticket and upgrade modal.
- * No backend dependency; safe to ship via OTA.
+ * Tier resolution aligned with backend ticket class names (event 11).
  */
+
+import {
+  isExplorerLabel,
+  isGoldInvestorLabel,
+  isLimitedInvestorLabel,
+  isLimitedPassLabel,
+  isOperatorLabel,
+  isStartupLabel,
+  normalizeAsfTicketLabel,
+} from "../utils/asfTicketClassMatch";
 
 export type TicketBenefitTier =
   | "limited"
   | "explorer"
   | "startup"
+  | "limited_investor"
   | "operator"
   | "investor";
 
@@ -29,6 +40,13 @@ export const TICKET_BENEFITS: Record<TicketBenefitTier, string[]> = {
     "Access to City Circles community meetups (subject to individual events)",
     "Access to investor matches through Investor Hours (complimentary perk driven by investor interest)",
     "Access to Mentor Hours (first-come, first-served)",
+  ],
+  limited_investor: [
+    "Access to Investor Hours meetings only",
+    "Does not include access to the main event program",
+    "2–3 curated Investor Hours meetings",
+    "Access to exhibitions",
+    "Access to ASF mobile app for networking and confirmed meetings",
   ],
   operator: [
     "Fast Track Access to Event",
@@ -62,34 +80,33 @@ export const TICKET_BENEFITS: Record<TicketBenefitTier, string[]> = {
 
 const TIER_LABEL: Record<TicketBenefitTier, string> = {
   limited: "Limited Pass",
-  explorer: "Explorer",
-  startup: "Startup",
-  operator: "Operator",
-  investor: "Gold Investor",
+  explorer: "Explorer Pass",
+  startup: "Startup Pass",
+  limited_investor: "Limited Investor Pass",
+  operator: "Operator pass",
+  investor: "Gold Investor Pass",
 };
-
-function normalize(input?: string): string {
-  if (!input || typeof input !== "string") return "";
-  return input.toLowerCase().replace(/\s+/g, " ");
-}
 
 export function resolveBenefitTier(
   ticketTypeOrName?: string,
+  userType?: string,
 ): TicketBenefitTier | null {
-  const t = normalize(ticketTypeOrName);
-  if (!t) return null;
-  if (t.includes("investor")) return "investor";
-  if (t.includes("operator")) return "operator";
-  if (t.includes("startup") || t.includes("founder")) return "startup";
-  if (t.includes("explorer")) return "explorer";
-  if (t.includes("exhibition") || t.includes("limited pass")) return "limited";
+  const t = normalizeAsfTicketLabel(ticketTypeOrName);
+  if (!t && !userType) return null;
+  if (isLimitedInvestorLabel(t)) return "limited_investor";
+  if (isGoldInvestorLabel(ticketTypeOrName, userType)) return "investor";
+  if (isOperatorLabel(t, userType)) return "operator";
+  if (isStartupLabel(t, userType)) return "startup";
+  if (isExplorerLabel(t, userType)) return "explorer";
+  if (isLimitedPassLabel(t, userType)) return "limited";
   return null;
 }
 
 export function getTicketBenefits(
   ticketTypeOrName?: string,
+  userType?: string,
 ): { tier: TicketBenefitTier; tierLabel: string; items: string[] } | null {
-  const tier = resolveBenefitTier(ticketTypeOrName);
+  const tier = resolveBenefitTier(ticketTypeOrName, userType);
   if (!tier) return null;
   return {
     tier,

@@ -3,6 +3,12 @@
  * Event pass types: explorer, startup, operator, investor, exhibitor, partner, media.
  */
 
+import {
+  isGoldInvestorLabel,
+  isLimitedInvestorLabel,
+  isLimitedPassLabel,
+} from "./asfTicketClassMatch";
+
 const DEFAULT_PASS = "explorer";
 
 // Solid (left) color per pass type – used for fallbacks and badge text
@@ -11,6 +17,7 @@ const TICKET_COLORS: Record<string, string> = {
   explorer: "#525252",
   startup: "#171717",
   operator: "#1D4ED8",
+  limited_investor: "#115E59",
   investor: "#0F766E",
   exhibitor: "#7C3AED",
   partner: "#4F46E5",
@@ -24,6 +31,7 @@ const TICKET_GRADIENTS: Record<string, [string, string]> = {
   explorer: ["#525252", "#737373"],
   startup: ["#171717", "#404040"],
   operator: ["#1D4ED8", "#3B82F6"],
+  limited_investor: ["#115E59", "#0D9488"],
   investor: ["#0F766E", "#14B8A6"],
   exhibitor: ["#7C3AED", "#8B5CF6"],
   partner: ["#4F46E5", "#6366F1"],
@@ -35,8 +43,9 @@ const TICKET_LABELS: Record<string, string> = {
   limited: "Limited Pass",
   explorer: "Explorer",
   startup: "Startup",
-  operator: "Operator",
-  investor: "Investor",
+  operator: "Operator pass",
+  limited_investor: "Limited Investor Pass",
+  investor: "Gold Investor Pass",
   exhibitor: "Exhibitor",
   partner: "Partner",
   media: "Media",
@@ -53,9 +62,7 @@ function normalizeType(input?: string): string {
 }
 
 function isLimitedPassAlias(normalized: string): boolean {
-  return (
-    normalized.includes("limited pass") || normalized.includes("exhibition")
-  );
+  return isLimitedPassLabel(normalized);
 }
 
 /**
@@ -69,7 +76,8 @@ export function getTicketBackgroundColor(ticketTypeOrName?: string): string {
   if (t.includes("explorer")) return TICKET_COLORS.explorer;
   if (t.includes("operator")) return TICKET_COLORS.operator;
   if (isStartupPassAlias(t)) return TICKET_COLORS.startup;
-  if (t.includes("investor")) return TICKET_COLORS.investor;
+  if (isLimitedInvestorLabel(t)) return TICKET_COLORS.limited_investor;
+  if (isGoldInvestorLabel(t)) return TICKET_COLORS.investor;
   if (t.includes("partner") || t.includes("sponsor")) return TICKET_COLORS.partner;
   if (t.includes("exhibitor")) return TICKET_COLORS.exhibitor;
   if (t.includes("media")) return TICKET_COLORS.media;
@@ -98,7 +106,12 @@ export function getTicketTypeDisplay(ticketTypeOrName?: string): {
     return { label: TICKET_LABELS.operator, color: TICKET_COLORS.operator };
   if (isStartupPassAlias(t))
     return { label: TICKET_LABELS.startup, color: TICKET_COLORS.startup };
-  if (t.includes("investor"))
+  if (isLimitedInvestorLabel(t))
+    return {
+      label: TICKET_LABELS.limited_investor,
+      color: TICKET_COLORS.limited_investor,
+    };
+  if (isGoldInvestorLabel(t))
     return { label: TICKET_LABELS.investor, color: TICKET_COLORS.investor };
   if (t.includes("partner") || t.includes("sponsor"))
     return { label: TICKET_LABELS.partner, color: TICKET_COLORS.partner };
@@ -124,7 +137,8 @@ export function getTicketGradientColors(
   if (t.includes("explorer")) return TICKET_GRADIENTS.explorer;
   if (t.includes("operator")) return TICKET_GRADIENTS.operator;
   if (isStartupPassAlias(t)) return TICKET_GRADIENTS.startup;
-  if (t.includes("investor")) return TICKET_GRADIENTS.investor;
+  if (isLimitedInvestorLabel(t)) return TICKET_GRADIENTS.limited_investor;
+  if (isGoldInvestorLabel(t)) return TICKET_GRADIENTS.investor;
   if (t.includes("partner") || t.includes("sponsor"))
     return TICKET_GRADIENTS.partner;
   if (t.includes("exhibitor")) return TICKET_GRADIENTS.exhibitor;

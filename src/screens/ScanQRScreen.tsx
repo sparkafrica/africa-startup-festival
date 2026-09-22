@@ -4863,6 +4863,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
               setUpgradeTicket(null);
             }}
             currentTierLabel={
+              upgradeTicket.ticketType?.trim() ||
+              upgradeTicket.title?.trim() ||
               getTicketTypeDisplay(
                 upgradeTicket.ticketType ?? upgradeTicket.title,
               ).label

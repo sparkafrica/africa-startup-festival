@@ -85,6 +85,13 @@ export default function StartupsScreen() {
         page_size: 100,
         ordering: "-id",
       });
+      if (__DEV__) {
+        console.log("[directory] startups", {
+          eventId: EVENT_ID,
+          count: response.pagination.count,
+          loaded: response.companies.length,
+        });
+      }
       const list = response.companies.map((c) => {
         const name = c.name || `Startup ${c.id}`;
         const logoColor = COLORS[name.length % COLORS.length];

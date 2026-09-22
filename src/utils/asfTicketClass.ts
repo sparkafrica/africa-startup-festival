@@ -5,6 +5,11 @@
 
 import { ticketService } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
+import {
+  isGoldInvestorLabel,
+  isLimitedInvestorLabel,
+  isLimitedPassLabel,
+} from "./asfTicketClassMatch";
 
 function normalizeType(input?: string): string {
   if (!input || typeof input !== "string") return "";
@@ -98,10 +103,12 @@ export async function getCurrentUserTicketType(): Promise<string> {
   return info.ticketType;
 }
 
+export function isLimitedInvestorPass(ticketTypeOrName?: string): boolean {
+  return isLimitedInvestorLabel(ticketTypeOrName);
+}
+
 export function isLimitedPass(ticketTypeOrName?: string): boolean {
-  const t = normalizeType(ticketTypeOrName);
-  if (!t) return false;
-  return t.includes("limited pass") || t.includes("exhibition");
+  return isLimitedPassLabel(ticketTypeOrName);
 }
 
 /** True when any ticket field identifies a Limited Pass. */
@@ -114,6 +121,7 @@ export function ticketIsLimitedPass(ticket: TicketShape | null): boolean {
 export function isExplorerPass(ticketTypeOrName?: string): boolean {
   const t = normalizeType(ticketTypeOrName);
   if (!t || isLimitedPass(ticketTypeOrName)) return false;
+  if (isLimitedInvestorPass(ticketTypeOrName)) return false;
   return t.includes("explorer");
 }
 
@@ -126,6 +134,7 @@ export function ticketIsExplorerPass(ticket: TicketShape | null): boolean {
 
 /** Startup pass — company connect flow after personal profile. Legacy "founder" tickets map here. */
 export function isStartupPass(ticketTypeOrName?: string): boolean {
+  if (isLimitedInvestorPass(ticketTypeOrName)) return false;
   const t = normalizeType(ticketTypeOrName);
   return t.includes("startup") || t.includes("founder");
 }
@@ -140,9 +149,9 @@ export function isOperatorPass(ticketTypeOrName?: string): boolean {
   return t.includes("operator");
 }
 
+/** Gold Investor Pass — full investor perks (not Limited Investor). */
 export function isInvestorPass(ticketTypeOrName?: string): boolean {
-  const t = normalizeType(ticketTypeOrName);
-  return t.includes("investor");
+  return isGoldInvestorLabel(ticketTypeOrName);
 }
 
 export function isExhibitorPass(ticketTypeOrName?: string): boolean {
@@ -212,5 +221,6 @@ export function attendeeLooksLikeInvestor(attendee: {
   const haystack = normalizeType(
     [attendee.ticketType, attendee.userType, attendee.role].filter(Boolean).join(" "),
   );
+  if (haystack.includes("limited investor")) return true;
   return haystack.includes("investor");
 }

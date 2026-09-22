@@ -29,6 +29,7 @@ import {
 import {
   ASF_UPGRADE_TIER_ORDER_LABEL,
   filterUpgradeClasses,
+  humanizeUpgradeError,
 } from "../utils/ticketUpgrade";
 import { colors, typography, spacing, borderRadius } from "../theme/theme";
 import { LinearGradient } from "expo-linear-gradient";
@@ -159,7 +160,7 @@ export default function UpgradeTicketModal({
     } catch (err) {
       let message = "Upgrade failed. Please try again.";
       if (err instanceof ApiClientError) {
-        message = err.message || message;
+        message = humanizeUpgradeError(err.message || message);
         const d = err.data;
         const errList = d?.errors ?? d?.data?.errors;
         if (errList != null) {
@@ -170,7 +171,9 @@ export default function UpgradeTicketModal({
                     `${k}: ${Array.isArray(v) ? (v as unknown[]).join(", ") : v}`,
                 )
               : [String(errList)];
-          if (parts.length) message = `${message}\n\n${parts.join("\n")}`;
+          if (parts.length) {
+            message = humanizeUpgradeError(parts.join("\n"));
+          }
         }
       }
       setError(message);
@@ -200,8 +203,11 @@ export default function UpgradeTicketModal({
           >
             <Text style={styles.title}>Upgrade your ticket</Text>
             <Text style={styles.subtitle}>
-              You have a {currentTierLabel} pass. Choose the pass you want to
-              upgrade to.
+              You have a{" "}
+              {currentTierLabel.toLowerCase().includes("pass")
+                ? currentTierLabel
+                : `${currentTierLabel} pass`}
+              . Choose the pass you want to upgrade to.
             </Text>
             <View style={styles.tierInfo}>
               <Text style={styles.tierInfoLabel}>Ticket tiers</Text>

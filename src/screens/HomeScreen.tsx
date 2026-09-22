@@ -301,6 +301,13 @@ export default function HomeScreen() {
           ordering: "-id",
         },
       );
+      if (__DEV__) {
+        console.log("[directory] startups", {
+          eventId: EVENT_ID,
+          count: response.pagination.count,
+          loaded: response.companies.length,
+        });
+      }
       setFeaturedStartups(
         response.companies
           .slice(0, 4)
@@ -327,9 +334,10 @@ export default function HomeScreen() {
     const partnersTimer = hiddenDirectoryTabs.has("partners")
       ? null
       : setTimeout(() => fetchFeaturedPartners(), 300);
-    const startupsTimer = hiddenDirectoryTabs.has("startups")
-      ? null
-      : setTimeout(() => fetchFeaturedStartups(), 450);
+    const startupsTimer =
+      !hiddenDirectoryTabs.has("startups") || __DEV__
+        ? setTimeout(() => fetchFeaturedStartups(), 450)
+        : null;
     return () => {
       if (exhibitorsTimer) clearTimeout(exhibitorsTimer);
       if (partnersTimer) clearTimeout(partnersTimer);

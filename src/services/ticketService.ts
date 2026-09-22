@@ -91,6 +91,8 @@ export interface TicketClass {
   name: string;
   description?: string;
   user_type?: string; // "founder", "investor", "partner", "exhibitor", "delegate", etc.
+  /** 1 = sold via upgrade flow; 0 = grant / invitation only */
+  purchasable?: boolean | number;
 }
 
 /**

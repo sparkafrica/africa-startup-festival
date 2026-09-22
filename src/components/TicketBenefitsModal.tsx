@@ -135,7 +135,7 @@ export default function TicketBenefitsModal({
                 Your Ticket Benefits
               </Text>
               <Text className={`text-xl font-bold mt-1 ${headerTextColor}`}>
-                {tierLabel} Pass
+                {tierLabel} 
               </Text>
             </LinearGradient>
           </View>
