@@ -7,8 +7,9 @@ import { eventService } from "../services/eventService";
 import type { Meeting, VirtualMeeting } from "../services/meetingService";
 import { enrichEventScheduleFromCache } from "./eventDataCache";
 import { ensureMeetingsList } from "./meetingsListCache";
-import { getWatDateIso } from "./eventDay";
+import { getEventTodayIso } from "./eventDay";
 import { formatCountdownToStart } from "./scheduleUpcoming";
+import { utcSlotTimeMs } from "./eventTime";
 
 export type NowAndNextKind = "meeting" | "session";
 
@@ -66,9 +67,7 @@ function physicalMeetingStartMs(meeting: Meeting): number | null {
 
   const [h, m] = slot.start_time.split(":").map((v) => parseInt(v, 10));
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  return new Date(
-    `${date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00+01:00`,
-  ).getTime();
+  return utcSlotTimeMs(date, `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
 }
 
 function virtualMeetingStartMs(meeting: VirtualMeeting): number | null {
@@ -78,9 +77,7 @@ function virtualMeetingStartMs(meeting: VirtualMeeting): number | null {
   if (!date || !time) return null;
   const [h, m] = time.split(":").map((v) => parseInt(v, 10));
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  return new Date(
-    `${date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00+01:00`,
-  ).getTime();
+  return utcSlotTimeMs(date, `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
 }
 
 function meetingParticipantName(
@@ -100,7 +97,7 @@ export async function fetchNowAndNextItems(
   currentUserId: string,
   now = Date.now(),
 ): Promise<{ meeting: NowAndNextItem | null; session: NowAndNextItem | null }> {
-  const todayIso = getWatDateIso(now);
+  const todayIso = getEventTodayIso(now);
   const candidates: NowAndNextItem[] = [];
 
   try {

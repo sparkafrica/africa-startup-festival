@@ -7,6 +7,7 @@ import {
   EVENT_DAY_FILTER_ID_TO_ISO,
 } from "../config/env";
 import type { Event, EventSchedule } from "../services/eventService";
+import { getEventDateIso } from "./eventTime";
 
 /** Filter modal option ids → ISO date on schedule.start_time */
 export const DAY_FILTER_ID_TO_ISO_DATE: Record<string, string> =
@@ -14,6 +15,10 @@ export const DAY_FILTER_ID_TO_ISO_DATE: Record<string, string> =
 
 export function scheduleStartDateIso(startTime: string): string {
   const trimmed = startTime.trim();
+  if (trimmed.includes("T")) {
+    const eventDate = getEventDateIso(trimmed);
+    if (eventDate) return eventDate;
+  }
   if (trimmed.length >= 10 && trimmed[4] === "-" && trimmed[7] === "-") {
     return trimmed.slice(0, 10);
   }
@@ -81,9 +86,9 @@ export function scheduleVenue(schedule: EventSchedule): string {
 /** Map programme venue label to Schedule screen stage filter key. */
 export function scheduleVenueToStageKey(
   venue: string,
-): "main-stage" | "enterprise-stage" {
-  if (venue.toLowerCase().includes("enterprise")) {
-    return "enterprise-stage";
+): "main-stage" | "mentor-hours" {
+  if (venue.toLowerCase().includes("mentor")) {
+    return "mentor-hours";
   }
   return "main-stage";
 }

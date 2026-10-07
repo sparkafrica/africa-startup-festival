@@ -73,11 +73,11 @@ export type RootStackParamList = {
     | {
         /** Scroll to and pulse this programme row (from Speakers → session tap). */
         highlightScheduleId?: number;
-        highlightStage?: "main-stage" | "enterprise-stage";
+        highlightStage?: "main-stage" | "mentor-hours";
         /** Pre-select day filter chips (e.g. Day 2 welcome CTA). */
         dayFilterIds?: string[];
-        /** Open programme on Main or Enterprise Stage tab. */
-        initialStage?: "main-stage" | "enterprise-stage";
+        /** Open programme on Main Stage or Mentor Hours tab. */
+        initialStage?: "main-stage" | "mentor-hours";
       }
     | undefined;
   Meetings:

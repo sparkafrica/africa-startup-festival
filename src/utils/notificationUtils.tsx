@@ -10,6 +10,12 @@ import { getLinkedInDisplayInfo } from "./linkedInUtils";
 import { UserNotification } from "../services/notificationService";
 import { CalendarIcon, ProfileIcon, TicketsIcon } from "../components/MenuIcons";
 import { BellIcon } from "../components/HeaderIcons";
+import {
+  EVENT_TIME_ZONE_LABEL,
+  formatEventTime,
+  formatUtcSlotTime,
+  utcDateTimeFromParts,
+} from "./eventTime";
 
 // ============================================================================
 // TYPES
@@ -697,7 +703,8 @@ export async function fetchNotificationDetails(
       const physicalMeetings = snap.physical;
       const virtualMeetings = snap.virtual;
 
-      const formatTime = (timeStr: string): string => {
+      const formatTime = (timeStr: string, utcDate?: string): string => {
+        if (utcDate) return formatUtcSlotTime(utcDate, timeStr);
         const [hours, minutes] = timeStr.split(":").map(Number);
         const period = hours >= 12 ? "PM" : "AM";
         const displayHours =
@@ -763,8 +770,13 @@ export async function fetchNotificationDetails(
           ? physicalMatch.requestee_company
           : physicalMatch.requester_company;
         const slot = physicalMatch.slot;
+        const slotDate =
+          slot?.date?.slice(0, 10) ||
+          (typeof physicalMatch.metadata?.selectedDate === "string"
+            ? physicalMatch.metadata.selectedDate.slice(0, 10)
+            : undefined);
         const originalTime = slot?.start_time && slot?.end_time
-          ? `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`
+          ? `${formatTime(slot.start_time, slotDate)} - ${formatTime(slot.end_time, slotDate)} ${EVENT_TIME_ZONE_LABEL}`
           : "—";
         const title =
           physicalMatch.metadata?.title ||
@@ -794,11 +806,12 @@ export async function fetchNotificationDetails(
           : virtualMatch.requester_company;
         const startTime = virtualMatch.scheduled_time;
         const durationMinutes = virtualMatch.duration_minutes ?? 20;
-        const [h, min] = virtualMatch.scheduled_time.split(":").map(Number);
-        const endDate = new Date(2000, 0, 1, h, min, 0);
-        endDate.setMinutes(endDate.getMinutes() + durationMinutes);
-        const endTime = `${endDate.getHours().toString().padStart(2, "0")}:${endDate.getMinutes().toString().padStart(2, "0")}:00`;
-        const originalTime = `${formatTime(startTime)} - ${formatTime(endTime)}`;
+        const startDate = utcDateTimeFromParts(
+          virtualMatch.scheduled_date,
+          startTime,
+        );
+        const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+        const originalTime = `${formatEventTime(startDate)} - ${formatEventTime(endDate)} ${EVENT_TIME_ZONE_LABEL}`;
         const title =
           virtualMatch.metadata?.title ||
           (virtualMatch as any).title ||

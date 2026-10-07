@@ -63,6 +63,13 @@ import {
 } from "../utils/meetingRestrictions";
 import { useListRowHighlight } from "../hooks/useListRowHighlight";
 import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
+import {
+  EVENT_TIME_ZONE_LABEL,
+  formatEventTime,
+  formatUtcSlotTime,
+  getEventDateIso,
+  utcDateTimeFromParts,
+} from "../utils/eventTime";
 
 type PrimaryTab = "requests" | "scheduled";
 // DEPRECATED for production: "cancelled" tab commented out - users get email notifications for cancelled meetings
@@ -237,8 +244,9 @@ export default function MeetingsScreen({ route }: Props) {
   /**
    * Format time from HH:MM:SS to "10:00 AM" format
    */
-  const formatTime = (timeString: string): string => {
+  const formatTime = (timeString: string, utcDate?: string): string => {
     try {
+      if (utcDate) return formatUtcSlotTime(utcDate, timeString);
       const [hours, minutes] = timeString.split(":");
       const hour = parseInt(hours, 10);
       const ampm = hour >= 12 ? "PM" : "AM";
@@ -400,7 +408,10 @@ export default function MeetingsScreen({ route }: Props) {
       }
 
       const [hours, minutes] = startTime.split(":");
-      const meetingDateTime = new Date(`${parsedDate}T${hours}:${minutes}:00`);
+      const meetingDateTime = utcDateTimeFromParts(
+        parsedDate,
+        `${hours}:${minutes}:00`,
+      );
       const now = new Date();
       const diffMs = meetingDateTime.getTime() - now.getTime();
       
@@ -524,18 +535,29 @@ export default function MeetingsScreen({ route }: Props) {
       : undefined;
 
     // Format time from HH:MM:SS to "10:00 AM" format
-    const startTime = formatTime(virtualMeeting.scheduled_time);
+    const startTime = formatTime(
+      virtualMeeting.scheduled_time,
+      virtualMeeting.scheduled_date,
+    );
     // Calculate end time from duration (default 20 minutes if not provided)
     const durationMinutes = virtualMeeting.duration_minutes || 20;
     const [startHours, startMinutes] = virtualMeeting.scheduled_time.split(":");
-    const startDate = new Date(`2000-01-01T${startHours}:${startMinutes}:00`);
-    startDate.setMinutes(startDate.getMinutes() + durationMinutes);
-    const endTime = formatTime(
-      `${startDate.getHours().toString().padStart(2, "0")}:${startDate.getMinutes().toString().padStart(2, "0")}:00`
+    const startDate = utcDateTimeFromParts(
+      virtualMeeting.scheduled_date,
+      `${startHours}:${startMinutes}:00`,
     );
+    const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+    const endTime = `${formatEventTime(endDate)} ${EVENT_TIME_ZONE_LABEL}`;
 
     // Get date
-    const date = formatDateForDisplay(virtualMeeting.scheduled_date);
+    const date = formatDateForDisplay(
+      getEventDateIso(
+        utcDateTimeFromParts(
+          virtualMeeting.scheduled_date,
+          virtualMeeting.scheduled_time,
+        ),
+      ) || virtualMeeting.scheduled_date,
+    );
 
     // Determine if inbound (current user is requestee)
     const isInbound = !isRequester;
@@ -673,12 +695,19 @@ export default function MeetingsScreen({ route }: Props) {
 
     // Format time (slot may be null for some cancelled meetings)
     const slot = backendMeeting.slot;
-    const startTime = slot?.start_time ? formatTime(slot.start_time) : "—";
-    const endTime = slot?.end_time ? formatTime(slot.end_time) : "—";
-
     // Get date and format for display
     const rawDate = getMeetingDate(backendMeeting);
-    const date = formatDateForDisplay(rawDate);
+    const slotUtcDate = slot?.date?.slice(0, 10) || rawDate;
+    const eventDateIso = slot?.start_time
+      ? getEventDateIso(utcDateTimeFromParts(slotUtcDate, slot.start_time))
+      : rawDate;
+    const date = formatDateForDisplay(eventDateIso || rawDate);
+    const startTime = slot?.start_time
+      ? formatTime(slot.start_time, slotUtcDate)
+      : "—";
+    const endTime = slot?.end_time
+      ? `${formatTime(slot.end_time, slotUtcDate)} ${EVENT_TIME_ZONE_LABEL}`
+      : "—";
 
     const metadataMeetingType = normalizeMeetingType(
       backendMeeting.metadata?.meetingType

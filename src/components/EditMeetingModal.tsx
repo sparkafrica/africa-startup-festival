@@ -28,8 +28,15 @@ import {
   formatDateLong,
   parseDisplayTimeToApi,
   parseFlexibleDateToIso,
-  todayIsoLocal,
 } from "../utils/meetingDateTime";
+import { getEventTodayIso } from "../utils/eventDay";
+import {
+  EVENT_TIME_ZONE_LABEL,
+  eventLocalDateTimeToUtcParts,
+  formatUtcSlotTime,
+  getEventDateIso,
+  utcDateTimeFromParts,
+} from "../utils/eventTime";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
@@ -186,7 +193,8 @@ export default function EditMeetingModal({
   }, [visible, translateY]);
 
   // Format time helper (HH:MM:SS to HH:MM AM/PM)
-  const formatTime = (timeStr: string): string => {
+  const formatTime = (timeStr: string, utcDate?: string): string => {
+    if (utcDate) return formatUtcSlotTime(utcDate, timeStr);
     const [hours, minutes] = timeStr.split(':').map(Number);
     const period = hours >= 12 ? 'PM' : 'AM';
     const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
@@ -218,11 +226,13 @@ export default function EditMeetingModal({
   }, [visible, meetingType]);
 
   const isVirtualMeeting = meetingType === "virtual";
-  const virtualMinDateIso = todayIsoLocal();
+  const virtualMinDateIso = getEventTodayIso();
   const virtualMaxDateIso = endOfDecemberIsoCurrentYear();
 
   const slotDateNorm = (slot: MeetingSlot): string | null =>
-    slot.date ? slot.date.slice(0, 10) : null;
+    slot.date
+      ? getEventDateIso(utcDateTimeFromParts(slot.date, slot.start_time))
+      : null;
 
   const physicalEnabledDates = useMemo(() => {
     const set = new Set<string>();
@@ -297,7 +307,7 @@ export default function EditMeetingModal({
         (slot) => slotDateNorm(slot) === targetDate,
       );
       const matchingSlot = slotsForThisDate.find((slot) => {
-        const slotLabel = `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`;
+        const slotLabel = `${formatTime(slot.start_time, slot.date)} - ${formatTime(slot.end_time, slot.date)} ${EVENT_TIME_ZONE_LABEL}`;
         return slotLabel === initialTime;
       });
       if (matchingSlot) {
@@ -330,7 +340,7 @@ export default function EditMeetingModal({
     if (!uniqueTimeSlots.has(timeKey)) {
       uniqueTimeSlots.set(timeKey, {
         slot,
-        label: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
+        label: `${formatTime(slot.start_time, slot.date)} - ${formatTime(slot.end_time, slot.date)} ${EVENT_TIME_ZONE_LABEL}`,
       });
     }
   });
@@ -524,6 +534,10 @@ export default function EditMeetingModal({
       meetingType === "physical"
         ? selectedSlotId || undefined
         : undefined;
+    const virtualUtc =
+      isVirtualMeeting && selectedDateValue && selectedTimeApi
+        ? eventLocalDateTimeToUtcParts(selectedDateValue, selectedTimeApi)
+        : null;
 
     onSave({
       title: title.trim(),
@@ -531,9 +545,11 @@ export default function EditMeetingModal({
       tableNumber: meetingType === "physical" ? tableNumber.trim() : undefined,
       meetingLink: meetingType === "virtual" ? meetingLink.trim() : undefined,
       time: time.trim(),
-      date: selectedDateValue || date.trim(),
+      date: virtualUtc?.date || selectedDateValue || date.trim(),
       description: description.trim(),
-      timeApi: isVirtualMeeting ? selectedTimeApi || undefined : undefined,
+      timeApi: isVirtualMeeting
+        ? virtualUtc?.time || selectedTimeApi || undefined
+        : undefined,
       slotId: resolvedSlotId,
     });
   };

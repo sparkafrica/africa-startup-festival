@@ -6,15 +6,15 @@
 import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 
-export function isEnterpriseStageSession(_stage?: string): boolean {
+export function isMentorHoursSession(_stage?: string): boolean {
   return false;
 }
 
-export async function getCanUserAddEnterpriseStageToSchedule(): Promise<boolean> {
+export async function getCanUserAddMentorHoursToSchedule(): Promise<boolean> {
   return true;
 }
 
-export function showEnterpriseStageScheduleBlockedAlert(
+export function showMentorHoursScheduleBlockedAlert(
   _navigation: NavigationProp<RootStackParamList>,
 ): void {
   // No-op for ASF v1

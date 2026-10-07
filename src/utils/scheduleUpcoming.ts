@@ -4,7 +4,7 @@
 
 import type { EventSchedule } from "../services/eventService";
 import { parseScheduleCardMetadata } from "./scheduleMetadata";
-import { getWatDateIso } from "./eventDay";
+import { getEventTodayIso } from "./eventDay";
 import { scheduleStartDateIso } from "./scheduleFilters";
 
 /** Sessions starting within this window get the "Starting soon" badge. */
@@ -58,7 +58,7 @@ export function findLiveSlidoSession(
   schedules: EventSchedule[],
   now = Date.now(),
 ): LiveSlidoSession | null {
-  const todayIso = getWatDateIso(now);
+  const todayIso = getEventTodayIso(now);
   let best: LiveSlidoSession | null = null;
   let bestStart = Infinity;
 

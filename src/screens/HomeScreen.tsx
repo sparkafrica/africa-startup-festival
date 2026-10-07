@@ -450,7 +450,7 @@ export default function HomeScreen() {
         onPress={() => navigation.navigate("Startups")}
       /> */}
       <BannerCard
-        title="Welcome to ASF 2026"
+        title="ASF 2026!"
         description="Start booking meetings with founders, investors, and operators."
         buttonText="Book meetings"
         gradient={gradients.sparkBlack}

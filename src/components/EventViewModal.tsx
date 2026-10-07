@@ -1,4 +1,10 @@
-import React, { useRef, useLayoutEffect, useCallback } from "react";
+import React, {
+  useRef,
+  useLayoutEffect,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -25,6 +31,7 @@ import type { ScheduleBadgeColor } from "../utils/scheduleMetadata";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
 const SHEET_MS = 220;
+const COLLAPSED_SPEAKER_COUNT = 3;
 
 export interface Speaker {
   id: string;
@@ -90,11 +97,16 @@ export default function EventViewModal({
   isAddingToSchedule = false,
   contentKey,
 }: EventViewModalProps) {
+  const [showAllSpeakers, setShowAllSpeakers] = useState(false);
   const showActions =
     !!onRemoveFromSchedule ||
     !!onAddToSchedule ||
     !!onLeaveFeedback ||
     !!isInMySchedule;
+  const hasCollapsedSpeakers = speakers.length > COLLAPSED_SPEAKER_COUNT;
+  const displayedSpeakers = showAllSpeakers
+    ? speakers
+    : speakers.slice(0, COLLAPSED_SPEAKER_COUNT);
 
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const isAnimating = useRef(false);
@@ -104,6 +116,14 @@ export default function EventViewModal({
   const onDismissStartRef = useRef(onDismissStart);
   onCloseRef.current = onClose;
   onDismissStartRef.current = onDismissStart;
+
+  useEffect(() => {
+    if (!visible) setShowAllSpeakers(false);
+  }, [visible]);
+
+  useEffect(() => {
+    setShowAllSpeakers(false);
+  }, [contentKey]);
 
   const runDismissAnimation = useCallback(() => {
     if (isClosing.current || isAnimating.current) return;
@@ -239,7 +259,7 @@ export default function EventViewModal({
           ]}
         >
           <GuidelinePatternOverlay isLightCard opacity={0.05} />
-          <View style={{ position: "relative", zIndex: 10, flex: 1 }}>
+          <View style={{ position: "relative", zIndex: 10, flex: 1, minHeight: 0 }}>
           {/* Draggable Handle */}
           <View style={styles.draggableArea} {...panResponder.panHandlers}>
             <View style={styles.handleContainer}>
@@ -253,8 +273,9 @@ export default function EventViewModal({
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled={true}
             bounces={true}
+            overScrollMode="always"
+            keyboardShouldPersistTaps="handled"
             scrollEnabled={visible}
-            removeClippedSubviews
             pointerEvents={visible ? "auto" : "none"}
           >
             {(sessionBadge || sponsoredBy) && (
@@ -326,8 +347,10 @@ export default function EventViewModal({
             {/* Speakers Section */}
             {speakers.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Speakers</Text>
-                {speakers.map((speaker) => (
+                <Text style={styles.sectionTitle}>
+                  Speakers{speakers.length > 1 ? ` (${speakers.length})` : ""}
+                </Text>
+                {displayedSpeakers.map((speaker) => (
                   <Pressable
                     key={speaker.id}
                     style={({ pressed }) => [
@@ -361,6 +384,26 @@ export default function EventViewModal({
                     <ChevronRightIcon size={20} color="#000000" />
                   </Pressable>
                 ))}
+                {hasCollapsedSpeakers ? (
+                  <Pressable
+                    onPress={() => setShowAllSpeakers((current) => !current)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: showAllSpeakers }}
+                    style={({ pressed }) => [
+                      styles.speakersToggle,
+                      pressed && styles.speakersTogglePressed,
+                    ]}
+                  >
+                    <Text style={styles.speakersToggleText}>
+                      {showAllSpeakers
+                        ? "Show less"
+                        : `View all ${speakers.length} speakers`}
+                    </Text>
+                    <Text style={styles.speakersToggleIcon}>
+                      {showAllSpeakers ? "↑" : "↓"}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
             )}
 
@@ -438,7 +481,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
-    maxHeight: SCREEN_HEIGHT * 0.9,
+    height: SCREEN_HEIGHT * 0.9,
     width: "100%",
     position: "absolute",
     bottom: 0,
@@ -464,11 +507,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    minHeight: 0,
   },
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 20,
+    paddingBottom: 32,
   },
   badgeStack: {
     gap: 8,
@@ -571,6 +615,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "400",
     color: "#525252",
+  },
+  speakersToggle: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: "#D4D4D4",
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  speakersTogglePressed: {
+    backgroundColor: "#F5F5F5",
+  },
+  speakersToggleText: {
+    color: "#000000",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  speakersToggleIcon: {
+    color: "#000000",
+    fontSize: 16,
+    fontWeight: "600",
   },
   descriptionText: {
     fontSize: 16,

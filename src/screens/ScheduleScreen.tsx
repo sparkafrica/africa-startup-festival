@@ -91,10 +91,11 @@ import {
 } from "../utils/scheduleSpeakers";
 import type { Speaker as ApiSpeaker } from "../services/eventService";
 import {
-  getCanUserAddEnterpriseStageToSchedule,
-  isEnterpriseStageSession,
-  showEnterpriseStageScheduleBlockedAlert,
+  getCanUserAddMentorHoursToSchedule,
+  isMentorHoursSession,
+  showMentorHoursScheduleBlockedAlert,
 } from "../utils/scheduleRestrictions";
+import { EVENT_TIME_ZONE_LABEL, formatEventTime } from "../utils/eventTime";
 
 /**
  * Reference EventData for schedule cards/modals (not loaded into the live list).
@@ -338,7 +339,7 @@ export default function ScheduleScreen() {
 
   const stageMapping: Record<string, string> = {
     "main-stage": "Main Stage",
-    "enterprise-stage": "Enterprise Stage",
+    "mentor-hours": "Mentor Hours",
   };
   const seedSpeakerCacheFromSchedules = React.useCallback(
     (schedules: EventSchedule[]) => {
@@ -386,15 +387,6 @@ export default function ScheduleScreen() {
     const endDate = new Date(scheduleRow.end_time);
 
     // Format time as "10:00 AM"
-    const formatTime = (date: Date): string => {
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-      const period = hours >= 12 ? "PM" : "AM";
-      const hour12 = hours % 12 || 12;
-      const minutesStr = minutes.toString().padStart(2, "0");
-      return `${hour12}:${minutesStr} ${period}`;
-    };
-
     const eventObj =
       typeof scheduleRow.event === "object" ? scheduleRow.event : null;
     const stage = scheduleVenue(scheduleRow);
@@ -425,8 +417,8 @@ export default function ScheduleScreen() {
       title: scheduleRow.name,
       stage: stage,
       day: deriveDayLabel(scheduleRow.start_time, scheduleRow.event),
-      startTime: formatTime(startDate),
-      endTime: formatTime(endDate),
+      startTime: formatEventTime(startDate),
+      endTime: `${formatEventTime(endDate)} ${EVENT_TIME_ZONE_LABEL}`,
       startTimeMs: startDate.getTime(),
       endTimeMs: endDate.getTime(),
       scheduleDateIso: scheduleStartDateIso(scheduleRow.start_time),
@@ -798,10 +790,10 @@ export default function ScheduleScreen() {
     if (!event?.eventScheduleId || event.eventScheduleId === 0) return;
     if (addingScheduleId !== null) return;
 
-    if (isEnterpriseStageSession(event.stage)) {
-      const canAdd = await getCanUserAddEnterpriseStageToSchedule();
+    if (isMentorHoursSession(event.stage)) {
+      const canAdd = await getCanUserAddMentorHoursToSchedule();
       if (!canAdd) {
-        showEnterpriseStageScheduleBlockedAlert(navigation);
+        showMentorHoursScheduleBlockedAlert(navigation);
         return;
       }
     }
@@ -903,9 +895,8 @@ export default function ScheduleScreen() {
 
   const stageOptions = [
     { label: "Main Stage", value: "main-stage" },
-    { label: "Enterprise Stage", value: "enterprise-stage" },
+    { label: "Mentor Hours", value: "mentor-hours" },
     // { label: "Future Stage", value: "future-stage" },
-    // { label: "Mentor Hours", value: "mentor-hours" },
     // { label: "City Circle", value: "city-circle" },
   ];
 

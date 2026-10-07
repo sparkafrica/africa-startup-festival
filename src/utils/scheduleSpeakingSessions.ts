@@ -1,14 +1,6 @@
 import type { EventSchedule } from "../services/eventService";
 import { parseScheduleSpeakersRaw } from "./scheduleSpeakers";
-
-function formatTime12h(date: Date): string {
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const period = hours >= 12 ? "PM" : "AM";
-  const hour12 = hours % 12 || 12;
-  const minutesStr = minutes.toString().padStart(2, "0");
-  return `${hour12}:${minutesStr} ${period}`;
-}
+import { EVENT_TIME_ZONE_LABEL, formatEventTime } from "./eventTime";
 
 export function formatTimeRangeFromIso(
   startTime: string,
@@ -17,7 +9,7 @@ export function formatTimeRangeFromIso(
   const start = new Date(startTime);
   const end = new Date(endTime);
   if (isNaN(start.getTime()) || isNaN(end.getTime())) return "";
-  return `${formatTime12h(start)} – ${formatTime12h(end)}`;
+  return `${formatEventTime(start)} – ${formatEventTime(end)} ${EVENT_TIME_ZONE_LABEL}`;
 }
 
 /** "Session title · 1:25 PM – 1:55 PM" */
@@ -42,9 +34,9 @@ export interface SpeakingSessionRow {
 
 export function venueToStageKey(
   venue: string | null | undefined,
-): "main-stage" | "enterprise-stage" {
+): "main-stage" | "mentor-hours" {
   const v = (venue ?? "").toLowerCase();
-  if (v.includes("enterprise")) return "enterprise-stage";
+  if (v.includes("mentor")) return "mentor-hours";
   return "main-stage";
 }
 
@@ -89,7 +81,7 @@ export function buildSpeakingSessionsFromSchedules(
 export function stageKeyForScheduleId(
   scheduleId: number,
   schedules: EventSchedule[] | null | undefined,
-): "main-stage" | "enterprise-stage" {
+): "main-stage" | "mentor-hours" {
   const row = schedules?.find((s) => s.id === scheduleId);
   return venueToStageKey(row?.venue);
 }
