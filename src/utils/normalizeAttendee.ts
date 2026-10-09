@@ -5,7 +5,10 @@
 
 import type { Attendee, AttendeeUser } from "../services/ticketService";
 import { coerceMetadataStringArray } from "./metadataCoerce";
-import { resolveIndustryLabel } from "../constants/industryAndInterests";
+import {
+  resolveIndustryLabel,
+  resolveInterestLabels,
+} from "../constants/industryAndInterests";
 import { getEventMetadata } from "./eventMetadata";
 
 /** Loose attendee shape from directory APIs (ticket may be partial). */
@@ -32,7 +35,9 @@ export function parseUserMetadata(raw: unknown): Record<string, unknown> {
 
 export function normalizeAttendeeUser(user: AttendeeUser): AttendeeUser {
   const metadata = getEventMetadata(user.metadata);
-  const interests = coerceMetadataStringArray(metadata.interests);
+  const interests = resolveInterestLabels(
+    coerceMetadataStringArray(metadata.interests),
+  );
 
   return {
     ...user,
@@ -125,7 +130,7 @@ export function getAttendeeDisplayFields(attendee: Attendee): AttendeeDisplayFie
     role: user.job_title || user.organisation_role || "",
     company: user.company?.name || user.organisation || "",
     bio: typeof meta.bio === "string" ? meta.bio : "",
-    interests: coerceMetadataStringArray(meta.interests),
+    interests: resolveInterestLabels(coerceMetadataStringArray(meta.interests)),
     industry,
     linkedInRaw: meta.linkedIn ?? meta.linkedin_url,
     ticketTypeName: attendee.ticket?.type?.name ?? "",

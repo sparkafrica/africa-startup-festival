@@ -38,7 +38,10 @@ import {
   coerceMetadataStringArray,
 } from "../utils/metadataCoerce";
 import { getEventMetadata } from "../utils/eventMetadata";
-import { resolveIndustryLabel } from "../constants/industryAndInterests";
+import {
+  resolveIndustryLabel,
+  resolveInterestLabels,
+} from "../constants/industryAndInterests";
 import { SearchIcon, ChevronRightIcon, SpeechBubbleIcon } from "../components/icons";
 import { LinkedInLinkLabel } from "../components/LinkedInLinkLabel";
 import { CalendarIconWhite } from "../components/SocialIcons";
@@ -360,7 +363,9 @@ export default function ConnectionsScreen() {
     const metadata = getEventMetadata(otherUser?.metadata);
 
     // Interests may be strings or `{ label, value }` from registration forms.
-    const interestsArray = coerceMetadataStringArray(metadata.interests);
+    const interestsArray = resolveInterestLabels(
+      coerceMetadataStringArray(metadata.interests),
+    );
 
     // Extract bio from metadata
     const bio = typeof metadata.bio === "string" ? metadata.bio : "";

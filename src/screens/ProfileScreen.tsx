@@ -20,7 +20,12 @@ import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { navigate as navigateRef, hasHomeScreen } from "../navigation/navigationRef";
 import { useAuth } from "../context/AuthContext";
-import { authService, type UserProfile, readImageAsBase64 } from "../services/authService";
+import {
+  authService,
+  type Company,
+  type UserProfile,
+  readImageAsBase64,
+} from "../services/authService";
 import { companyService } from "../services/companyService";
 import { EVENT_ID } from "../config/env";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
@@ -37,7 +42,12 @@ import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
 import { useDismissKeyboardOnBackground } from "../hooks/useDismissKeyboardOnBackground";
 import { trackProfileEvent } from "../utils/analytics";
-import { INDUSTRY_OPTIONS, TOP_INTERESTS, resolveIndustryId } from "../constants/industryAndInterests";
+import {
+  INDUSTRY_OPTIONS,
+  TOP_INTERESTS,
+  resolveIndustryId,
+  resolveInterestLabels,
+} from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
 import {
   GROWTH_STAGE_OPTIONS,
@@ -75,8 +85,22 @@ import { StartupBadge, StartupPendingBadge } from "../components/StartupBadge";
 import { StartupJoinAdminPanel } from "../components/StartupJoinAdminPanel";
 import { useStartupJoin } from "../hooks/useStartupJoin";
 import { shouldShowStartupJoinForm } from "../utils/startupJoinStatus";
+import { useProfilePhotoDraft } from "../hooks/useProfilePhotoDraft";
 
 const INPUT_PLACEHOLDER_COLOR = "#9CA3AF";
+
+function companyDisplayName(
+  company?: Company | string | null,
+  metadata?: Record<string, unknown>,
+): string {
+  if (typeof company === "string") return company.trim();
+  const metadataName = metadata?.company_name ?? metadata?.organisation;
+  return (
+    company?.company_name?.trim() ||
+    company?.name?.trim() ||
+    (typeof metadataName === "string" ? metadataName.trim() : "")
+  );
+}
 
 // Validation Helper Functions
 const validateFullName = (name: string): { valid: boolean; error?: string } => {
@@ -955,7 +979,11 @@ function PersonalProfileSection({
   const [showIndustriesToMeetModal, setShowIndustriesToMeetModal] = useState(false);
   const [industriesExpanded, setIndustriesExpanded] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const {
+    selectedImageUri,
+    holdImage: holdProfilePhoto,
+    clearDraft: clearProfilePhotoDraft,
+  } = useProfilePhotoDraft((initialProfile ?? user)?.user_id);
   const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
@@ -997,13 +1025,16 @@ function PersonalProfileSection({
     const industryId = resolveIndustryId(meta.industry);
     if (industryId) setSelectedIndustry(industryId);
     if (Array.isArray(meta.interests)) {
-      setSelectedInterests(meta.interests as string[]);
+      setSelectedInterests(resolveInterestLabels(meta.interests as string[]));
     }
     if (typeof meta.event_goals === "string") setEventGoals(meta.event_goals);
     if (Array.isArray(meta.industries_to_meet)) {
       setIndustriesToMeet(meta.industries_to_meet as string[]);
     }
-    const companyName = (source as UserProfile).company?.name;
+    const companyName = companyDisplayName(
+      (source as UserProfile).company,
+      meta,
+    );
     if (companyName) setCompany(companyName);
     setValidationErrors({});
   }, [source]);
@@ -1059,7 +1090,7 @@ function PersonalProfileSection({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImageUri(result.assets[0].uri);
+        await holdProfilePhoto(result.assets[0].uri);
         setShouldRemovePhoto(false); // Clear removal flag if user selects new image
         if (validationErrors.profilePhoto) {
           setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
@@ -1095,7 +1126,7 @@ function PersonalProfileSection({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImageUri(result.assets[0].uri);
+        await holdProfilePhoto(result.assets[0].uri);
         setShouldRemovePhoto(false); // Clear removal flag if user selects new image
         if (validationErrors.profilePhoto) {
           setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
@@ -1110,7 +1141,7 @@ function PersonalProfileSection({
   const handleRemovePhoto = async () => {
     try {
       setShowProfileModal(false);
-      setSelectedImageUri(null);
+      await clearProfilePhotoDraft();
       setShouldRemovePhoto(true);
       // Note: Actual removal happens on save
     } catch (error) {
@@ -1219,7 +1250,8 @@ function PersonalProfileSection({
       if (industriesToMeet.length > 0) {
         eventMetadataPatch.industries_to_meet = industriesToMeet;
       }
-      const metadata = mergeEventMetadata(user?.metadata, eventMetadataPatch);
+      eventMetadataPatch.company_name = company.trim();
+      const metadata = mergeEventMetadata(source?.metadata, eventMetadataPatch);
 
       // Prepare API request payload
       const profileData: any = {
@@ -1256,7 +1288,7 @@ function PersonalProfileSection({
         try {
           await authService.updateProfile(profileData, selectedImageUri ? { imageUri: selectedImageUri } : undefined);
           if (selectedImageUri) {
-            setSelectedImageUri(null);
+            await clearProfilePhotoDraft();
             setShouldRemovePhoto(false);
           }
         } catch (imageError: any) {
@@ -1808,6 +1840,7 @@ function AttendeeProfileSection({
   const { user } = useAuth();
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
+  const [company, setCompany] = useState("");
   const [linkedIn, setLinkedIn] = useState("");
   const [bio, setBio] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("technology");
@@ -1820,7 +1853,11 @@ function AttendeeProfileSection({
   const [showIndustriesToMeetModal, setShowIndustriesToMeetModal] = useState(false);
   const [industriesExpanded, setIndustriesExpanded] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const {
+    selectedImageUri,
+    holdImage: holdProfilePhoto,
+    clearDraft: clearProfilePhotoDraft,
+  } = useProfilePhotoDraft((initialProfile ?? user)?.user_id);
   const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [validationErrors, setValidationErrors] = useState<
@@ -1857,9 +1894,12 @@ function AttendeeProfileSection({
       if (opt) setSelectedCountry(opt.id);
     }
     const meta = getEventMetadata(source.metadata);
+    setCompany(companyDisplayName(source.company, meta));
     const industryId = resolveIndustryId(meta.industry);
     if (industryId) setSelectedIndustry(industryId);
-    if (Array.isArray(meta.interests)) setSelectedInterests(meta.interests as string[]);
+    if (Array.isArray(meta.interests)) {
+      setSelectedInterests(resolveInterestLabels(meta.interests as string[]));
+    }
     const li = meta.linkedIn ?? meta.linkedin_url;
     if (typeof li === "string") setLinkedIn(li);
     if (typeof meta.event_goals === "string") setEventGoals(meta.event_goals);
@@ -1919,7 +1959,7 @@ function AttendeeProfileSection({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImageUri(result.assets[0].uri);
+        await holdProfilePhoto(result.assets[0].uri);
         setShouldRemovePhoto(false);
         if (validationErrors.profilePhoto) {
           setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
@@ -1955,7 +1995,7 @@ function AttendeeProfileSection({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImageUri(result.assets[0].uri);
+        await holdProfilePhoto(result.assets[0].uri);
         setShouldRemovePhoto(false);
         if (validationErrors.profilePhoto) {
           setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
@@ -1970,7 +2010,7 @@ function AttendeeProfileSection({
   const handleRemovePhoto = async () => {
     try {
       setShowProfileModal(false);
-      setSelectedImageUri(null);
+      await clearProfilePhotoDraft();
       setShouldRemovePhoto(true);
     } catch (error) {
       console.error("Error removing photo:", error);
@@ -1999,6 +2039,11 @@ function AttendeeProfileSection({
     const jobTitleValidation = validateJobTitle(jobTitle);
     if (!jobTitleValidation.valid) {
       errors.jobTitle = jobTitleValidation.error || "";
+    }
+
+    const companyValidation = validateCompany(company);
+    if (!companyValidation.valid) {
+      errors.company = companyValidation.error || "";
     }
 
     const bioValidation = validateBio(bio);
@@ -2072,7 +2117,8 @@ function AttendeeProfileSection({
       if (industriesToMeet.length > 0) {
         eventMetadataPatch.industries_to_meet = industriesToMeet;
       }
-      const metadata = mergeEventMetadata(user?.metadata, eventMetadataPatch);
+      eventMetadataPatch.company_name = company.trim();
+      const metadata = mergeEventMetadata(source?.metadata, eventMetadataPatch);
 
       // Prepare API request payload
       const profileData: any = {
@@ -2109,7 +2155,7 @@ function AttendeeProfileSection({
         try {
           await authService.updateProfile(profileData, selectedImageUri ? { imageUri: selectedImageUri } : undefined);
           if (selectedImageUri) {
-            setSelectedImageUri(null);
+            await clearProfilePhotoDraft();
             setShouldRemovePhoto(false);
           }
         } catch (imageError: any) {
@@ -2354,6 +2400,37 @@ function AttendeeProfileSection({
                   {validationErrors.jobTitle}
                 </Text>
               )}
+            </View>
+
+            {/* Company */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-neutral-700 mb-2">
+                Company <Text className="text-red-500">*</Text>
+              </Text>
+              <TextInput
+                className={`bg-white border rounded-xl px-4 py-3 text-base text-black ${
+                  validationErrors.company
+                    ? "border-red-500"
+                    : "border-neutral-300"
+                }`}
+                value={company}
+                onChangeText={(text) => {
+                  setCompany(text);
+                  if (validationErrors.company) {
+                    setValidationErrors((current) => ({
+                      ...current,
+                      company: "",
+                    }));
+                  }
+                }}
+                placeholder="Enter company name"
+                placeholderTextColor={INPUT_PLACEHOLDER_COLOR}
+              />
+              {validationErrors.company ? (
+                <Text className="text-red-500 text-xs mt-1">
+                  {validationErrors.company}
+                </Text>
+              ) : null}
             </View>
 
             {/* LinkedIn */}
@@ -4311,7 +4388,6 @@ export default function ProfileScreen() {
                 onProfilePhotoRequirementMet={onPersonalPhotoRequirementMet}
                 startupBadgeName={startupJoinState.badge?.companyName}
                 showJoinPending={startupJoinState.phase === "pending"}
-                omitCompanyField={isStartupPassHolder}
               />
             ) : showStartupConnect ? (
               <StartupConnectStep

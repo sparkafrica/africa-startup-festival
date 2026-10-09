@@ -9,7 +9,11 @@ import { enrichEventScheduleFromCache } from "./eventDataCache";
 import { ensureMeetingsList } from "./meetingsListCache";
 import { getEventTodayIso } from "./eventDay";
 import { formatCountdownToStart } from "./scheduleUpcoming";
-import { utcSlotTimeMs } from "./eventTime";
+import {
+  EVENT_TIME_ZONE,
+  backendDateTimeMs,
+  zonedDateTimeFromParts,
+} from "./eventTime";
 
 export type NowAndNextKind = "meeting" | "session";
 
@@ -67,7 +71,11 @@ function physicalMeetingStartMs(meeting: Meeting): number | null {
 
   const [h, m] = slot.start_time.split(":").map((v) => parseInt(v, 10));
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  return utcSlotTimeMs(date, `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+  return zonedDateTimeFromParts(
+    date,
+    `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`,
+    slot.timezone || EVENT_TIME_ZONE,
+  ).getTime();
 }
 
 function virtualMeetingStartMs(meeting: VirtualMeeting): number | null {
@@ -77,7 +85,11 @@ function virtualMeetingStartMs(meeting: VirtualMeeting): number | null {
   if (!date || !time) return null;
   const [h, m] = time.split(":").map((v) => parseInt(v, 10));
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  return utcSlotTimeMs(date, `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+  return zonedDateTimeFromParts(
+    date,
+    `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`,
+    meeting.timezone || EVENT_TIME_ZONE,
+  ).getTime();
 }
 
 function meetingParticipantName(
@@ -111,8 +123,6 @@ export async function fetchNowAndNextItems(
     for (const m of physical) {
       const startMs = physicalMeetingStartMs(m);
       if (startMs == null || startMs <= now) continue;
-      const dateIso = new Date(startMs).toISOString().slice(0, 10);
-      if (dateIso < todayIso) continue;
       candidates.push({
         kind: "meeting",
         title: `Meeting with ${meetingParticipantName(m, currentUserId)}`,
@@ -141,8 +151,8 @@ export async function fetchNowAndNextItems(
     for (const row of personal.schedules) {
       const schedule = enrichEventScheduleFromCache(row.event_schedule);
       if (!schedule || typeof schedule !== "object") continue;
-      const startMs = new Date(schedule.start_time).getTime();
-      const endMs = new Date(schedule.end_time).getTime();
+      const startMs = backendDateTimeMs(schedule.start_time);
+      const endMs = backendDateTimeMs(schedule.end_time);
       if (!Number.isFinite(startMs) || startMs <= now || now >= endMs) continue;
       const venue =
         schedule.venue?.trim() ||

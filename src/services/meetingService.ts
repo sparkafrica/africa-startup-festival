@@ -9,6 +9,7 @@ import { ApiClientError } from "./api";
 import { EVENT_ID } from "../config/env";
 import { meetingBelongsToEvent } from "../utils/eventScope";
 import { parseDisplayTimeToApi } from "../utils/meetingDateTime";
+import { EVENT_TIME_ZONE } from "../utils/eventTime";
 
 // ============================================================================
 // REQUEST/RESPONSE TYPES
@@ -26,6 +27,8 @@ export interface MeetingSlot {
   end_time: string; // Format: time (HH:MM:SS)
   table_number: number;
   is_available: boolean;
+  /** IANA timezone for the backend-owned slot wall time, e.g. Africa/Nairobi. */
+  timezone?: string;
   /** Slot date (YYYY-MM-DD). Required for correct date filtering (each day has its own slots). */
   date?: string;
 }
@@ -163,6 +166,7 @@ export interface VirtualMeetingRequest {
   scheduled_date: string; // Format: date (YYYY-MM-DD)
   scheduled_time: string; // Format: time (HH:MM:SS)
   duration_minutes?: number;
+  timezone?: string;
   metadata?: any;
 }
 
@@ -194,6 +198,7 @@ export interface VirtualMeetingUpdateRequest {
   scheduled_date?: string;
   scheduled_time?: string;
   duration_minutes?: number;
+  timezone?: string;
   metadata?: any; // Used to update title and other custom fields
 }
 
@@ -585,6 +590,7 @@ export const meetingService = {
         scheduled_date: formData.date!,
         scheduled_time: scheduledTime,
         duration_minutes: 20,
+        timezone: EVENT_TIME_ZONE,
         metadata: {
           title: formData.title,
           meetingType: formData.meetingType,

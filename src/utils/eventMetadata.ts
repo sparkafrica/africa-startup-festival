@@ -13,6 +13,8 @@ export const EVENT_SCOPED_USER_METADATA_KEYS = [
   "interests",
   "event_goals",
   "industries_to_meet",
+  "company_name",
+  "organisation",
   "event_checklist",
   "event_checklist_day2",
   "user_type",

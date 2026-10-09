@@ -100,8 +100,9 @@ export interface TicketClass {
  * Minimal Company interface for scanned attendee display
  */
 export interface Company {
-  id: number;
-  name: string;
+  id?: number;
+  name?: string;
+  company_name?: string;
   company_type?: string;
   logo?: string | null;
   company_sector?: string;

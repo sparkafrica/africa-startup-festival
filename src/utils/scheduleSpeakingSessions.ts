@@ -1,15 +1,15 @@
 import type { EventSchedule } from "../services/eventService";
 import { parseScheduleSpeakersRaw } from "./scheduleSpeakers";
-import { EVENT_TIME_ZONE_LABEL, formatEventTime } from "./eventTime";
+import { EVENT_TIME_ZONE_LABEL, formatBackendClockTime } from "./eventTime";
 
 export function formatTimeRangeFromIso(
   startTime: string,
   endTime: string,
 ): string {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return "";
-  return `${formatEventTime(start)} – ${formatEventTime(end)} ${EVENT_TIME_ZONE_LABEL}`;
+  const start = formatBackendClockTime(startTime);
+  const end = formatBackendClockTime(endTime);
+  if (!start || !end) return "";
+  return `${start} – ${end} ${EVENT_TIME_ZONE_LABEL}`;
 }
 
 /** "Session title · 1:25 PM – 1:55 PM" */

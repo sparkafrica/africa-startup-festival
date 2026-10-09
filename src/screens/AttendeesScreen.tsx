@@ -70,6 +70,7 @@ import { getEventFeatures } from "../config/eventFeatures";
 import {
   getIndustryAndInterestFilterCategories,
   resolveIndustryLabel,
+  resolveInterestLabels,
 } from "../constants/industryAndInterests";
 import { ApiClientError } from "../services/api";
 import { trackConnectionEvent, trackMeetingEvent } from "../utils/analytics";
@@ -1549,7 +1550,9 @@ export default function AttendeesScreen() {
     }
 
     // Extract interests from metadata (may be array, comma-separated string, or missing)
-    const interests = coerceMetadataStringArray(metadata?.interests);
+    const interests = resolveInterestLabels(
+      coerceMetadataStringArray(metadata?.interests),
+    );
 
     // Extract bio from metadata
     const bio = typeof metadata.bio === "string" ? metadata.bio : "";

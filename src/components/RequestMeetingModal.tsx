@@ -39,11 +39,9 @@ import {
 import { ApiClientError } from "../services/api";
 import { getEventTodayIso } from "../utils/eventDay";
 import {
-  EVENT_TIME_ZONE_LABEL,
-  eventLocalDateTimeToUtcParts,
-  formatUtcSlotTime,
-  getEventDateIso,
-  utcDateTimeFromParts,
+  backendDateIso,
+  backendTimeZoneLabel,
+  formatBackendClockTime,
 } from "../utils/eventTime";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -422,11 +420,7 @@ export default function RequestMeetingModal({
 
   const handleSubmit = async () => {
     if (!validateForm() || isSubmitting) return;
-    const virtualUtc =
-      meetingType === "Virtual" && selectedDateValue && selectedTimeApi
-        ? eventLocalDateTimeToUtcParts(selectedDateValue, selectedTimeApi)
-        : null;
-    const dateToSend = virtualUtc?.date || selectedDateValue || undefined;
+    const dateToSend = selectedDateValue || undefined;
     const timeToSend =
       meetingType === "Virtual"
         ? selectedTime || undefined
@@ -443,7 +437,7 @@ export default function RequestMeetingModal({
       slot: selectedSlot || undefined,
       timeApi:
         meetingType === "Virtual"
-          ? virtualUtc?.time || selectedTimeApi || undefined
+          ? selectedTimeApi || undefined
           : undefined,
     };
     try {
@@ -486,19 +480,12 @@ export default function RequestMeetingModal({
   };
 
   // Format time from backend (HH:MM:SS) to display format (HH:MM AM/PM)
-  const formatTime = (timeStr: string, utcDate?: string): string => {
-    if (utcDate) return formatUtcSlotTime(utcDate, timeStr);
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-  };
+  const formatTime = (timeStr: string): string =>
+    formatBackendClockTime(timeStr);
 
   // Normalize slot date to YYYY-MM-DD for comparison (backend may send date or datetime)
   const slotDateNorm = (slot: MeetingSlot): string | null =>
-    slot.date
-      ? getEventDateIso(utcDateTimeFromParts(slot.date, slot.start_time))
-      : null;
+    slot.date ? backendDateIso(slot.date) || null : null;
 
   const isVirtualMeeting = meetingType === "Virtual";
   const virtualMinDateIso = getEventTodayIso();
@@ -555,7 +542,7 @@ export default function RequestMeetingModal({
     if (!uniqueTimeSlots.has(timeKey)) {
       uniqueTimeSlots.set(timeKey, {
         slot,
-        label: `${formatTime(slot.start_time, slot.date)} - ${formatTime(slot.end_time, slot.date)} ${EVENT_TIME_ZONE_LABEL}`,
+        label: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)} ${backendTimeZoneLabel(slot.timezone)}`,
       });
     }
   });

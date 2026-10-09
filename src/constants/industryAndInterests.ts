@@ -152,6 +152,44 @@ export const TOP_INTERESTS: string[] = [
   "Consultancy",
 ];
 
+const INTEREST_ALIASES: Record<string, string> = {
+  "artificial-intelligence": "AI",
+  "artificial-intelligence-machine-learning": "AI",
+  "ai-ml": "AI",
+  "blockchain-cryptocurrency": "Blockchain & Crypto",
+  ecommerce: "Ecommerce",
+  "e-commerce": "Ecommerce",
+};
+
+/** Canonical display label for stored interest ids, labels, and legacy casing. */
+export function resolveInterestLabel(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const exact = TOP_INTERESTS.find(
+    (interest) => interest.toLowerCase() === trimmed.toLowerCase(),
+  );
+  if (exact) return exact;
+  const key = slug(trimmed);
+  const bySlug = TOP_INTERESTS.find((interest) => slug(interest) === key);
+  return bySlug ?? INTEREST_ALIASES[key] ?? trimmed;
+}
+
+/** Canonicalize and case-insensitively de-duplicate interest labels. */
+export function resolveInterestLabels(values: string[]): string[] {
+  const output: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const label = resolveInterestLabel(value);
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(label);
+  }
+  return output;
+}
+
 /** For filter modal: interests as { id, label }. id is slug for matching. */
 /** Slug for filter option id. */
 function slug(label: string): string {

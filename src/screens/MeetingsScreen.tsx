@@ -64,12 +64,20 @@ import {
 import { useListRowHighlight } from "../hooks/useListRowHighlight";
 import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
 import {
-  EVENT_TIME_ZONE_LABEL,
-  formatEventTime,
-  formatUtcSlotTime,
-  getEventDateIso,
-  utcDateTimeFromParts,
+  EVENT_TIME_ZONE,
+  addMinutesToBackendTime,
+  backendDateIso,
+  backendTimeZoneLabel,
+  formatBackendClockTime,
+  zonedDateTimeFromParts,
 } from "../utils/eventTime";
+import { getEventMetadata } from "../utils/eventMetadata";
+import { getSafeMetadataObjectForMerge } from "../utils/sanitizeUserMetadata";
+import {
+  resolveIndustryLabel,
+  resolveInterestLabels,
+} from "../constants/industryAndInterests";
+import { coerceMetadataStringArray } from "../utils/metadataCoerce";
 
 type PrimaryTab = "requests" | "scheduled";
 // DEPRECATED for production: "cancelled" tab commented out - users get email notifications for cancelled meetings
@@ -106,6 +114,7 @@ interface UIMeeting {
   timeUntil?: string; // "In 3hrs", "Tomorrow" (for scheduled)
   description: string; // reason from backend
   createdAt?: string; // ISO date-time for sorting (e.g. cancelled: latest first)
+  timeZone?: string;
 }
 
 // ============================================================================
@@ -244,14 +253,9 @@ export default function MeetingsScreen({ route }: Props) {
   /**
    * Format time from HH:MM:SS to "10:00 AM" format
    */
-  const formatTime = (timeString: string, utcDate?: string): string => {
+  const formatTime = (timeString: string): string => {
     try {
-      if (utcDate) return formatUtcSlotTime(utcDate, timeString);
-      const [hours, minutes] = timeString.split(":");
-      const hour = parseInt(hours, 10);
-      const ampm = hour >= 12 ? "PM" : "AM";
-      const hour12 = hour % 12 || 12;
-      return `${hour12}:${minutes} ${ampm}`;
+      return formatBackendClockTime(timeString);
     } catch {
       return timeString;
     }
@@ -395,7 +399,11 @@ export default function MeetingsScreen({ route }: Props) {
    * Calculate time until meeting for scheduled meetings
    * Returns countdown format like "In 5 days", "In 3 days", "In 2 days", "Tomorrow", "In 3hrs", "In 45mins", or "Now"
    */
-  const calculateTimeUntil = (date: string, startTime: string): string => {
+  const calculateTimeUntil = (
+    date: string,
+    startTime: string,
+    timeZone: string = EVENT_TIME_ZONE,
+  ): string => {
     try {
       // Parse date - could be YYYY-MM-DD or label format like "26th June, 2026"
       let parsedDate = date;
@@ -407,10 +415,10 @@ export default function MeetingsScreen({ route }: Props) {
         }
       }
 
-      const [hours, minutes] = startTime.split(":");
-      const meetingDateTime = utcDateTimeFromParts(
+      const meetingDateTime = zonedDateTimeFromParts(
         parsedDate,
-        `${hours}:${minutes}:00`,
+        startTime,
+        timeZone,
       );
       const now = new Date();
       const diffMs = meetingDateTime.getTime() - now.getTime();
@@ -456,14 +464,13 @@ export default function MeetingsScreen({ route }: Props) {
     otherUser: MeetingUser | null | undefined,
     otherCompany: { name?: string; company_type?: string; sector?: string; industry?: string } | null | undefined
   ) => {
-    let m = otherUser?.metadata;
-    if (typeof m === "string") {
-      try {
-        m = JSON.parse(m) as Record<string, unknown>;
-      } catch {
-        m = undefined;
-      }
-    }
+    const rootMetadata = getSafeMetadataObjectForMerge(otherUser?.metadata);
+    // Event-scoped values (e.g. metadata.asfkenya26) take precedence, while
+    // legacy users with flat metadata continue to work through the fallback.
+    const m = {
+      ...rootMetadata,
+      ...getEventMetadata(rootMetadata),
+    };
     const c = otherCompany as Record<string, unknown> | null | undefined;
     const u = otherUser as Record<string, unknown> | null | undefined;
 
@@ -479,14 +486,13 @@ export default function MeetingsScreen({ route }: Props) {
       m?.industry ||
       m?.company_sector ||
       undefined;
-    if (sector && typeof sector === "string") tags.push(sector);
+    const sectorLabel = resolveIndustryLabel(sector);
+    if (sectorLabel) tags.push(sectorLabel);
 
     const interestsRaw = m?.interests ?? m?.interest;
-    const interests = Array.isArray(interestsRaw)
-      ? interestsRaw.filter((i): i is string => typeof i === "string")
-      : typeof interestsRaw === "string"
-        ? [interestsRaw]
-        : [];
+    const interests = resolveInterestLabels(
+      coerceMetadataStringArray(interestsRaw),
+    );
 
     const bio = (m?.bio as string) || "";
 
@@ -535,28 +541,19 @@ export default function MeetingsScreen({ route }: Props) {
       : undefined;
 
     // Format time from HH:MM:SS to "10:00 AM" format
-    const startTime = formatTime(
-      virtualMeeting.scheduled_time,
-      virtualMeeting.scheduled_date,
-    );
+    const timeZone = virtualMeeting.timezone || EVENT_TIME_ZONE;
+    const timeZoneLabel = backendTimeZoneLabel(timeZone);
+    const startTime = formatTime(virtualMeeting.scheduled_time);
     // Calculate end time from duration (default 20 minutes if not provided)
     const durationMinutes = virtualMeeting.duration_minutes || 20;
-    const [startHours, startMinutes] = virtualMeeting.scheduled_time.split(":");
-    const startDate = utcDateTimeFromParts(
-      virtualMeeting.scheduled_date,
-      `${startHours}:${startMinutes}:00`,
-    );
-    const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
-    const endTime = `${formatEventTime(endDate)} ${EVENT_TIME_ZONE_LABEL}`;
+    const endTime = `${formatTime(
+      addMinutesToBackendTime(virtualMeeting.scheduled_time, durationMinutes),
+    )} ${timeZoneLabel}`;
 
     // Get date
     const date = formatDateForDisplay(
-      getEventDateIso(
-        utcDateTimeFromParts(
-          virtualMeeting.scheduled_date,
-          virtualMeeting.scheduled_time,
-        ),
-      ) || virtualMeeting.scheduled_date,
+      backendDateIso(virtualMeeting.scheduled_date) ||
+        virtualMeeting.scheduled_date,
     );
 
     // Determine if inbound (current user is requestee)
@@ -572,9 +569,10 @@ export default function MeetingsScreen({ route }: Props) {
     // Calculate timeUntil for scheduled meetings
     const timeUntil =
       virtualMeeting.status === "accepted"
-        ? calculateTimeUntil(
+          ? calculateTimeUntil(
             virtualMeeting.scheduled_date,
-            virtualMeeting.scheduled_time
+            virtualMeeting.scheduled_time,
+            timeZone,
           )
         : undefined;
 
@@ -612,6 +610,7 @@ export default function MeetingsScreen({ route }: Props) {
       timeUntil,
       description: virtualMeeting.reason,
       createdAt: virtualMeeting.created_at,
+      timeZone,
     };
   };
 
@@ -697,16 +696,15 @@ export default function MeetingsScreen({ route }: Props) {
     const slot = backendMeeting.slot;
     // Get date and format for display
     const rawDate = getMeetingDate(backendMeeting);
-    const slotUtcDate = slot?.date?.slice(0, 10) || rawDate;
-    const eventDateIso = slot?.start_time
-      ? getEventDateIso(utcDateTimeFromParts(slotUtcDate, slot.start_time))
-      : rawDate;
-    const date = formatDateForDisplay(eventDateIso || rawDate);
+    const slotDate = backendDateIso(slot?.date || "") || rawDate;
+    const timeZone = slot?.timezone || EVENT_TIME_ZONE;
+    const timeZoneLabel = backendTimeZoneLabel(timeZone);
+    const date = formatDateForDisplay(slotDate || rawDate);
     const startTime = slot?.start_time
-      ? formatTime(slot.start_time, slotUtcDate)
+      ? formatTime(slot.start_time)
       : "—";
     const endTime = slot?.end_time
-      ? `${formatTime(slot.end_time, slotUtcDate)} ${EVENT_TIME_ZONE_LABEL}`
+      ? `${formatTime(slot.end_time)} ${timeZoneLabel}`
       : "—";
 
     const metadataMeetingType = normalizeMeetingType(
@@ -743,7 +741,7 @@ export default function MeetingsScreen({ route }: Props) {
     // Calculate timeUntil for scheduled meetings
     const timeUntil =
       backendMeeting.status === "accepted" && slot?.start_time
-        ? calculateTimeUntil(rawDate, slot.start_time)
+        ? calculateTimeUntil(slotDate, slot.start_time, timeZone)
         : undefined;
 
     // Determine if inbound (current user is requestee)
@@ -786,6 +784,7 @@ export default function MeetingsScreen({ route }: Props) {
       timeUntil,
       description: backendMeeting.reason, // Keep reason as description
       createdAt: backendMeeting.created_at,
+      timeZone,
     };
     
     return mappedMeeting;
@@ -1136,6 +1135,7 @@ export default function MeetingsScreen({ route }: Props) {
             scheduled_date?: string;
             scheduled_time?: string;
             duration_minutes?: number;
+            timezone?: string;
             metadata?: any;
           } = {
             reason: updateData.description,
@@ -1157,6 +1157,7 @@ export default function MeetingsScreen({ route }: Props) {
           virtualUpdateRequest.scheduled_time =
             updateData.timeApi ||
             parseDisplayTimeToApi(updateData.time);
+          virtualUpdateRequest.timezone = meeting.timeZone || EVENT_TIME_ZONE;
           virtualUpdateRequest.duration_minutes = updateData.time.includes(
             " - ",
           )

@@ -7,14 +7,16 @@
 import React from "react";
 import { View } from "react-native";
 import { getLinkedInDisplayInfo } from "./linkedInUtils";
+import { resolveInterestLabels } from "../constants/industryAndInterests";
+import { coerceMetadataStringArray } from "./metadataCoerce";
 import { UserNotification } from "../services/notificationService";
 import { CalendarIcon, ProfileIcon, TicketsIcon } from "../components/MenuIcons";
 import { BellIcon } from "../components/HeaderIcons";
 import {
-  EVENT_TIME_ZONE_LABEL,
-  formatEventTime,
-  formatUtcSlotTime,
-  utcDateTimeFromParts,
+  EVENT_TIME_ZONE,
+  addMinutesToBackendTime,
+  backendTimeZoneLabel,
+  formatBackendClockTime,
 } from "./eventTime";
 
 // ============================================================================
@@ -703,14 +705,8 @@ export async function fetchNotificationDetails(
       const physicalMeetings = snap.physical;
       const virtualMeetings = snap.virtual;
 
-      const formatTime = (timeStr: string, utcDate?: string): string => {
-        if (utcDate) return formatUtcSlotTime(utcDate, timeStr);
-        const [hours, minutes] = timeStr.split(":").map(Number);
-        const period = hours >= 12 ? "PM" : "AM";
-        const displayHours =
-          hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-        return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
-      };
+      const formatTime = (timeStr: string): string =>
+        formatBackendClockTime(timeStr);
 
       // Build requester + meetingDetails from otherUser/otherCompany (shared logic)
       const buildRequesterAndDetails = (
@@ -729,7 +725,9 @@ export async function fetchNotificationDetails(
         if (sector) tags.push(sector);
         if (otherUser?.job_title) tags.push(otherUser.job_title);
 
-        const interests = otherUser?.metadata?.interests || [];
+        const interests = resolveInterestLabels(
+          coerceMetadataStringArray(otherUser?.metadata?.interests),
+        );
         // Align with MeetingsScreen: check linkedIn, linkedin_url, linkedin (Item 6)
         const linkedInRaw =
           otherUser?.metadata?.linkedIn ||
@@ -770,13 +768,8 @@ export async function fetchNotificationDetails(
           ? physicalMatch.requestee_company
           : physicalMatch.requester_company;
         const slot = physicalMatch.slot;
-        const slotDate =
-          slot?.date?.slice(0, 10) ||
-          (typeof physicalMatch.metadata?.selectedDate === "string"
-            ? physicalMatch.metadata.selectedDate.slice(0, 10)
-            : undefined);
         const originalTime = slot?.start_time && slot?.end_time
-          ? `${formatTime(slot.start_time, slotDate)} - ${formatTime(slot.end_time, slotDate)} ${EVENT_TIME_ZONE_LABEL}`
+          ? `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)} ${backendTimeZoneLabel(slot.timezone)}`
           : "—";
         const title =
           physicalMatch.metadata?.title ||
@@ -806,12 +799,10 @@ export async function fetchNotificationDetails(
           : virtualMatch.requester_company;
         const startTime = virtualMatch.scheduled_time;
         const durationMinutes = virtualMatch.duration_minutes ?? 20;
-        const startDate = utcDateTimeFromParts(
-          virtualMatch.scheduled_date,
-          startTime,
-        );
-        const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
-        const originalTime = `${formatEventTime(startDate)} - ${formatEventTime(endDate)} ${EVENT_TIME_ZONE_LABEL}`;
+        const timeZone = virtualMatch.timezone || EVENT_TIME_ZONE;
+        const originalTime = `${formatTime(startTime)} - ${formatTime(
+          addMinutesToBackendTime(startTime, durationMinutes),
+        )} ${backendTimeZoneLabel(timeZone)}`;
         const title =
           virtualMatch.metadata?.title ||
           (virtualMatch as any).title ||
@@ -866,7 +857,9 @@ export async function fetchNotificationDetails(
           tags.push(connectionUser.job_title);
         }
 
-        const interests = connectionUser.metadata?.interests || [];
+        const interests = resolveInterestLabels(
+          coerceMetadataStringArray(connectionUser.metadata?.interests),
+        );
 
         const linkedInRaw =
           connectionUser.metadata?.linkedIn ||

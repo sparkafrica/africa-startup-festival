@@ -24,7 +24,7 @@ import type {
 } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import { EVENT_ID } from "../config/env";
-import { authService, type UserProfile } from "../services/authService";
+import { authService, type Company, type UserProfile } from "../services/authService";
 import { companyService } from "../services/companyService";
 import { getProfileCache, setProfileCache } from "../utils/profileCache";
 import { getEventMetadata, mergeEventMetadata } from "../utils/eventMetadata";
@@ -40,7 +40,12 @@ import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
 import { useDismissKeyboardOnBackground } from "../hooks/useDismissKeyboardOnBackground";
 import { trackProfileEvent } from "../utils/analytics";
-import { INDUSTRY_OPTIONS, TOP_INTERESTS, resolveIndustryId } from "../constants/industryAndInterests";
+import {
+  INDUSTRY_OPTIONS,
+  TOP_INTERESTS,
+  resolveIndustryId,
+  resolveInterestLabels,
+} from "../constants/industryAndInterests";
 import { COUNTRY_OPTIONS } from "../constants/countries";
 import StartupConnectStep from "../components/StartupConnectStep";
 import {
@@ -64,8 +69,22 @@ import {
   isStartupPass,
 } from "../utils/asfTicketClass";
 import { type SelectOption } from "../constants/companyProfileOptions";
+import { useProfilePhotoDraft } from "../hooks/useProfilePhotoDraft";
 
 const INPUT_PLACEHOLDER_COLOR = "#9CA3AF";
+
+function companyDisplayName(
+  company?: Company | string | null,
+  metadata?: Record<string, unknown>,
+): string {
+  if (typeof company === "string") return company.trim();
+  const metadataName = metadata?.company_name ?? metadata?.organisation;
+  return (
+    company?.company_name?.trim() ||
+    company?.name?.trim() ||
+    (typeof metadataName === "string" ? metadataName.trim() : "")
+  );
+}
 
 // Offer colors
 const OFFER_COLORS = [
@@ -880,7 +899,11 @@ function AttendeeProfileForm({
   const [showIndustriesToMeetModal, setShowIndustriesToMeetModal] = useState(false);
   const [industriesExpanded, setIndustriesExpanded] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const {
+    selectedImageUri,
+    holdImage: holdProfilePhoto,
+    clearDraft: clearProfilePhotoDraft,
+  } = useProfilePhotoDraft((initialProfile ?? user)?.user_id);
   const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -907,7 +930,7 @@ function AttendeeProfileForm({
     const industryId = resolveIndustryId(meta.industry);
     if (industryId) setSelectedIndustry(industryId);
     if (Array.isArray(meta.interests)) {
-      setSelectedInterests(meta.interests as string[]);
+      setSelectedInterests(resolveInterestLabels(meta.interests as string[]));
     }
     const li = meta.linkedIn ?? meta.linkedin_url;
     if (typeof li === "string") setLinkedIn(li);
@@ -915,7 +938,10 @@ function AttendeeProfileForm({
     if (Array.isArray(meta.industries_to_meet)) {
       setIndustriesToMeet(meta.industries_to_meet as string[]);
     }
-    const companyName = (source as UserProfile).company?.name;
+    const companyName = companyDisplayName(
+      (source as UserProfile).company,
+      meta,
+    );
     if (companyName) setCompany(companyName);
   }, [source]);
 
@@ -976,7 +1002,7 @@ function AttendeeProfileForm({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImageUri(result.assets[0].uri);
+        await holdProfilePhoto(result.assets[0].uri);
         setShouldRemovePhoto(false);
         if (validationErrors.profilePhoto) {
           setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
@@ -1012,7 +1038,7 @@ function AttendeeProfileForm({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImageUri(result.assets[0].uri);
+        await holdProfilePhoto(result.assets[0].uri);
         setShouldRemovePhoto(false);
         if (validationErrors.profilePhoto) {
           setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
@@ -1027,7 +1053,7 @@ function AttendeeProfileForm({
   const handleRemovePhoto = async () => {
     try {
       setShowProfileModal(false);
-      setSelectedImageUri(null);
+      await clearProfilePhotoDraft();
       setShouldRemovePhoto(true);
     } catch (error) {
       console.error("Error removing photo:", error);
@@ -1129,8 +1155,8 @@ function AttendeeProfileForm({
       if (industriesToMeet.length > 0) {
         eventMetadataPatch.industries_to_meet = industriesToMeet;
       }
-      const metadata = mergeEventMetadata(user?.metadata, eventMetadataPatch);
-      // Note: company field is not sent to backend (company association is separate)
+      eventMetadataPatch.company_name = company.trim();
+      const metadata = mergeEventMetadata(source?.metadata, eventMetadataPatch);
 
       // Prepare API request payload
       const profileData: any = {
@@ -1168,7 +1194,7 @@ function AttendeeProfileForm({
         try {
           await authService.updateProfile(profileData, selectedImageUri ? { imageUri: selectedImageUri } : undefined);
           if (selectedImageUri) {
-            setSelectedImageUri(null);
+            await clearProfilePhotoDraft();
             setShouldRemovePhoto(false);
           }
         } catch (imageError: any) {
@@ -1737,7 +1763,11 @@ function PersonalProfileForm({
   const [showIndustriesToMeetModal, setShowIndustriesToMeetModal] = useState(false);
   const [industriesExpanded, setIndustriesExpanded] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const {
+    selectedImageUri,
+    holdImage: holdProfilePhoto,
+    clearDraft: clearProfilePhotoDraft,
+  } = useProfilePhotoDraft((initialProfile ?? user)?.user_id);
   const [shouldRemovePhoto, setShouldRemovePhoto] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1754,7 +1784,6 @@ function PersonalProfileForm({
     }
     if (initialProfile.job_title) setJobTitle(initialProfile.job_title);
     if (initialProfile.bio) setBio(initialProfile.bio);
-    if (initialProfile.company?.name) setCompany(initialProfile.company.name);
     if (initialProfile.country) {
       const opt = COUNTRY_OPTIONS.find(
         (o) =>
@@ -1763,10 +1792,12 @@ function PersonalProfileForm({
       if (opt) setSelectedCountry(opt.id);
     }
     const meta = getEventMetadata(initialProfile.metadata);
+    const initialCompanyName = companyDisplayName(initialProfile.company, meta);
+    if (initialCompanyName) setCompany(initialCompanyName);
     const industryId = resolveIndustryId(meta.industry);
     if (industryId) setSelectedIndustry(industryId);
     if (Array.isArray(meta.interests)) {
-      setSelectedInterests(meta.interests as string[]);
+      setSelectedInterests(resolveInterestLabels(meta.interests as string[]));
     }
     const li = meta.linkedIn ?? meta.linkedin_url;
     if (typeof li === "string") setLinkedIn(li);
@@ -1833,7 +1864,7 @@ function PersonalProfileForm({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImageUri(result.assets[0].uri);
+        await holdProfilePhoto(result.assets[0].uri);
         setShouldRemovePhoto(false);
         if (validationErrors.profilePhoto) {
           setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
@@ -1869,7 +1900,7 @@ function PersonalProfileForm({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImageUri(result.assets[0].uri);
+        await holdProfilePhoto(result.assets[0].uri);
         setShouldRemovePhoto(false);
         if (validationErrors.profilePhoto) {
           setValidationErrors((prev) => ({ ...prev, profilePhoto: "" }));
@@ -1884,7 +1915,7 @@ function PersonalProfileForm({
   const handleRemovePhoto = async () => {
     try {
       setShowProfileModal(false);
-      setSelectedImageUri(null);
+      await clearProfilePhotoDraft();
       setShouldRemovePhoto(true);
     } catch (error) {
       console.error("Error removing photo:", error);
@@ -1987,7 +2018,10 @@ function PersonalProfileForm({
       if (industriesToMeet.length > 0) {
         eventMetadataPatch.industries_to_meet = industriesToMeet;
       }
-      const metadata = mergeEventMetadata(user?.metadata, eventMetadataPatch);
+      if (!omitCompanyField) {
+        eventMetadataPatch.company_name = company.trim();
+      }
+      const metadata = mergeEventMetadata(initialProfile?.metadata, eventMetadataPatch);
 
       // Prepare API request payload
       const profileData: any = {
@@ -2024,7 +2058,7 @@ function PersonalProfileForm({
         try {
           await authService.updateProfile(profileData, selectedImageUri ? { imageUri: selectedImageUri } : undefined);
           if (selectedImageUri) {
-            setSelectedImageUri(null);
+            await clearProfilePhotoDraft();
             setShouldRemovePhoto(false);
           }
         } catch (imageError: any) {

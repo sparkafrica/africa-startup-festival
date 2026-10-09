@@ -7,7 +7,7 @@ import {
   EVENT_DAY_FILTER_ID_TO_ISO,
 } from "../config/env";
 import type { Event, EventSchedule } from "../services/eventService";
-import { getEventDateIso } from "./eventTime";
+import { backendDateIso } from "./eventTime";
 
 /** Filter modal option ids → ISO date on schedule.start_time */
 export const DAY_FILTER_ID_TO_ISO_DATE: Record<string, string> =
@@ -16,8 +16,8 @@ export const DAY_FILTER_ID_TO_ISO_DATE: Record<string, string> =
 export function scheduleStartDateIso(startTime: string): string {
   const trimmed = startTime.trim();
   if (trimmed.includes("T")) {
-    const eventDate = getEventDateIso(trimmed);
-    if (eventDate) return eventDate;
+    const backendDate = backendDateIso(trimmed);
+    if (backendDate) return backendDate;
   }
   if (trimmed.length >= 10 && trimmed[4] === "-" && trimmed[7] === "-") {
     return trimmed.slice(0, 10);

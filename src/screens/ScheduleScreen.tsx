@@ -95,7 +95,11 @@ import {
   isMentorHoursSession,
   showMentorHoursScheduleBlockedAlert,
 } from "../utils/scheduleRestrictions";
-import { EVENT_TIME_ZONE_LABEL, formatEventTime } from "../utils/eventTime";
+import {
+  EVENT_TIME_ZONE_LABEL,
+  backendDateTimeMs,
+  formatBackendClockTime,
+} from "../utils/eventTime";
 
 /**
  * Reference EventData for schedule cards/modals (not loaded into the live list).
@@ -290,9 +294,9 @@ export default function ScheduleScreen() {
     speakers?: Speaker[];
     description?: string;
     personalScheduleId?: number; // For My Schedule tab: backend personal schedule id (remove from schedule)
-    /** UTC ms from schedule.start_time — used for chronological sort */
+    /** Absolute ms interpreted from backend time — used for chronological sort */
     startTimeMs: number;
-    /** UTC ms from schedule.end_time */
+    /** Absolute ms interpreted from backend time */
     endTimeMs: number;
     /** YYYY-MM-DD from schedule.start_time — used for day filter matching */
     scheduleDateIso: string;
@@ -382,11 +386,7 @@ export default function ScheduleScreen() {
   const mapEventScheduleToEventData = (schedule: EventSchedule): EventData => {
     const scheduleRow = enrichEventScheduleFromCache(schedule);
 
-    // Parse start_time and end_time (ISO 8601 format)
-    const startDate = new Date(scheduleRow.start_time);
-    const endDate = new Date(scheduleRow.end_time);
-
-    // Format time as "10:00 AM"
+    // Backend owns the programme wall-clock time; do not shift it for the device.
     const eventObj =
       typeof scheduleRow.event === "object" ? scheduleRow.event : null;
     const stage = scheduleVenue(scheduleRow);
@@ -417,10 +417,10 @@ export default function ScheduleScreen() {
       title: scheduleRow.name,
       stage: stage,
       day: deriveDayLabel(scheduleRow.start_time, scheduleRow.event),
-      startTime: formatEventTime(startDate),
-      endTime: `${formatEventTime(endDate)} ${EVENT_TIME_ZONE_LABEL}`,
-      startTimeMs: startDate.getTime(),
-      endTimeMs: endDate.getTime(),
+      startTime: formatBackendClockTime(scheduleRow.start_time),
+      endTime: `${formatBackendClockTime(scheduleRow.end_time)} ${EVENT_TIME_ZONE_LABEL}`,
+      startTimeMs: backendDateTimeMs(scheduleRow.start_time),
+      endTimeMs: backendDateTimeMs(scheduleRow.end_time),
       scheduleDateIso: scheduleStartDateIso(scheduleRow.start_time),
       sessionBadge: sessionBadge
         ? {

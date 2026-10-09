@@ -6,6 +6,7 @@ import type { EventSchedule } from "../services/eventService";
 import { parseScheduleCardMetadata } from "./scheduleMetadata";
 import { getEventTodayIso } from "./eventDay";
 import { scheduleStartDateIso } from "./scheduleFilters";
+import { backendDateTimeMs } from "./eventTime";
 
 /** Sessions starting within this window get the "Starting soon" badge. */
 export const HAPPENING_SOON_MS = 60 * 60 * 1000;
@@ -18,8 +19,8 @@ export function parseScheduleTimes(
   endTime: string,
 ): { startMs: number; endMs: number } {
   return {
-    startMs: new Date(startTime).getTime(),
-    endMs: new Date(endTime).getTime(),
+    startMs: backendDateTimeMs(startTime),
+    endMs: backendDateTimeMs(endTime),
   };
 }
 

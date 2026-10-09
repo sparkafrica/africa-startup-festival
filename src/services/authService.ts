@@ -65,8 +65,10 @@ export interface AuthTokenResponse {
  * TODO: Verify actual Company structure from backend when available
  */
 export interface Company {
-  id: number;
-  name: string;
+  id?: number;
+  name?: string;
+  /** Alternate company-name key returned by some backend serializers. */
+  company_name?: string;
   contact_person?: string;
   country?: string;
   email?: string;
@@ -346,11 +348,13 @@ export const authService = {
       } catch (e: any) {
         // Fallback: save data via PUT then upload photo via PATCH
         const response = await api.put<any>("/auth/user/", profileData);
-        const profile = toUserProfile(response);
+        toUserProfile(response);
         try {
           return toUserProfile(await this.uploadProfilePicture(imageUri));
-        } catch {
-          return profile;
+        } catch (uploadError) {
+          // Profile fields were saved, but keep the local draft and let the UI
+          // report/retry the photo instead of silently treating it as uploaded.
+          throw uploadError;
         }
       }
     }
