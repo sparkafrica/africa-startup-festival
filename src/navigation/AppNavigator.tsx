@@ -6,6 +6,7 @@ import AuthNavigator from "./AuthNavigator";
 import MainNavigator from "./MainNavigator";
 import BootsplashScreen from "../screens/BootsplashScreen";
 import { applyOtaUpdateWithSplash } from "../utils/otaUpdateFlow";
+import AppUpdateGate from "../components/AppUpdateGate";
 
 /**
  * AppNavigator - Main navigation router
@@ -27,29 +28,36 @@ export default function AppNavigator() {
   } = useAuth();
 
   const [otaApplying, setOtaApplying] = useState(false);
+  const [otaCheckComplete, setOtaCheckComplete] = useState(false);
 
   const authNavigator = useMemo(() => <AuthNavigator />, []);
   const mainNavigator = useMemo(() => <MainNavigator />, []);
 
   useEffect(() => {
     if (!isAuthenticated || !hasCompletedProfile || isLoading) {
+      setOtaCheckComplete(false);
       return;
     }
 
     let cancelled = false;
 
-    void applyOtaUpdateWithSplash({
-      onSplashStart: () => {
-        if (!cancelled) {
-          setOtaApplying(true);
-        }
-      },
-      onSplashEnd: () => {
-        if (!cancelled) {
-          setOtaApplying(false);
-        }
-      },
-    });
+    void (async () => {
+      await applyOtaUpdateWithSplash({
+        onSplashStart: () => {
+          if (!cancelled) {
+            setOtaApplying(true);
+          }
+        },
+        onSplashEnd: () => {
+          if (!cancelled) {
+            setOtaApplying(false);
+          }
+        },
+      });
+      if (!cancelled) {
+        setOtaCheckComplete(true);
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -71,6 +79,10 @@ export default function AppNavigator() {
     return (
       <>
         {mainNavigator}
+        <AppUpdateGate
+          active={otaCheckComplete && !splashVisible}
+          delayMs={4000}
+        />
         <BootsplashScreen
           visible={splashVisible}
           autoComplete={brandedOnly}

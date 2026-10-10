@@ -1,17 +1,18 @@
 /**
  * Open the app listing in the platform store (Play / App Store).
- * iOS requires numeric App Store ID (EXPO_PUBLIC_IOS_APP_STORE_ID / expo.extra.iosAppStoreId).
+ * The canonical iOS ID is bundled; expo.extra.iosAppStoreId may override it.
  */
-import { Linking, Platform, Alert } from "react-native";
+import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
 
 const ANDROID_PACKAGE = "com.sparkllc.asf";
+const IOS_APP_STORE_ID = "6788565156";
 
 function getIosAppStoreId(): string {
   const extra = Constants.expoConfig?.extra as
     | { iosAppStoreId?: string }
     | undefined;
-  return extra?.iosAppStoreId?.trim() || "";
+  return extra?.iosAppStoreId?.trim() || IOS_APP_STORE_ID;
 }
 
 export async function openPlatformAppStore(customUrl?: string | null): Promise<void> {
@@ -37,14 +38,6 @@ export async function openPlatformAppStore(customUrl?: string | null): Promise<v
   }
 
   const appStoreId = getIosAppStoreId();
-  if (!appStoreId) {
-    Alert.alert(
-      "Update",
-      "Add your iOS App Store ID to EXPO_PUBLIC_IOS_APP_STORE_ID (or expo.extra.iosAppStoreId) so the Update button can open the App Store.",
-    );
-    return;
-  }
-
   const itms = `itms-apps://apps.apple.com/app/id${appStoreId}`;
   const https = `https://apps.apple.com/app/id${appStoreId}`;
   try {

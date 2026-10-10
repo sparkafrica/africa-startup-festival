@@ -374,39 +374,33 @@ interface Attendee {
   backendData?: BackendAttendee;
 }
 
-/**
- * Full-list session cache (this JS session only). Remount restores when younger than TTL.
- * Pull-to-refresh or stale focus triggers a full refetch + background page prefetch.
- */
-let attendeeFullListSessionCache: {
+type AttendeeQueryCacheEntry = {
   eventId: number;
+  query: string;
   attendees: Attendee[];
   lastFetchedPage: number;
   hasMore: boolean;
   cachedAt: number;
   apiTotalCount: number;
-} | null = null;
+};
 
-/** Client-side list search — full display name, first name, or last name only (each field checked separately). */
-function attendeeMatchesSearchQuery(
-  attendee: Attendee,
-  rawQuery: string,
-): boolean {
-  const query = rawQuery.toLowerCase().trim();
-  if (!query) return true;
-  const user = attendee.backendData?.user;
-  const fields: string[] = [];
-  if (attendee.name?.trim()) fields.push(attendee.name.trim());
-  if (user?.first_name?.trim()) fields.push(user.first_name.trim());
-  if (user?.last_name?.trim()) fields.push(user.last_name.trim());
-  const seen = new Set<string>();
-  for (const field of fields) {
-    const key = field.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    if (key.includes(query)) return true;
+/** Session cache is isolated per event + server search query. */
+const attendeeQuerySessionCache = new Map<string, AttendeeQueryCacheEntry>();
+const ATTENDEE_QUERY_CACHE_MAX_ENTRIES = 20;
+
+function attendeeQueryCacheKey(eventId: number, query: string): string {
+  return `${eventId}:${query.trim().toLowerCase()}`;
+}
+
+function setAttendeeQueryCache(entry: AttendeeQueryCacheEntry): void {
+  const key = attendeeQueryCacheKey(entry.eventId, entry.query);
+  attendeeQuerySessionCache.delete(key);
+  attendeeQuerySessionCache.set(key, entry);
+  while (attendeeQuerySessionCache.size > ATTENDEE_QUERY_CACHE_MAX_ENTRIES) {
+    const oldestKey = attendeeQuerySessionCache.keys().next().value;
+    if (typeof oldestKey !== "string") break;
+    attendeeQuerySessionCache.delete(oldestKey);
   }
-  return false;
 }
 
 /**
@@ -1157,6 +1151,12 @@ export default function AttendeesScreen() {
     clearHighlight,
     clearHighlightTimers,
     tryScrollAndHighlight,
+    isHighlighted: isAttendeeHighlighted,
+    highlightOpacity: attendeeHighlightOpacity,
+    measureRowLayout: measureAttendeeRowLayout,
+    rowViewRefs: attendeeRowViewRefs,
+    scrollViewportHeightRef: attendeeScrollViewportHeightRef,
+    scrollToOffsetRef: attendeeScrollToOffsetRef,
   } = listHighlight;
   const attendeeHighlightIndexRef = useRef(0);
   const messagesBadgeCount = useMessagesBadgeCount();
@@ -1217,8 +1217,29 @@ export default function AttendeesScreen() {
     meetingTitle: string;
   } | null>(null);
 
-  // Search state (client-side filter on cached full list)
+  // Search state — backend query is debounced; FlatList paginates that result set.
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleAttendeeSearchChange = useCallback(
+    (value: string) => {
+      // A name search is global across the attendee directory. Do not let a
+      // previous recommendation tab or metadata filter silently hide its result.
+      if (value.trim() && !searchQuery.trim()) {
+        setActiveTab("All");
+        setSelectedFilterIds([]);
+      }
+      setSearchQuery(value);
+    },
+    [searchQuery],
+  );
 
   // Backend data state
   const [allAttendeesBackend, setAllAttendeesBackend] = useState<Attendee[]>(
@@ -1388,9 +1409,9 @@ export default function AttendeesScreen() {
     (e: LayoutChangeEvent) => {
       const h = e.nativeEvent.layout.height;
       listLayoutHeightSV.value = h;
-      listHighlight.scrollViewportHeightRef.current = h;
+      attendeeScrollViewportHeightRef.current = h;
     },
-    [listLayoutHeightSV, listHighlight],
+    [listLayoutHeightSV, attendeeScrollViewportHeightRef],
   );
 
   const { toast, showToast, hideToast } = useToast();
@@ -1404,10 +1425,10 @@ export default function AttendeesScreen() {
   const attendeesFetchGenRef = useRef(0);
   /** Blocks FlatList `onEndReached` briefly after list reset / mount to avoid duplicate load-more. */
   const listEndReachAllowedAfterRef = useRef(0);
-  /** Prevents overlapping `loadMoreAttendees` / background prefetch. */
+  /** Prevents overlapping FlatList `onEndReached` requests. */
   const loadMoreInFlightRef = useRef(false);
-  const prefetchInFlightRef = useRef(false);
   const apiTotalCountRef = useRef(0);
+  const activeAttendeeQueryRef = useRef("");
 
   /** True after a successful fetch merged connections; skip redundant getConnections when restoring from session cache. */
   const connectionsSyncedForListRef = useRef(false);
@@ -1621,81 +1642,22 @@ export default function AttendeesScreen() {
     connectionsSyncedForListRef.current = true;
   }, [user?.user_id]);
 
-  /**
-   * Background-load remaining attendee pages into session cache (search runs client-side on full list).
-   */
-  const prefetchRemainingPages = useCallback(
-    async (
-      fetchGen: number,
-      startPage: number,
-      baseList: Attendee[],
-      initialHasMore: boolean,
-      apiTotal: number,
-    ) => {
-      if (!initialHasMore || prefetchInFlightRef.current) return;
-      prefetchInFlightRef.current = true;
-      setLoadingMore(true);
-
-      let page = startPage;
-      let list = baseList.map((a) => ({ ...a }));
-      const ids = new Set(list.map((a) => a.id));
-      let hasMore: boolean = initialHasMore;
-      const mapRef = connectionStatusMapRef.current;
-      const meetingRef = acceptedMeetingPeerIdsRef.current;
-
-      try {
-        while (hasMore && fetchGen === attendeesFetchGenRef.current) {
-          page += 1;
-          const res = await attendeeService.getEventAttendees(EVENT_ID, "all", {
-            page,
-            page_size: ATTENDEE_LIST_PAGE_SIZE,
-            ordering: ATTENDEE_LIST_ORDERING,
-          });
-          const mapped = res.attendees.map((a) => {
-            const ui = mapBackendAttendeeToUI(a);
-            const status = mapRef.get(String(ui.id)) ?? null;
-            return {
-              ...ui,
-              connectionStatus: status,
-              hasAcceptedMeeting: meetingRef.has(String(ui.id)),
-            };
-          });
-          const deduped = mapped.filter((row) => !ids.has(row.id));
-          for (const row of deduped) ids.add(row.id);
-          list = [...list, ...deduped];
-          hasMore = !!res.pagination?.next;
-
-          if (fetchGen !== attendeesFetchGenRef.current) return;
-
-          setAllAttendeesBackend(list);
-          setAttendeePage(page);
-          setHasMoreAttendees(hasMore);
-          attendeeFullListSessionCache = {
-            eventId: EVENT_ID,
-            attendees: list.map((a) => ({ ...a })),
-            lastFetchedPage: page,
-            hasMore,
-            cachedAt: Date.now(),
-            apiTotalCount: apiTotal,
-          };
-        }
-      } catch {
-        // Keep partial list; user can pull to refresh
-      } finally {
-        prefetchInFlightRef.current = false;
-        setLoadingMore(false);
-      }
-    },
-    [],
-  );
-
-  /**
-   * Fetch attendees page 1 (reset). Remaining pages prefetch in background for client-side search.
-   */
-  const fetchAttendees = useCallback(async () => {
+  /** Fetch page 1 for one server-owned attendee name query. */
+  const fetchAttendees = useCallback(async (query = "") => {
+    const normalizedQuery = query.trim();
+    const queryChanged =
+      activeAttendeeQueryRef.current !== normalizedQuery;
     const fetchGen = ++attendeesFetchGenRef.current;
+    activeAttendeeQueryRef.current = normalizedQuery;
 
     listEndReachAllowedAfterRef.current = Date.now() + 800;
+    loadMoreInFlightRef.current = false;
+    setLoadingMore(false);
+    if (queryChanged) {
+      setAllAttendeesBackend([]);
+      setAttendeePage(1);
+      setHasMoreAttendees(false);
+    }
     setIsLoading(true);
     setError(null);
     connectionsSyncedForListRef.current = false;
@@ -1719,6 +1681,7 @@ export default function AttendeesScreen() {
             }))
           : Promise.resolve({ physical: [], virtual: [], fetchedAt: 0 }),
         attendeeService.getEventAttendees(EVENT_ID, "all", {
+          name: normalizedQuery || undefined,
           page: 1,
           page_size: ATTENDEE_LIST_PAGE_SIZE,
           ordering: ATTENDEE_LIST_ORDERING,
@@ -1768,53 +1731,56 @@ export default function AttendeesScreen() {
       const totalCount = firstRes.pagination?.count ?? 0;
       apiTotalCountRef.current = totalCount;
       const hasNext = !!firstRes.pagination?.next;
-      const partialPage =
-        totalCount > 0 && batch.length > 0 && batch.length < totalCount;
-      const hasMorePages = batch.length > 0 && (hasNext || partialPage);
 
       if (batch.length > 0) {
         mergeBatch(batch);
       }
 
-      if (fetchGen !== attendeesFetchGenRef.current) return;
+      const hasMorePages = hasNext;
+
+      if (
+        fetchGen !== attendeesFetchGenRef.current ||
+        activeAttendeeQueryRef.current !== normalizedQuery
+      ) {
+        return;
+      }
       connectionsSyncedForListRef.current = true;
       const now = Date.now();
-      attendeeFullListSessionCache = {
+      setAttendeeQueryCache({
         eventId: EVENT_ID,
+        query: normalizedQuery,
         attendees: allMapped.map((a) => ({ ...a })),
         lastFetchedPage: 1,
         hasMore: hasMorePages,
         cachedAt: now,
         apiTotalCount: totalCount,
-      };
+      });
       setError(null);
       setAllAttendeesBackend(allMapped);
       setAttendeePage(1);
       setHasMoreAttendees(hasMorePages);
-
-      if (hasMorePages) {
-        void prefetchRemainingPages(
-          fetchGen,
-          1,
-          allMapped,
-          hasMorePages,
-          totalCount,
-        );
-      }
     } catch (err: any) {
-      if (fetchGen !== attendeesFetchGenRef.current) return;
+      if (
+        fetchGen !== attendeesFetchGenRef.current ||
+        activeAttendeeQueryRef.current !== normalizedQuery
+      ) {
+        return;
+      }
       const errorMessage =
         err instanceof ApiClientError
           ? err.message
           : "Failed to load attendees";
       setError(errorMessage);
     } finally {
-      if (fetchGen === attendeesFetchGenRef.current) {
+      if (
+        fetchGen === attendeesFetchGenRef.current &&
+        activeAttendeeQueryRef.current === normalizedQuery
+      ) {
         setIsLoading(false);
         listEndReachAllowedAfterRef.current = Date.now() + 600;
       }
     }
-  }, [user?.user_id, prefetchRemainingPages]);
+  }, [user?.user_id]);
 
   /**
    * Handle pull-to-refresh
@@ -1822,31 +1788,40 @@ export default function AttendeesScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchAttendees();
+      await fetchAttendees(debouncedSearchQuery);
       setSkippedAttendeeIds(new Set());
     } catch {
       // Error already handled in fetchAttendees
     } finally {
       setRefreshing(false);
     }
-  }, [fetchAttendees]);
+  }, [debouncedSearchQuery, fetchAttendees]);
 
   /**
    * Load next page (FlatList `onEndReached` / card stack near end). Appends rows; skips duplicate `user.id`.
    */
   const loadMoreAttendees = useCallback(async () => {
     if (!hasMoreAttendees || loadingMore || isLoading) return;
-    if (loadMoreInFlightRef.current || prefetchInFlightRef.current) return;
+    if (loadMoreInFlightRef.current) return;
     if (Date.now() < listEndReachAllowedAfterRef.current) return;
     loadMoreInFlightRef.current = true;
     setLoadingMore(true);
+    const fetchGen = attendeesFetchGenRef.current;
+    const query = activeAttendeeQueryRef.current;
     try {
       const nextPage = attendeePage + 1;
       const res = await attendeeService.getEventAttendees(EVENT_ID, "all", {
+        name: query || undefined,
         page: nextPage,
         page_size: ATTENDEE_LIST_PAGE_SIZE,
         ordering: ATTENDEE_LIST_ORDERING,
       });
+      if (
+        fetchGen !== attendeesFetchGenRef.current ||
+        query !== activeAttendeeQueryRef.current
+      ) {
+        return;
+      }
       const mapRef = connectionStatusMapRef.current;
       const meetingRef = acceptedMeetingPeerIdsRef.current;
       const mapped = res.attendees.map((a) => {
@@ -1858,45 +1833,75 @@ export default function AttendeesScreen() {
           hasAcceptedMeeting: meetingRef.has(String(ui.id)),
         };
       });
-      const hasNext = !!res.pagination?.next;
-      const apiTotal = apiTotalCountRef.current;
-      setAllAttendeesBackend((prev) => {
-        const ids = new Set(prev.map((x) => x.id));
-        const deduped = mapped.filter((row) => !ids.has(row.id));
-        const nextList = [...prev, ...deduped];
-        attendeeFullListSessionCache = {
-          eventId: EVENT_ID,
-          attendees: nextList.map((a) => ({ ...a })),
-          lastFetchedPage: nextPage,
-          hasMore: hasNext,
-          cachedAt: Date.now(),
-          apiTotalCount: apiTotal,
-        };
-        return nextList;
+      const loadedByUserId = new Map(
+        allAttendeesBackend.map((row) => [row.id, row] as const),
+      );
+      const deduped: Attendee[] = [];
+      for (const row of mapped) {
+        if (loadedByUserId.has(row.id)) continue;
+        loadedByUserId.set(row.id, row);
+        deduped.push(row);
+      }
+      const nextList = [...allAttendeesBackend, ...deduped];
+      const apiTotal = res.pagination?.count ?? apiTotalCountRef.current;
+      apiTotalCountRef.current = apiTotal;
+      const hasNextLink = !!res.pagination?.next;
+      const hasNext = hasNextLink;
+
+      setAttendeeQueryCache({
+        eventId: EVENT_ID,
+        query,
+        attendees: nextList.map((a) => ({ ...a })),
+        lastFetchedPage: nextPage,
+        hasMore: hasNext,
+        cachedAt: Date.now(),
+        apiTotalCount: apiTotal,
       });
+      setAllAttendeesBackend(nextList);
       setAttendeePage(nextPage);
       setHasMoreAttendees(hasNext);
     } catch {
-      // Keep list; optional toast could go here
+      // Keep the current page visible; pull-to-refresh remains available.
     } finally {
       loadMoreInFlightRef.current = false;
-      setLoadingMore(false);
-      listEndReachAllowedAfterRef.current = Date.now() + 450;
+      if (query === activeAttendeeQueryRef.current) {
+        setLoadingMore(false);
+        listEndReachAllowedAfterRef.current = Date.now() + 450;
+      }
     }
-  }, [hasMoreAttendees, loadingMore, isLoading, attendeePage]);
+  }, [
+    hasMoreAttendees,
+    loadingMore,
+    isLoading,
+    attendeePage,
+    allAttendeesBackend,
+  ]);
 
   const onAttendeeListEndReached = useCallback(() => {
     if (Date.now() < listEndReachAllowedAfterRef.current) return;
     void loadMoreAttendees();
   }, [loadMoreAttendees]);
 
-  // First open: fetch from API. Remount within TTL: restore session cache (no refetch).
+  // Every debounced name query owns its page state and session cache entry.
   useEffect(() => {
-    const cache = attendeeFullListSessionCache;
+    if (directoryMode !== "attendees") {
+      ++attendeesFetchGenRef.current;
+      loadMoreInFlightRef.current = false;
+      setLoadingMore(false);
+      return;
+    }
+    const query = debouncedSearchQuery.trim();
+    loadMoreInFlightRef.current = false;
+    setLoadingMore(false);
+    const cache = attendeeQuerySessionCache.get(
+      attendeeQueryCacheKey(EVENT_ID, query),
+    );
     const cacheAgeMs = cache ? Date.now() - cache.cachedAt : Infinity;
     const cacheFresh =
       cache?.eventId === EVENT_ID && cacheAgeMs < ATTENDEE_CACHE_TTL_MS;
     if (cacheFresh && cache) {
+      ++attendeesFetchGenRef.current;
+      activeAttendeeQueryRef.current = query;
       connectionsSyncedForListRef.current = false;
       apiTotalCountRef.current = cache.apiTotalCount;
       setAllAttendeesBackend(cache.attendees.map((a) => ({ ...a })));
@@ -1905,20 +1910,10 @@ export default function AttendeesScreen() {
       setHasMoreAttendees(cache.hasMore);
       setAttendeePage(cache.lastFetchedPage);
       listEndReachAllowedAfterRef.current = Date.now() + 600;
-      if (cache.hasMore) {
-        void prefetchRemainingPages(
-          attendeesFetchGenRef.current,
-          cache.lastFetchedPage,
-          cache.attendees,
-          cache.hasMore,
-          cache.apiTotalCount,
-        );
-      }
       return;
     }
-    void fetchAttendees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void fetchAttendees(query);
+  }, [debouncedSearchQuery, directoryMode, fetchAttendees]);
 
   // After cache restore, merge connection statuses once (full fetches already include connections).
   useEffect(() => {
@@ -1930,15 +1925,21 @@ export default function AttendeesScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshMeetingsBadge();
-      const cache = attendeeFullListSessionCache;
+      if (directoryMode !== "attendees") return;
+      const query = activeAttendeeQueryRef.current;
+      const cache = attendeeQuerySessionCache.get(
+        attendeeQueryCacheKey(EVENT_ID, query),
+      );
+      // The query effect owns first load and query changes. Focus only refreshes
+      // a known cached query, which avoids issuing the same initial request twice.
       if (!cache || cache.eventId !== EVENT_ID) return;
       const cacheAgeMs = Date.now() - cache.cachedAt;
       if (cacheAgeMs >= ATTENDEE_CACHE_TTL_MS) {
-        void fetchAttendees();
+        void fetchAttendees(query);
         return;
       }
       void syncMessagingEligibility();
-    }, [fetchAttendees, syncMessagingEligibility]),
+    }, [directoryMode, fetchAttendees, syncMessagingEligibility]),
   );
 
   // Mock data — disabled; API is the sole source (re-enable for local UI dev only)
@@ -1982,13 +1983,6 @@ export default function AttendeesScreen() {
     );
   }
 
-  // Apply search (client-side on cached list — display name, first name, or last name only).
-  if (viewMode === "list" && searchQuery.trim().length > 0) {
-    displayedAttendees = displayedAttendees.filter((attendee) =>
-      attendeeMatchesSearchQuery(attendee, searchQuery),
-    );
-  }
-
   const displayedStartups = useMemo(() => {
     let rows = directoryStartups;
     if (searchQuery.trim().length > 0) {
@@ -2007,6 +2001,7 @@ export default function AttendeesScreen() {
       setDirectoryMode(mode);
       setActiveTab("All");
       setSearchQuery("");
+      setDebouncedSearchQuery("");
       setCurrentCardIndex(0);
       clearHighlight();
     },
@@ -2170,6 +2165,14 @@ export default function AttendeesScreen() {
     ],
   );
 
+  // List rows use a stable callback so appending a page does not force every
+  // existing memoized row to render again. The ref always calls current logic.
+  const latestHandleConnectRef = useRef(handleConnect);
+  latestHandleConnectRef.current = handleConnect;
+  const handleListConnect = useCallback((attendee: Attendee) => {
+    void latestHandleConnectRef.current(attendee, false);
+  }, []);
+
   const openMeetingForAttendee = useCallback(
     async (attendee: Attendee) => {
       const canBook = await getCanUserBookMeetings();
@@ -2257,7 +2260,15 @@ export default function AttendeesScreen() {
     [setFloatingNavSuppressed],
   );
 
-  listHighlight.scrollToOffsetRef.current = useCallback(() => {
+  const handleListOpen = useCallback(
+    (attendee: Attendee) => {
+      clearHighlight();
+      openBottomSheet(attendee);
+    },
+    [clearHighlight, openBottomSheet],
+  );
+
+  attendeeScrollToOffsetRef.current = useCallback(() => {
     try {
       attendeeListRef.current?.scrollToIndex({
         index: attendeeHighlightIndexRef.current,
@@ -2403,20 +2414,20 @@ export default function AttendeesScreen() {
 
   const renderAttendeeListItem = useCallback(
     ({ item }: ListRenderItemInfo<Attendee>) => {
-      const highlighted = listHighlight.isHighlighted(item.id);
+      const highlighted = isAttendeeHighlighted(item.id);
       return (
         <View
           ref={(node) => {
             if (node) {
-              listHighlight.rowViewRefs.current.set(item.id, node);
-              listHighlight.measureRowLayout(item.id, node);
+              attendeeRowViewRefs.current.set(item.id, node);
+              measureAttendeeRowLayout(item.id, node);
             } else {
-              listHighlight.rowViewRefs.current.delete(item.id);
+              attendeeRowViewRefs.current.delete(item.id);
             }
           }}
           onLayout={() => {
-            const node = listHighlight.rowViewRefs.current.get(item.id);
-            if (node) listHighlight.measureRowLayout(item.id, node);
+            const node = attendeeRowViewRefs.current.get(item.id);
+            if (node) measureAttendeeRowLayout(item.id, node);
           }}
           style={{
             position: "relative",
@@ -2429,20 +2440,25 @@ export default function AttendeesScreen() {
           <AttendeeListRow
             item={item}
             skipped={skippedAttendeeIds.has(item.id)}
-            onOpen={() => {
-              listHighlight.clearHighlight();
-              openBottomSheet(item);
-            }}
-            onConnect={handleConnect}
+            onOpen={handleListOpen}
+            onConnect={handleListConnect}
           />
           <ListRowHighlightOverlay
             visible={highlighted}
-            opacity={listHighlight.highlightOpacity}
+            opacity={attendeeHighlightOpacity}
           />
         </View>
       );
     },
-    [skippedAttendeeIds, openBottomSheet, handleConnect, listHighlight],
+    [
+      attendeeHighlightOpacity,
+      attendeeRowViewRefs,
+      handleListConnect,
+      handleListOpen,
+      isAttendeeHighlighted,
+      measureAttendeeRowLayout,
+      skippedAttendeeIds,
+    ],
   );
 
   const attendeeListKeyExtractor = useCallback((item: Attendee) => item.id, []);
@@ -2816,7 +2832,7 @@ export default function AttendeesScreen() {
                     placeholder="Search for attendees..."
                     placeholderTextColor="#A3A3A3"
                     value={searchQuery}
-                    onChangeText={setSearchQuery}
+                    onChangeText={handleAttendeeSearchChange}
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
@@ -2841,7 +2857,7 @@ export default function AttendeesScreen() {
               <View className="flex-1 items-center justify-center py-20 px-4">
                 <Text className="text-red-600 text-center mb-4">{error}</Text>
                 <Pressable
-                  onPress={() => void fetchAttendees()}
+                  onPress={() => void fetchAttendees(debouncedSearchQuery)}
                   className="bg-black px-6 py-3"
                   style={{ borderRadius: 0 }}
                 >

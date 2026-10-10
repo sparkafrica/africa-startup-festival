@@ -2,7 +2,12 @@ import React from "react";
 import { View, Pressable, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { ScanIcon, TicketIcon, BellIcon, MenuIcon } from "./HeaderIcons";
+import {
+  ScanIcon,
+  TicketIcon,
+  BellIcon,
+  MenuIcon,
+} from "./HeaderIcons";
 import { MailIcon } from "./MenuIcons";
 
 interface HeaderBarProps {

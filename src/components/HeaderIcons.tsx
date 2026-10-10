@@ -59,6 +59,20 @@ export function BellIcon({ size = 20, color = "#404040" }: IconProps) {
   );
 }
 
+export function DownloadIcon({ size = 20, color = "#404040" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M10 3V13M10 13L6 9M10 13L14 9M3 17H17"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export function MenuIcon({ size = 20, color = "#404040" }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">

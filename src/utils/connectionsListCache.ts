@@ -73,11 +73,38 @@ async function loadConnectionsFromApi(
   }
 
   fetchPromise = (async () => {
-    const response = await connectionService.getConnections(
-      1,
-      CONNECTIONS_CACHE_PAGE_SIZE,
-    );
-    setConnectionsListCache(response.connections, response.pagination);
+    const connections: Connection[] = [];
+    const seenIds = new Set<number>();
+    let page = 1;
+    let pagination: PaginationMeta = {
+      count: 0,
+      next: null,
+      previous: null,
+    };
+
+    // Connection state annotates attendee rows but never determines directory
+    // membership. Load every connection page so badges are not limited to page 1.
+    while (page <= 100) {
+      const response = await connectionService.getConnections(
+        page,
+        CONNECTIONS_CACHE_PAGE_SIZE,
+      );
+      pagination = response.pagination;
+      for (const connection of response.connections) {
+        if (!seenIds.has(connection.id)) {
+          seenIds.add(connection.id);
+          connections.push(connection);
+        }
+      }
+
+      if (!pagination.next) break;
+      page += 1;
+    }
+
+    setConnectionsListCache(connections, {
+      ...pagination,
+      count: pagination.count || connections.length,
+    });
     return snapshot!;
   })();
 
