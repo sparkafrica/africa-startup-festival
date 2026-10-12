@@ -11,6 +11,7 @@ import { authService, UserProfile, Company } from "../services/authService";
 import { api } from "../services/api";
 import { isProfileComplete } from "../utils/profileCompletion";
 import { ticketService, clearTicketCache } from "../services/ticketService";
+import { ticketIsSpeakerPass } from "../utils/asfTicketClass";
 import { notificationService } from "../services/notificationService";
 import { registerForPushNotifications } from "../utils/pushRegistration";
 import {
@@ -80,6 +81,20 @@ const STORAGE_KEYS = {
   PUSH_REGISTRATION_ID: "@spark:push_registration_id",
 } as const;
 
+async function isCurrentUserProfileComplete(
+  userProfile: UserProfile,
+): Promise<boolean> {
+  const ticket = await ticketService
+    .getUserTicket(EVENT_ID)
+    .catch(() => null);
+
+  return isProfileComplete(userProfile, {
+    // Speaker Pass holders always use the personal attendee profile, even if
+    // their backend user happens to administer a company record.
+    skipCompanyProfile: ticketIsSpeakerPass(ticket),
+  });
+}
+
 interface AuthProviderProps {
   children: ReactNode;
 }
@@ -137,7 +152,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       );
       setUser(userProfile);
 
-      const profileComplete = isProfileComplete(userProfile);
+      const profileComplete = await isCurrentUserProfileComplete(userProfile);
       setHasCompletedProfile(profileComplete);
       if (profileComplete) {
         await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
@@ -224,7 +239,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
           ticketService.getUserTicket(EVENT_ID).catch(() => {});
 
-          const profileComplete = isProfileComplete(userProfile);
+          const profileComplete =
+            await isCurrentUserProfileComplete(userProfile);
           setHasCompletedProfile(profileComplete);
           if (profileComplete) {
             await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");
@@ -332,20 +348,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Step 2: Fetch user profile (token is now stored, so API client adds it to headers)
     const userProfile = await authService.getCurrentUser();
 
-    // Step 3: Prefetch user ticket for Menu (reduces green→blue flash when opening Menu)
-    ticketService.getUserTicket(EVENT_ID).catch(() => {});
-
-    // Step 4: Map UserProfile to User (they have the same structure now, so direct assignment)
+    // Step 3: Map UserProfile to User (they have the same structure now, so direct assignment)
     // User interface matches backend UserProfile structure (D1: Option B)
     const user: User = userProfile;
 
-    // Step 5: Store user in AsyncStorage for persistence
+    // Step 4: Store user in AsyncStorage for persistence
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
 
-    // Step 6: Determine profile completion from backend data (field-based inference)
-    const profileComplete = isProfileComplete(userProfile);
+    // Step 5: Fetch the ticket and determine profile completion.
+    const profileComplete = await isCurrentUserProfileComplete(userProfile);
 
-    // Step 7: Update state and persist completion so app start doesn't re-gate them
+    // Step 6: Update state and persist completion so app start doesn't re-gate them
     setUser(user);
     setHasCompletedProfile(profileComplete);
     if (profileComplete) {
@@ -453,8 +466,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Fetch fresh user profile from backend (source of truth)
       const userProfile = await authService.getCurrentUser();
 
-      ticketService.getUserTicket(EVENT_ID).catch(() => {});
-
       await AsyncStorage.setItem(
         STORAGE_KEYS.USER,
         JSON.stringify(userProfile),
@@ -463,7 +474,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const user: User = userProfile;
       setUser(user);
 
-      const profileComplete = isProfileComplete(userProfile);
+      const profileComplete = await isCurrentUserProfileComplete(userProfile);
       setHasCompletedProfile(profileComplete);
 
       if (profileComplete) {
@@ -516,13 +527,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshUser = async () => {
     try {
       const userProfile = await authService.getCurrentUser();
-      ticketService.getUserTicket(EVENT_ID).catch(() => {});
       await AsyncStorage.setItem(
         STORAGE_KEYS.USER,
         JSON.stringify(userProfile),
       );
       setUser(userProfile);
-      const profileComplete = isProfileComplete(userProfile);
+      const profileComplete = await isCurrentUserProfileComplete(userProfile);
       setHasCompletedProfile(profileComplete);
       if (profileComplete) {
         await AsyncStorage.setItem(STORAGE_KEYS.PROFILE_COMPLETE, "true");

@@ -129,19 +129,19 @@ export function requiresCompanyProfile(user: UserProfile): boolean {
  * - Company profile is required only when user has a company AND is that company's admin_user
  *
  * @param user - User profile from backend
- * @param ticketQuotas - Deprecated. Ignored; kept for compatibility with existing callers.
+ * @param options.skipCompanyProfile - Event roles such as Speaker Pass use only
+ * the personal attendee profile, even when the user administers a company.
  * @returns boolean indicating if profile is complete
  */
 export function isProfileComplete(
   user: UserProfile,
-  ticketQuotas?: unknown[],
+  options?: { skipCompanyProfile?: boolean },
 ): boolean {
   // Personal profile is always required
   const personalComplete = isPersonalProfileComplete(user);
 
-  // ticketQuotas intentionally ignored - company requirement is admin_user-based only.
-  void ticketQuotas;
-  const needsCompanyProfile = requiresCompanyProfile(user);
+  const needsCompanyProfile =
+    !options?.skipCompanyProfile && requiresCompanyProfile(user);
 
   // Debug logging removed for production - uncomment if needed for debugging
   // console.log("Profile completion check - needsCompanyProfile:", needsCompanyProfile);

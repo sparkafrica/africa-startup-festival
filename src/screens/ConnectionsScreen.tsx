@@ -34,7 +34,6 @@ import {
 import { hasPendingMeetingWithPeer } from "../utils/messagingEligibility";
 import { trackMeetingEvent, trackConnectionEvent } from "../utils/analytics";
 import {
-  coerceMetadataLabel,
   coerceMetadataStringArray,
 } from "../utils/metadataCoerce";
 import { getEventMetadata } from "../utils/eventMetadata";
@@ -77,6 +76,8 @@ import {
 import Toast from "../components/Toast";
 import { EVENT_ID } from "../config/env";
 import { isPostEventMode } from "../config/eventMode";
+import { isSpeakerPass } from "../utils/asfTicketClass";
+import SpeakerBadge from "../components/SpeakerBadge";
 
 // Person Icon Component (for profile placeholder)
 function PersonIcon({
@@ -227,6 +228,7 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
             >
               {connection.name}
             </Text>
+            {connection.isSpeaker ? <SpeakerBadge compact /> : null}
             {/* Status Indicator */}
             {statusIndicator && (
               <View
@@ -361,6 +363,10 @@ export default function ConnectionsScreen() {
 
     // Backend schema types metadata as string (JSON); normalize to object so we can read interests, bio, industry, etc.
     const metadata = getEventMetadata(otherUser?.metadata);
+    const isSpeaker =
+      otherUser.is_speaker === true ||
+      isSpeakerPass(otherUser.user_type ?? undefined) ||
+      isSpeakerPass(otherUser.ticket_type ?? undefined);
 
     // Interests may be strings or `{ label, value }` from registration forms.
     const interestsArray = resolveInterestLabels(
@@ -407,7 +413,7 @@ export default function ConnectionsScreen() {
       about: bio || undefined,
       interests: interestsArray.length > 0 ? interestsArray : undefined,
       linkedInUrl,
-      isSpeaker: false, // TODO: Determine from backend data if needed
+      isSpeaker,
       status: backendConnection.status,
       isFromCurrentUser,
     };
@@ -1336,9 +1342,15 @@ export default function ConnectionsScreen() {
                     )}
                   </View>
                   <View className="flex-1">
-                    <Text className="text-2xl font-bold text-neutral-900 mb-1">
-                      {displayConnection.name}
-                    </Text>
+                    <View
+                      className="flex-row items-center flex-wrap mb-1"
+                      style={{ gap: 8 }}
+                    >
+                      <Text className="text-2xl font-bold text-neutral-900">
+                        {displayConnection.name}
+                      </Text>
+                      {displayConnection.isSpeaker ? <SpeakerBadge /> : null}
+                    </View>
                     <Text className="text-base text-neutral-500 mb-3">
                       {displayConnection.title && displayConnection.company
                         ? `${displayConnection.title} · ${displayConnection.company}`
@@ -1407,14 +1419,14 @@ export default function ConnectionsScreen() {
                   )}
 
                 {/* Speaking Sessions Section - Only for Speakers */}
-                {selectedConnection.isSpeaker &&
-                  selectedConnection.speakingSessions &&
-                  selectedConnection.speakingSessions.length > 0 && (
+                {displayConnection.isSpeaker &&
+                  displayConnection.speakingSessions &&
+                  displayConnection.speakingSessions.length > 0 && (
                     <View className="mb-6">
                       <Text className="text-lg font-bold text-neutral-900 mb-3">
                         Speaking Sessions
                       </Text>
-                      {selectedConnection.speakingSessions.map(
+                      {displayConnection.speakingSessions.map(
                         (session, index) => (
                           <View
                             key={index}

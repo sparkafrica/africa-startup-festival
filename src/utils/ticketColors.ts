@@ -7,6 +7,7 @@ import {
   isGoldInvestorLabel,
   isLimitedInvestorLabel,
   isLimitedPassLabel,
+  isSpeakerLabel,
 } from "./asfTicketClassMatch";
 
 const DEFAULT_PASS = "explorer";
@@ -49,7 +50,7 @@ const TICKET_LABELS: Record<string, string> = {
   exhibitor: "Exhibitor",
   partner: "Partner",
   media: "Media",
-  speaker: "Speaker",
+  speaker: "Speaker Pass",
 };
 
 function isStartupPassAlias(normalized: string): boolean {
@@ -81,7 +82,7 @@ export function getTicketBackgroundColor(ticketTypeOrName?: string): string {
   if (t.includes("partner") || t.includes("sponsor")) return TICKET_COLORS.partner;
   if (t.includes("exhibitor")) return TICKET_COLORS.exhibitor;
   if (t.includes("media")) return TICKET_COLORS.media;
-  if (t.includes("speaker")) return TICKET_COLORS.speaker;
+  if (isSpeakerLabel(t)) return TICKET_COLORS.speaker;
 
   return TICKET_COLORS[DEFAULT_PASS];
 }
@@ -119,7 +120,7 @@ export function getTicketTypeDisplay(ticketTypeOrName?: string): {
     return { label: TICKET_LABELS.exhibitor, color: TICKET_COLORS.exhibitor };
   if (t.includes("media"))
     return { label: TICKET_LABELS.media, color: TICKET_COLORS.media };
-  if (t.includes("speaker"))
+  if (isSpeakerLabel(t))
     return { label: TICKET_LABELS.speaker, color: TICKET_COLORS.speaker };
 
   return {
@@ -143,7 +144,7 @@ export function getTicketGradientColors(
     return TICKET_GRADIENTS.partner;
   if (t.includes("exhibitor")) return TICKET_GRADIENTS.exhibitor;
   if (t.includes("media")) return TICKET_GRADIENTS.media;
-  if (t.includes("speaker")) return TICKET_GRADIENTS.speaker;
+  if (isSpeakerLabel(t)) return TICKET_GRADIENTS.speaker;
   return TICKET_GRADIENTS[DEFAULT_PASS];
 }
 

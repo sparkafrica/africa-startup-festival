@@ -58,6 +58,12 @@ export function isOperatorLabel(nameOrType?: string, userType?: string): boolean
   return t.includes("operator") || ut === "operator";
 }
 
+export function isSpeakerLabel(nameOrType?: string, userType?: string): boolean {
+  const t = normalizeAsfTicketLabel(nameOrType);
+  const ut = normalizeAsfTicketLabel(userType);
+  return t === "speaker" || t === "speaker pass" || ut === "speaker";
+}
+
 /**
  * Paid / grant ladder sort key (low → high). -1 = not on attendee upgrade ladder.
  * Limited Investor = 2 (same band as Startup for upgrade targets).
@@ -82,7 +88,7 @@ export function asfTierSortKey(
     t.includes("partner") ||
     t.includes("sponsor") ||
     t.includes("media") ||
-    t.includes("speaker") ||
+    isSpeakerLabel(t, ut) ||
     ut === "exhibitor" ||
     ut === "partner" ||
     ut === "media"

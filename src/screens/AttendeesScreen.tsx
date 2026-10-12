@@ -81,7 +81,10 @@ import {
   getCanUserInitiateConnection,
   showExhibitionCannotInitiateConnectionAlert,
 } from "../utils/meetingRestrictions";
-import { ticketTypeFromTicket } from "../utils/asfTicketClass";
+import {
+  ticketIsSpeakerPass,
+  ticketTypeFromTicket,
+} from "../utils/asfTicketClass";
 import {
   canMessageAttendee,
   canRequestMeetingWithAttendee,
@@ -126,12 +129,12 @@ import {
 import { LinkedInLinkLabel } from "../components/LinkedInLinkLabel";
 import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
 import {
-  coerceMetadataLabel,
   coerceMetadataStringArray,
 } from "../utils/metadataCoerce";
 import { getEventMetadata } from "../utils/eventMetadata";
 import Svg, { Path, Circle } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
+import SpeakerBadge from "../components/SpeakerBadge";
 
 /**
  * Keep the first response small so the directory can paint quickly. Remaining
@@ -370,6 +373,7 @@ interface Attendee {
   interests?: string[];
   linkedInUrl?: string;
   industry?: string;
+  isSpeaker?: boolean;
   connectionStatus?: "pending" | "accepted" | null;
   hasAcceptedMeeting?: boolean;
   backendData?: BackendAttendee;
@@ -478,12 +482,16 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
           </View>
 
           <View className="flex-1 pt-2">
-            <Text
-              className="text-base font-bold text-neutral-900 mb-1"
-              numberOfLines={1}
-            >
-              {item.name}
-            </Text>
+            <View className="flex-row items-center mb-1" style={{ gap: 7 }}>
+              <Text
+                className="text-base font-bold text-neutral-900"
+                numberOfLines={1}
+                style={{ flexShrink: 1 }}
+              >
+                {item.name}
+              </Text>
+              {item.isSpeaker ? <SpeakerBadge compact /> : null}
+            </View>
 
             <Text className="text-sm text-neutral-600" numberOfLines={1}>
               {item.role && item.company
@@ -868,6 +876,7 @@ function AttendeeCard({
                 >
                   {attendee.name}
                 </Text>
+                {attendee.isSpeaker ? <SpeakerBadge compact /> : null}
                 {attendee.connectionStatus && (
                   <View
                     className="px-2 py-0.5"
@@ -1597,6 +1606,7 @@ export default function AttendeesScreen() {
         interests: interests.length > 0 ? interests : undefined,
         linkedInUrl: linkedInUrl,
         industry: industry || undefined,
+        isSpeaker: ticketIsSpeakerPass(backendAttendee.ticket),
         backendData: backendAttendee,
       };
     },
@@ -3242,9 +3252,15 @@ export default function AttendeesScreen() {
                       )}
                     </View>
                     <View className="flex-1">
-                      <Text className="text-2xl font-bold text-neutral-900 mb-1">
-                        {selectedAttendee.name}
-                      </Text>
+                      <View
+                        className="flex-row items-center flex-wrap mb-1"
+                        style={{ gap: 8 }}
+                      >
+                        <Text className="text-2xl font-bold text-neutral-900">
+                          {selectedAttendee.name}
+                        </Text>
+                        {selectedAttendee.isSpeaker ? <SpeakerBadge /> : null}
+                      </View>
                       <Text className="text-base text-neutral-600">
                         {selectedAttendee.role && selectedAttendee.company
                           ? `${selectedAttendee.role} · ${selectedAttendee.company}`

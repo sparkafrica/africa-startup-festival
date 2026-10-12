@@ -49,6 +49,12 @@ export function ticketTypeFromTicket(ticket: TicketShape | null): string {
   if (!ticket) return "";
   const candidates = collectTicketTypeStrings(ticket);
   if (candidates.length === 0) return "";
+  // Speaker is an event role as well as a pass. Preserve it even if the
+  // backend pairs `user_type: speaker` with a more generic class name.
+  const speakerCandidate = candidates.find((candidate) =>
+    isSpeakerPass(candidate),
+  );
+  if (speakerCandidate) return speakerCandidate;
   // Prefer display name (matches Menu) over generic backend user_type e.g. "attendee".
   const nameFirst = [
     ticket.type?.name,
@@ -167,6 +173,18 @@ export function isPartnerPass(ticketTypeOrName?: string): boolean {
 export function isMediaPass(ticketTypeOrName?: string): boolean {
   const t = normalizeType(ticketTypeOrName);
   return t.includes("media");
+}
+
+export function isSpeakerPass(ticketTypeOrName?: string): boolean {
+  const t = normalizeType(ticketTypeOrName);
+  return t === "speaker" || t === "speaker pass";
+}
+
+/** True when any ticket field identifies the private Speaker Pass. */
+export function ticketIsSpeakerPass(ticket: TicketShape | null): boolean {
+  return collectTicketTypeStrings(ticket).some((candidate) =>
+    isSpeakerPass(candidate),
+  );
 }
 
 /** Limited Pass and Explorer: no in-app meeting booking. */

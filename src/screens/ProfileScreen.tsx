@@ -77,6 +77,7 @@ import {
 import {
   getCurrentUserTicketInfo,
   getCurrentUserTicketType,
+  isSpeakerPass,
   isStartupPass,
 } from "../utils/asfTicketClass";
 import StartupConnectStep from "../components/StartupConnectStep";
@@ -4284,9 +4285,12 @@ export default function ProfileScreen() {
 
   const companyType = resolveCompanyType(sourceUser?.company ?? null, ticketType);
   const isStartupPassHolder = isStartupPass(ticketType);
+  const isSpeakerPassHolder =
+    isSpeakerPass(ticketType) || isSpeakerPass(ticketClassName);
   const useStartupSecondTab =
     isStartupPassHolder || isStartupCompanyType(companyType);
-  const showSegmentedProfile = isCompanyAdmin || isStartupPassHolder;
+  const showSegmentedProfile =
+    !isSpeakerPassHolder && (isCompanyAdmin || isStartupPassHolder);
   const showStartupConnect =
     useStartupSecondTab &&
     activeTab === "Company" &&

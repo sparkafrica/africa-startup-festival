@@ -19,6 +19,9 @@ export interface AttendeeTicket {
   id: number;
   ticket_code: string;
   ticket_type?: string;
+  type?: { name?: string; user_type?: string };
+  ticket_class?: { name?: string; user_type?: string };
+  ticket_class_name?: string;
   // Add other ticket fields as needed
 }
 
