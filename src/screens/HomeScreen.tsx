@@ -472,7 +472,7 @@ export default function HomeScreen() {
         />
       )}
       <BannerCard
-        title="Our meetings calender is full"
+        title="Our Meetings Calender is Full"
         description="Book the few remaining meeting slots to maximize your event experience."
         buttonText="Browse attendees"
         gradient={gradients.sparkBlack}

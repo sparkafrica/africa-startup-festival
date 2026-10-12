@@ -18,6 +18,7 @@ import {
   PanResponder,
   RefreshControl,
   Image,
+  InteractionManager,
   ImageSourcePropType,
   Linking,
   Alert,
@@ -133,10 +134,10 @@ import Svg, { Path, Circle } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 
 /**
- * API page size for attendee list (matches typical backend max, e.g. 100 per page).
- * Initial load + `onEndReached` fetch the next page and append.
+ * Keep the first response small so the directory can paint quickly. Remaining
+ * pages are appended in the background / as the user scrolls.
  */
-const ATTENDEE_LIST_PAGE_SIZE = 100;
+const ATTENDEE_LIST_PAGE_SIZE = 30;
 /**
  * Attendee row primary key — stable sort for offset pagination.
  */
@@ -1534,113 +1535,167 @@ export default function AttendeesScreen() {
   /**
    * Map backend Attendee to UI Attendee format
    */
-  const mapBackendAttendeeToUI = (
-    backendAttendee: BackendAttendee,
-  ): Attendee => {
-    const user = backendAttendee.user;
+  const mapBackendAttendeeToUI = useCallback(
+    (backendAttendee: BackendAttendee): Attendee => {
+      const user = backendAttendee.user;
 
-    const metadata = getEventMetadata(user.metadata);
+      const metadata = getEventMetadata(user.metadata);
 
-    // Extract name
-    const firstName = user.first_name || "";
-    const lastName = user.last_name || "";
-    const fullName = `${firstName} ${lastName}`.trim() || user.email;
+      // Extract name
+      const firstName = user.first_name || "";
+      const lastName = user.last_name || "";
+      const fullName = `${firstName} ${lastName}`.trim() || user.email;
 
-    // Extract role (job_title or organisation_role)
-    const role = user.job_title || user.organisation_role || undefined;
+      // Extract role (job_title or organisation_role)
+      const role = user.job_title || user.organisation_role || undefined;
 
-    // Extract company name - check company.name first (like participant cards), then fall back to organisation
-    const company =
-      (user as any).company?.name ||
-      (user as any).company?.company_name ||
-      user.organisation ||
-      undefined;
+      // Extract company name - check company.name first (like participant cards), then fall back to organisation
+      const company =
+        (user as any).company?.name ||
+        (user as any).company?.company_name ||
+        user.organisation ||
+        undefined;
 
-    // Extract avatar
-    const avatar = user.profile_pic ? { uri: user.profile_pic } : undefined;
+      // Extract avatar
+      const avatar = user.profile_pic ? { uri: user.profile_pic } : undefined;
 
-    // Extract tags (industry/sector only — country omitted from cards)
-    const tags: string[] = [];
-    const industry = resolveIndustryLabel(
-      metadata?.industry ||
-        metadata?.sector ||
-        (user as any).company?.company_sector,
-    );
-    if (industry) {
-      tags.push(industry);
-    }
+      // Extract tags (industry/sector only — country omitted from cards)
+      const tags: string[] = [];
+      const industry = resolveIndustryLabel(
+        metadata?.industry ||
+          metadata?.sector ||
+          (user as any).company?.company_sector,
+      );
+      if (industry) {
+        tags.push(industry);
+      }
 
-    // Extract interests from metadata (may be array, comma-separated string, or missing)
-    const interests = resolveInterestLabels(
-      coerceMetadataStringArray(metadata?.interests),
-    );
+      // Extract interests from metadata (may be array, comma-separated string, or missing)
+      const interests = resolveInterestLabels(
+        coerceMetadataStringArray(metadata?.interests),
+      );
 
-    // Extract bio from metadata
-    const bio = typeof metadata.bio === "string" ? metadata.bio : "";
+      // Extract bio from metadata
+      const bio = typeof metadata.bio === "string" ? metadata.bio : "";
 
-    const linkedInUrl =
-      (typeof metadata.linkedIn === "string" ? metadata.linkedIn : undefined) ||
-      (typeof metadata.linkedin_url === "string"
-        ? metadata.linkedin_url
-        : undefined);
+      const linkedInUrl =
+        (typeof metadata.linkedIn === "string"
+          ? metadata.linkedIn
+          : undefined) ||
+        (typeof metadata.linkedin_url === "string"
+          ? metadata.linkedin_url
+          : undefined);
 
-    return {
-      id: String(user.id),
-      name: fullName,
-      role: role,
-      company: company,
-      avatar: avatar,
-      tags: tags.length > 0 ? tags : undefined,
-      bio: bio || undefined,
-      interests: interests.length > 0 ? interests : undefined,
-      linkedInUrl: linkedInUrl,
-      industry: industry || undefined,
-      backendData: backendAttendee,
-    };
+      return {
+        id: String(user.id),
+        name: fullName,
+        role: role,
+        company: company,
+        avatar: avatar,
+        tags: tags.length > 0 ? tags : undefined,
+        bio: bio || undefined,
+        interests: interests.length > 0 ? interests : undefined,
+        linkedInUrl: linkedInUrl,
+        industry: industry || undefined,
+        backendData: backendAttendee,
+      };
+    },
+    [],
+  );
+
+  type MessagingEligibility = {
+    connectionStatusMap: Map<string, "pending" | "accepted">;
+    meetingPeerIds: Set<string>;
   };
+
+  /**
+   * Connection/meeting badges enhance the directory but must never delay its
+   * first paint. Callers can start this alongside the attendee request and
+   * apply the result after attendee rows are already visible.
+   */
+  const loadMessagingEligibility = useCallback(
+    async (): Promise<MessagingEligibility> => {
+      const currentUserId = user?.user_id;
+      if (!currentUserId) {
+        return {
+          connectionStatusMap: new Map(),
+          meetingPeerIds: new Set(),
+        };
+      }
+
+      const emptyConnections = {
+        connections: [] as any[],
+        pagination: { count: 0, next: null, previous: null },
+      };
+      const [connectionsRes, meetingsSnap] = await Promise.all([
+        ensureConnectionsList().catch(() => emptyConnections),
+        ensureMeetingsList().catch(() => ({
+          physical: [],
+          virtual: [],
+          fetchedAt: 0,
+        })),
+      ]);
+      const currentId = String(currentUserId);
+      const connectionStatusMap = new Map<string, "pending" | "accepted">();
+      for (const connection of connectionsRes.connections) {
+        const fromId = String(connection.from_user.id);
+        const toId = String(connection.to_user.id);
+        const otherId = fromId === currentId ? toId : fromId;
+        if (
+          connection.status === "pending" ||
+          connection.status === "accepted"
+        ) {
+          connectionStatusMap.set(otherId, connection.status);
+        }
+      }
+
+      return {
+        connectionStatusMap,
+        meetingPeerIds: getAcceptedMeetingPeerIds(
+          meetingsSnap.physical,
+          currentId,
+        ),
+      };
+    },
+    [user?.user_id],
+  );
+
+  const applyMessagingEligibility = useCallback(
+    ({ connectionStatusMap, meetingPeerIds }: MessagingEligibility) => {
+      connectionStatusMapRef.current = connectionStatusMap;
+      acceptedMeetingPeerIdsRef.current = meetingPeerIds;
+      setAllAttendeesBackend((previous) =>
+        previous.map((attendee) => {
+          const connectionStatus =
+            connectionStatusMap.get(String(attendee.id)) ?? null;
+          const hasAcceptedMeeting = meetingPeerIds.has(String(attendee.id));
+          if (
+            attendee.connectionStatus === connectionStatus &&
+            attendee.hasAcceptedMeeting === hasAcceptedMeeting
+          ) {
+            return attendee;
+          }
+          return {
+            ...attendee,
+            connectionStatus,
+            hasAcceptedMeeting,
+          };
+        }),
+      );
+      connectionsSyncedForListRef.current = true;
+    },
+    [],
+  );
 
   /**
    * Refresh connection badges and accepted-meeting messaging flags on existing rows.
    * Used when the list is restored from session cache without a full attendee refetch.
    */
   const syncMessagingEligibility = useCallback(async () => {
-    const currentUserId = user?.user_id;
-    if (!currentUserId) return;
-    const currentId = String(currentUserId);
-    const emptyConnections = {
-      connections: [] as any[],
-      pagination: { count: 0, next: null, previous: null },
-    };
-    const [connectionsRes, meetingsSnap] = await Promise.all([
-      ensureConnectionsList().catch(() => emptyConnections),
-      ensureMeetingsList().catch(() => ({
-        physical: [],
-        virtual: [],
-        fetchedAt: 0,
-      })),
-    ]);
-    const meetings = meetingsSnap.physical;
-    const map = new Map<string, "pending" | "accepted">();
-    for (const c of connectionsRes.connections) {
-      const fromId = String(c.from_user.id);
-      const toId = String(c.to_user.id);
-      const otherId = fromId === currentId ? toId : fromId;
-      if (c.status === "pending" || c.status === "accepted") {
-        map.set(otherId, c.status);
-      }
-    }
-    const meetingPeers = getAcceptedMeetingPeerIds(meetings, currentId);
-    connectionStatusMapRef.current = map;
-    acceptedMeetingPeerIdsRef.current = meetingPeers;
-    setAllAttendeesBackend((prev) =>
-      prev.map((a) => ({
-        ...a,
-        connectionStatus: map.get(String(a.id)) ?? null,
-        hasAcceptedMeeting: meetingPeers.has(String(a.id)),
-      })),
-    );
-    connectionsSyncedForListRef.current = true;
-  }, [user?.user_id]);
+    if (!user?.user_id) return;
+    const eligibility = await loadMessagingEligibility();
+    applyMessagingEligibility(eligibility);
+  }, [applyMessagingEligibility, loadMessagingEligibility, user?.user_id]);
 
   /** Fetch page 1 for one server-owned attendee name query. */
   const fetchAttendees = useCallback(async (query = "") => {
@@ -1662,51 +1717,23 @@ export default function AttendeesScreen() {
     setError(null);
     connectionsSyncedForListRef.current = false;
     try {
-      const currentUserId = user?.user_id;
-
-      const emptyConnections = {
-        connections: [] as any[],
-        pagination: { count: 0, next: null, previous: null },
-      };
-
-      const [connectionsRes, meetingsSnap, firstRes] = await Promise.all([
-        currentUserId
-          ? ensureConnectionsList().catch(() => emptyConnections)
-          : Promise.resolve(emptyConnections),
-        currentUserId
-          ? ensureMeetingsList().catch(() => ({
-              physical: [],
-              virtual: [],
-              fetchedAt: 0,
-            }))
-          : Promise.resolve({ physical: [], virtual: [], fetchedAt: 0 }),
-        attendeeService.getEventAttendees(EVENT_ID, "all", {
+      // Start badge enrichment concurrently, but await only the directory page
+      // before painting. A slow connections/meetings endpoint can no longer hold
+      // the attendee list behind its skeleton.
+      const eligibilityPromise = loadMessagingEligibility().catch(() => null);
+      const firstRes = await attendeeService.getEventAttendees(
+        EVENT_ID,
+        "all",
+        {
           name: normalizedQuery || undefined,
           page: 1,
           page_size: ATTENDEE_LIST_PAGE_SIZE,
           ordering: ATTENDEE_LIST_ORDERING,
-        }),
-      ]);
-      const meetingsRes = meetingsSnap.physical;
+        },
+      );
 
-      const connectionStatusMap = new Map<string, "pending" | "accepted">();
-      const meetingPeerIds = currentUserId
-        ? getAcceptedMeetingPeerIds(meetingsRes, String(currentUserId))
-        : new Set<string>();
-      if (currentUserId && connectionsRes.connections.length > 0) {
-        const currentId = String(currentUserId);
-        for (const c of connectionsRes.connections) {
-          const fromId = String(c.from_user.id);
-          const toId = String(c.to_user.id);
-          const otherId = fromId === currentId ? toId : fromId;
-          if (c.status === "pending" || c.status === "accepted") {
-            connectionStatusMap.set(otherId, c.status);
-          }
-        }
-      }
-
-      connectionStatusMapRef.current = connectionStatusMap;
-      acceptedMeetingPeerIdsRef.current = meetingPeerIds;
+      const connectionStatusMap = connectionStatusMapRef.current;
+      const meetingPeerIds = acceptedMeetingPeerIdsRef.current;
 
       const seenIds = new Set<string>();
       const allMapped: Attendee[] = [];
@@ -1744,6 +1771,8 @@ export default function AttendeesScreen() {
       ) {
         return;
       }
+      // This fetch owns the in-flight enrichment. Prevent the cache-restore
+      // effect from starting the same work again after page one commits.
       connectionsSyncedForListRef.current = true;
       const now = Date.now();
       setAttendeeQueryCache({
@@ -1759,6 +1788,17 @@ export default function AttendeesScreen() {
       setAllAttendeesBackend(allMapped);
       setAttendeePage(1);
       setHasMoreAttendees(hasMorePages);
+
+      void eligibilityPromise.then((eligibility) => {
+        if (!eligibility) return;
+        if (
+          fetchGen !== attendeesFetchGenRef.current ||
+          activeAttendeeQueryRef.current !== normalizedQuery
+        ) {
+          return;
+        }
+        applyMessagingEligibility(eligibility);
+      });
     } catch (err: any) {
       if (
         fetchGen !== attendeesFetchGenRef.current ||
@@ -1780,7 +1820,11 @@ export default function AttendeesScreen() {
         listEndReachAllowedAfterRef.current = Date.now() + 600;
       }
     }
-  }, [user?.user_id]);
+  }, [
+    applyMessagingEligibility,
+    loadMessagingEligibility,
+    mapBackendAttendeeToUI,
+  ]);
 
   /**
    * Handle pull-to-refresh
@@ -1881,6 +1925,42 @@ export default function AttendeesScreen() {
     if (Date.now() < listEndReachAllowedAfterRef.current) return;
     void loadMoreAttendees();
   }, [loadMoreAttendees]);
+
+  // Warm page two once page one is visible and navigation/paint interactions
+  // have settled. `loadMoreInFlightRef` also guards against an overlapping
+  // FlatList `onEndReached` request.
+  useEffect(() => {
+    if (
+      directoryMode !== "attendees" ||
+      isLoading ||
+      loadingMore ||
+      attendeePage !== 1 ||
+      !hasMoreAttendees ||
+      allAttendeesBackend.length === 0
+    ) {
+      return;
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      timer = setTimeout(() => {
+        void loadMoreAttendees();
+      }, 700);
+    });
+
+    return () => {
+      interaction.cancel();
+      if (timer) clearTimeout(timer);
+    };
+  }, [
+    allAttendeesBackend.length,
+    attendeePage,
+    directoryMode,
+    hasMoreAttendees,
+    isLoading,
+    loadingMore,
+    loadMoreAttendees,
+  ]);
 
   // Every debounced name query owns its page state and session cache entry.
   useEffect(() => {
