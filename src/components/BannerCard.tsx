@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { ArrowRightIcon } from "./icons";
+import AnimatedArrowRightIcon from "./AnimatedArrowRightIcon";
 import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
 
 export type BannerVariant = "black" | "white";
@@ -152,7 +152,10 @@ export default function BannerCard({
               </Text>
               {/* Optical nudge: Inter bold sits slightly low vs SVG geometric center */}
               <View style={{ transform: [{ translateY: 1 }] }}>
-                <ArrowRightIcon size={16} color={styles.iconColor} />
+                <AnimatedArrowRightIcon
+                  size={16}
+                  color={styles.iconColor}
+                />
               </View>
             </View>
           </Pressable>

@@ -185,6 +185,28 @@ export function PeopleIcon({
   );
 }
 
+export function UserPlusIcon({ size = 24, color = "#404040" }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M15 21V19C15 16.7909 13.2091 15 11 15H7C4.79086 15 3 16.7909 3 19V21"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle cx="9" cy="7" r="4" stroke={color} strokeWidth="2" />
+      <Path
+        d="M19 8V14M16 11H22"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export function CalendarIcon({
   active = false,
   size = 24,

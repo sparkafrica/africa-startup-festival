@@ -450,14 +450,14 @@ export default function HomeScreen() {
         onPress={() => navigation.navigate("Startups")}
       /> */}
       <BannerCard
-        title="ASF 2026!"
-        description="Start booking meetings with founders, investors, and operators."
-        buttonText="Book meetings"
+        title="ASF 2026 Sessions"
+        description="Add sessions to your schedule to plan your day effectively."
+        buttonText="Browse sessions"
         gradient={gradients.sparkBlack}
-        variant="black"
-        square
-        backgroundImage={require("../assets/images/1st-card.jpg")}
-        onPress={() => navigation.navigate("Attendees")}
+        // variant="black"
+        // square
+        backgroundImage={require("../assets/images/DSC_1368.jpg")}
+        onPress={() => navigation.navigate("Schedule")}
       />
       {hiddenDirectoryTabs.has("startups") ? null : (
         <BannerCard
@@ -472,12 +472,12 @@ export default function HomeScreen() {
         />
       )}
       <BannerCard
-        title="Your ticket"
-        description="View your ticket and access to the event."
-        buttonText="View ticket"
+        title="Our meetings calender is full"
+        description="Book the few remaining meeting slots to maximize your event experience."
+        buttonText="Browse attendees"
         gradient={gradients.sparkBlack}
-        backgroundImage={require("../assets/images/2nd-card.jpg")}
-        onPress={() => navigation.navigate("ScanQR", { initialTab: "My Ticket" })}
+        backgroundImage={require("../assets/images/FAP_9664.jpg")}
+        onPress={() => navigation.navigate("Attendees")}
       /> 
       {/* <BannerCard
         title="Connect with our 2026 Startups"

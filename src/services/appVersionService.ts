@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { ENV, EVENT_ID } from "../config/env";
 
@@ -146,9 +147,9 @@ export async function fetchAppVersionPolicy(): Promise<AppVersionPolicy> {
 }
 
 export function getInstalledNativeBuild(): number | null {
-  // In production this is read from the installed binary and cannot be changed
-  // by an OTA manifest. Metro uses app config so build-6 behavior is testable.
-  const nativeBuild = asBuild(Constants.nativeBuildVersion);
+  // Read the store build from native Info.plist/PackageInfo. Unlike expoConfig,
+  // this value cannot be replaced by the manifest shipped in an OTA update.
+  const nativeBuild = asBuild(Application.nativeBuildVersion);
   if (!__DEV__) return nativeBuild;
 
   const configuredBuild =
