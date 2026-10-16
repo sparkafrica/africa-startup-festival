@@ -46,3 +46,28 @@ export function meetingBelongsToEvent(
   const resolved = fromSlot ?? fromEvent ?? fromId;
   return resolved === eventId;
 }
+
+/**
+ * Event match for rows returned by an already event-scoped endpoint.
+ *
+ * Some virtual-meeting serializers currently omit `event`/`event_id`, even
+ * though the request itself is scoped with `?event_id=...`. Missing scope is
+ * therefore accepted, but an explicit event from another event is rejected.
+ */
+export function meetingMatchesRequestedEvent(
+  meeting: {
+    slot?: { event?: number | { id?: number } } | null;
+    event?: number | { id?: number } | null;
+    event_id?: number | null;
+  },
+  eventId: number = EVENT_ID,
+): boolean {
+  const fromSlot = resolveEventId(meeting.slot?.event ?? null);
+  const fromEvent = resolveEventId(meeting.event ?? null);
+  const fromId =
+    typeof meeting.event_id === "number" && Number.isFinite(meeting.event_id)
+      ? meeting.event_id
+      : null;
+  const resolved = fromSlot ?? fromEvent ?? fromId;
+  return resolved == null || resolved === eventId;
+}

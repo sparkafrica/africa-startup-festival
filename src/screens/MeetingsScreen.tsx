@@ -243,6 +243,20 @@ export default function MeetingsScreen({ route }: Props) {
     filtered = filtered.filter((m) =>
       secondaryTab === "inbound" ? m.isInbound : !m.isInbound
     );
+    if (__DEV__) {
+      console.log("[meetings-ui:filter]", {
+        primaryTab,
+        secondaryTab,
+        totalMapped: allMeetingsForCounts.length,
+        visibleCount: filtered.length,
+        visible: filtered.map((meeting) => ({
+          backendMeetingId: meeting.backendMeetingId,
+          isVirtual: meeting.isVirtual,
+          status: meeting.status,
+          isInbound: meeting.isInbound,
+        })),
+      });
+    }
     setMeetings(filtered);
   }, [allMeetingsForCounts, primaryTab, secondaryTab]);
 
@@ -855,6 +869,18 @@ export default function MeetingsScreen({ route }: Props) {
       const virtualUIMeetings = virtualMeetings.map((meeting) =>
         mapVirtualMeetingToUI(meeting, currentUserId),
       );
+      if (__DEV__) {
+        console.log("[meetings-ui:apply]", {
+          currentUserId,
+          physicalCount: physicalUIMeetings.length,
+          virtualCount: virtualUIMeetings.length,
+          virtualMeetings: virtualUIMeetings.map((meeting) => ({
+            backendMeetingId: meeting.backendMeetingId,
+            status: meeting.status,
+            isInbound: meeting.isInbound,
+          })),
+        });
+      }
       setAllMeetingsForCounts([...physicalUIMeetings, ...virtualUIMeetings]);
     },
     [mapBackendMeetingToUI, mapVirtualMeetingToUI],

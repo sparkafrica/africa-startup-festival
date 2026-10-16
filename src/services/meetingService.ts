@@ -7,7 +7,10 @@
 import { api, ApiResponse, PaginationMeta } from "./api";
 import { ApiClientError } from "./api";
 import { EVENT_ID } from "../config/env";
-import { meetingBelongsToEvent } from "../utils/eventScope";
+import {
+  meetingBelongsToEvent,
+  meetingMatchesRequestedEvent,
+} from "../utils/eventScope";
 import { parseDisplayTimeToApi } from "../utils/meetingDateTime";
 import { EVENT_TIME_ZONE } from "../utils/eventTime";
 
@@ -234,6 +237,73 @@ function isVirtualMeetingEntityPayload(value: unknown): value is VirtualMeeting 
     typeof o.requester === "string" &&
     typeof o.requestee === "string"
   );
+}
+
+function virtualMeetingDiagnosticSummary(value: unknown) {
+  if (typeof value !== "object" || value === null) return null;
+  const meeting = value as Record<string, any>;
+  const eventValue = meeting.event;
+  return {
+    keys: Object.keys(meeting).sort(),
+    id: meeting.id,
+    status: meeting.status,
+    requester: meeting.requester,
+    requestee: meeting.requestee,
+    event:
+      eventValue && typeof eventValue === "object"
+        ? eventValue.id
+        : eventValue,
+    event_id: meeting.event_id,
+    scheduled_date: meeting.scheduled_date,
+    scheduled_time: meeting.scheduled_time,
+    duration_minutes: meeting.duration_minutes,
+    timezone: meeting.timezone,
+    meeting_link_present: Boolean(meeting.meeting_link),
+    requester_info_present: Boolean(meeting.requester_info),
+    requestee_info_present: Boolean(meeting.requestee_info),
+  };
+}
+
+function apiResponseDiagnosticShape(value: unknown) {
+  if (typeof value !== "object" || value === null) {
+    return { type: typeof value };
+  }
+  const response = value as Record<string, any>;
+  return {
+    type: Array.isArray(value) ? "array" : "object",
+    keys: Object.keys(response).sort(),
+    status: response.status,
+    response_code: response.response_code,
+    top_level_count: Array.isArray(value) ? value.length : undefined,
+    data_type: Array.isArray(response.data)
+      ? "array"
+      : response.data === null
+        ? "null"
+        : typeof response.data,
+    data_count: Array.isArray(response.data)
+      ? response.data.length
+      : response.data?.results?.length,
+    results_count: Array.isArray(response.results)
+      ? response.results.length
+      : undefined,
+  };
+}
+
+async function invalidateMeetingsCacheAfterCreate(): Promise<void> {
+  try {
+    // Loaded lazily to avoid a static dependency cycle: the cache imports this
+    // service to perform list requests.
+    const { invalidateMeetingsListCache } = await import(
+      "../utils/meetingsListCache"
+    );
+    invalidateMeetingsListCache();
+  } catch (error) {
+    // A cache-maintenance failure must not turn a successful booking into an
+    // apparent API failure. The next stale/forced refresh will still recover.
+    if (__DEV__) {
+      console.warn("[meetings-cache:post-create-invalidation-failed]", error);
+    }
+  }
 }
 
 // ============================================================================
@@ -622,6 +692,8 @@ export const meetingService = {
       };
       await this.createMeetingRequest(eventId, meetingRequest);
     }
+
+    await invalidateMeetingsCacheAfterCreate();
   },
 
   /**
@@ -831,9 +903,29 @@ export const meetingService = {
         meetings = data.results as VirtualMeeting[];
       }
 
-      return meetings.filter((meeting) =>
-        meetingBelongsToEvent(meeting, eventId),
+      const scopedMeetings = meetings.filter((meeting) =>
+        meetingMatchesRequestedEvent(meeting, eventId),
       );
+
+      if (__DEV__) {
+        const droppedMeetings = meetings.filter(
+          (meeting) => !meetingMatchesRequestedEvent(meeting, eventId),
+        );
+        console.log("[virtual-meetings:list-response]", {
+          endpoint: `/virtual-meetings/?event_id=${eventId}`,
+          requestedEventId: eventId,
+          response: apiResponseDiagnosticShape(response),
+          extractedCount: meetings.length,
+          retainedCount: scopedMeetings.length,
+          droppedCount: droppedMeetings.length,
+          retained: scopedMeetings.map(virtualMeetingDiagnosticSummary),
+          droppedByEventFilter: droppedMeetings.map(
+            virtualMeetingDiagnosticSummary,
+          ),
+        });
+      }
+
+      return scopedMeetings;
     } catch (error: any) {
       if (error instanceof ApiClientError) {
         throw error;
@@ -859,10 +951,36 @@ export const meetingService = {
     request: VirtualMeetingRequest
   ): Promise<VirtualMeeting> {
     try {
+      if (__DEV__) {
+        console.log("[virtual-meetings:create-request]", {
+          endpoint: `POST /virtual-meetings/${EVENT_ID}/request/`,
+          eventId: EVENT_ID,
+          request: {
+            requestee_id: request.requestee_id,
+            scheduled_date: request.scheduled_date,
+            scheduled_time: request.scheduled_time,
+            duration_minutes: request.duration_minutes,
+            timezone: request.timezone,
+            meeting_link_present: Boolean(request.meeting_link),
+            reason_length: request.reason?.length ?? 0,
+            metadata: request.metadata,
+          },
+        });
+      }
+
       const response = await api.post<any>(
         `/virtual-meetings/${EVENT_ID}/request/`,
         request
       );
+
+      if (__DEV__) {
+        const responseCandidate = response?.data ?? response;
+        console.log("[virtual-meetings:create-response]", {
+          endpoint: `POST /virtual-meetings/${EVENT_ID}/request/`,
+          response: apiResponseDiagnosticShape(response),
+          createdMeeting: virtualMeetingDiagnosticSummary(responseCandidate),
+        });
+      }
 
       if (response.status === "success" && response.data) {
         return response.data as VirtualMeeting;
