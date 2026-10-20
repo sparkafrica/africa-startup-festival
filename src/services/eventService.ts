@@ -1375,11 +1375,31 @@ export const eventService = {
         };
       }
       if (data?.status === "success" && data?.data) {
-        const list = Array.isArray(data.data) ? data.data : data.data?.results;
+        const responseData = data.data;
+        const list = Array.isArray(responseData)
+          ? responseData
+          : responseData?.results;
         if (Array.isArray(list)) {
+          const pagination =
+            data.pagination ??
+            (!Array.isArray(responseData) ? responseData?.pagination : null) ??
+            (!Array.isArray(responseData) ? responseData : null);
           return {
             companies: list as Company[],
-            pagination: { count: list.length, next: null, previous: null },
+            pagination: {
+              count:
+                typeof pagination?.count === "number"
+                  ? pagination.count
+                  : list.length,
+              next:
+                typeof pagination?.next === "string"
+                  ? pagination.next
+                  : null,
+              previous:
+                typeof pagination?.previous === "string"
+                  ? pagination.previous
+                  : null,
+            },
           };
         }
       }

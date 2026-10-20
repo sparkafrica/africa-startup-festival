@@ -21,6 +21,7 @@ export function useCompanyDeeplinkHighlight(
   companyType: "exhibitor" | "partner" | "startup",
   displayedCompanies: CompanyRow[],
   isLoading: boolean,
+  scrollToOffsetOverride?: (offset: number) => void,
 ) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, typeof screen>>();
@@ -42,8 +43,12 @@ export function useCompanyDeeplinkHighlight(
   );
 
   listHighlight.scrollToOffsetRef.current = useCallback((y?: number) => {
+    if (scrollToOffsetOverride) {
+      scrollToOffsetOverride(y ?? 0);
+      return;
+    }
     scrollRef.current?.scrollTo({ y: y ?? 0, animated: true });
-  }, []);
+  }, [scrollToOffsetOverride]);
 
   const registerScrollViewport = useCallback((height: number) => {
     listHighlight.scrollViewportHeightRef.current = height;

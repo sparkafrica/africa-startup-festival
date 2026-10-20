@@ -24,6 +24,10 @@ import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
 import { bootstrapEventData } from "../utils/eventDataCache";
 import {
+  ensureStartupsDirectory,
+  getCachedStartupsDirectory,
+} from "../utils/startupsDirectoryCache";
+import {
   HeaderBar,
   BannerCard,
   Card,
@@ -158,9 +162,14 @@ export default function HomeScreen() {
   const [partnersError, setPartnersError] = useState<string | null>(null);
 
   const [featuredStartups, setFeaturedStartups] = useState<FeaturedCompany[]>(
-    [],
+    () =>
+      (getCachedStartupsDirectory()?.companies ?? [])
+        .slice(0, 4)
+        .map((c) => ({ id: c.id, organisation: c.name, logo: c.logo })),
   );
-  const [startupsLoading, setStartupsLoading] = useState(true);
+  const [startupsLoading, setStartupsLoading] = useState(
+    featuredStartups.length === 0,
+  );
   const [startupsError, setStartupsError] = useState<string | null>(null);
 
   const hiddenDirectoryTabs = new Set(eventFeatures.hiddenHomeDirectoryTabs);
@@ -289,25 +298,12 @@ export default function HomeScreen() {
   };
 
   // Fetch featured startups (from directory)
-  const fetchFeaturedStartups = async () => {
-    setStartupsLoading(true);
+  const fetchFeaturedStartups = async (force = false) => {
+    const hasCachedStartups = getCachedStartupsDirectory() != null;
+    if (!hasCachedStartups) setStartupsLoading(true);
     setStartupsError(null);
     try {
-      const response = await eventService.getDirectoryCompanies(
-        EVENT_ID,
-        "startup",
-        {
-          page_size: 4,
-          ordering: "-id",
-        },
-      );
-      if (__DEV__) {
-        console.log("[directory] startups", {
-          eventId: EVENT_ID,
-          count: response.pagination.count,
-          loaded: response.companies.length,
-        });
-      }
+      const response = await ensureStartupsDirectory({ force });
       setFeaturedStartups(
         response.companies
           .slice(0, 4)
@@ -318,7 +314,7 @@ export default function HomeScreen() {
         err instanceof ApiClientError
           ? err.message
           : "Failed to load featured startups";
-      setStartupsError(errorMessage);
+      if (!hasCachedStartups) setStartupsError(errorMessage);
     } finally {
       setStartupsLoading(false);
     }
@@ -336,7 +332,7 @@ export default function HomeScreen() {
       : setTimeout(() => fetchFeaturedPartners(), 300);
     const startupsTimer =
       !hiddenDirectoryTabs.has("startups") || __DEV__
-        ? setTimeout(() => fetchFeaturedStartups(), 450)
+        ? setTimeout(() => fetchFeaturedStartups(), 50)
         : null;
     return () => {
       if (exhibitorsTimer) clearTimeout(exhibitorsTimer);
@@ -360,7 +356,7 @@ export default function HomeScreen() {
         jobs.push(fetchFeaturedPartners());
       }
       if (!hiddenDirectoryTabs.has("startups")) {
-        jobs.push(fetchFeaturedStartups());
+        jobs.push(fetchFeaturedStartups(true));
       }
       await Promise.all(jobs);
     } catch (err) {

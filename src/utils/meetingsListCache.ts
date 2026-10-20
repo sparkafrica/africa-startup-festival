@@ -62,12 +62,6 @@ export function setMeetingsListCache(
 }
 
 export function invalidateMeetingsListCache(): void {
-  if (__DEV__) {
-    console.log("[meetings-cache:invalidate]", {
-      hadSnapshot: Boolean(snapshot),
-      hadInFlightRequest: Boolean(fetchPromise),
-    });
-  }
   snapshot = null;
   fetchPromise = null;
 }
@@ -92,36 +86,15 @@ async function loadMeetingsFromApi(
   force: boolean,
 ): Promise<MeetingsListSnapshot> {
   if (!force && isMeetingsListCacheFresh() && snapshot) {
-    if (__DEV__) {
-      console.log("[meetings-cache:hit]", {
-        ageMs: Date.now() - snapshot.fetchedAt,
-        physicalCount: snapshot.physical.length,
-        virtualCount: snapshot.virtual.length,
-      });
-    }
     return snapshot;
   }
 
   if (fetchPromise) {
-    if (__DEV__) {
-      console.log("[meetings-cache:deduped-request]", { force });
-    }
     return fetchPromise;
   }
 
   fetchPromise = (async () => {
     const postEventVirtualOnly = isPostEventMode();
-    if (__DEV__) {
-      console.log("[meetings-cache:fetch-start]", {
-        force,
-        postEventVirtualOnly,
-        previousSnapshotAgeMs: snapshot
-          ? Date.now() - snapshot.fetchedAt
-          : null,
-        previousPhysicalCount: snapshot?.physical.length ?? 0,
-        previousVirtualCount: snapshot?.virtual.length ?? 0,
-      });
-    }
     let physical: Meeting[];
     let virtual: VirtualMeeting[];
     if (postEventVirtualOnly) {
@@ -134,20 +107,6 @@ async function loadMeetingsFromApi(
       ]);
     }
     setMeetingsListCache(physical, virtual);
-    if (__DEV__) {
-      console.log("[meetings-cache:fetch-complete]", {
-        physicalCount: physical.length,
-        virtualCount: virtual.length,
-        virtualMeetings: virtual.map((meeting) => ({
-          id: meeting.id,
-          status: meeting.status,
-          requester: meeting.requester,
-          requestee: meeting.requestee,
-          event: meeting.event,
-          event_id: meeting.event_id,
-        })),
-      });
-    }
     return snapshot!;
   })();
 

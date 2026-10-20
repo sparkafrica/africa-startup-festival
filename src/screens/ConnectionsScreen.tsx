@@ -61,7 +61,6 @@ import {
   ensureConnectionsList,
   getCachedConnectionsList,
   isConnectionsListCacheFresh,
-  shouldRefetchConnectionsOnFocus,
 } from "../utils/connectionsListCache";
 import { useChat } from "../context/ChatContext";
 import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContext";
@@ -435,9 +434,12 @@ export default function ConnectionsScreen() {
         return;
       }
 
+      const applyConnections = (backendConnections: BackendConnection[]) =>
+        setConnections(backendConnections.map(mapBackendConnectionToUI));
+
       const cached = getCachedConnectionsList();
       if (!silent && cached && isConnectionsListCacheFresh()) {
-        setConnections(cached.connections.map(mapBackendConnectionToUI));
+        applyConnections(cached.connections);
         setIsLoading(false);
         if (!force) return;
       }
@@ -448,7 +450,7 @@ export default function ConnectionsScreen() {
         }
         setError(null);
         const snap = await ensureConnectionsList({ force });
-        setConnections(snap.connections.map(mapBackendConnectionToUI));
+        applyConnections(snap.connections);
       } catch (err: any) {
         const errorMessage =
           err instanceof ApiClientError
@@ -471,17 +473,10 @@ export default function ConnectionsScreen() {
   const fetchConnectionsRef = useRef(fetchConnections);
   fetchConnectionsRef.current = fetchConnections;
 
-  const connectionsCountRef = useRef(0);
-  useEffect(() => {
-    connectionsCountRef.current = connections.length;
-  }, [connections.length]);
-
   useFocusEffect(
     useCallback(() => {
       refreshMeetingsBadge();
-      if (shouldRefetchConnectionsOnFocus(connectionsCountRef.current > 0)) {
-        void fetchConnectionsRef.current({ silent: true, force: true });
-      }
+      void fetchConnectionsRef.current({ silent: true, force: true });
     }, [refreshMeetingsBadge]),
   );
 

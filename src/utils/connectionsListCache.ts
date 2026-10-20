@@ -34,11 +34,6 @@ export function isConnectionsListCacheFresh(): boolean {
   return Date.now() - snapshot.fetchedAt < FOCUS_LIST_STALE_MS;
 }
 
-export function shouldRefetchConnectionsOnFocus(hasLocalData: boolean): boolean {
-  if (!hasLocalData) return true;
-  return !isConnectionsListCacheFresh();
-}
-
 export function markConnectionsFetched(): void {
   if (snapshot) {
     snapshot = { ...snapshot, fetchedAt: Date.now() };

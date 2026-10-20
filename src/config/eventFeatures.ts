@@ -26,19 +26,17 @@ export interface EventFeatures {
   hiddenHomeDirectoryTabs: HomeDirectoryTabId[];
 }
 
-/** ASF v1 — Tag Pickup, Talent, Partner Offers deferred. App Guide is live. */
+/** ASF v1 — Tag Pickup, Talent, and Partner Offers remain deferred. */
 export const ASF_HIDDEN_MENU_ROUTES = [
   "Offers",
   "Talent",
   "TagPickup",
-  "Startups",
 ] as const;
 
-/** Hide until exhibitor / partner / startup directories have enough to browse. */
+/** Exhibitor and partner directories remain hidden until they are populated. */
 export const ASF_HIDDEN_HOME_DIRECTORY_TABS: HomeDirectoryTabId[] = [
   "exhibitors",
   "partners",
-  "startups",
 ];
 
 export function getEventFeatures(now = Date.now()): EventFeatures {

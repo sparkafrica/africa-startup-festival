@@ -243,6 +243,5 @@ export {
   invalidateConnectionsListCache,
   isConnectionsListCacheFresh,
   markConnectionsFetched,
-  shouldRefetchConnectionsOnFocus,
   CONNECTIONS_CACHE_PAGE_SIZE,
 } from "./connectionsListCache";
