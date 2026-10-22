@@ -26,6 +26,7 @@ import { bootstrapEventData } from "../utils/eventDataCache";
 import {
   ensureStartupsDirectory,
   getCachedStartupsDirectory,
+  hydrateStartupsDirectoryCache,
 } from "../utils/startupsDirectoryCache";
 import {
   HeaderBar,
@@ -299,10 +300,23 @@ export default function HomeScreen() {
 
   // Fetch featured startups (from directory)
   const fetchFeaturedStartups = async (force = false) => {
-    const hasCachedStartups = getCachedStartupsDirectory() != null;
+    let cachedStartups = getCachedStartupsDirectory();
+    if (!cachedStartups && !force) {
+      cachedStartups = await hydrateStartupsDirectoryCache();
+    }
+    const hasCachedStartups = cachedStartups != null;
     if (!hasCachedStartups) setStartupsLoading(true);
     setStartupsError(null);
     try {
+      if (cachedStartups) {
+        setFeaturedStartups(
+          cachedStartups.companies
+            .slice(0, 4)
+            .map((c) => ({ id: c.id, organisation: c.name, logo: c.logo })),
+        );
+        setStartupsLoading(false);
+      }
+
       const response = await ensureStartupsDirectory({ force });
       setFeaturedStartups(
         response.companies

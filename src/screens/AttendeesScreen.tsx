@@ -9,6 +9,7 @@ import {
   View,
   Text,
   Pressable,
+  FlatList,
   Dimensions,
   ScrollView,
   TextInput,
@@ -57,7 +58,7 @@ import {
   type Attendee as BackendAttendee,
   type MatchInfo,
 } from "../services/attendeeService";
-import { eventService } from "../services/eventService";
+import { eventService, type Company } from "../services/eventService";
 import { resolveAttendeeByUserId } from "../services/deepLinkResolveService";
 import { useListRowHighlight } from "../hooks/useListRowHighlight";
 import ListRowHighlightOverlay from "../components/ListRowHighlightOverlay";
@@ -135,6 +136,12 @@ import { getEventMetadata } from "../utils/eventMetadata";
 import Svg, { Path, Circle } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import SpeakerBadge from "../components/SpeakerBadge";
+import {
+  ensureStartupsDirectory,
+  getCachedStartupsDirectory,
+  hydrateStartupsDirectoryCache,
+  STARTUPS_DIRECTORY_PAGE_SIZE,
+} from "../utils/startupsDirectoryCache";
 
 /**
  * Keep the first response small so the directory can paint quickly. Remaining
@@ -174,6 +181,32 @@ const STARTUP_LOGO_COLORS = [
   "#10B981",
   "#F97316",
 ];
+
+function mapDirectoryStartupCompany(c: Company): DirectoryStartupRow {
+  const name = c.name || `Startup ${c.id}`;
+  const logoColor =
+    STARTUP_LOGO_COLORS[name.length % STARTUP_LOGO_COLORS.length];
+  const meta = (c.metadata ?? {}) as Record<string, unknown>;
+  const growthStage =
+    typeof meta.growth_stage === "string" && meta.growth_stage.trim()
+      ? meta.growth_stage.trim()
+      : null;
+  const yearFounded =
+    meta.year_founded != null && String(meta.year_founded).trim()
+      ? String(meta.year_founded).trim()
+      : null;
+
+  return {
+    id: c.id,
+    name,
+    logoColor,
+    logo: c.logo ?? undefined,
+    country: c.country ?? null,
+    company_sector: c.company_sector ?? null,
+    growth_stage: growthStage,
+    year_founded: yearFounded,
+  };
+}
 
 /** Custom list scrollbar (track + thumb) — native indicators are often invisible on Android / dark UI. */
 const ATTENDEE_LIST_SCROLLBAR_WIDTH = Platform.OS === "ios" ? 7 : 6;
@@ -1279,73 +1312,140 @@ export default function AttendeesScreen() {
   }, [user?.user_id]);
 
   // Directory startups (mode = startups)
+  const initialStartupsSnapshotRef = useRef(getCachedStartupsDirectory());
   const [directoryStartups, setDirectoryStartups] = useState<
     DirectoryStartupRow[]
-  >([]);
-  const [startupsLoading, setStartupsLoading] = useState(false);
+  >(() =>
+    (initialStartupsSnapshotRef.current?.companies ?? []).map(
+      mapDirectoryStartupCompany,
+    ),
+  );
+  const [startupsLoading, setStartupsLoading] = useState(
+    initialStartupsSnapshotRef.current == null,
+  );
   const [startupsError, setStartupsError] = useState<string | null>(null);
   const [startupsRefreshing, setStartupsRefreshing] = useState(false);
+  const [startupsLoadingMore, setStartupsLoadingMore] = useState(false);
+  const [startupsHasMore, setStartupsHasMore] = useState(() => {
+    const initial = initialStartupsSnapshotRef.current;
+    return Boolean(
+      initial &&
+        (initial.pagination.next ||
+          initial.companies.length < initial.pagination.count),
+    );
+  });
+  const [startupsNextPage, setStartupsNextPage] = useState(2);
+  // The cached first page paints immediately; the first tab visit still checks
+  // freshness once, without replacing those cards with a skeleton.
   const startupsFetchedRef = useRef(false);
+  const startupsRequestInFlightRef = useRef(false);
 
-  const fetchDirectoryStartups = useCallback(async (isRefresh = false) => {
-    if (isRefresh) {
-      setStartupsRefreshing(true);
-    } else {
-      setStartupsLoading(true);
-    }
-    setStartupsError(null);
-    try {
-      const response = await eventService.getDirectoryCompanies(
-        EVENT_ID,
-        "startup",
-        {
-          page_size: 100,
-          ordering: "-id",
-        },
-      );
-      const list: DirectoryStartupRow[] = response.companies.map((c) => {
-        const name = c.name || `Startup ${c.id}`;
-        const logoColor =
-          STARTUP_LOGO_COLORS[name.length % STARTUP_LOGO_COLORS.length];
-        const meta = (c.metadata ?? {}) as Record<string, unknown>;
-        const growthStage =
-          typeof meta.growth_stage === "string" && meta.growth_stage.trim()
-            ? meta.growth_stage.trim()
-            : null;
-        const yearFounded =
-          meta.year_founded != null && String(meta.year_founded).trim()
-            ? String(meta.year_founded).trim()
-            : null;
-        return {
-          id: c.id,
-          name,
-          logoColor,
-          logo: c.logo ?? undefined,
-          country: c.country ?? null,
-          company_sector: c.company_sector ?? null,
-          growth_stage: growthStage,
-          year_founded: yearFounded,
-        };
-      });
-      setDirectoryStartups(list);
-      startupsFetchedRef.current = true;
-    } catch (err: any) {
-      const msg =
-        err instanceof ApiClientError
-          ? err.message
-          : err?.message || "Failed to load startups";
-      setStartupsError(msg);
-    } finally {
-      setStartupsLoading(false);
-      setStartupsRefreshing(false);
-    }
-  }, []);
+  const fetchDirectoryStartups = useCallback(
+    async ({
+      page = 1,
+      isRefresh = false,
+    }: {
+      page?: number;
+      isRefresh?: boolean;
+    } = {}) => {
+      if (startupsRequestInFlightRef.current) return;
+      startupsRequestInFlightRef.current = true;
+
+      if (isRefresh) {
+        setStartupsRefreshing(true);
+      } else if (page === 1) {
+        setStartupsLoading(getCachedStartupsDirectory() == null);
+      } else {
+        setStartupsLoadingMore(true);
+      }
+      if (page === 1) setStartupsError(null);
+
+      try {
+        if (page === 1 && !isRefresh && getCachedStartupsDirectory() == null) {
+          const persisted = await hydrateStartupsDirectoryCache();
+          if (persisted) {
+            const persistedRows = persisted.companies.map(
+              mapDirectoryStartupCompany,
+            );
+            setDirectoryStartups(persistedRows);
+            setStartupsHasMore(
+              Boolean(persisted.pagination.next) ||
+                persistedRows.length < persisted.pagination.count,
+            );
+            setStartupsNextPage(2);
+            setStartupsLoading(false);
+            startupsFetchedRef.current = true;
+          }
+        }
+
+        const response =
+          page === 1
+            ? await ensureStartupsDirectory({ force: isRefresh })
+            : await eventService.getDirectoryCompanies(EVENT_ID, "startup", {
+                page,
+                page_size: STARTUPS_DIRECTORY_PAGE_SIZE,
+                ordering: "-id",
+              });
+        const list = response.companies.map(mapDirectoryStartupCompany);
+
+        setDirectoryStartups((current) => {
+          if (page === 1) return list;
+          const byId = new Map(current.map((row) => [row.id, row]));
+          list.forEach((row) => byId.set(row.id, row));
+          return Array.from(byId.values());
+        });
+        const loadedThrough =
+          (page - 1) * STARTUPS_DIRECTORY_PAGE_SIZE + list.length;
+        setStartupsHasMore(
+          Boolean(response.pagination.next) ||
+            loadedThrough < response.pagination.count,
+        );
+        setStartupsNextPage(page + 1);
+        if (page === 1) startupsFetchedRef.current = true;
+      } catch (err: any) {
+        const msg =
+          err instanceof ApiClientError
+            ? err.message
+            : err?.message || "Failed to load startups";
+        if (page === 1 && getCachedStartupsDirectory() == null) {
+          setStartupsError(msg);
+        }
+      } finally {
+        startupsRequestInFlightRef.current = false;
+        setStartupsLoading(false);
+        setStartupsLoadingMore(false);
+        setStartupsRefreshing(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (directoryMode === "startups" && !startupsFetchedRef.current) {
       void fetchDirectoryStartups();
     }
   }, [directoryMode, fetchDirectoryStartups]);
+
+  const loadMoreDirectoryStartups = useCallback(() => {
+    if (
+      directoryMode !== "startups" ||
+      !startupsHasMore ||
+      startupsLoading ||
+      startupsLoadingMore ||
+      startupsRefreshing
+    ) {
+      return;
+    }
+    void fetchDirectoryStartups({ page: startupsNextPage });
+  }, [
+    directoryMode,
+    fetchDirectoryStartups,
+    startupsHasMore,
+    startupsLoading,
+    startupsLoadingMore,
+    startupsNextPage,
+    startupsRefreshing,
+  ]);
 
   /** List scrollbar: UI-thread only — avoids setState on scroll (VirtualizedList slow-update warnings). */
   const listScrollY = useSharedValue(0);
@@ -2079,6 +2179,48 @@ export default function AttendeesScreen() {
     return rows;
   }, [directoryStartups, searchQuery, activeTab]);
 
+  const renderDirectoryStartup = useCallback(
+    ({ item: startup }: ListRenderItemInfo<DirectoryStartupRow>) => (
+      <View className="px-1.5 mb-3" style={{ flex: 1, maxWidth: "50%" }}>
+        <StartupDirectoryCard
+          name={startup.name}
+          logo={startup.logo}
+          logoColor={startup.logoColor}
+          tags={
+            [
+              startup.country
+                ? { label: startup.country, kind: "country" as const }
+                : null,
+              startup.growth_stage
+                ? { label: startup.growth_stage, kind: "growth" as const }
+                : null,
+              startup.company_sector
+                ? {
+                    label: startup.company_sector,
+                    kind: "industry" as const,
+                  }
+                : null,
+              startup.year_founded
+                ? { label: startup.year_founded, kind: "year" as const }
+                : null,
+            ].filter(Boolean) as {
+              label: string;
+              kind: "country" | "growth" | "industry" | "year";
+            }[]
+          }
+          onPress={() => {
+            navigation.navigate("CompanyDetail", {
+              exhibitorId: startup.id.toString(),
+              type: "startup",
+              name: startup.name,
+            });
+          }}
+        />
+      </View>
+    ),
+    [navigation],
+  );
+
   const switchDirectoryMode = useCallback(
     (mode: DirectoryMode) => {
       setDirectoryMode(mode);
@@ -2711,92 +2853,54 @@ export default function AttendeesScreen() {
                 </Pressable>
               </View>
             ) : (
-              <ScrollView
+              <FlatList
                 className="flex-1"
+                data={displayedStartups}
+                renderItem={renderDirectoryStartup}
+                keyExtractor={(startup) => String(startup.id)}
+                numColumns={2}
+                columnWrapperStyle={
+                  displayedStartups.length > 0
+                    ? { paddingHorizontal: 10 }
+                    : undefined
+                }
                 contentContainerStyle={{
-                  paddingHorizontal: 16,
+                  flexGrow: displayedStartups.length === 0 ? 1 : undefined,
                   paddingBottom: FLOATING_NAV_BOTTOM_INSET,
                 }}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={startupsRefreshing}
-                    onRefresh={() => void fetchDirectoryStartups(true)}
-                    tintColor="#1BB273"
-                    colors={["#1BB273"]}
-                  />
+                ListEmptyComponent={
+                  <View className="flex-1 py-12 items-center">
+                    <Text className="text-base text-neutral-500 text-center">
+                      {activeTab === "Your Matches"
+                        ? "Startup matches coming soon"
+                        : searchQuery.trim()
+                          ? "No startups match your search"
+                          : "No startups available"}
+                    </Text>
+                  </View>
                 }
-              >
-                {activeTab === "Your Matches" ? (
-                  <View className="py-12 items-center">
-                    <Text className="text-base text-neutral-500 text-center">
-                      Startup matches coming soon
-                    </Text>
-                  </View>
-                ) : displayedStartups.length === 0 ? (
-                  <View className="py-12 items-center">
-                    <Text className="text-base text-neutral-500 text-center">
-                      {searchQuery.trim()
-                        ? "No startups match your search"
-                        : "No startups available"}
-                    </Text>
-                  </View>
-                ) : (
-                  <View className="flex-row flex-wrap -mx-1.5">
-                    {displayedStartups.map((startup) => (
-                      <View
-                        key={startup.id}
-                        className="px-1.5 mb-3"
-                        style={{ width: "50%" }}
-                      >
-                        <StartupDirectoryCard
-                          name={startup.name}
-                          logo={startup.logo}
-                          logoColor={startup.logoColor}
-                          tags={
-                            [
-                              startup.country
-                                ? {
-                                    label: startup.country,
-                                    kind: "country" as const,
-                                  }
-                                : null,
-                              startup.growth_stage
-                                ? {
-                                    label: startup.growth_stage,
-                                    kind: "growth" as const,
-                                  }
-                                : null,
-                              startup.company_sector
-                                ? {
-                                    label: startup.company_sector,
-                                    kind: "industry" as const,
-                                  }
-                                : null,
-                              startup.year_founded
-                                ? {
-                                    label: startup.year_founded,
-                                    kind: "year" as const,
-                                  }
-                                : null,
-                            ].filter(Boolean) as {
-                              label: string;
-                              kind: "country" | "growth" | "industry" | "year";
-                            }[]
-                          }
-                          onPress={() => {
-                            navigation.navigate("CompanyDetail", {
-                              exhibitorId: startup.id.toString(),
-                              type: "startup",
-                              name: startup.name,
-                            });
-                          }}
-                        />
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </ScrollView>
+                ListFooterComponent={
+                  startupsLoadingMore ? (
+                    <ActivityIndicator
+                      className="my-5"
+                      size="small"
+                      color="#1BB273"
+                    />
+                  ) : null
+                }
+                showsVerticalScrollIndicator={false}
+                refreshing={startupsRefreshing}
+                onRefresh={() =>
+                  void fetchDirectoryStartups({ page: 1, isRefresh: true })
+                }
+                onEndReached={loadMoreDirectoryStartups}
+                onEndReachedThreshold={0.4}
+                initialNumToRender={8}
+                maxToRenderPerBatch={8}
+                updateCellsBatchingPeriod={50}
+                windowSize={5}
+                removeClippedSubviews={Platform.OS === "android"}
+              />
             )}
           </>
         ) : (

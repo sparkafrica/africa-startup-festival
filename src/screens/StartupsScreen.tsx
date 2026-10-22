@@ -44,6 +44,7 @@ import { directoryCompanyMatchesFilters } from "../utils/directoryFilters";
 import {
   ensureStartupsDirectory,
   getCachedStartupsDirectory,
+  hydrateStartupsDirectoryCache,
   STARTUPS_DIRECTORY_PAGE_SIZE,
 } from "../utils/startupsDirectoryCache";
 
@@ -159,6 +160,20 @@ export default function StartupsScreen() {
     if (page === 1) setError(null);
 
     try {
+      if (page === 1 && !isRefresh && getCachedStartupsDirectory() == null) {
+        const persisted = await hydrateStartupsDirectoryCache();
+        if (persisted) {
+          const persistedRows = persisted.companies.map(mapStartupCompany);
+          setStartups(persistedRows);
+          setHasMore(
+            Boolean(persisted.pagination.next) ||
+              persistedRows.length < persisted.pagination.count,
+          );
+          setNextPage(2);
+          setIsLoading(false);
+        }
+      }
+
       const response =
         page === 1
           ? await ensureStartupsDirectory({ force: isRefresh })

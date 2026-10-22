@@ -484,20 +484,24 @@ export default function ScheduleScreen() {
     async (options?: { force?: boolean; showLoading?: boolean }) => {
       const force = options?.force ?? false;
       const showLoading = options?.showLoading ?? true;
+      const cached = force ? null : getCachedEventSchedules();
+      const hasCachedProgramme = !!cached?.length;
+      const hasProgrammeFallback =
+        hasCachedProgramme || allSchedulesRef.current.length > 0;
 
-      if (!force && isProgrammeCacheFresh()) {
-        const cached = getCachedEventSchedules();
-        if (cached && cached.length > 0) {
-          seedSpeakerCacheRef();
-          applyCachedSchedulesToList(cached);
-          setError(null);
-          setIsLoading(false);
-          return;
-        }
+      // Stale-while-revalidate: never replace an available programme with a
+      // loading screen. Stage/day changes continue to slice this same array.
+      if (hasCachedProgramme && cached) {
+        seedSpeakerCacheRef();
+        applyCachedSchedulesToList(cached);
+        setError(null);
+        setIsLoading(false);
+
+        if (isProgrammeCacheFresh()) return;
       }
 
       try {
-        if (showLoading) setIsLoading(true);
+        if (showLoading && !hasProgrammeFallback) setIsLoading(true);
         setError(null);
 
         seedSpeakerCacheRef();
@@ -509,7 +513,7 @@ export default function ScheduleScreen() {
           err instanceof ApiClientError
             ? err.message
             : "Failed to load event schedule";
-        setError(errorMessage);
+        if (!hasProgrammeFallback) setError(errorMessage);
       } finally {
         if (showLoading) setIsLoading(false);
       }

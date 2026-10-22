@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { EVENT_ID } from "../config/env";
 import {
   eventService,
@@ -6,7 +7,8 @@ import {
 import type { PaginationMeta } from "../services/api";
 
 export const STARTUPS_DIRECTORY_PAGE_SIZE = 30;
-const STARTUPS_DIRECTORY_STALE_MS = 60_000;
+const STARTUPS_DIRECTORY_STALE_MS = 5 * 60_000;
+const STARTUPS_DIRECTORY_STORAGE_KEY = `@spark:startups-directory:${EVENT_ID}:v1`;
 
 export type StartupsDirectorySnapshot = {
   companies: Company[];
@@ -16,6 +18,18 @@ export type StartupsDirectorySnapshot = {
 
 let snapshot: StartupsDirectorySnapshot | null = null;
 let fetchPromise: Promise<StartupsDirectorySnapshot> | null = null;
+let hydrationPromise: Promise<StartupsDirectorySnapshot | null> | null = null;
+
+function isStoredSnapshot(value: unknown): value is StartupsDirectorySnapshot {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<StartupsDirectorySnapshot>;
+  return (
+    Array.isArray(candidate.companies) &&
+    typeof candidate.fetchedAt === "number" &&
+    !!candidate.pagination &&
+    typeof candidate.pagination.count === "number"
+  );
+}
 
 export function getCachedStartupsDirectory(): StartupsDirectorySnapshot | null {
   return snapshot;
@@ -27,14 +41,45 @@ export function isStartupsDirectoryCacheFresh(): boolean {
   );
 }
 
+/** Hydrate the first page from disk so cold starts can paint before the API. */
+export async function hydrateStartupsDirectoryCache(): Promise<StartupsDirectorySnapshot | null> {
+  if (snapshot) return snapshot;
+  if (hydrationPromise) return hydrationPromise;
+
+  hydrationPromise = (async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STARTUPS_DIRECTORY_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed: unknown = JSON.parse(raw);
+      if (!isStoredSnapshot(parsed)) return null;
+      if (!snapshot) snapshot = parsed;
+      return snapshot;
+    } catch {
+      return null;
+    }
+  })();
+
+  try {
+    return await hydrationPromise;
+  } finally {
+    hydrationPromise = null;
+  }
+}
+
 export function invalidateStartupsDirectoryCache(): void {
   snapshot = null;
   fetchPromise = null;
+  hydrationPromise = null;
+  void AsyncStorage.removeItem(STARTUPS_DIRECTORY_STORAGE_KEY).catch(() => {});
 }
 
 async function loadStartupsDirectory(
   force: boolean,
 ): Promise<StartupsDirectorySnapshot> {
+  if (!force && !snapshot) {
+    await hydrateStartupsDirectoryCache();
+  }
+
   if (!force && snapshot && isStartupsDirectoryCacheFresh()) {
     return snapshot;
   }
@@ -58,6 +103,10 @@ async function loadStartupsDirectory(
       pagination: response.pagination,
       fetchedAt: Date.now(),
     };
+    void AsyncStorage.setItem(
+      STARTUPS_DIRECTORY_STORAGE_KEY,
+      JSON.stringify(snapshot),
+    ).catch(() => {});
     return snapshot;
   })();
 

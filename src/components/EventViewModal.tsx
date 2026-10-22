@@ -32,6 +32,7 @@ const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const DRAG_THRESHOLD = 100;
 const SHEET_MS = 220;
 const COLLAPSED_SPEAKER_COUNT = 3;
+const MAX_SHEET_HEIGHT = SCREEN_HEIGHT * 0.9;
 
 export interface Speaker {
   id: string;
@@ -259,7 +260,7 @@ export default function EventViewModal({
           ]}
         >
           <GuidelinePatternOverlay isLightCard opacity={0.05} />
-          <View style={{ position: "relative", zIndex: 10, flex: 1, minHeight: 0 }}>
+          <View style={styles.sheetContent}>
           {/* Draggable Handle */}
           <View style={styles.draggableArea} {...panResponder.panHandlers}>
             <View style={styles.handleContainer}>
@@ -481,7 +482,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
-    height: SCREEN_HEIGHT * 0.9,
+    maxHeight: MAX_SHEET_HEIGHT,
     width: "100%",
     position: "absolute",
     bottom: 0,
@@ -490,6 +491,11 @@ const styles = StyleSheet.create({
     zIndex: 1001,
     elevation: 1001,
     overflow: "hidden",
+  },
+  sheetContent: {
+    position: "relative",
+    zIndex: 10,
+    maxHeight: MAX_SHEET_HEIGHT,
   },
   draggableArea: {
     width: "100%",
@@ -506,7 +512,8 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   content: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 1,
     minHeight: 0,
   },
   contentContainer: {
