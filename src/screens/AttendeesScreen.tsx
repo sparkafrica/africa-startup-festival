@@ -133,9 +133,10 @@ import {
   coerceMetadataStringArray,
 } from "../utils/metadataCoerce";
 import { getEventMetadata } from "../utils/eventMetadata";
+import { resolveEventRoles, type EventRole } from "../utils/eventRoles";
 import Svg, { Path, Circle } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
-import SpeakerBadge from "../components/SpeakerBadge";
+import EventRoleBadges from "../components/EventRoleBadges";
 import {
   ensureStartupsDirectory,
   getCachedStartupsDirectory,
@@ -407,6 +408,7 @@ interface Attendee {
   linkedInUrl?: string;
   industry?: string;
   isSpeaker?: boolean;
+  eventRoles: EventRole[];
   connectionStatus?: "pending" | "accepted" | null;
   hasAcceptedMeeting?: boolean;
   backendData?: BackendAttendee;
@@ -523,7 +525,7 @@ const AttendeeListRow = React.memo(function AttendeeListRow({
               >
                 {item.name}
               </Text>
-              {item.isSpeaker ? <SpeakerBadge compact /> : null}
+              <EventRoleBadges roles={item.eventRoles} compact />
             </View>
 
             <Text className="text-sm text-neutral-600" numberOfLines={1}>
@@ -909,7 +911,7 @@ function AttendeeCard({
                 >
                   {attendee.name}
                 </Text>
-                {attendee.isSpeaker ? <SpeakerBadge compact /> : null}
+                <EventRoleBadges roles={attendee.eventRoles} compact />
                 {attendee.connectionStatus && (
                   <View
                     className="px-2 py-0.5"
@@ -1688,6 +1690,18 @@ export default function AttendeesScreen() {
           ? metadata.linkedin_url
           : undefined);
 
+      const eventRoles = resolveEventRoles(
+        [
+          user.event_roles,
+          backendAttendee.event_roles,
+          metadata.event_roles,
+        ],
+        {
+          legacySpeaker:
+            user.is_speaker === true || ticketIsSpeakerPass(backendAttendee.ticket),
+        },
+      );
+
       return {
         id: String(user.id),
         name: fullName,
@@ -1699,7 +1713,8 @@ export default function AttendeesScreen() {
         interests: interests.length > 0 ? interests : undefined,
         linkedInUrl: linkedInUrl,
         industry: industry || undefined,
-        isSpeaker: ticketIsSpeakerPass(backendAttendee.ticket),
+        isSpeaker: eventRoles.includes("speaker"),
+        eventRoles,
         backendData: backendAttendee,
       };
     },
@@ -3356,7 +3371,7 @@ export default function AttendeesScreen() {
                         <Text className="text-2xl font-bold text-neutral-900">
                           {selectedAttendee.name}
                         </Text>
-                        {selectedAttendee.isSpeaker ? <SpeakerBadge /> : null}
+                        <EventRoleBadges roles={selectedAttendee.eventRoles} />
                       </View>
                       <Text className="text-base text-neutral-600">
                         {selectedAttendee.role && selectedAttendee.company

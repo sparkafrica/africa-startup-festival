@@ -94,6 +94,8 @@ export interface SpeakerNestedEvent {
 export interface Speaker {
   id: number;
   full_name: string;
+  /** Public, event-scoped roles. Professional title remains in `role`. */
+  event_roles?: Array<"speaker" | "mentor"> | string | null;
   profile_pic?: string | null;
   description?: string | null;
   company?: string | null;

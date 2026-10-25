@@ -27,6 +27,7 @@ import {
 import { LinkedInIcon } from "./SocialIcons";
 import { Skeleton, SkeletonListRows } from "./Skeleton";
 import GuidelinePatternOverlay from "./GuidelinePatternOverlay";
+import EventRoleBadges from "./EventRoleBadges";
 import { eventService, type SpeakerNestedEvent } from "../services/eventService";
 import { EVENT_ID } from "../config/env";
 import { ApiClientError } from "../services/api";
@@ -38,6 +39,10 @@ import {
   type SpeakingSessionRow,
   venueToStageKey,
 } from "../utils/scheduleSpeakingSessions";
+import {
+  resolveEventRoles,
+  sessionSectionLabel,
+} from "../utils/eventRoles";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 const SHEET_MAX_WIDTH = Math.min(SCREEN_WIDTH, 420);
@@ -200,6 +205,14 @@ export default function SpeakerDetailModal({
           )
         : [];
 
+      const eventRoles = resolveEventRoles(
+        [
+          speaker.event_roles,
+          (speaker as any).metadata?.event_roles,
+        ],
+        { legacySpeaker: true },
+      );
+
       setSpeakerData({
         id: speaker.id.toString(),
         name: speaker.full_name || fallbackName,
@@ -211,6 +224,7 @@ export default function SpeakerDetailModal({
         linkedinUrl: speaker.linkedin_url || null,
         tags,
         interests,
+        eventRoles,
       });
       setSpeakingSessions(sessions);
     } catch (err: any) {
@@ -477,27 +491,41 @@ export default function SpeakerDetailModal({
                     )}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text
+                    <View
                       style={{
-                        fontSize: 24,
-                        fontWeight: "700",
-                        color: "#171717",
-                        marginBottom: 4,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        marginBottom:
+                          speakerData.title || speakerData.company ? 4 : 0,
                       }}
                     >
-                      {speakerData.name}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        color: "#525252",
-                        lineHeight: 24,
-                      }}
-                    >
-                      {speakerData.title && speakerData.company
-                        ? `${speakerData.title} • ${speakerData.company}`
-                        : speakerData.title || speakerData.company || "Speaker"}
-                    </Text>
+                      <Text
+                        style={{
+                          fontSize: 24,
+                          fontWeight: "700",
+                          color: "#171717",
+                          flexShrink: 1,
+                        }}
+                      >
+                        {speakerData.name}
+                      </Text>
+                      <EventRoleBadges roles={speakerData.eventRoles ?? []} />
+                    </View>
+                    {speakerData.title || speakerData.company ? (
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          color: "#525252",
+                          lineHeight: 24,
+                        }}
+                      >
+                        {speakerData.title && speakerData.company
+                          ? `${speakerData.title} • ${speakerData.company}`
+                          : speakerData.title || speakerData.company}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
 
@@ -634,7 +662,7 @@ export default function SpeakerDetailModal({
                   </View>
                 )}
 
-                {/* Speaking sessions */}
+                {/* Event-role sessions */}
                 {speakingSessions.length > 0 && (
                   <View style={{ marginBottom: 16 }}>
                     <Text
@@ -645,7 +673,7 @@ export default function SpeakerDetailModal({
                         marginBottom: 8,
                       }}
                     >
-                      Speaking Sessions
+                      {sessionSectionLabel(speakerData.eventRoles ?? [])}
                     </Text>
                     {speakingSessions.map((session) => (
                       <Pressable

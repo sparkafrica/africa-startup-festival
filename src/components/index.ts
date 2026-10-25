@@ -31,6 +31,7 @@ export { default as NotificationDetailModal } from "./NotificationDetailModal";
 export { default as AttendeeCard } from "./AttendeeCard";
 export { default as PartnerCard } from "./PartnerCard";
 export { default as SpeakerCard } from "./SpeakerCard";
+export { default as EventRoleBadges } from "./EventRoleBadges";
 export { default as FilterTag } from "./FilterTag";
 export { default as FilterModal } from "./FilterModal";
 export type { FilterOption, FilterCategory } from "./FilterModal";

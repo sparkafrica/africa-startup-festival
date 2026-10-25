@@ -76,7 +76,12 @@ import Toast from "../components/Toast";
 import { EVENT_ID } from "../config/env";
 import { isPostEventMode } from "../config/eventMode";
 import { isSpeakerPass } from "../utils/asfTicketClass";
-import SpeakerBadge from "../components/SpeakerBadge";
+import EventRoleBadges from "../components/EventRoleBadges";
+import {
+  resolveEventRoles,
+  sessionSectionLabel,
+  type EventRole,
+} from "../utils/eventRoles";
 
 // Person Icon Component (for profile placeholder)
 function PersonIcon({
@@ -137,6 +142,7 @@ interface Connection {
   speakingSessions?: SpeakingSession[];
   linkedInUrl?: string;
   isSpeaker?: boolean; // Only speakers have speaking sessions
+  eventRoles: EventRole[];
   status: "pending" | "accepted" | "rejected" | "blocked";
   isFromCurrentUser: boolean; // Whether the current user sent the request
 }
@@ -227,7 +233,7 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
             >
               {connection.name}
             </Text>
-            {connection.isSpeaker ? <SpeakerBadge compact /> : null}
+            <EventRoleBadges roles={connection.eventRoles} compact />
             {/* Status Indicator */}
             {statusIndicator && (
               <View
@@ -362,10 +368,16 @@ export default function ConnectionsScreen() {
 
     // Backend schema types metadata as string (JSON); normalize to object so we can read interests, bio, industry, etc.
     const metadata = getEventMetadata(otherUser?.metadata);
-    const isSpeaker =
-      otherUser.is_speaker === true ||
-      isSpeakerPass(otherUser.user_type ?? undefined) ||
-      isSpeakerPass(otherUser.ticket_type ?? undefined);
+    const eventRoles = resolveEventRoles(
+      [otherUser.event_roles, metadata.event_roles],
+      {
+        legacySpeaker:
+          otherUser.is_speaker === true ||
+          isSpeakerPass(otherUser.user_type ?? undefined) ||
+          isSpeakerPass(otherUser.ticket_type ?? undefined),
+      },
+    );
+    const isSpeaker = eventRoles.includes("speaker");
 
     // Interests may be strings or `{ label, value }` from registration forms.
     const interestsArray = resolveInterestLabels(
@@ -413,6 +425,7 @@ export default function ConnectionsScreen() {
       interests: interestsArray.length > 0 ? interestsArray : undefined,
       linkedInUrl,
       isSpeaker,
+      eventRoles,
       status: backendConnection.status,
       isFromCurrentUser,
     };
@@ -1344,7 +1357,7 @@ export default function ConnectionsScreen() {
                       <Text className="text-2xl font-bold text-neutral-900">
                         {displayConnection.name}
                       </Text>
-                      {displayConnection.isSpeaker ? <SpeakerBadge /> : null}
+                      <EventRoleBadges roles={displayConnection.eventRoles} />
                     </View>
                     <Text className="text-base text-neutral-500 mb-3">
                       {displayConnection.title && displayConnection.company
@@ -1413,13 +1426,13 @@ export default function ConnectionsScreen() {
                     </View>
                   )}
 
-                {/* Speaking Sessions Section - Only for Speakers */}
-                {displayConnection.isSpeaker &&
+                {/* Programme sessions for public event roles */}
+                {displayConnection.eventRoles.length > 0 &&
                   displayConnection.speakingSessions &&
                   displayConnection.speakingSessions.length > 0 && (
                     <View className="mb-6">
                       <Text className="text-lg font-bold text-neutral-900 mb-3">
-                        Speaking Sessions
+                        {sessionSectionLabel(displayConnection.eventRoles)}
                       </Text>
                       {displayConnection.speakingSessions.map(
                         (session, index) => (

@@ -34,6 +34,7 @@ export interface ConnectionUser {
   ticket_type?: string | null;
   is_speaker?: boolean;
   speaker_id?: number | null;
+  event_roles?: Array<"speaker" | "mentor"> | string | null;
   metadata?: any; // User metadata (interests, bio, etc.)
 }
 

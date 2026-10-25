@@ -42,6 +42,9 @@ export interface AttendeeUser {
   organisation?: string | null;
   organisation_website?: string | null;
   organisation_role?: string | null;
+  event_roles?: Array<"speaker" | "mentor"> | string | null;
+  is_speaker?: boolean;
+  speaker_id?: number | null;
   metadata?: any; // User metadata (interests, bio, linkedIn, industry, etc.)
 }
 
@@ -64,6 +67,7 @@ export interface MatchInfo {
 export interface Attendee {
   ticket: AttendeeTicket;
   user: AttendeeUser;
+  event_roles?: Array<"speaker" | "mentor"> | string | null;
   /** JSON string or object: { match_score (1–10), reason }. Score >= 8 → Recommended tab. */
   match_info: string | MatchInfo | null;
 }

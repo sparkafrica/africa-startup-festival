@@ -6,12 +6,15 @@ import {
   Image,
   ImageSourcePropType,
 } from "react-native";
+import EventRoleBadges from "./EventRoleBadges";
+import type { EventRole } from "../utils/eventRoles";
 
 interface SpeakerCardProps {
   name: string;
   role: string;
   avatar?: ImageSourcePropType;
   avatarColor?: string;
+  eventRoles?: EventRole[];
   variant?: "horizontal" | "vertical";
   onPress?: () => void;
 }
@@ -21,6 +24,7 @@ export default function SpeakerCard({
   role,
   avatar,
   avatarColor = "#3B82F6",
+  eventRoles = [],
   variant = "horizontal",
   onPress,
 }: SpeakerCardProps) {
@@ -60,6 +64,11 @@ export default function SpeakerCard({
           >
             {name}
           </Text>
+          {eventRoles.length > 0 ? (
+            <View className="mt-1">
+              <EventRoleBadges roles={eventRoles} compact />
+            </View>
+          ) : null}
           {role && (
             <Text
               className="text-sm text-neutral-600 leading-5 mt-0.5 text-center"
@@ -110,6 +119,11 @@ export default function SpeakerCard({
         >
           {name}
         </Text>
+        {eventRoles.length > 0 ? (
+          <View className="mt-1">
+            <EventRoleBadges roles={eventRoles} compact />
+          </View>
+        ) : null}
         {role && (
           <Text
             className="text-sm text-neutral-600 leading-5 mt-0.5"

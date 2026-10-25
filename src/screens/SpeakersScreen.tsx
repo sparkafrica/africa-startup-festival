@@ -28,6 +28,7 @@ import {
 } from "../components";
 import { ChevronLeftIcon, FilterIcon } from "../components/HeaderIcons";
 import { ChevronDownIcon } from "../components/icons";
+import { resolveEventRoles, type EventRole } from "../utils/eventRoles";
 
 type SpeakerListItem = {
   id: string;
@@ -38,6 +39,7 @@ type SpeakerListItem = {
   description: string;
   avatar?: { uri: string };
   avatarColor: string;
+  eventRoles: EventRole[];
   speakerData: Speaker;
 };
 
@@ -58,7 +60,11 @@ function mapSpeakersToListItems(list: Speaker[]): SpeakerListItem[] {
     const roleText =
       speaker.role && speaker.company
         ? `${speaker.role} at ${speaker.company}`
-        : speaker.role || speaker.company || "Speaker";
+        : speaker.role || speaker.company || "";
+    const eventRoles = resolveEventRoles(
+      [speaker.event_roles, (speaker as any).metadata?.event_roles],
+      { legacySpeaker: true },
+    );
     return {
       id: speaker.id.toString(),
       name: speaker.full_name || "Speaker",
@@ -68,6 +74,7 @@ function mapSpeakersToListItems(list: Speaker[]): SpeakerListItem[] {
       description: speaker.description || "",
       avatar: speaker.profile_pic ? { uri: speaker.profile_pic } : undefined,
       avatarColor,
+      eventRoles,
       speakerData: speaker,
     };
   });
@@ -296,6 +303,7 @@ export default function SpeakersScreen() {
                     role={speaker.role}
                     avatar={speaker.avatar}
                     avatarColor={speaker.avatarColor}
+                    eventRoles={speaker.eventRoles}
                     variant="vertical"
                     onPress={() => {
                       setSelectedSpeakerId(speaker.id);

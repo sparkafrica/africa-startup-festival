@@ -41,6 +41,7 @@ import {
   SpeakerDetailModal,
   FLOATING_NAV_BOTTOM_INSET,
 } from "../components";
+import { resolveEventRoles } from "../utils/eventRoles";
 import { StartupJoinReminderBanner } from "../components/StartupJoinReminderBanner";
 import { useStartupJoin } from "../hooks/useStartupJoin";
 import HomePushNotificationOverlay from "../components/HomePushNotificationOverlay";
@@ -603,8 +604,12 @@ export default function HomeScreen() {
                   role={
                     speaker.role && speaker.company
                       ? `${speaker.role} at ${speaker.company}`
-                      : speaker.role || speaker.company || "Speaker"
+                      : speaker.role || speaker.company || ""
                   }
+                  eventRoles={resolveEventRoles(
+                    [speaker.event_roles, speaker.metadata?.event_roles],
+                    { legacySpeaker: true },
+                  )}
                   avatar={
                     speaker.profile_pic
                       ? { uri: speaker.profile_pic }

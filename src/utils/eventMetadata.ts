@@ -24,6 +24,7 @@ export const EVENT_SCOPED_USER_METADATA_KEYS = [
   "ticketType",
   "passType",
   "userType",
+  "event_roles",
 ] as const;
 
 export type EventScopedUserMetadataKey =
