@@ -30,6 +30,7 @@ export const TICKET_BENEFITS: Record<TicketBenefitTier, string[]> = {
     "Access to the Main Stage only (first-come, first-served)",
     "Access to Exhibitions",
     "Access to the Night Festival",
+    "Access to the networking app, messaging, and meeting booking",
     "Access to City Circles community meetups (subject to individual events)",
   ],
   startup: [

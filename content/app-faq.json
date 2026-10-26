@@ -201,10 +201,10 @@
       "slug": "meeting-restrictions",
       "category": "meetings",
       "question": "Why can't I request meetings?",
-      "answerSummary": "Some ticket types (e.g. Limited Pass / Expo passes) do not include meeting privileges. Upgrade your ticket from My Ticket to unlock meetings and other benefits.",
+      "answerSummary": "Only Limited Pass holders do not have meeting privileges. Every other pass can request meetings with any attendee without connecting first.",
       "keywords": ["cannot request meeting", "meeting disabled", "meeting restriction", "expo pass", "limited pass", "upgrade ticket"],
       "body": [
-        { "type": "paragraph", "text": "Some ticket types (e.g., Limited Pass or Expo passes) do not include meeting privileges." },
+        { "type": "paragraph", "text": "Only Limited Pass holders do not have meeting privileges. Explorer and every other pass can request meetings with any attendee." },
         { "type": "paragraph", "text": "If restricted, you will see an alert when you try to book a meeting." },
         { "type": "paragraph", "text": "To unlock meetings and other benefits, go to Menu → My Ticket(s) or Scan → My Ticket and tap Upgrade Ticket on your personal pass." }
       ]
@@ -333,7 +333,7 @@
         { "type": "paragraph", "text": "To upgrade:" },
         { "type": "numbered", "items": ["Go to Menu → My Ticket(s) or Scan → My Ticket", "Select your personal ticket", "Tap Upgrade Ticket", "Choose your target tier", "Select payment method (Korapay for KES or Stripe for USD)", "Complete payment on the checkout page"] },
         { "type": "paragraph", "text": "Upgrade path:\nLimited Pass → Explorer → Startup → Operator → Gold Investor" },
-        { "type": "paragraph", "text": "Higher tiers unlock more networking features such as meeting access. Exhibitor, Partner, Media, and Speaker passes are not upgradeable through this flow." }
+        { "type": "paragraph", "text": "Upgrading from Limited Pass unlocks networking features. Exhibitor, Partner, Media, and Speaker passes are not upgradeable through this flow." }
       ]
     },
     {
@@ -341,14 +341,12 @@
       "slug": "messaging",
       "category": "networking",
       "question": "How does messaging work?",
-      "answerSummary": "Messages are available after an accepted connection or accepted meeting. Gold Investor pass holders can message anyone. Find conversations under Menu → Messages.",
+      "answerSummary": "Every pass except Limited Pass can message any attendee without a prior connection or accepted meeting. Find conversations under Menu → Messages.",
       "keywords": ["messages", "messaging", "send message", "inbox", "chat", "dm", "direct message", "cannot message"],
       "body": [
-        { "type": "paragraph", "text": "You can message other attendees when:" },
-        { "type": "bullets", "items": ["You have an accepted connection with them, or", "You have an accepted meeting with them"] },
-        { "type": "paragraph", "text": "Gold Investor pass holders can message any attendee without a prior connection." },
+        { "type": "paragraph", "text": "Every pass except Limited Pass can message any attendee without a prior connection or accepted meeting." },
         { "type": "paragraph", "text": "To view conversations, go to Menu → Messages." },
-        { "type": "paragraph", "text": "If messaging is unavailable, connect with the person first or wait until a meeting request is accepted." }
+        { "type": "paragraph", "text": "Limited Pass holders can upgrade their ticket to unlock messaging and other networking features." }
       ]
     },
     {

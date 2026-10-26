@@ -189,6 +189,48 @@ export interface Company {
   members?: CompanyMember[];
 }
 
+const STARTUP_DIRECTORY_METADATA_KEYS = [
+  "industry",
+  "growth_stage",
+  "year_founded",
+  "interests",
+] as const;
+
+/**
+ * Directory screens only need card/filter fields. Keep detail-only data out of
+ * React state and AsyncStorage even while the backend list serializer is being
+ * slimmed down; CompanyDetail fetches the complete company separately.
+ */
+export function compactStartupDirectoryCompany(company: Company): Company {
+  const sourceMetadata =
+    company.metadata && typeof company.metadata === "object"
+      ? company.metadata
+      : {};
+  const metadata: Record<string, unknown> = {};
+  for (const key of STARTUP_DIRECTORY_METADATA_KEYS) {
+    if (sourceMetadata[key] != null) metadata[key] = sourceMetadata[key];
+  }
+
+  return {
+    id: company.id,
+    name: company.name,
+    logo: company.logo ?? null,
+    country: company.country ?? null,
+    company_sector: company.company_sector ?? null,
+    company_description: company.company_description ?? null,
+    company_type: company.company_type ?? "startup",
+    metadata,
+  };
+}
+
+function prepareDirectoryCompanies(
+  companyType: "exhibitor" | "partner" | "startup",
+  companies: Company[],
+): Company[] {
+  if (companyType !== "startup") return companies;
+  return companies.map(compactStartupDirectoryCompany);
+}
+
 /**
  * PersonalSchedule
  * Matches backend schema: PersonalScheduleList
@@ -1361,19 +1403,28 @@ export const eventService = {
         "results" in data &&
         Array.isArray(data.results)
       ) {
+        const pagination = {
+          count: data.count || 0,
+          next: data.next || null,
+          previous: data.previous || null,
+        };
         return {
-          companies: data.results as Company[],
-          pagination: {
-            count: data.count || 0,
-            next: data.next || null,
-            previous: data.previous || null,
-          },
+          companies: prepareDirectoryCompanies(
+            companyType,
+            data.results as Company[],
+          ),
+          pagination,
         };
       }
       if (Array.isArray(data)) {
+        const pagination = {
+          count: data.length,
+          next: null,
+          previous: null,
+        };
         return {
-          companies: data as Company[],
-          pagination: { count: data.length, next: null, previous: null },
+          companies: prepareDirectoryCompanies(companyType, data as Company[]),
+          pagination,
         };
       }
       if (data?.status === "success" && data?.data) {
@@ -1386,22 +1437,24 @@ export const eventService = {
             data.pagination ??
             (!Array.isArray(responseData) ? responseData?.pagination : null) ??
             (!Array.isArray(responseData) ? responseData : null);
+          const normalizedPagination = {
+            count:
+              typeof pagination?.count === "number"
+                ? pagination.count
+                : list.length,
+            next:
+              typeof pagination?.next === "string" ? pagination.next : null,
+            previous:
+              typeof pagination?.previous === "string"
+                ? pagination.previous
+                : null,
+          };
           return {
-            companies: list as Company[],
-            pagination: {
-              count:
-                typeof pagination?.count === "number"
-                  ? pagination.count
-                  : list.length,
-              next:
-                typeof pagination?.next === "string"
-                  ? pagination.next
-                  : null,
-              previous:
-                typeof pagination?.previous === "string"
-                  ? pagination.previous
-                  : null,
-            },
+            companies: prepareDirectoryCompanies(
+              companyType,
+              list as Company[],
+            ),
+            pagination: normalizedPagination,
           };
         }
       }

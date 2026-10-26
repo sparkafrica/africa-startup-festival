@@ -4,46 +4,27 @@
 
 import { Alert } from "react-native";
 import {
-  attendeeLooksLikeInvestor,
-  getCurrentUserTicketType,
-  isInvestorPass,
-} from "./asfTicketClass";
-import { canMessagePeer } from "./messagingEligibility";
-
-export const INVESTOR_CONNECTION_REQUIRED_MESSAGE =
-  "Please request a connection first. Once connected, you'll be able to access this feature.";
+  getCanUserUseNetworking,
+  LIMITED_PASS_NETWORKING_MESSAGE,
+} from "./meetingRestrictions";
 
 export const MESSAGING_ACCESS_REQUIRED_MESSAGE =
-  "Connect with this attendee, or accept a meeting request, to send messages.";
-
-export async function currentUserIsInvestor(): Promise<boolean> {
-  const tier = await getCurrentUserTicketType();
-  return isInvestorPass(tier);
-}
-
-export function targetIsInvestor(attendee: {
-  ticketType?: string;
-  userType?: string;
-  role?: string;
-}): boolean {
-  return attendeeLooksLikeInvestor(attendee);
-}
+  LIMITED_PASS_NETWORKING_MESSAGE;
 
 /**
- * Investors may message anyone (PRD shortcut).
- * Everyone else: accepted connection or accepted meeting.
+ * Every non-Limited Pass holder may message any attendee. Connections and
+ * accepted meetings are no longer prerequisites for messaging.
  */
 export async function canMessageAttendee(attendee: {
   connectionStatus?: "pending" | "accepted" | null;
   hasAcceptedMeeting?: boolean;
 }): Promise<boolean> {
-  if (await currentUserIsInvestor()) return true;
-  return canMessagePeer(attendee);
+  void attendee;
+  return getCanUserUseNetworking();
 }
 
 /**
- * Non-investors booking with an investor require an accepted connection first.
- * Investors may request meetings with anyone.
+ * Every non-Limited Pass holder may request meetings with any attendee.
  */
 export async function canRequestMeetingWithAttendee(attendee: {
   ticketType?: string;
@@ -51,15 +32,8 @@ export async function canRequestMeetingWithAttendee(attendee: {
   role?: string;
   connectionStatus?: "pending" | "accepted" | null;
 }): Promise<boolean> {
-  if (await currentUserIsInvestor()) return true;
-  if (!targetIsInvestor(attendee)) return true;
-  return attendee.connectionStatus === "accepted";
-}
-
-export function showInvestorConnectionRequiredAlert(): void {
-  Alert.alert("Connection required", INVESTOR_CONNECTION_REQUIRED_MESSAGE, [
-    { text: "OK" },
-  ]);
+  void attendee;
+  return getCanUserUseNetworking();
 }
 
 export function showMessagingAccessRequiredAlert(): void {

@@ -41,12 +41,7 @@ import {
 } from "../utils/meetingRestrictions";
 import { ApiClientError } from "../services/api";
 import Toast from "../components/Toast";
-import { normalizeAttendee, getAttendeeDisplayFields } from "../utils/normalizeAttendee";
-import {
-  canRequestMeetingWithAttendee,
-  currentUserIsInvestor,
-  showInvestorConnectionRequiredAlert,
-} from "../utils/asfNetworking";
+import { normalizeAttendee } from "../utils/normalizeAttendee";
 import { hasPendingMeetingWithPeer } from "../utils/messagingEligibility";
 import ScannedAttendeeProfileContent from "../components/ScannedAttendeeProfileContent";
 import {
@@ -137,18 +132,6 @@ export default function ScannedAttendeeScreen() {
       if (!canBook) {
         showExpoCannotBookMeetingAlert(navigation);
         return;
-      }
-      const isInvestor = await currentUserIsInvestor();
-      if (!isInvestor) {
-        const { ticketTypeName } = getAttendeeDisplayFields(attendee);
-        const allowed = await canRequestMeetingWithAttendee({
-          ticketType: ticketTypeName,
-          connectionStatus: null,
-        });
-        if (!allowed) {
-          showInvestorConnectionRequiredAlert();
-          return;
-        }
       }
       const peerId = String(attendee.user?.id ?? "").trim();
       const me = String(user?.user_id ?? "").trim();

@@ -28,6 +28,7 @@ import ConnectionsExportBanner from "../components/ConnectionsExportBanner";
 import {
   getCanUserBookMeetings,
   getCanUserAcceptConnection,
+  getCanUserUseNetworking,
   showExpoCannotBookMeetingAlert,
   showLimitedPassNetworkingAlert,
 } from "../utils/meetingRestrictions";
@@ -1488,9 +1489,8 @@ export default function ConnectionsScreen() {
                       </>
                     )}
 
-                  {/* Show Request Meeting button for accepted connections */}
-                  {selectedConnection.status === "accepted" && (
-                    <Pressable
+                  {/* Meetings no longer require an accepted connection. */}
+                  <Pressable
                       onPress={async () => {
                         const canBook = await getCanUserBookMeetings();
                         if (!canBook) {
@@ -1526,12 +1526,10 @@ export default function ConnectionsScreen() {
                       <Text className="text-base font-semibold text-white ml-2">
                         Request Meeting
                       </Text>
-                    </Pressable>
-                  )}
+                  </Pressable>
 
-                  {/* Accepted: LinkedIn + Message in one row (50/50). Others: LinkedIn full width only. */}
-                  {selectedConnection.status === "accepted" ? (
-                    <View
+                  {/* Messaging is available without an accepted connection. */}
+                  <View
                       style={{
                         width: "100%",
                         flexDirection: "row",
@@ -1591,6 +1589,11 @@ export default function ConnectionsScreen() {
                       <Pressable
                         onPress={async () => {
                           if (isOpeningChat) return;
+                          const canNetwork = await getCanUserUseNetworking();
+                          if (!canNetwork) {
+                            showLimitedPassNetworkingAlert(navigation);
+                            return;
+                          }
                           setIsOpeningChat(true);
                           try {
                             const { conversationId } =
@@ -1632,54 +1635,7 @@ export default function ConnectionsScreen() {
                           </>
                         )}
                       </Pressable>
-                    </View>
-                  ) : (
-                    (() => {
-                      const linkedIn = getLinkedInDisplayInfo(
-                        selectedConnection.linkedInUrl
-                      );
-                      if (!linkedIn) return null;
-                      return (
-                        <Pressable
-                          onPress={async () => {
-                            try {
-                              const supported = await Linking.canOpenURL(
-                                linkedIn.url
-                              );
-                              if (supported) {
-                                await Linking.openURL(linkedIn.url);
-                              } else {
-                                try {
-                                  await Linking.openURL(linkedIn.url);
-                                } catch {
-                                  Alert.alert(
-                                    "Cannot Open LinkedIn",
-                                    "Please make sure you have the LinkedIn app installed or try opening the link in your browser.",
-                                    [{ text: "OK" }]
-                                  );
-                                }
-                              }
-                            } catch (error) {
-                              if (__DEV__)
-                                console.error("Error opening LinkedIn URL:", error);
-                              Alert.alert(
-                                "Error",
-                                "Failed to open LinkedIn profile. Please try again.",
-                                [{ text: "OK" }]
-                              );
-                            }
-                          }}
-                          className="w-full flex-row items-center justify-center bg-neutral-200 py-3.5 px-4 mb-3" style={{ borderRadius: 0 }}
-                        >
-                          <LinkedInLinkLabel
-                            iconSize={18}
-                            textColor="#404040"
-                            fontWeight="600"
-                          />
-                        </Pressable>
-                      );
-                    })()
-                  )}
+                  </View>
 
                   {selectedConnection.status === "pending" &&
                     !selectedConnection.isFromCurrentUser && (

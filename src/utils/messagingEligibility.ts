@@ -1,6 +1,8 @@
 /**
- * Messaging access: accepted connection (primary) or accepted meeting (secondary).
- * Investors bypass this check at the call site (see asfNetworking.canMessageAttendee).
+ * Relationship helpers for messaging and meeting state.
+ *
+ * ASF messaging no longer requires an accepted connection or meeting. The
+ * only entitlement gate is the current user's Limited Pass restriction.
  */
 
 import type { Connection } from "../services/connectionService";
@@ -89,9 +91,8 @@ export function canMessagePeer(ctx: {
   connectionStatus?: "pending" | "accepted" | null;
   hasAcceptedMeeting?: boolean;
 }): boolean {
-  return (
-    ctx.connectionStatus === "accepted" || ctx.hasAcceptedMeeting === true
-  );
+  void ctx;
+  return true;
 }
 
 export type MessagingEligiblePeersResult = {

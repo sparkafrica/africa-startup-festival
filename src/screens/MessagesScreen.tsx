@@ -29,8 +29,10 @@ import { ApiClientError } from "../services/api";
 import { EVENT_ID } from "../config/env";
 import { useAuth } from "../context/AuthContext";
 import { useMessagesBadgeContext } from "../context/MessagesBadgeContext";
-import { loadMessagingEligiblePeerIds } from "../utils/messagingEligibility";
-import { currentUserIsInvestor } from "../utils/asfNetworking";
+import {
+  getCanUserUseNetworking,
+  LIMITED_PASS_NETWORKING_MESSAGE,
+} from "../utils/meetingRestrictions";
 import * as Sentry from "@sentry/react-native";
 import {
   subscribeToConversationChannel,
@@ -163,6 +165,7 @@ export default function MessagesScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [networkingRestricted, setNetworkingRestricted] = useState(false);
   /** After first successful load, refocus + Pusher refetch stay on the list UI (no full-screen spinner). */
   const inboxHasLoadedOnceRef = useRef(false);
   const deepLinkHandledConversationIdRef = useRef<number | null>(null);
@@ -183,38 +186,26 @@ export default function MessagesScreen() {
         }
         setError(null);
 
-        const currentUserId = String(user?.user_id ?? "").trim();
-        const investor = await currentUserIsInvestor();
-
-        const [conversationResponse, messagingPeers] = await Promise.all([
-          listConversations(EVENT_ID, {
-            ordering: "-updated_at",
-            page: 1,
-            page_size: 100,
-          }),
-          !investor && currentUserId
-            ? loadMessagingEligiblePeerIds(currentUserId)
-            : Promise.resolve({
-                eligiblePeerIds: new Set<string>(),
-                shouldFilterInbox: false,
-              }),
-        ]);
-
-        // Investors see all threads. Others: connection or accepted meeting only.
-        let filteredConversations = conversationResponse.conversations;
-        if (!investor && messagingPeers.shouldFilterInbox && currentUserId) {
-          const { eligiblePeerIds } = messagingPeers;
-          filteredConversations = conversationResponse.conversations.filter((c) => {
-            const otherPartyId = getConversationListItemPeerUserId(c);
-            if (!otherPartyId) return true;
-            return eligiblePeerIds.has(otherPartyId);
-          });
+        const canNetwork = await getCanUserUseNetworking();
+        if (!canNetwork) {
+          setNetworkingRestricted(true);
+          setConversations([]);
+          inboxHasLoadedOnceRef.current = true;
+          return [];
         }
+        setNetworkingRestricted(false);
 
-        setConversations(sortConversationsByRecent(filteredConversations));
+        const conversationResponse = await listConversations(EVENT_ID, {
+          ordering: "-updated_at",
+          page: 1,
+          page_size: 100,
+        });
+        const visibleConversations = conversationResponse.conversations;
+
+        setConversations(sortConversationsByRecent(visibleConversations));
         inboxHasLoadedOnceRef.current = true;
         void refreshMessagesBadge({ force: true });
-        return filteredConversations;
+        return visibleConversations;
       } catch (err: any) {
         const msg =
           err instanceof ApiClientError
@@ -466,6 +457,15 @@ export default function MessagesScreen() {
 
       {isLoading ? (
         <SkeletonMessageList count={8} />
+      ) : networkingRestricted ? (
+        <View className="flex-1 items-center justify-center px-6">
+          <Text className="text-neutral-900 font-semibold text-lg mb-2">
+            Networking unavailable
+          </Text>
+          <Text className="text-neutral-500 text-center">
+            {LIMITED_PASS_NETWORKING_MESSAGE}
+          </Text>
+        </View>
       ) : error ? (
         <View className="flex-1 items-center justify-center px-6">
           <Text className="text-neutral-500 text-center mb-4">{error}</Text>

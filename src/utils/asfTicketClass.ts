@@ -187,17 +187,13 @@ export function ticketIsSpeakerPass(ticket: TicketShape | null): boolean {
   );
 }
 
-/** Limited Pass and Explorer: no in-app meeting booking. */
+/** Limited Pass is the only ASF tier without in-app meeting booking. */
 export function blocksMeetingBooking(ticketTypeOrName?: string): boolean {
-  return (
-    isLimitedPass(ticketTypeOrName) || isExplorerPass(ticketTypeOrName)
-  );
+  return isLimitedPass(ticketTypeOrName);
 }
 
 export function blocksMeetingBookingForTicket(ticket: TicketShape | null): boolean {
-  return (
-    ticketIsLimitedPass(ticket) || ticketIsExplorerPass(ticket)
-  );
+  return ticketIsLimitedPass(ticket);
 }
 
 /** Limited Pass: no connection requests, accepts, or meeting accepts. */

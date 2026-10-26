@@ -33,13 +33,9 @@ import type { MessageReplyTo } from "../services/chatService";
 import { addPusherConnectionStateListener } from "../services/pusherChatService";
 import { emitInboxRead } from "../utils/chatInboxSync";
 import {
-  isPeerMessagingEligible,
-  loadMessagingEligiblePeerIds,
-} from "../utils/messagingEligibility";
-import {
-  currentUserIsInvestor,
-  MESSAGING_ACCESS_REQUIRED_MESSAGE,
-} from "../utils/asfNetworking";
+  getCanUserUseNetworking,
+  LIMITED_PASS_NETWORKING_MESSAGE,
+} from "../utils/meetingRestrictions";
 import Svg, { Path } from "react-native-svg";
 
 function formatMessageTime(iso: string): string {
@@ -92,7 +88,7 @@ export default function ConversationScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList, "Conversation">>();
   const route = useRoute<RouteProp<RootStackParamList, "Conversation">>();
   const insets = useSafeAreaInsets();
-  const { eventId, conversationId, otherPartyName, otherPartyAvatarUri, otherPartyUserId } =
+  const { eventId, conversationId, otherPartyName, otherPartyAvatarUri } =
     route.params;
   const { user } = useAuth();
   const { refresh: refreshMessagesBadge } = useMessagesBadgeContext();
@@ -157,32 +153,18 @@ export default function ConversationScreen() {
       messagingBlockedAlertShownRef.current = false;
 
       (async () => {
-        const peerId = String(otherPartyUserId ?? "").trim();
-        const currentUserId = String(user?.user_id ?? "").trim();
-        if (peerId && currentUserId) {
-          if (await currentUserIsInvestor()) {
-            if (!isActive) return;
-            setCanSendMessages(true);
-          } else {
-            const { eligiblePeerIds } = await loadMessagingEligiblePeerIds(
-              currentUserId
-            );
-            if (!isActive) return;
-            const allowed = isPeerMessagingEligible(peerId, eligiblePeerIds);
-            setCanSendMessages(allowed);
-            if (!allowed && !messagingBlockedAlertShownRef.current) {
-              messagingBlockedAlertShownRef.current = true;
-              Alert.alert("Messaging unavailable", MESSAGING_ACCESS_REQUIRED_MESSAGE, [
-                {
-                  text: "OK",
-                  onPress: () => navigation.goBack(),
-                },
-              ]);
-              return;
-            }
-          }
-        } else {
-          setCanSendMessages(true);
+        const allowed = await getCanUserUseNetworking();
+        if (!isActive) return;
+        setCanSendMessages(allowed);
+        if (!allowed && !messagingBlockedAlertShownRef.current) {
+          messagingBlockedAlertShownRef.current = true;
+          Alert.alert("Messaging unavailable", LIMITED_PASS_NETWORKING_MESSAGE, [
+            {
+              text: "OK",
+              onPress: () => navigation.goBack(),
+            },
+          ]);
+          return;
         }
 
         await loadConversation(eventId, conversationId);
@@ -201,7 +183,6 @@ export default function ConversationScreen() {
     }, [
       eventId,
       conversationId,
-      otherPartyUserId,
       user?.user_id,
       loadConversation,
       bindConversationRealtime,
@@ -406,7 +387,7 @@ export default function ConversationScreen() {
             {!canSendMessages ? (
               <View className="flex-1 py-3 px-2">
                 <Text className="text-sm text-neutral-500 text-center">
-                  {MESSAGING_ACCESS_REQUIRED_MESSAGE}
+                  {LIMITED_PASS_NETWORKING_MESSAGE}
                 </Text>
               </View>
             ) : (

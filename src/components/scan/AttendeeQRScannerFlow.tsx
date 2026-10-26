@@ -19,7 +19,6 @@ import {
   getCanUserBookMeetings,
   getCanUserInitiateConnection,
 } from "../../utils/meetingRestrictions";
-import { currentUserIsInvestor } from "../../utils/asfNetworking";
 import { useToast } from "../../hooks/useToast";
 import Toast from "../Toast";
 import RequestMeetingModal, {
@@ -139,7 +138,6 @@ export default function AttendeeQRScannerFlow({
     if (!profileVisible || !attendee?.user?.id) return;
     void getCanUserBookMeetings();
     void getCanUserInitiateConnection();
-    void currentUserIsInvestor();
   }, [profileVisible, attendee?.user?.id]);
 
   const handleModalRequestClose = useCallback(() => {

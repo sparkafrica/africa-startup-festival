@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { EVENT_ID } from "../config/env";
 import {
+  compactStartupDirectoryCompany,
   eventService,
   type Company,
 } from "../services/eventService";
@@ -8,11 +9,13 @@ import type { PaginationMeta } from "../services/api";
 
 export const STARTUPS_DIRECTORY_PAGE_SIZE = 30;
 const STARTUPS_DIRECTORY_STALE_MS = 5 * 60_000;
-const STARTUPS_DIRECTORY_STORAGE_KEY = `@spark:startups-directory:${EVENT_ID}:v1`;
+const STARTUPS_DIRECTORY_STORAGE_KEY = `@spark:startups-directory:${EVENT_ID}:v2`;
+const LEGACY_STARTUPS_DIRECTORY_STORAGE_KEY = `@spark:startups-directory:${EVENT_ID}:v1`;
 
 export type StartupsDirectorySnapshot = {
   companies: Company[];
   pagination: PaginationMeta;
+  pageSize: number;
   fetchedAt: number;
 };
 
@@ -26,9 +29,30 @@ function isStoredSnapshot(value: unknown): value is StartupsDirectorySnapshot {
   return (
     Array.isArray(candidate.companies) &&
     typeof candidate.fetchedAt === "number" &&
+    candidate.pageSize === STARTUPS_DIRECTORY_PAGE_SIZE &&
     !!candidate.pagination &&
     typeof candidate.pagination.count === "number"
   );
+}
+
+function isCompleteLegacyFirstPage(
+  value: unknown,
+): value is Omit<StartupsDirectorySnapshot, "pageSize"> {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<StartupsDirectorySnapshot>;
+  if (
+    !Array.isArray(candidate.companies) ||
+    typeof candidate.fetchedAt !== "number" ||
+    !candidate.pagination ||
+    typeof candidate.pagination.count !== "number"
+  ) {
+    return false;
+  }
+  const expectedFirstPageCount = Math.min(
+    STARTUPS_DIRECTORY_PAGE_SIZE,
+    candidate.pagination.count,
+  );
+  return candidate.companies.length === expectedFirstPageCount;
 }
 
 export function getCachedStartupsDirectory(): StartupsDirectorySnapshot | null {
@@ -48,8 +72,29 @@ export async function hydrateStartupsDirectoryCache(): Promise<StartupsDirectory
 
   hydrationPromise = (async () => {
     try {
-      const raw = await AsyncStorage.getItem(STARTUPS_DIRECTORY_STORAGE_KEY);
-      if (!raw) return null;
+      let raw = await AsyncStorage.getItem(STARTUPS_DIRECTORY_STORAGE_KEY);
+      if (!raw) {
+        const legacyRaw = await AsyncStorage.getItem(
+          LEGACY_STARTUPS_DIRECTORY_STORAGE_KEY,
+        );
+        if (legacyRaw) {
+          const legacyParsed: unknown = JSON.parse(legacyRaw);
+          if (isCompleteLegacyFirstPage(legacyParsed)) {
+            snapshot = {
+              companies: legacyParsed.companies.map(
+                compactStartupDirectoryCompany,
+              ),
+              pagination: legacyParsed.pagination,
+              pageSize: STARTUPS_DIRECTORY_PAGE_SIZE,
+              fetchedAt: legacyParsed.fetchedAt,
+            };
+            raw = JSON.stringify(snapshot);
+            await AsyncStorage.setItem(STARTUPS_DIRECTORY_STORAGE_KEY, raw);
+            return snapshot;
+          }
+        }
+        return null;
+      }
       const parsed: unknown = JSON.parse(raw);
       if (!isStoredSnapshot(parsed)) return null;
       if (!snapshot) snapshot = parsed;
@@ -101,6 +146,7 @@ async function loadStartupsDirectory(
     snapshot = {
       companies: response.companies,
       pagination: response.pagination,
+      pageSize: STARTUPS_DIRECTORY_PAGE_SIZE,
       fetchedAt: Date.now(),
     };
     void AsyncStorage.setItem(

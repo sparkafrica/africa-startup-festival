@@ -75,12 +75,6 @@ import {
 } from "../utils/meetingRestrictions";
 import { hasPendingMeetingWithPeer } from "../utils/messagingEligibility";
 import {
-  canRequestMeetingWithAttendee,
-  currentUserIsInvestor,
-  showInvestorConnectionRequiredAlert,
-} from "../utils/asfNetworking";
-import { getAttendeeDisplayFields } from "../utils/normalizeAttendee";
-import {
   isTicketTransferBlockedForEvent,
   showTicketTransferDeadlineAlert,
 } from "../utils/ticketTransferRestrictions";
@@ -4553,18 +4547,6 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     if (!canBook) {
       showExpoCannotBookMeetingAlert(navigation);
       return false;
-    }
-    const isInvestor = await currentUserIsInvestor();
-    if (!isInvestor) {
-      const { ticketTypeName } = getAttendeeDisplayFields(attendee);
-      const allowed = await canRequestMeetingWithAttendee({
-        ticketType: ticketTypeName,
-        connectionStatus: null,
-      });
-      if (!allowed) {
-        showInvestorConnectionRequiredAlert();
-        return false;
-      }
     }
     const peerId = String(attendee.user?.id ?? "").trim();
     const me = String(user?.user_id ?? "").trim();

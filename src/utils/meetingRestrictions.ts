@@ -2,8 +2,7 @@
  * Feature restrictions by ASF pass tier.
  *
  * - Limited Pass: exhibition + food court only — no networking.
- * - Explorer: main-stage access only — no in-app meeting booking.
- * - All other passes: standard networking (subject to investor connection rules).
+ * - Every other pass: full connect, messaging, and meeting access.
  */
 
 import { Alert } from "react-native";
@@ -17,14 +16,10 @@ import {
   blocksInitiatingConnectionForTicket,
   blocksMeetingBookingForTicket,
   collectTicketTypeStrings,
-  ticketIsExplorerPass,
   ticketIsLimitedPass,
 } from "./asfTicketClass";
 
-const EXPLORER_MEETING_BLOCK_MESSAGE =
-  "Explorer passes cannot book meetings. Upgrade your pass to access the meeting booking feature.";
-
-const LIMITED_PASS_NETWORKING_MESSAGE =
+export const LIMITED_PASS_NETWORKING_MESSAGE =
   "Limited Pass holders cannot use networking features. Upgrade your pass to connect and book meetings.";
 
 async function getUserTicket() {
@@ -43,6 +38,16 @@ export async function getCanUserBookMeetings(): Promise<boolean> {
       });
     }
     return !blocked;
+  } catch {
+    return false;
+  }
+}
+
+/** Limited Pass is the sole networking restriction across ASF. */
+export async function getCanUserUseNetworking(): Promise<boolean> {
+  try {
+    const ticket = await getUserTicket();
+    return !ticketIsLimitedPass(ticket ?? null);
   } catch {
     return false;
   }
@@ -94,17 +99,15 @@ export function showExpoCannotBookMeetingAlert(
   navigation: NavigationProp<RootStackParamList>,
 ): void {
   void (async () => {
-    let message = EXPLORER_MEETING_BLOCK_MESSAGE;
+    let message =
+      "We couldn't verify your meeting access. Please try again.";
     try {
       const ticket = await getUserTicket();
       if (ticketIsLimitedPass(ticket ?? null)) {
         message = LIMITED_PASS_NETWORKING_MESSAGE;
-      } else if (!ticketIsExplorerPass(ticket ?? null)) {
-        message =
-          "Your pass cannot book meetings. Upgrade your pass to access the meeting booking feature.";
       }
     } catch {
-      // Keep default explorer message.
+      // Keep the verification fallback.
     }
 
     Alert.alert(

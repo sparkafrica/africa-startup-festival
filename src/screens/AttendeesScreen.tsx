@@ -78,23 +78,19 @@ import { ApiClientError } from "../services/api";
 import { trackConnectionEvent, trackMeetingEvent } from "../utils/analytics";
 import {
   getCanUserBookMeetings,
+  getCanUserUseNetworking,
   showExpoCannotBookMeetingAlert,
   getCanUserInitiateConnection,
   showExhibitionCannotInitiateConnectionAlert,
 } from "../utils/meetingRestrictions";
 import {
   ticketIsSpeakerPass,
-  ticketTypeFromTicket,
 } from "../utils/asfTicketClass";
 import {
   canMessageAttendee,
-  canRequestMeetingWithAttendee,
-  currentUserIsInvestor,
-  showInvestorConnectionRequiredAlert,
   showMessagingAccessRequiredAlert,
 } from "../utils/asfNetworking";
 import {
-  canMessagePeer,
   getAcceptedMeetingPeerIds,
   hasPendingMeetingWithPeer,
 } from "../utils/messagingEligibility";
@@ -465,14 +461,10 @@ function getAttendeeProfilePicUri(attendee: Attendee): string | undefined {
 }
 
 function attendeeCanMessage(
-  attendee: Attendee,
-  viewerIsInvestor = false,
+  _attendee: Attendee,
+  viewerCanNetwork = false,
 ): boolean {
-  if (viewerIsInvestor) return true;
-  return canMessagePeer({
-    connectionStatus: attendee.connectionStatus,
-    hasAcceptedMeeting: attendee.hasAcceptedMeeting,
-  });
+  return viewerCanNetwork;
 }
 
 /** Memoized row so VirtualizedList does not treat every item as changed when the parent re-renders. */
@@ -609,8 +601,8 @@ interface AttendeeCardProps {
   onMessage?: (attendee: Attendee) => void;
   /** True while opening chat from any attendee card (top card only is interactive). */
   messageOpening?: boolean;
-  /** Investor pass: Message always enabled. */
-  viewerIsInvestor?: boolean;
+  /** Limited Pass is the only tier with messaging disabled. */
+  viewerCanNetwork?: boolean;
   index: number;
   totalCards: number;
   hasFilters?: boolean;
@@ -627,12 +619,12 @@ function AttendeeCard({
   onConnect,
   onMessage,
   messageOpening = false,
-  viewerIsInvestor = false,
+  viewerCanNetwork = false,
   index,
   totalCards,
   hasFilters = false,
 }: AttendeeCardProps) {
-  const canMessage = attendeeCanMessage(attendee, viewerIsInvestor);
+  const canMessage = attendeeCanMessage(attendee, viewerCanNetwork);
   const screenWidth = Dimensions.get("window").width;
   const cardWidth = screenWidth - 32; // 16px padding on each side
 
@@ -1304,12 +1296,12 @@ export default function AttendeesScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
-  const [viewerIsInvestor, setViewerIsInvestor] = useState(false);
+  const [viewerCanNetwork, setViewerCanNetwork] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    void currentUserIsInvestor().then((isInvestor) => {
-      if (!cancelled) setViewerIsInvestor(isInvestor);
+    void getCanUserUseNetworking().then((canNetwork) => {
+      if (!cancelled) setViewerCanNetwork(canNetwork);
     });
     return () => {
       cancelled = true;
@@ -1344,6 +1336,7 @@ export default function AttendeesScreen() {
   // freshness once, without replacing those cards with a skeleton.
   const startupsFetchedRef = useRef(false);
   const startupsRequestInFlightRef = useRef(false);
+  const hasScheduledStartupPageTwoPrefetchRef = useRef(false);
 
   const fetchDirectoryStartups = useCallback(
     async ({
@@ -1357,6 +1350,7 @@ export default function AttendeesScreen() {
       startupsRequestInFlightRef.current = true;
 
       if (isRefresh) {
+        hasScheduledStartupPageTwoPrefetchRef.current = false;
         setStartupsRefreshing(true);
       } else if (page === 1) {
         setStartupsLoading(getCachedStartupsDirectory() == null);
@@ -1450,6 +1444,36 @@ export default function AttendeesScreen() {
     startupsLoadingMore,
     startupsNextPage,
     startupsRefreshing,
+  ]);
+
+  // Match the standalone Startups directory: render page one immediately,
+  // then warm page two after navigation/initial rendering has settled.
+  useEffect(() => {
+    if (
+      directoryMode !== "startups" ||
+      startupsLoading ||
+      !startupsHasMore ||
+      startupsNextPage !== 2 ||
+      hasScheduledStartupPageTwoPrefetchRef.current
+    ) {
+      return;
+    }
+
+    hasScheduledStartupPageTwoPrefetchRef.current = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const task = InteractionManager.runAfterInteractions(() => {
+      timer = setTimeout(loadMoreDirectoryStartups, 700);
+    });
+    return () => {
+      task.cancel();
+      if (timer) clearTimeout(timer);
+    };
+  }, [
+    directoryMode,
+    loadMoreDirectoryStartups,
+    startupsHasMore,
+    startupsLoading,
+    startupsNextPage,
   ]);
 
   /** List scrollbar: UI-thread only — avoids setState on scroll (VirtualizedList slow-update warnings). */
@@ -2417,19 +2441,6 @@ export default function AttendeesScreen() {
         showExpoCannotBookMeetingAlert(navigation);
         return;
       }
-      const isInvestor = await currentUserIsInvestor();
-      if (!isInvestor) {
-        const allowed = await canRequestMeetingWithAttendee({
-          ticketType: ticketTypeFromTicket(
-            attendee.backendData?.ticket ?? null,
-          ),
-          connectionStatus: attendee.connectionStatus,
-        });
-        if (!allowed) {
-          showInvestorConnectionRequiredAlert();
-          return;
-        }
-      }
       const currentUserId = String(user?.user_id ?? "").trim();
       if (currentUserId) {
         const pending = await hasPendingMeetingWithPeer(
@@ -3105,7 +3116,7 @@ export default function AttendeesScreen() {
                                 }
                                 onMessage={handleAttendeeMessage}
                                 messageOpening={isOpeningChat}
-                                viewerIsInvestor={viewerIsInvestor}
+                                viewerCanNetwork={viewerCanNetwork}
                                 index={index}
                                 totalCards={Math.min(
                                   5,
@@ -3548,7 +3559,7 @@ export default function AttendeesScreen() {
                         <Pressable
                           onPress={() => {
                             const a = selectedAttendee;
-                            if (attendeeCanMessage(a, viewerIsInvestor)) {
+                            if (attendeeCanMessage(a, viewerCanNetwork)) {
                               closeBottomSheet();
                             }
                             void handleAttendeeMessage(a);
@@ -3563,7 +3574,7 @@ export default function AttendeesScreen() {
                           className={`flex-row items-center justify-center px-3 ${
                             attendeeCanMessage(
                               selectedAttendee,
-                              viewerIsInvestor,
+                              viewerCanNetwork,
                             )
                               ? "bg-[#1BB273] shadow-sm"
                               : "border border-dashed border-neutral-300 bg-white"
@@ -3575,7 +3586,7 @@ export default function AttendeesScreen() {
                               color={
                                 attendeeCanMessage(
                                   selectedAttendee,
-                                  viewerIsInvestor,
+                                  viewerCanNetwork,
                                 )
                                   ? "#FFFFFF"
                                   : "#404040"
@@ -3588,7 +3599,7 @@ export default function AttendeesScreen() {
                                 color={
                                   attendeeCanMessage(
                                     selectedAttendee,
-                                    viewerIsInvestor,
+                                    viewerCanNetwork,
                                   )
                                     ? "#FFFFFF"
                                     : "#A3A3A3"
@@ -3598,7 +3609,7 @@ export default function AttendeesScreen() {
                                 className={`text-sm font-semibold ml-1.5 ${
                                   attendeeCanMessage(
                                     selectedAttendee,
-                                    viewerIsInvestor,
+                                    viewerCanNetwork,
                                   )
                                     ? "text-white"
                                     : "text-neutral-400"
