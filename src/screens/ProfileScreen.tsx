@@ -87,6 +87,11 @@ import { StartupJoinAdminPanel } from "../components/StartupJoinAdminPanel";
 import { useStartupJoin } from "../hooks/useStartupJoin";
 import { shouldShowStartupJoinForm } from "../utils/startupJoinStatus";
 import { useProfilePhotoDraft } from "../hooks/useProfilePhotoDraft";
+import {
+  extractLinkedInValue,
+  normalizeLinkedInUrl,
+  validateLinkedInInput,
+} from "../utils/linkedInUtils";
 
 const INPUT_PLACEHOLDER_COLOR = "#9CA3AF";
 
@@ -169,23 +174,7 @@ const validateCompany = (
 const validateLinkedIn = (
   linkedIn: string
 ): { valid: boolean; error?: string } => {
-  const trimmed = linkedIn.trim();
-  if (!trimmed) {
-    return { valid: false, error: "Please enter your LinkedIn profile URL." };
-  }
-  if (trimmed.length > 500) {
-    return { valid: false, error: "LinkedIn must be under 500 characters." };
-  }
-  // Basic acceptor: any URL (http(s)://) or anything that looks like LinkedIn (contains "linkedin")
-  const looksLikeUrl =
-    /^https?:\/\/\S+/i.test(trimmed) || trimmed.includes("linkedin");
-  if (!looksLikeUrl) {
-    return {
-      valid: false,
-      error: "Please enter a valid LinkedIn profile URL (e.g. https://linkedin.com/in/yourname).",
-    };
-  }
-  return { valid: true };
+  return validateLinkedInInput(linkedIn, "person");
 };
 
 const validateBio = (bio: string): { valid: boolean; error?: string } => {
@@ -1021,7 +1010,7 @@ function PersonalProfileSection({
       if (opt) setSelectedCountry(opt.id);
     }
     const meta = getEventMetadata(source.metadata);
-    const li = meta.linkedIn ?? meta.linkedin_url;
+    const li = extractLinkedInValue(meta);
     if (typeof li === "string") setLinkedIn(li);
     const industryId = resolveIndustryId(meta.industry);
     if (industryId) setSelectedIndustry(industryId);
@@ -1243,7 +1232,7 @@ function PersonalProfileSection({
         eventMetadataPatch.interests = selectedInterests;
       }
       if (linkedIn.trim()) {
-        eventMetadataPatch.linkedIn = linkedIn.trim();
+        eventMetadataPatch.linkedIn = normalizeLinkedInUrl(linkedIn, "person");
       }
       if (eventGoals.trim()) {
         eventMetadataPatch.event_goals = eventGoals.trim();
@@ -1901,7 +1890,7 @@ function AttendeeProfileSection({
     if (Array.isArray(meta.interests)) {
       setSelectedInterests(resolveInterestLabels(meta.interests as string[]));
     }
-    const li = meta.linkedIn ?? meta.linkedin_url;
+    const li = extractLinkedInValue(meta);
     if (typeof li === "string") setLinkedIn(li);
     if (typeof meta.event_goals === "string") setEventGoals(meta.event_goals);
     if (Array.isArray(meta.industries_to_meet)) {
@@ -2111,7 +2100,7 @@ function AttendeeProfileSection({
       if (selectedInterests.length > 0) {
         eventMetadataPatch.interests = selectedInterests;
       }
-      eventMetadataPatch.linkedIn = linkedIn.trim();
+      eventMetadataPatch.linkedIn = normalizeLinkedInUrl(linkedIn, "person");
       if (eventGoals.trim()) {
         eventMetadataPatch.event_goals = eventGoals.trim();
       }
@@ -2864,7 +2853,8 @@ function CompanyProfileSection({
       if (sl.instagram) setInstagram(sl.instagram);
       if (sl.x ?? sl.xHandle) setXHandle(sl.x ?? sl.xHandle ?? "");
     }
-    if (typeof meta.linkedIn === "string") setLinkedIn(meta.linkedIn);
+    const legacyLinkedIn = extractLinkedInValue(meta);
+    if (legacyLinkedIn) setLinkedIn(legacyLinkedIn);
     if (typeof meta.facebook === "string") setFacebook(meta.facebook);
     if (typeof meta.instagram === "string") setInstagram(meta.instagram);
     if (typeof (meta.xHandle ?? meta.twitter) === "string") {
@@ -3135,7 +3125,7 @@ function CompanyProfileSection({
     if (!linkedIn.trim()) {
       errors.linkedIn = "Please enter your full LinkedIn profile URL.";
     } else {
-      const v = validateLinkedIn(linkedIn);
+      const v = validateLinkedInInput(linkedIn, "any");
       if (!v.valid) errors.linkedIn = v.error || "";
     }
     if (facebook.trim()) {
@@ -3200,7 +3190,9 @@ function CompanyProfileSection({
 
       // Build metadata object for fields that don't have direct backend fields
       const socialLinksObj: any = {};
-      if (linkedIn.trim()) socialLinksObj.linkedin = linkedIn.trim();
+      if (linkedIn.trim()) {
+        socialLinksObj.linkedin = normalizeLinkedInUrl(linkedIn, "any");
+      }
       if (facebook.trim()) socialLinksObj.facebook = facebook.trim();
       if (instagram.trim()) socialLinksObj.instagram = instagram.trim();
       if (xHandle.trim()) socialLinksObj.x = xHandle.trim();

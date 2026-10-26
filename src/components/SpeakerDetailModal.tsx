@@ -43,6 +43,7 @@ import {
   resolveEventRoles,
   sessionSectionLabel,
 } from "../utils/eventRoles";
+import { normalizeLinkedInUrl } from "../utils/linkedInUtils";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 const SHEET_MAX_WIDTH = Math.min(SCREEN_WIDTH, 420);
@@ -221,7 +222,7 @@ export default function SpeakerDetailModal({
         avatar: speaker.profile_pic ? { uri: speaker.profile_pic } : null,
         avatarColor,
         bio: speaker.description || "",
-        linkedinUrl: speaker.linkedin_url || null,
+        linkedinUrl: normalizeLinkedInUrl(speaker.linkedin_url, "person"),
         tags,
         interests,
         eventRoles,
@@ -337,11 +338,7 @@ export default function SpeakerDetailModal({
       return;
     }
     try {
-      const url =
-        speakerData.linkedinUrl.startsWith("http://") ||
-        speakerData.linkedinUrl.startsWith("https://")
-          ? speakerData.linkedinUrl
-          : `https://${speakerData.linkedinUrl}`;
+      const url = speakerData.linkedinUrl;
       const supported = await Linking.canOpenURL(url);
       if (supported) {
         await Linking.openURL(url);

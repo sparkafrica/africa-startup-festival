@@ -37,6 +37,7 @@ import { shouldShowStartupJoinForm } from "../utils/startupJoinStatus";
 import { StartupJoinStatusCard } from "./StartupJoinStatusCard";
 import { StartupJoinAdminPanel } from "./StartupJoinAdminPanel";
 import { ChevronDownIcon } from "./icons";
+import { validateLinkedInInput } from "../utils/linkedInUtils";
 
 const INPUT_PLACEHOLDER = "#9CA3AF";
 
@@ -93,14 +94,8 @@ function validateUrl(value: string, label: string): string | null {
 }
 
 function validateLinkedInUrl(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return "LinkedIn is required";
-  const looksLikeUrl =
-    /^https?:\/\/\S+/i.test(trimmed) || trimmed.includes("linkedin");
-  if (!looksLikeUrl) {
-    return "Enter a valid LinkedIn URL (e.g. https://linkedin.com/in/yourname)";
-  }
-  return null;
+  const result = validateLinkedInInput(value, "person");
+  return result.valid ? null : result.error || "Enter a valid LinkedIn URL";
 }
 
 function validateCreateStartupForm(input: {

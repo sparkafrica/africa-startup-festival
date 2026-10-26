@@ -71,6 +71,11 @@ import {
 } from "../utils/asfTicketClass";
 import { type SelectOption } from "../constants/companyProfileOptions";
 import { useProfilePhotoDraft } from "../hooks/useProfilePhotoDraft";
+import {
+  extractLinkedInValue,
+  normalizeLinkedInUrl,
+  validateLinkedInInput,
+} from "../utils/linkedInUtils";
 
 const INPUT_PLACEHOLDER_COLOR = "#9CA3AF";
 
@@ -163,23 +168,7 @@ const validateCompany = (
 const validateLinkedIn = (
   linkedIn: string
 ): { valid: boolean; error?: string } => {
-  const trimmed = linkedIn.trim();
-  if (!trimmed) {
-    return { valid: false, error: "Please enter your LinkedIn profile URL." };
-  }
-  if (trimmed.length > 500) {
-    return { valid: false, error: "LinkedIn must be under 500 characters." };
-  }
-  // Basic acceptor: any URL (http(s)://) or anything that looks like LinkedIn (contains "linkedin")
-  const looksLikeUrl =
-    /^https?:\/\/\S+/i.test(trimmed) || trimmed.includes("linkedin");
-  if (!looksLikeUrl) {
-    return {
-      valid: false,
-      error: "Please enter a valid LinkedIn profile URL (e.g. https://linkedin.com/in/yourname).",
-    };
-  }
-  return { valid: true };
+  return validateLinkedInInput(linkedIn, "person");
 };
 
 const validateBio = (bio: string): { valid: boolean; error?: string } => {
@@ -933,7 +922,7 @@ function AttendeeProfileForm({
     if (Array.isArray(meta.interests)) {
       setSelectedInterests(resolveInterestLabels(meta.interests as string[]));
     }
-    const li = meta.linkedIn ?? meta.linkedin_url;
+    const li = extractLinkedInValue(meta);
     if (typeof li === "string") setLinkedIn(li);
     if (typeof meta.event_goals === "string") setEventGoals(meta.event_goals);
     if (Array.isArray(meta.industries_to_meet)) {
@@ -1142,7 +1131,7 @@ function AttendeeProfileForm({
 
       // Build metadata for attendee directory cards and matching
       const eventMetadataPatch: Record<string, unknown> = {
-        linkedIn: linkedIn.trim(),
+        linkedIn: normalizeLinkedInUrl(linkedIn, "person"),
       };
       if (selectedIndustry) {
         eventMetadataPatch.industry = selectedIndustry;
@@ -1800,7 +1789,7 @@ function PersonalProfileForm({
     if (Array.isArray(meta.interests)) {
       setSelectedInterests(resolveInterestLabels(meta.interests as string[]));
     }
-    const li = meta.linkedIn ?? meta.linkedin_url;
+    const li = extractLinkedInValue(meta);
     if (typeof li === "string") setLinkedIn(li);
     if (typeof meta.event_goals === "string") setEventGoals(meta.event_goals);
     if (Array.isArray(meta.industries_to_meet)) {
@@ -2005,7 +1994,7 @@ function PersonalProfileForm({
 
       // Build metadata: industry & interests for attendee cards; merge with existing so we don't overwrite e.g. event_checklist
       const eventMetadataPatch: Record<string, unknown> = {
-        linkedIn: linkedIn.trim(),
+        linkedIn: normalizeLinkedInUrl(linkedIn, "person"),
       };
       if (selectedIndustry) {
         eventMetadataPatch.industry = selectedIndustry;
@@ -2702,6 +2691,13 @@ function CompanyProfileForm({
         x: sl.x ?? "",
       });
     }
+    const legacyCompanyLinkedIn = extractLinkedInValue(meta);
+    if (legacyCompanyLinkedIn) {
+      setSocialLinks((current) => ({
+        ...current,
+        linkedin: legacyCompanyLinkedIn,
+      }));
+    }
     if (Array.isArray(meta.offers) && meta.offers.length > 0) {
       setOffers(
         (
@@ -2931,7 +2927,7 @@ function CompanyProfileForm({
     if (!socialLinks.linkedin.trim()) {
       errors.linkedIn = "Please enter your full LinkedIn profile URL.";
     } else {
-      const v = validateLinkedIn(socialLinks.linkedin);
+      const v = validateLinkedInInput(socialLinks.linkedin, "any");
       if (!v.valid) errors.linkedIn = v.error || "";
     }
     if (socialLinks.facebook.trim()) {
@@ -3019,7 +3015,12 @@ function CompanyProfileForm({
       }
       if (socialLinks.linkedin.trim() || socialLinks.facebook.trim() || socialLinks.instagram.trim() || socialLinks.x.trim()) {
         const socialLinksObj: any = {};
-        if (socialLinks.linkedin.trim()) socialLinksObj.linkedin = socialLinks.linkedin.trim();
+        if (socialLinks.linkedin.trim()) {
+          socialLinksObj.linkedin = normalizeLinkedInUrl(
+            socialLinks.linkedin,
+            "any",
+          );
+        }
         if (socialLinks.facebook.trim()) socialLinksObj.facebook = socialLinks.facebook.trim();
         if (socialLinks.instagram.trim()) socialLinksObj.instagram = socialLinks.instagram.trim();
         if (socialLinks.x.trim()) socialLinksObj.x = socialLinks.x.trim();

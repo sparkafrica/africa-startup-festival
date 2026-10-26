@@ -11,6 +11,7 @@ import {
 } from "../constants/industryAndInterests";
 import { getEventMetadata } from "./eventMetadata";
 import { ticketTypeFromTicket } from "./asfTicketClass";
+import { extractLinkedInValue } from "./linkedInUtils";
 
 /** Loose attendee shape from directory APIs (ticket may be partial). */
 export type AttendeeLike = {
@@ -133,7 +134,7 @@ export function getAttendeeDisplayFields(attendee: Attendee): AttendeeDisplayFie
     bio: typeof meta.bio === "string" ? meta.bio : "",
     interests: resolveInterestLabels(coerceMetadataStringArray(meta.interests)),
     industry,
-    linkedInRaw: meta.linkedIn ?? meta.linkedin_url,
+    linkedInRaw: extractLinkedInValue(meta, user),
     ticketTypeName: ticketTypeFromTicket(attendee.ticket ?? null),
     country: user.country ?? "",
   };

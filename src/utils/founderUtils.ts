@@ -7,6 +7,10 @@
  * - Also send top-level `founders` (FounderRequest) when email is present — EMS schema.
  * - Never send `founders: []` unless the admin intentionally cleared every founder.
  */
+import {
+  normalizeLinkedInUrl,
+  validateLinkedInInput,
+} from "./linkedInUtils";
 
 export type FounderFormEntry = {
   id: string;
@@ -67,13 +71,6 @@ export function validateFounderEmail(email: string): string | null {
   return null;
 }
 
-function ensureHttps(url: string): string {
-  const trimmed = url.trim();
-  if (!trimmed) return "";
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
-  return `https://${trimmed}`;
-}
-
 function normalizeEmail(email: unknown): string {
   return (email ?? "").toString().trim().toLowerCase();
 }
@@ -109,7 +106,7 @@ function mapOneFounder(f: any, i: number): FounderDisplay | null {
     id: email || String(f?.id ?? `founder-${i}`),
     name: name || "Founder",
     role,
-    linkedInUrl: linkedInRaw ? ensureHttps(linkedInRaw) : "",
+    linkedInUrl: normalizeLinkedInUrl(linkedInRaw, "person") ?? "",
     imageUrl: pic,
   };
 }
@@ -244,11 +241,12 @@ export async function buildFounderSavePayloads(
         validationError: `Founder ${i + 1}: ${emailErr}`,
       };
     }
-    if (!f.linkedIn.trim()) {
+    const linkedInValidation = validateLinkedInInput(f.linkedIn, "person");
+    if (!linkedInValidation.valid) {
       return {
         metadataFounders: [],
         apiFounders: [],
-        validationError: `Founder ${i + 1}: LinkedIn is required`,
+        validationError: `Founder ${i + 1}: ${linkedInValidation.error}`,
       };
     }
   }
@@ -257,6 +255,9 @@ export async function buildFounderSavePayloads(
   const apiFounders: FounderRequestPayload[] = [];
 
   for (const f of started) {
+    const canonicalLinkedIn = normalizeLinkedInUrl(f.linkedIn, "person");
+    // Already validated above; keep the guard so persistence never stores junk.
+    if (!canonicalLinkedIn) continue;
     let profile_pic: string | null | undefined = f.imageUrl ?? undefined;
     if (f.imageUri) {
       profile_pic = (await readImageAsBase64Fn(f.imageUri)) ?? profile_pic;
@@ -266,7 +267,7 @@ export async function buildFounderSavePayloads(
       name: f.name.trim(),
       role: f.role.trim(),
       email: f.email.trim(),
-      linkedin: f.linkedIn.trim(),
+      linkedin: canonicalLinkedIn,
       ...(profile_pic ? { profile_pic } : {}),
     });
     apiFounders.push({
@@ -274,7 +275,7 @@ export async function buildFounderSavePayloads(
       last_name: last_name || "-",
       email: f.email.trim(),
       job_title: f.role.trim(),
-      linkedin: f.linkedIn.trim(),
+      linkedin: canonicalLinkedIn,
       // Nested binary often fails on JSON PATCH — photos live in metadata for display.
     });
   }

@@ -56,7 +56,10 @@ import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
 } from "../utils/meetingRestrictions";
-import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
+import {
+  extractLinkedInValue,
+  getLinkedInDisplayInfo,
+} from "../utils/linkedInUtils";
 import { normalizeFoundersForDisplay } from "../utils/founderUtils";
 import { trackMeetingEvent } from "../utils/analytics";
 
@@ -198,8 +201,7 @@ function buildSocialUrl(platform: string, handle: string): string {
   if (lower === "x" || lower === "twitter") return `https://x.com/${h}`;
   if (lower === "facebook") return `https://facebook.com/${h}`;
   if (lower === "linkedin") {
-    if (h.startsWith("http")) return ensureHttps(h);
-    return `https://linkedin.com/in/${h.replace(/^\//, "")}`;
+    return getLinkedInDisplayInfo(h)?.url ?? "";
   }
   return "";
 }
@@ -245,11 +247,13 @@ function mapCompanyToUIData(
   const rawLinks = meta.social_links || meta.socialLinks || {};
   if (typeof rawLinks === "object" && rawLinks !== null) {
     for (const [platform, handle] of Object.entries(rawLinks)) {
-      if (handle && socialMap[platform.toLowerCase()]) {
-        const { icon, color } = socialMap[platform.toLowerCase()];
+      const normalizedPlatform = platform.toLowerCase();
+      if (handle && socialMap[normalizedPlatform]) {
+        const { icon, color } = socialMap[normalizedPlatform];
         const url = buildSocialUrl(platform, String(handle));
+        if (!url) continue;
         socialLinks.push({
-          id: platform,
+          id: normalizedPlatform,
           platform: platform.charAt(0).toUpperCase() + platform.slice(1),
           handle: String(handle),
           url,
@@ -259,8 +263,8 @@ function mapCompanyToUIData(
       }
     }
   }
-  if (meta.linkedin && !socialLinks.find((s) => s.id === "linkedin")) {
-    const linkedInVal = String(meta.linkedin).trim();
+  if (!socialLinks.find((s) => s.id === "linkedin")) {
+    const linkedInVal = extractLinkedInValue(meta, company);
     const linkedInInfo = getLinkedInDisplayInfo(linkedInVal);
     if (linkedInInfo) {
       socialLinks.push({
@@ -355,19 +359,7 @@ function mapCompanyToUIData(
     pitchDeckUrl,
     companyType,
     eventOffers: offers,
-    socialLinks:
-      socialLinks.length > 0
-        ? socialLinks
-        : [
-            {
-              id: "linkedin",
-              platform: "LinkedIn",
-              handle: "Profile",
-              url: "",
-              icon: LinkedInIcon,
-              color: "#0A66C2",
-            },
-          ],
+    socialLinks,
     teamMembers,
     founders,
     openPositions,
@@ -391,16 +383,7 @@ const DEFAULT_COMPANY_DATA: CompanyUIData = {
   pitchDeckUrl: "",
   companyType: "",
   eventOffers: [],
-  socialLinks: [
-    {
-      id: "linkedin",
-      platform: "LinkedIn",
-      handle: "Profile",
-      url: "",
-      icon: LinkedInIcon,
-      color: "#0A66C2",
-    },
-  ],
+  socialLinks: [],
   teamMembers: [],
   founders: [],
   openPositions: [],
@@ -919,42 +902,44 @@ function CompanyDetailScreenInner({ route }: Props) {
             )}
           </View>
 
-          {/* Social Links Section */}
-          <View className="px-4 mb-4">
-            <ProfileSectionHeader>Social Links</ProfileSectionHeader>
-            <View className="flex-row flex-wrap justify-start">
-              {companyData.socialLinks.map((social) => {
-                const IconComponent = social.icon;
-                return (
-                  <Pressable
-                    key={social.id}
-                    className="flex-row items-center self-start px-3 py-2 mr-2 mb-2 bg-white border border-black"
-                    style={{ borderRadius: 0 }}
-                    onPress={() => social.url && openUrl(social.url)}
-                  >
-                    {social.id === "linkedin" ? (
-                      <LinkedInLinkLabel
-                        iconSize={16}
-                        textSize={12}
-                        textColor={brand.black}
-                      />
-                    ) : (
-                      <>
-                        <IconComponent size={16} color={brand.black} />
-                        <Text
-                          className="text-xs ml-2 font-medium"
-                          style={{ color: brand.black }}
-                          numberOfLines={1}
-                        >
-                          {social.handle}
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
-                );
-              })}
+          {/* Social Links Section — invalid/empty links are never rendered. */}
+          {companyData.socialLinks.length > 0 ? (
+            <View className="px-4 mb-4">
+              <ProfileSectionHeader>Social Links</ProfileSectionHeader>
+              <View className="flex-row flex-wrap justify-start">
+                {companyData.socialLinks.map((social) => {
+                  const IconComponent = social.icon;
+                  return (
+                    <Pressable
+                      key={social.id}
+                      className="flex-row items-center self-start px-3 py-2 mr-2 mb-2 bg-white border border-black"
+                      style={{ borderRadius: 0 }}
+                      onPress={() => social.url && openUrl(social.url)}
+                    >
+                      {social.id === "linkedin" ? (
+                        <LinkedInLinkLabel
+                          iconSize={16}
+                          textSize={12}
+                          textColor={brand.black}
+                        />
+                      ) : (
+                        <>
+                          <IconComponent size={16} color={brand.black} />
+                          <Text
+                            className="text-xs ml-2 font-medium"
+                            style={{ color: brand.black }}
+                            numberOfLines={1}
+                          >
+                            {social.handle}
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
-          </View>
+          ) : null}
 
           {/* Open Positions Section - matches mock */}
           <View className="px-4 mb-4">

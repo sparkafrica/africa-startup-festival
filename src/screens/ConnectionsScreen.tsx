@@ -44,7 +44,10 @@ import {
 import { SearchIcon, ChevronRightIcon, SpeechBubbleIcon } from "../components/icons";
 import { LinkedInLinkLabel } from "../components/LinkedInLinkLabel";
 import { CalendarIconWhite } from "../components/SocialIcons";
-import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
+import {
+  extractLinkedInValue,
+  getLinkedInDisplayInfo,
+} from "../utils/linkedInUtils";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
@@ -387,11 +390,7 @@ export default function ConnectionsScreen() {
     // Extract bio from metadata
     const bio = typeof metadata.bio === "string" ? metadata.bio : "";
 
-    const linkedInUrl =
-      (typeof metadata.linkedIn === "string" ? metadata.linkedIn : undefined) ||
-      (typeof metadata.linkedin_url === "string"
-        ? metadata.linkedin_url
-        : undefined);
+    const linkedInUrl = extractLinkedInValue(metadata, otherUser) ?? undefined;
 
     // Build tags — industry/sector only (country omitted from cards; interests shown separately)
     const tags: ConnectionTag[] = [];

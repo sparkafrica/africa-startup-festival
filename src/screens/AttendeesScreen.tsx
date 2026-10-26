@@ -128,7 +128,10 @@ import {
   SpeechBubbleIcon,
 } from "../components/icons";
 import { LinkedInLinkLabel } from "../components/LinkedInLinkLabel";
-import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
+import {
+  extractLinkedInValue,
+  getLinkedInDisplayInfo,
+} from "../utils/linkedInUtils";
 import {
   coerceMetadataStringArray,
 } from "../utils/metadataCoerce";
@@ -1682,13 +1685,7 @@ export default function AttendeesScreen() {
       // Extract bio from metadata
       const bio = typeof metadata.bio === "string" ? metadata.bio : "";
 
-      const linkedInUrl =
-        (typeof metadata.linkedIn === "string"
-          ? metadata.linkedIn
-          : undefined) ||
-        (typeof metadata.linkedin_url === "string"
-          ? metadata.linkedin_url
-          : undefined);
+      const linkedInUrl = extractLinkedInValue(metadata, user);
 
       const eventRoles = resolveEventRoles(
         [
@@ -1711,7 +1708,7 @@ export default function AttendeesScreen() {
         tags: tags.length > 0 ? tags : undefined,
         bio: bio || undefined,
         interests: interests.length > 0 ? interests : undefined,
-        linkedInUrl: linkedInUrl,
+        linkedInUrl: linkedInUrl ?? undefined,
         industry: industry || undefined,
         isSpeaker: eventRoles.includes("speaker"),
         eventRoles,

@@ -6,7 +6,10 @@
 
 import React from "react";
 import { View } from "react-native";
-import { getLinkedInDisplayInfo } from "./linkedInUtils";
+import {
+  extractLinkedInValue,
+  getLinkedInDisplayInfo,
+} from "./linkedInUtils";
 import { resolveInterestLabels } from "../constants/industryAndInterests";
 import { coerceMetadataStringArray } from "./metadataCoerce";
 import { UserNotification } from "../services/notificationService";
@@ -729,10 +732,10 @@ export async function fetchNotificationDetails(
           coerceMetadataStringArray(otherUser?.metadata?.interests),
         );
         // Align with MeetingsScreen: check linkedIn, linkedin_url, linkedin (Item 6)
-        const linkedInRaw =
-          otherUser?.metadata?.linkedIn ||
-          otherUser?.metadata?.linkedin_url ||
-          otherUser?.metadata?.linkedin;
+        const linkedInRaw = extractLinkedInValue(
+          otherUser?.metadata,
+          otherUser,
+        );
         const linkedInInfo = getLinkedInDisplayInfo(linkedInRaw);
         const requester = {
           name:
@@ -861,9 +864,10 @@ export async function fetchNotificationDetails(
           coerceMetadataStringArray(connectionUser.metadata?.interests),
         );
 
-        const linkedInRaw =
-          connectionUser.metadata?.linkedIn ||
-          connectionUser.metadata?.linkedin_url;
+        const linkedInRaw = extractLinkedInValue(
+          connectionUser.metadata,
+          connectionUser,
+        );
         const linkedInInfo = getLinkedInDisplayInfo(linkedInRaw);
         const socialLabel = linkedInInfo?.displayLabel;
         const linkedInUrl = linkedInInfo?.url;

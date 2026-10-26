@@ -49,7 +49,10 @@ import {
 import { trackMeetingEvent } from "../utils/analytics";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
-import { getLinkedInDisplayInfo } from "../utils/linkedInUtils";
+import {
+  extractLinkedInValue,
+  getLinkedInDisplayInfo,
+} from "../utils/linkedInUtils";
 import { resolveMeetingById } from "../services/deepLinkResolveService";
 import { isPostEventMode } from "../config/eventMode";
 import {
@@ -496,8 +499,7 @@ export default function MeetingsScreen({ route }: Props) {
 
     const bio = (m?.bio as string) || "";
 
-    const linkedInRaw =
-      m?.linkedIn ?? m?.linkedin_url ?? m?.linkedin ?? u?.linkedIn ?? u?.linkedin_url ?? u?.linkedin;
+    const linkedInRaw = extractLinkedInValue(m, u);
     const linkedInInfo = getLinkedInDisplayInfo(
       typeof linkedInRaw === "string" ? linkedInRaw : undefined
     );

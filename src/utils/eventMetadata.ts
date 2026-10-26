@@ -9,6 +9,10 @@ import { getSafeMetadataObjectForMerge } from "./sanitizeUserMetadata";
 export const EVENT_SCOPED_USER_METADATA_KEYS = [
   "linkedIn",
   "linkedin_url",
+  "linkedin",
+  "linkedinUrl",
+  "socialLinks",
+  "social_links",
   "industry",
   "interests",
   "event_goals",
