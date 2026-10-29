@@ -18,7 +18,7 @@ import { ClockIcon } from "./BottomNavIcons";
 import LoadingSpinner from "./LoadingSpinner";
 import { ChevronDownIcon, ChevronUpIcon } from "./icons";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
-import { EVENT_ID, EVENT_FALLBACK_MEETING_DATE_ISOS } from "../config/env";
+import { EVENT_DAY_ISO, EVENT_ID, EVENT_FALLBACK_MEETING_DATE_ISOS } from "../config/env";
 import MeetingCalendarPicker from "./MeetingCalendarPicker";
 import MeetingTimePicker from "./MeetingTimePicker";
 import {
@@ -229,7 +229,7 @@ export default function EditMeetingModal({
     const set = new Set<string>();
     meetingSlots.forEach((slot) => {
       const d = slotDateNorm(slot);
-      if (d) set.add(d);
+      if (d === EVENT_DAY_ISO) set.add(d);
     });
     if (set.size === 0) {
       EVENT_FALLBACK_MEETING_DATE_ISOS.forEach((iso) => set.add(iso));

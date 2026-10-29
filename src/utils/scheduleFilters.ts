@@ -4,6 +4,7 @@
  */
 
 import {
+  EVENT_DAY_ISO,
   EVENT_DAY_FILTER_ID_TO_ISO,
 } from "../config/env";
 import type { Event, EventSchedule } from "../services/eventService";
@@ -63,6 +64,7 @@ export function deriveDayLabel(
   event: Event | number | undefined,
 ): string {
   const iso = scheduleStartDateIso(startTime);
+  if (iso === EVENT_DAY_ISO) return "29 October";
   const eventDates = resolveExpoDates(event);
   if (eventDates.length === 0) return "Day 1";
   const idx = eventDates.indexOf(iso);
@@ -121,6 +123,7 @@ export function filterEventSchedules(
 ): EventSchedule[] {
   const { venue, dayFilterIds = [] } = options;
   return schedules.filter((schedule) => {
+    if (scheduleStartDateIso(schedule.start_time) !== EVENT_DAY_ISO) return false;
     if (venue && !matchesVenue(schedule, venue)) return false;
     if (!matchesDayFilterIds(schedule, dayFilterIds)) return false;
     return true;

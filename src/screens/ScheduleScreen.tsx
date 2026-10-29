@@ -44,6 +44,7 @@ import {
 } from "../hooks";
 import { eventService, type EventSchedule, type PersonalSchedule } from "../services/eventService";
 import {
+  EVENT_DAY_ISO,
   EVENT_DAY_FILTER_LABELS,
   EVENT_ID,
 } from "../config/env";
@@ -699,7 +700,11 @@ export default function ScheduleScreen() {
       ]);
       const response = await eventService.getPersonalSchedules(EVENT_ID);
       const mapped = response.schedules
-        .filter((ps: PersonalSchedule) => ps.event_schedule && typeof ps.event_schedule === "object")
+        .filter((ps: PersonalSchedule) =>
+          ps.event_schedule &&
+          typeof ps.event_schedule === "object" &&
+          scheduleStartDateIso(ps.event_schedule.start_time) === EVENT_DAY_ISO,
+        )
         .map((ps: PersonalSchedule) => {
           const eventData = mapEventScheduleToEventData(ps.event_schedule as EventSchedule);
           return { ...eventData, personalScheduleId: ps.id };

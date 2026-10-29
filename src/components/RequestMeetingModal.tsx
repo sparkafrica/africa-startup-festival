@@ -25,7 +25,7 @@ import LoadingSpinner from "./LoadingSpinner";
 import Toast from "./Toast";
 import { meetingService, type MeetingSlot } from "../services/meetingService";
 import { ensureMeetingsList } from "../utils/meetingsListCache";
-import { EVENT_DAY_FILTER_LABELS, EVENT_FALLBACK_MEETING_DATE_ISOS, EVENT_ID } from "../config/env";
+import { EVENT_DAY_ISO, EVENT_FALLBACK_MEETING_DATE_ISOS, EVENT_ID } from "../config/env";
 import { getCanUserBookMeetings } from "../utils/meetingRestrictions";
 import { filterPhysicalSlotsExcludingRequesteeBusyWindows } from "../utils/meetingRequesteeAvailability";
 import { trackMeetingEvent } from "../utils/analytics";
@@ -495,7 +495,7 @@ export default function RequestMeetingModal({
     const set = new Set<string>();
     meetingSlots.forEach((slot) => {
       const d = slotDateNorm(slot);
-      if (d) set.add(d);
+      if (d === EVENT_DAY_ISO) set.add(d);
     });
     if (set.size === 0) {
       EVENT_FALLBACK_MEETING_DATE_ISOS.forEach((iso) => set.add(iso));
