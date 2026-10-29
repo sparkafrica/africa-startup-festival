@@ -673,7 +673,7 @@ function TicketCard({
           )}
 
           {/* Warning message when transfer is not allowed */}
-          {!canTransfer && (
+          {!canTransfer && !isTicketTransferBlockedForEvent(eventId ?? EVENT_ID) && (
             <View className="bg-orange-50 rounded-xl py-3.5 px-4 border border-orange-200">
               {isAdminBlocked ? (
                 <View>
@@ -732,7 +732,7 @@ function TicketCard({
         </Pressable>
       )}
       {/* Available to assign buttons - Assign / Transfer Ticket */}
-      {isUnassigned && (
+      {isUnassigned && !isTicketTransferBlockedForEvent(eventId ?? EVENT_ID) && (
         <Pressable
           onPress={onAssign}
           disabled={!onAssign}
@@ -962,7 +962,7 @@ function QRCodeModal({
             )}
 
             {/* Warning message when transfer is not allowed */}
-            {!canTransfer && (
+            {!canTransfer && !isTicketTransferBlockedForEvent(eventId ?? EVENT_ID) && (
               <View className="bg-orange-50 rounded-xl py-3.5 px-4 border border-orange-200 mb-4">
                 {isAdminBlocked ? (
                   <View>
@@ -2919,7 +2919,9 @@ function EditAssignedTicketModal({
           >
             <View className="w-12 h-1 bg-neutral-300 rounded-full mb-4" />
             <Text className="text-xl font-semibold text-black mb-6">
-              {isAccepted ? "Assigned Ticket" : "Edit Assigned Ticket"}
+              {isAccepted || isTicketTransferBlockedForEvent(EVENT_ID)
+                ? "Assigned Ticket"
+                : "Edit Assigned Ticket"}
             </Text>
           </View>
 
@@ -2929,7 +2931,13 @@ function EditAssignedTicketModal({
             contentContainerStyle={{ paddingBottom: 24 }}
           >
             {/* Information Banner - status-dependent */}
-            {isAccepted ? (
+            {isTicketTransferBlockedForEvent(EVENT_ID) ? (
+              <View className="bg-neutral-100 rounded-xl p-4 border border-neutral-200 mb-6">
+                <Text className="text-sm text-black leading-5">
+                  Ticket assignments are closed for this event.
+                </Text>
+              </View>
+            ) : isAccepted ? (
               <>
                 <View className="bg-neutral-100 rounded-xl p-4 border border-neutral-200 mb-4">
                   <Text className="text-sm text-black leading-5">
@@ -3069,7 +3077,7 @@ function EditAssignedTicketModal({
             </View>
 
             {/* Action Buttons - Update not supported; Revoke only when pending */}
-            {!isAccepted && (
+            {!isAccepted && !isTicketTransferBlockedForEvent(EVENT_ID) && (
               <>
                 <Pressable
                   onPress={onRevokeAccess}
@@ -3398,6 +3406,9 @@ function canTransferPersonalTicket(
   } | null,
   tickets: Ticket[],
 ): { canTransfer: boolean; reason?: string; isAdminBlocked?: boolean } {
+  if (isTicketTransferBlockedForEvent(eventId)) {
+    return { canTransfer: false };
+  }
   if (isCurrentSparkEvent(eventId)) {
     // Rule 1: Block only when user is company admin AND their pass/company is exhibitor or partner
     // (Chairperson/delegate/etc with admin_user still set can transfer — backend may not have cleared admin)
@@ -3742,6 +3753,7 @@ function MyTicketView({
                   backgroundColor={ticket.backgroundColor}
                   ticketType={ticket.ticketType}
                   isUnassigned
+                  eventId={eventId}
                   availableCount={ticket.availableCount}
                   onAssign={
                     (ticket.availableCount ?? 0) > 0
@@ -4237,6 +4249,10 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   };
 
   const handleTransferContinue = () => {
+    if (isTicketTransferBlockedForEvent(EVENT_ID)) {
+      showTicketTransferDeadlineAlert();
+      return;
+    }
     setTransferModalVisible(false);
     setTimeout(() => {
       setRecipientModalVisible(true);
@@ -4258,6 +4274,10 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     phoneNumber: string;
     countryCode: string;
   }) => {
+    if (isTicketTransferBlockedForEvent(EVENT_ID)) {
+      showTicketTransferDeadlineAlert();
+      return;
+    }
     const recipientData = {
       firstName: data.firstName,
       lastName: data.lastName,
@@ -4487,6 +4507,10 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   };
 
   const handleRevokeAccessConfirm = async (reason: string) => {
+    if (isTicketTransferBlockedForEvent(EVENT_ID)) {
+      showTicketTransferDeadlineAlert();
+      return;
+    }
     const allocationId = editAssignedTicketData?.allocationId;
     if (!allocationId) {
       showToast("Cannot revoke: allocation ID missing.", "error");

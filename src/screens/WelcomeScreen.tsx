@@ -22,6 +22,10 @@ import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import { ticketService, TicketQuota } from "../services/ticketService";
 import { EVENT_ID } from "../config/env";
+import {
+  isTicketTransferBlockedForEvent,
+  showTicketTransferDeadlineAlert,
+} from "../utils/ticketTransferRestrictions";
 import TicketCard from "../components/TicketCard";
 import { LoadingSpinner } from "../components";
 import Svg, { Path, Rect, Circle } from "react-native-svg";
@@ -720,6 +724,7 @@ function TicketTransferConfirmationModal({
 export default function WelcomeScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { markWelcomeSeen } = useAuth();
+  const transferBlocked = isTicketTransferBlockedForEvent(EVENT_ID);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [ticketQuotaCount, setTicketQuotaCount] = useState<number>(0);
@@ -734,6 +739,10 @@ export default function WelcomeScreen() {
 
   // Fetch ticket quotas on mount
   useEffect(() => {
+    if (isTicketTransferBlockedForEvent(EVENT_ID)) {
+      setIsLoadingQuotas(false);
+      return;
+    }
     const fetchTicketQuotas = async () => {
       try {
         setIsLoadingQuotas(true);
@@ -789,6 +798,10 @@ export default function WelcomeScreen() {
   } | null>(null);
 
   const handleTransferTickets = () => {
+    if (isTicketTransferBlockedForEvent(EVENT_ID)) {
+      showTicketTransferDeadlineAlert();
+      return;
+    }
     if (selectedTickets.length === 0) {
       return;
     }
@@ -821,6 +834,10 @@ export default function WelcomeScreen() {
     phoneNumber: string;
     countryCode: string;
   }) => {
+    if (isTicketTransferBlockedForEvent(EVENT_ID)) {
+      showTicketTransferDeadlineAlert();
+      return;
+    }
     setRecipientData(data);
     setRecipientModalVisible(false);
     setTimeout(() => {
@@ -829,6 +846,10 @@ export default function WelcomeScreen() {
   };
 
   const handleTransferComplete = async () => {
+    if (isTicketTransferBlockedForEvent(EVENT_ID)) {
+      showTicketTransferDeadlineAlert();
+      return;
+    }
     if (!recipientData || selectedTickets.length === 0) {
       return;
     }
@@ -912,15 +933,17 @@ export default function WelcomeScreen() {
             Welcome to Africa Startup Festival!
           </Text>
           <Text className="text-base text-neutral-600 text-center mb-8">
-            {isLoadingQuotas
-              ? "Loading your tickets…"
-              : ticketQuotaCount > 0
-                ? `You have ${ticketQuotaCount} ticket${ticketQuotaCount !== 1 ? "s" : ""} in your quota to send to teammates. Select below and tap Send, or skip to finish your profile.`
-                : "Your ticket is for this account. Continue to finish your profile."}
+            {transferBlocked
+              ? "Your ticket is ready. Continue to finish your profile."
+              : isLoadingQuotas
+                ? "Loading your tickets…"
+                : ticketQuotaCount > 0
+                  ? `You have ${ticketQuotaCount} ticket${ticketQuotaCount !== 1 ? "s" : ""} in your quota to send to teammates. Select below and tap Send, or skip to finish your profile.`
+                  : "Your ticket is for this account. Continue to finish your profile."}
           </Text>
 
           {/* Ticket quota section — send tickets from quota, not personal ticket transfer */}
-          {!isLoadingQuotas && ticketQuotaCount > 0 && (
+          {!transferBlocked && !isLoadingQuotas && ticketQuotaCount > 0 && (
             <>
               <Text className="text-[16px] font-semibold text-neutral-900 mb-4">
                 Tickets in your quota ({ticketQuotaCount})
@@ -964,7 +987,7 @@ export default function WelcomeScreen() {
         }}
       >
         {/* Send quota tickets — personal ticket transfer is in My Ticket(s) when quota is empty */}
-        {!isLoadingQuotas && ticketQuotaCount > 0 && (
+        {!transferBlocked && !isLoadingQuotas && ticketQuotaCount > 0 && (
           <Pressable
             onPress={handleTransferTickets}
             disabled={selectedTickets.length === 0 || isProcessing}
@@ -997,7 +1020,9 @@ export default function WelcomeScreen() {
             <LoadingSpinner size="small" color="#000000" />
           ) : (
             <Text className="text-black text-base font-semibold">
-              {ticketQuotaCount > 0 ? "Skip for now" : "Continue to Profile"}
+              {!transferBlocked && ticketQuotaCount > 0
+                ? "Skip for now"
+                : "Continue to Profile"}
             </Text>
           )}
         </Pressable>
@@ -1005,13 +1030,13 @@ export default function WelcomeScreen() {
 
       {/* Transfer Modals */}
       <RecipientDetailsModal
-        visible={recipientModalVisible}
+        visible={!transferBlocked && recipientModalVisible}
         onClose={() => setRecipientModalVisible(false)}
         onTransfer={handleRecipientTransfer}
       />
 
       <TicketTransferConfirmationModal
-        visible={confirmationModalVisible}
+        visible={!transferBlocked && confirmationModalVisible}
         onClose={() => setConfirmationModalVisible(false)}
         ticketCount={selectedTickets.length}
         recipientName={recipientData?.fullName || ""}

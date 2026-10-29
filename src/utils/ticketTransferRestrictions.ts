@@ -1,16 +1,16 @@
-/**
- * Ticket transfer deadline — client-side gate (OTA-safe).
- * ASF v1: no client-side transfer cutoff; backend enforces policy.
- */
+/** Client-side cutoff for ASF Kenya ticket transfers and quota assignments. */
+import { Alert } from "react-native";
+import { EVENT_DAY_ISO } from "../config/env";
+import { getEventDateIso } from "./eventTime";
 
-export function isTicketTransferDeadlinePassed(_now = Date.now()): boolean {
-  return false;
+export function isTicketTransferDeadlinePassed(now = Date.now()): boolean {
+  return getEventDateIso(now) >= EVENT_DAY_ISO;
 }
 
-export function isTicketTransferBlockedForEvent(_eventId: number): boolean {
-  return false;
+export function isTicketTransferBlockedForEvent(eventId: number): boolean {
+  return eventId === 11 && isTicketTransferDeadlinePassed();
 }
 
 export function showTicketTransferDeadlineAlert(): void {
-  // No-op for ASF v1
+  Alert.alert("Ticket transfers closed", "Ticket transfers are closed for this event.");
 }
