@@ -13,6 +13,7 @@ import {
 } from "../utils/eventScope";
 import { parseDisplayTimeToApi } from "../utils/meetingDateTime";
 import { EVENT_TIME_ZONE } from "../utils/eventTime";
+import { isPostEventMode } from "../config/eventMode";
 
 // ============================================================================
 // REQUEST/RESPONSE TYPES
@@ -599,6 +600,18 @@ export const meetingService = {
     },
     requesteeId: string
   ): Promise<void> {
+    if (
+      eventId === EVENT_ID &&
+      isPostEventMode() &&
+      formData.meetingType === "Physical"
+    ) {
+      throw new ApiClientError({
+        status: "error",
+        message: "Only virtual meetings are available after the festival.",
+        response_code: 400,
+        data: {},
+      });
+    }
     if (formData.meetingType === "Virtual") {
       const scheduledTime =
         formData.timeApi?.trim() ||

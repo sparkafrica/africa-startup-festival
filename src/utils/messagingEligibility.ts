@@ -10,8 +10,9 @@ import type { Meeting } from "../services/meetingService";
 import { ensureConnectionsList } from "../utils/connectionsListCache";
 import {
   ensureMeetingsList,
-  getCachedPhysicalMeetings,
+  getCachedMeetingsList,
 } from "../utils/meetingsListCache";
+import { isPostEventMode } from "../config/eventMode";
 
 export function getConnectionPeerUserId(
   connection: Connection,
@@ -76,12 +77,20 @@ export async function hasPendingMeetingWithPeer(
   const me = String(currentUserId).trim();
   if (!peer || !me) return false;
   try {
-    const cached = getCachedPhysicalMeetings();
-    const meetings =
-      cached.length > 0
-        ? cached
-        : (await ensureMeetingsList()).physical;
-    return getPendingMeetingPeerIds(meetings, me).has(peer);
+    const meetings = getCachedMeetingsList() ?? (await ensureMeetingsList());
+    const pendingPhysical =
+      !isPostEventMode() &&
+      getPendingMeetingPeerIds(meetings.physical, me).has(peer);
+    const pendingVirtual = meetings.virtual.some((meeting) => {
+      if (meeting.status !== "pending") return false;
+      const requester = String(meeting.requester).trim();
+      const requestee = String(meeting.requestee).trim();
+      return (
+        (requester === me && requestee === peer) ||
+        (requestee === me && requester === peer)
+      );
+    });
+    return pendingPhysical || pendingVirtual;
   } catch {
     return false;
   }

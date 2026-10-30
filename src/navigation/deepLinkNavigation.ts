@@ -4,7 +4,6 @@ import { isPostEventMode } from "../config/eventMode";
 import { navigate } from "./navigationRef";
 
 const POST_EVENT_BLOCKED_SCREENS = new Set<DeepLinkTarget["screen"]>([
-  "Schedule",
   "TagPickup",
 ]);
 

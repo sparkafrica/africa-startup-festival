@@ -45,7 +45,7 @@ import { useAuth } from "../context/AuthContext";
 import { useChecklist } from "../context/ChecklistContext";
 import { EVENT_ID } from "../config/env";
 import { isPostEventMode } from "../config/eventMode";
-import { getEventFeatures } from "../config/eventFeatures";
+import { useEventFeatures } from "../hooks/useEventFeatures";
 import {
   getTicketBackgroundColor,
   getTicketTypeDisplay,
@@ -3819,8 +3819,9 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { toast, showToast, hideToast } = useToast();
   const { user, logout } = useAuth();
-  const postEventMode = isPostEventMode();
-  const showUpgradeTicket = getEventFeatures().showUpgradeTicket;
+  const eventFeatures = useEventFeatures();
+  const postEventMode = eventFeatures.postEvent;
+  const showUpgradeTicket = eventFeatures.showUpgradeTicket;
   const initialTab =
     route.params?.initialTab || (postEventMode ? "My Ticket" : "Scan Ticket");
   const [activeTab, setActiveTab] = useState<"My Ticket" | "Scan Ticket">(
@@ -4183,6 +4184,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     openingUpgradeFromRouteRef.current = true;
 
     navigation.setParams({ openUpgrade: undefined });
+    if (postEventMode) return;
 
     const personal = tickets.find((t) => t.isPersonal);
     if (!personal?.backendTicketId) {
@@ -4202,6 +4204,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     setUpgradeModalVisible(true);
   }, [
     route.params?.openUpgrade,
+    postEventMode,
     ticketsLoading,
     tickets,
     navigation,
@@ -4209,6 +4212,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
   ]);
 
   const handleOpenUpgrade = (ticket: Ticket) => {
+    if (isPostEventMode()) return;
     setUpgradeTicket(ticket);
     setUpgradeModalVisible(true);
     void trackEvent("ticket_upgrade_opened", {
@@ -4552,6 +4556,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
 
   // Handle QR code scanner press - open unified scan flow
   const handleQRCodePress = () => {
+    if (isPostEventMode()) return;
     void trackQrEvent("started", { source: "scan_qr_screen" });
     setQrScannerModalVisible(true);
   };
@@ -4592,6 +4597,9 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
     attendee: Attendee,
     helpers: ScanFlowHelpers,
   ) => {
+    if (isPostEventMode() && formData.meetingType === "Physical") {
+      throw new Error("Only virtual meetings are available after the festival.");
+    }
     try {
       await meetingService.submitMeetingRequestFromForm(
         EVENT_ID,
@@ -4713,7 +4721,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           onTabChange={setActiveTab}
           hideScanTab={postEventMode}
         />
-        {activeTab === "My Ticket" ? (
+        {activeTab === "My Ticket" || postEventMode ? (
           <MyTicketView
             tickets={tickets}
             loading={ticketsLoading}
@@ -4852,7 +4860,8 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
           onConfirm={handleRevokedConfirmationClose}
         />
         <AttendeeQRScannerFlow
-          visible={qrScannerModalVisible}
+          visible={qrScannerModalVisible && !postEventMode}
+          virtualOnly={postEventMode}
           onClose={handleScannerClose}
           onRequestMeetingGuard={handleRequestMeetingGuard}
           onMeetingSubmit={handleMeetingRequestSubmit}
@@ -4863,7 +4872,7 @@ export default function ScanQRScreen({ route }: ScanQRScreenProps) {
         />
         {upgradeTicket?.backendTicketId != null ? (
           <UpgradeTicketModal
-            visible={upgradeModalVisible}
+            visible={upgradeModalVisible && !postEventMode}
             onClose={() => {
               setUpgradeModalVisible(false);
               setUpgradeTicket(null);

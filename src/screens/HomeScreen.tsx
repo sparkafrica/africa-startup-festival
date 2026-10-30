@@ -6,6 +6,8 @@ import {
   Text,
   RefreshControl,
   Image,
+  Linking,
+  Alert,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
@@ -48,10 +50,9 @@ import HomePushNotificationOverlay from "../components/HomePushNotificationOverl
 import EventChecklist from "../components/EventChecklist";
 import { ArrowUpRightIcon } from "../components/icons";
 // import { ArrowRightIcon } from "../components/icons";
-import {
-  getEventFeatures,
-  type HomeDirectoryTabId,
-} from "../config/eventFeatures";
+import { type HomeDirectoryTabId } from "../config/eventFeatures";
+import { useEventFeatures } from "../hooks/useEventFeatures";
+import { MEETING_FEEDBACK_FORM_URL } from "../config/externalForms";
 
 type DirectoryTabId = HomeDirectoryTabId;
 
@@ -109,21 +110,17 @@ const DIRECTORY_TABS: {
 ];
 
 const LOGO_COLORS = [
-  "#2762C7",
   "#000000",
-  "#FFC107",
-  "#E91E63",
-  "#DC2626",
-  "#9333EA",
-  "#10B981",
-  "#F97316",
+  "#404040",
+  "#737373",
+  "#A3A3A3",
 ];
 
 export default function HomeScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Home">>();
   const { refresh: refreshMeetingsBadge } = useMeetingsBadgeContext();
-  const eventFeatures = getEventFeatures();
+  const eventFeatures = useEventFeatures();
   const { registerScrollToTop } = useHomeScroll();
   const messagesBadgeCount = useMessagesBadgeCount();
   useRefreshMessagesBadgeOnFocus();
@@ -502,6 +499,43 @@ export default function HomeScreen() {
     </>
   );
 
+  const renderPostEventBanners = () => (
+    <>
+      <BannerCard
+        title="How was your meeting?"
+        description="Tell us how your ASF Kenya meeting went. Your feedback helps us improve."
+        buttonText="Leave meeting feedback"
+        gradient={gradients.sparkBlack}
+        backgroundImage={require("../assets/images/14th-card.jpg")}
+        onPress={() => {
+          void Linking.openURL(MEETING_FEEDBACK_FORM_URL).catch(() => {
+            Alert.alert(
+              "Cannot open feedback form",
+              "Please try again or open the form in your browser.",
+            );
+          });
+        }}
+      />
+      <BannerCard
+        title="The connections continue"
+        description="Reconnect with people you met at ASF Kenya and download your accepted connections."
+        buttonText="View connections"
+        gradient={gradients.sparkWhite}
+        variant="white"
+        backgroundImage={require("../assets/images/13th-card.jpg")}
+        onPress={() => navigation.navigate("Connections")}
+      />
+      <BannerCard
+        title="Meet online after ASF"
+        description="Keep the conversation going with a virtual meeting."
+        buttonText="Browse attendees"
+        gradient={gradients.sparkBlack}
+        backgroundImage={require("../assets/images/12th-card.jpg")}
+        onPress={() => navigation.navigate("Attendees")}
+      />
+    </>
+  );
+
   const activeDirectory =
     visibleDirectoryTabs.find((t) => t.id === directoryTab) ??
     visibleDirectoryTabs[0] ??
@@ -714,8 +748,8 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={false}
             onRefresh={onRefresh}
-            tintColor="#1BB273"
-            colors={["#1BB273"]}
+            tintColor="#000000"
+            colors={["#000000"]}
           />
         }
       >
@@ -729,14 +763,16 @@ export default function HomeScreen() {
             alignItems: "stretch",
           }}
         >
-          {renderHeroBanners()}
+          {eventFeatures.showPostEventHero
+            ? renderPostEventBanners()
+            : renderHeroBanners()}
         </ScrollView>
 
         <StartupJoinReminderBanner pendingCount={adminPendingRequests.length} />
 
         {eventFeatures.showEventDirectoryOnHome ? (
           <View className="px-4">
-            {renderChecklist()}
+            {!eventFeatures.postEvent ? renderChecklist() : null}
 
             {visibleDirectoryTabs.length > 1 ? (
               <ScrollView

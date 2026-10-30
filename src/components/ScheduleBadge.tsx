@@ -7,19 +7,19 @@ const BADGE_COLORS: Record<
   { bg: string; dot: string; text: string }
 > = {
   blue: {
-    bg: "bg-blue-100",
-    dot: "bg-blue-700",
-    text: "text-blue-700",
+    bg: "bg-neutral-100",
+    dot: "bg-neutral-700",
+    text: "text-neutral-800",
   },
   purple: {
-    bg: "bg-purple-100",
-    dot: "bg-purple-700",
-    text: "text-purple-700",
+    bg: "bg-neutral-200",
+    dot: "bg-neutral-800",
+    text: "text-neutral-900",
   },
   green: {
-    bg: "bg-green-100",
-    dot: "bg-green-700",
-    text: "text-green-700",
+    bg: "bg-neutral-100",
+    dot: "bg-neutral-600",
+    text: "text-neutral-700",
   },
 };
 

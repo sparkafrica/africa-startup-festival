@@ -5,12 +5,13 @@ import type { NavigationProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/types";
 import { useAuth } from "../context/AuthContext";
 import Menu from "../components/Menu";
-import { getEventFeatures } from "../config/eventFeatures";
+import { useEventFeatures } from "../hooks/useEventFeatures";
 import { APP_SUGGESTIONS_FORM_URL } from "../config/externalForms";
 
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { logout } = useAuth();
+  const postEventMode = useEventFeatures().postEvent;
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useFocusEffect(
@@ -85,7 +86,7 @@ export default function MenuScreen() {
       refreshTrigger={refreshTrigger}
       onNavigate={handleNavigate}
       onLogout={handleLogout}
-      postEventMode={getEventFeatures().postEvent}
+      postEventMode={postEventMode}
     />
   );
 }

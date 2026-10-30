@@ -28,6 +28,7 @@ import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { useToast } from "../hooks/useToast";
 import { EVENT_ID } from "../config/env";
+import { isPostEventMode } from "../config/eventMode";
 
 const FETCH_PAGE_SIZE = 50;
 const MAX_PAGES = 40;
@@ -180,7 +181,7 @@ export default function HomePushNotificationOverlay() {
             } else if (
               routeName.toLowerCase() === "tag-pickup"
             ) {
-              navigation.navigate("TagPickup");
+              navigation.navigate(isPostEventMode() ? "Home" : "TagPickup");
             }
           }
         } else {

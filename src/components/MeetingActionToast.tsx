@@ -80,7 +80,7 @@ export default function MeetingActionToast({
   const iconScale = useRef(new Animated.Value(0)).current;
 
   const isAccepted = action === "accepted";
-  const backgroundColor = isAccepted ? "#10B981" : "#EF4444";
+  const backgroundColor = isAccepted ? "#171717" : "#525252";
   const message = isAccepted
     ? "Meeting time change accepted"
     : "Meeting time change declined";

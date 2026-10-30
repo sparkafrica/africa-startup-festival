@@ -107,7 +107,7 @@ function parseConnectionsExportResponse(
     (typeof nested.url === "string" && nested.url) ||
     (typeof nested.download_url === "string" && nested.download_url) ||
     "";
-  if (!url.trim()) {
+  if (!url.trim() && nested.count !== 0) {
     throw new ApiClientError({
       status: "error",
       message: "Export link was not returned by the server",

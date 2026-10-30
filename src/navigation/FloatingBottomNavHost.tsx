@@ -4,7 +4,7 @@ import { useMeetingsBadgeCount } from "../hooks/useMeetingsBadgeCount";
 import { useHomeScroll } from "../context/HomeScrollContext";
 import { useFloatingNavVisibility } from "../context/FloatingNavVisibilityContext";
 import { navigate } from "./navigationRef";
-import { getEventFeatures } from "../config/eventFeatures";
+import { useEventFeatures } from "../hooks/useEventFeatures";
 import {
   createMainTabItems,
   createPostEventMainTabItems,
@@ -27,7 +27,7 @@ export default function FloatingBottomNavHost({
   const meetingsBadgeCount = useMeetingsBadgeCount();
   const { scrollHomeToTop } = useHomeScroll();
   const { suppressed } = useFloatingNavVisibility();
-  const postEvent = getEventFeatures().postEvent;
+  const postEvent = useEventFeatures().postEvent;
 
   const items = useMemo(
     () =>

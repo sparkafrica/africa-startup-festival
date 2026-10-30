@@ -45,8 +45,6 @@ interface BannerCardProps {
   variant?: BannerVariant;
   backgroundImage?: ImageSourcePropType;
   onPress?: () => void;
-  /** Full-width vertical stack (post-event home). Default: horizontal carousel card. */
-  stacked?: boolean;
   /** @deprecated Cards are pointed by default; kept for call-site compatibility. */
   square?: boolean;
 }
@@ -59,23 +57,20 @@ export default function BannerCard({
   variant = "black",
   backgroundImage,
   onPress,
-  stacked = false,
 }: BannerCardProps) {
   const { width: windowWidth } = useWindowDimensions();
   const styles = variantStyles[variant];
-  const cardWidth = stacked
-    ? windowWidth - 32
-    : Math.min(320, Math.round(windowWidth * 0.85));
+  const cardWidth = Math.min(320, Math.round(windowWidth * 0.85));
   /** Tall hero — same 180px as original w-80 design; not tied to narrow %-of-width. */
   const imageHeight = 180;
 
   return (
     <Pressable
       onPress={onPress}
-      className={`overflow-hidden ${styles.cardBorder} ${stacked ? "" : "mr-3"}`}
+      className={`overflow-hidden mr-3 ${styles.cardBorder}`}
       style={[
         { width: cardWidth, flexDirection: "column", borderRadius: 0 },
-        !stacked ? { alignSelf: "stretch" } : null,
+        { alignSelf: "stretch" },
       ]}
     >
       {backgroundImage && (

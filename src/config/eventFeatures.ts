@@ -39,20 +39,22 @@ export const ASF_HIDDEN_HOME_DIRECTORY_TABS: HomeDirectoryTabId[] = [
   "partners",
 ];
 
-export function getEventFeatures(now = Date.now()): EventFeatures {
-  const postEvent = isPostEventMode(now);
+export function getEventFeatures(): EventFeatures {
+  const postEvent = isPostEventMode();
   return {
     postEvent,
-    showPostEventHero: false,
+    showPostEventHero: postEvent,
     showDay2HomeExtras: false,
     showEventDirectoryOnHome: true,
     showVenueMapOnHome: false,
-    showScheduleTab: !postEvent,
+    showScheduleTab: true,
     showAttendeesTab: true,
     virtualMeetingsOnly: postEvent,
     scanNetworkingEnabled: !postEvent,
     showUpgradeTicket: !postEvent,
-    hiddenMenuRoutes: [...ASF_HIDDEN_MENU_ROUTES],
+    hiddenMenuRoutes: postEvent
+      ? [...ASF_HIDDEN_MENU_ROUTES, "FloorPlan"]
+      : [...ASF_HIDDEN_MENU_ROUTES],
     hiddenHomeDirectoryTabs: [...ASF_HIDDEN_HOME_DIRECTORY_TABS],
   };
 }

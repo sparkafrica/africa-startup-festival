@@ -57,6 +57,7 @@ import { parseScheduleCardMetadata } from "../utils/scheduleMetadata";
 import type { ScheduleBadgeColor } from "../utils/scheduleMetadata";
 import { ApiClientError } from "../services/api";
 import { useToast } from "../hooks/useToast";
+import { useEventFeatures } from "../hooks/useEventFeatures";
 import {
   DAY_FILTER_ID_TO_ISO_DATE,
   deriveDayLabel,
@@ -151,6 +152,9 @@ const ESTIMATED_EVENT_CARD_HEIGHT = 150;
 export default function ScheduleScreen() {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Schedule">>();
+  const postEventMode = useEventFeatures().postEvent;
+  const canEditSchedule = SCHEDULE_SESSION_CTAS_ENABLED && !postEventMode;
+  const canLeaveFeedback = SCHEDULE_SESSION_CTAS_ENABLED || postEventMode;
   const route = useRoute<RouteProp<RootStackParamList, "Schedule">>();
   const scrollRef = React.useRef<ScrollView>(null);
   const listContentRef = React.useRef<View>(null);
@@ -771,6 +775,7 @@ export default function ScheduleScreen() {
   }, [mySchedules, selectedStage, selectedFilters]);
 
   const handleRemoveFromSchedule = async (event?: EventData) => {
+    if (postEventMode) return;
     if (!event?.personalScheduleId) return;
     try {
       await eventService.removeEventFromSchedule(event.personalScheduleId);
@@ -796,6 +801,7 @@ export default function ScheduleScreen() {
   }, []);
 
   const handleAddToSchedule = async (event?: EventData) => {
+    if (postEventMode) return;
     if (!event?.eventScheduleId || event.eventScheduleId === 0) return;
     if (addingScheduleId !== null) return;
 
@@ -941,7 +947,7 @@ export default function ScheduleScreen() {
       {/* Fixed Header Section */}
       <View>
         {/* Time Zone Alert Banner */}
-        <TimeZoneAlertBanner />
+        {!postEventMode ? <TimeZoneAlertBanner /> : null}
 
         {/* Schedule / My Schedule segment (My Schedule hidden while CTAs disabled) */}
         {SCHEDULE_SESSION_CTAS_ENABLED ? (
@@ -1008,8 +1014,8 @@ export default function ScheduleScreen() {
                 ? onRefresh
                 : () => fetchMySchedules()
             }
-            tintColor="#1BB273"
-            colors={["#1BB273"]}
+            tintColor="#000000"
+            colors={["#000000"]}
           />
         }
       >
@@ -1075,23 +1081,23 @@ export default function ScheduleScreen() {
                       event ? () => openEventDetail(event) : undefined
                     }
                     onAddToSchedule={
-                      SCHEDULE_SESSION_CTAS_ENABLED
+                      canEditSchedule
                         ? () => handleAddToSchedule(event)
                         : undefined
                     }
                     onLeaveFeedback={
-                      SCHEDULE_SESSION_CTAS_ENABLED
+                      canLeaveFeedback
                         ? () => void handleLeaveFeedback()
                         : undefined
                     }
                     isInMySchedule={
-                      SCHEDULE_SESSION_CTAS_ENABLED &&
+                      canEditSchedule &&
                       addedScheduleIds.has(event?.eventScheduleId ?? 0)
                     }
                     isAddingToSchedule={
                       addingScheduleId === event?.eventScheduleId
                     }
-                    happeningSoon={soonScheduleIds.has(scheduleId)}
+                    happeningSoon={!postEventMode && soonScheduleIds.has(scheduleId)}
                   />
                 {isHighlighted ? (
                   <Animated.View
@@ -1105,8 +1111,8 @@ export default function ScheduleScreen() {
                       zIndex: 2,
                       borderRadius: 0,
                       borderWidth: 2,
-                      borderColor: "#1BB273",
-                      backgroundColor: "rgba(27, 178, 115, 0.14)",
+                      borderColor: "#525252",
+                      backgroundColor: "rgba(82, 82, 82, 0.14)",
                       opacity: highlightOpacity,
                     }}
                   />
@@ -1123,7 +1129,9 @@ export default function ScheduleScreen() {
                 No sessions in your schedule
               </Text>
               <Text className="text-neutral-400 text-center text-sm">
-                Tap "Add to schedule" on the Schedule tab to add sessions.
+                {postEventMode
+                  ? "Browse the Schedule tab to revisit sessions and leave feedback."
+                  : 'Tap "Add to schedule" on the Schedule tab to add sessions.'}
               </Text>
             </View>
           ) : filteredMySchedules.length === 0 ? (
@@ -1148,12 +1156,12 @@ export default function ScheduleScreen() {
                 sponsoredBy={event?.sponsoredBy}
                 onOpenDetail={event ? () => openEventDetail(event) : undefined}
                 onRemoveFromSchedule={
-                  SCHEDULE_SESSION_CTAS_ENABLED
+                  canEditSchedule
                     ? () => handleRemoveFromSchedule(event)
                     : undefined
                 }
                 onLeaveFeedback={
-                  SCHEDULE_SESSION_CTAS_ENABLED
+                  canLeaveFeedback
                     ? () => void handleLeaveFeedback()
                     : undefined
                 }
@@ -1188,14 +1196,14 @@ export default function ScheduleScreen() {
         sponsoredBy={selectedEvent?.sponsoredBy}
         speakers={eventViewSpeakers}
         description={selectedEvent?.description}
-        slidoUrl={selectedEvent?.slidoUrl}
+        slidoUrl={postEventMode ? undefined : selectedEvent?.slidoUrl}
         onOpenSlido={
-          selectedEvent?.slidoUrl
+          !postEventMode && selectedEvent?.slidoUrl
             ? () => void handleOpenSlido(selectedEvent.slidoUrl!)
             : undefined
         }
         onAddToSchedule={
-          !SCHEDULE_SESSION_CTAS_ENABLED || !selectedEvent
+          !canEditSchedule || !selectedEvent
             ? undefined
             : selectedEvent.personalScheduleId ||
                 addedScheduleIds.has(selectedEvent.eventScheduleId)
@@ -1203,18 +1211,18 @@ export default function ScheduleScreen() {
               : () => handleAddToSchedule(selectedEvent)
         }
         onRemoveFromSchedule={
-          SCHEDULE_SESSION_CTAS_ENABLED && selectedEvent?.personalScheduleId
+          canEditSchedule && selectedEvent?.personalScheduleId
             ? () => handleRemoveFromSchedule(selectedEvent)
             : undefined
         }
         isInMySchedule={
           !!selectedEvent &&
-          SCHEDULE_SESSION_CTAS_ENABLED &&
+          canEditSchedule &&
           (!!selectedEvent.personalScheduleId ||
             addedScheduleIds.has(selectedEvent.eventScheduleId))
         }
         onLeaveFeedback={
-          SCHEDULE_SESSION_CTAS_ENABLED
+          canLeaveFeedback
             ? () => {
                 void handleLeaveFeedback();
                 closeEventViewModal();

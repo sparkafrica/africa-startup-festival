@@ -25,6 +25,7 @@ export const MAIN_TAB_ROUTES = [
 export const POST_EVENT_TAB_ROUTES = [
   "Home",
   "Attendees",
+  "Schedule",
   "Meetings",
   "Connections",
 ] as const;
@@ -51,49 +52,7 @@ const ICON_SIZE = 22;
 export function createPostEventMainTabItems(
   meetingsBadgeCount: number,
 ): FloatingBottomNavItem[] {
-  return [
-    {
-      route: "Home",
-      label: "Home",
-      icon: (active) =>
-        active ? (
-          <HomeIconFilled size={ICON_SIZE} color={ACTIVE} />
-        ) : (
-          <HomeIcon size={ICON_SIZE} color={INACTIVE} />
-        ),
-    },
-    {
-      route: "Attendees",
-      label: "Attendees",
-      icon: (active) =>
-        active ? (
-          <PeopleIconFilled size={ICON_SIZE} color={ACTIVE} />
-        ) : (
-          <PeopleIcon size={ICON_SIZE} color={INACTIVE} />
-        ),
-    },
-    {
-      route: "Meetings",
-      label: "Meetings",
-      icon: (active) =>
-        active ? (
-          <ClockIconFilled size={ICON_SIZE} color={ACTIVE} />
-        ) : (
-          <ClockIcon size={ICON_SIZE} color={INACTIVE} />
-        ),
-      badge: meetingsBadgeCount > 0 ? meetingsBadgeCount : undefined,
-    },
-    {
-      route: "Connections",
-      label: "Connections",
-      icon: (active) =>
-        active ? (
-          <HeartIconFilled size={ICON_SIZE} color={ACTIVE} />
-        ) : (
-          <HeartIcon size={ICON_SIZE} color={INACTIVE} />
-        ),
-    },
-  ];
+  return createMainTabItems(meetingsBadgeCount);
 }
 
 export function createMainTabItems(

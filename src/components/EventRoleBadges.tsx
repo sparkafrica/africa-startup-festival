@@ -55,12 +55,12 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   speakerBadge: {
-    borderColor: "#FDBA74",
-    backgroundColor: "#FFF7ED",
+    borderColor: "#A3A3A3",
+    backgroundColor: "#F5F5F5",
   },
   mentorBadge: {
-    borderColor: "#6EE7B7",
-    backgroundColor: "#ECFDF5",
+    borderColor: "#737373",
+    backgroundColor: "#E5E5E5",
   },
   label: {
     fontSize: 12,
@@ -70,9 +70,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   speakerLabel: {
-    color: "#C2410C",
+    color: "#171717",
   },
   mentorLabel: {
-    color: "#047857",
+    color: "#404040",
   },
 });

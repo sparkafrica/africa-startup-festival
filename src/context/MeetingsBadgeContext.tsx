@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import { useAuth } from "./AuthContext";
+import { useEventFeatures } from "../hooks/useEventFeatures";
 import {
   countMeetingsForBadge,
   countMeetingsForBadgeFromCache,
@@ -29,6 +30,7 @@ const REFRESH_THROTTLE_MS = 30_000;
  */
 export function MeetingsBadgeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const postEventMode = useEventFeatures().postEvent;
   const [count, setCount] = useState(0);
   const lastFetchedAtRef = React.useRef<number>(0);
 
@@ -60,7 +62,7 @@ export function MeetingsBadgeProvider({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     void fetchCount(true);
-  }, [fetchCount]);
+  }, [fetchCount, postEventMode]);
 
   const refresh = useCallback(async () => {
     await fetchCount(false);

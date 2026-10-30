@@ -56,11 +56,11 @@ export default function ConnectionsExportBanner({
           importantForAccessibility="no-hide-descendants"
         />
         <View style={styles.content} pointerEvents="box-none">
-          <Text style={styles.title}>Your ASF connections</Text>
+          <Text style={styles.title}>Your ASF Kenya connections</Text>
           <Text style={styles.description}>
-            Download everyone you connected with at{" "}
-            <Text style={styles.highlight}>Africa Startup Festival</Text> — keep
-            building relationships after the event.
+            Download your accepted connections from{" "}
+            <Text style={styles.highlight}>Africa Startup Festival Kenya</Text>
+            {" "}and keep building relationships after the event.
           </Text>
           <Pressable
             onPress={onDownload}
@@ -80,8 +80,6 @@ export default function ConnectionsExportBanner({
     </View>
   );
 }
-
-const PARTNER_GREEN = "#1BB273";
 
 const styles = StyleSheet.create({
   card: {
@@ -113,12 +111,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   highlight: {
-    color: PARTNER_GREEN,
+    color: "#D4D4D4",
     fontWeight: "600",
   },
   button: {
     alignSelf: "flex-start",
-    backgroundColor: PARTNER_GREEN,
+    backgroundColor: "#FFFFFF",
     borderRadius: 0,
     paddingVertical: 12,
     paddingHorizontal: 20,

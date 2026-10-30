@@ -6,6 +6,7 @@ import { getStateFromPath as defaultGetStateFromPath } from "@react-navigation/n
 import type { RootStackParamList } from "./types";
 import { navigate, resetToHome, hasHomeScreen } from "./navigationRef";
 import { EVENT_ID } from "../config/env";
+import { isPostEventMode } from "../config/eventMode";
 import {
   DEEP_LINK_HOST,
   DEEP_LINK_HTTPS_PREFIX,
@@ -136,6 +137,9 @@ export function getNavigationStateFromDeepLinkPath(
     return defaultGetStateFromPath(path, options);
   }
 
+  if (isPostEventMode() && target.screen === "TagPickup") {
+    return { routes: [{ name: "Home" }] };
+  }
   const { screen, params } = paramsForDeepLinkTarget(target);
   return {
     routes: [{ name: screen, params }],

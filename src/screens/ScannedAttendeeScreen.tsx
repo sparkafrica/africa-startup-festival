@@ -33,6 +33,7 @@ import { useChecklist } from "../context/ChecklistContext";
 import { trackConnectionEvent, trackMeetingEvent } from "../utils/analytics";
 import { useToast } from "../hooks/useToast";
 import { EVENT_ID } from "../config/env";
+import { isPostEventMode } from "../config/eventMode";
 import {
   getCanUserBookMeetings,
   showExpoCannotBookMeetingAlert,
@@ -159,6 +160,9 @@ export default function ScannedAttendeeScreen() {
   ]);
 
   const handleMeetingSubmit = async (formData: MeetingFormData) => {
+    if (isPostEventMode() && formData.meetingType === "Physical") {
+      throw new Error("Only virtual meetings are available after the festival.");
+    }
     if (!attendee) {
       throw new Error("No attendee data available");
     }
@@ -350,6 +354,7 @@ export default function ScannedAttendeeScreen() {
       <RequestMeetingModal
         presentation="embedded"
         visible={phase === "requestMeeting"}
+        virtualOnly={isPostEventMode()}
         analyticsSource="scanned_attendee_screen"
         onClose={() => setPhase("profile")}
         onSubmit={handleMeetingSubmit}

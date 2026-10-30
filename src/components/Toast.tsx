@@ -74,7 +74,7 @@ export default function Toast({
 
   const backgroundColor =
     type === "success"
-      ? "#10B981"
+      ? "#171717"
       : type === "error"
         ? "#EF4444"
         : type === "warning"

@@ -54,7 +54,7 @@ import {
   getLinkedInDisplayInfo,
 } from "../utils/linkedInUtils";
 import { resolveMeetingById } from "../services/deepLinkResolveService";
-import { isPostEventMode } from "../config/eventMode";
+import { useEventFeatures } from "../hooks/useEventFeatures";
 import {
   parseDisplayTimeToApi,
   parseFlexibleDateToIso,
@@ -150,6 +150,7 @@ interface UIMeeting {
 export default function MeetingsScreen({ route }: Props) {
   const navigation =
     useNavigation<NavigationProp<RootStackParamList, "Meetings">>();
+  const postEventMode = useEventFeatures().postEvent;
   const { user } = useAuth();
   const { markRequestMeetingComplete } = useChecklist();
   const messagesBadgeCount = useMessagesBadgeCount();
@@ -851,7 +852,7 @@ export default function MeetingsScreen({ route }: Props) {
       virtualMeetings: VirtualMeeting[],
       currentUserId: string,
     ) => {
-      const physicalUIMeetings = physicalMeetings.map((meeting) =>
+      const physicalUIMeetings = (postEventMode ? [] : physicalMeetings).map((meeting) =>
         mapBackendMeetingToUI(meeting, currentUserId),
       );
       const virtualUIMeetings = virtualMeetings.map((meeting) =>
@@ -859,7 +860,7 @@ export default function MeetingsScreen({ route }: Props) {
       );
       setAllMeetingsForCounts([...physicalUIMeetings, ...virtualUIMeetings]);
     },
-    [mapBackendMeetingToUI, mapVirtualMeetingToUI],
+    [mapBackendMeetingToUI, mapVirtualMeetingToUI, postEventMode],
   );
 
   const fetchMeetings = useCallback(
@@ -924,6 +925,12 @@ export default function MeetingsScreen({ route }: Props) {
   fetchMeetingsRef.current = fetchMeetings;
   const applyMeetingsToStateRef = useRef(applyMeetingsToState);
   applyMeetingsToStateRef.current = applyMeetingsToState;
+
+  useEffect(() => {
+    if (!postEventMode || !user?.user_id) return;
+    setAllMeetingsForCounts((previous) => previous.filter((meeting) => meeting.isVirtual));
+    void fetchMeetingsRef.current({ force: true, silent: true });
+  }, [postEventMode, user?.user_id]);
 
   useEffect(() => {
     if (!user?.user_id) return;
@@ -1305,7 +1312,6 @@ export default function MeetingsScreen({ route }: Props) {
   }, [primaryTab, allMeetingsForCounts]);
 
   const secondaryTabCounts = getSecondaryTabCounts();
-  const postEventMode = isPostEventMode();
 
   return (
     <View className="flex-1 bg-white">
@@ -1334,12 +1340,12 @@ export default function MeetingsScreen({ route }: Props) {
           style={{ borderRadius: 0 }}
         >
           <Text className="text-sm text-neutral-700 leading-5">
-            <Text className="font-semibold text-[#1BB273]">Africa Startup Festival</Text> has
+            <Text className="font-semibold text-neutral-900">Africa Startup Festival</Text> has
             ended. This tab shows{" "}
             <Text className="font-semibold">virtual meetings</Text> only — request
             new ones from your{" "}
             <Text
-              className="font-semibold text-[#1BB273]"
+              className="font-semibold text-neutral-900 underline"
               onPress={() => navigation.navigate("Connections")}
             >
               connections
@@ -1398,14 +1404,14 @@ export default function MeetingsScreen({ route }: Props) {
         <View className="flex-row">
           <SecondaryTabButton
             label="Inbound"
-            icon={<ArrowDownRedIcon size={16} color="#FF0000" />}
+            icon={<ArrowDownRedIcon size={16} color="#525252" />}
             isActive={secondaryTab === "inbound"}
             count={secondaryTabCounts.inbound}
             onPress={() => setSecondaryTab("inbound")}
           />
           <SecondaryTabButton
             label="Outbound"
-            icon={<ArrowUpGreenIcon size={16} color="#008000" />}
+            icon={<ArrowUpGreenIcon size={16} color="#525252" />}
             isActive={secondaryTab === "outbound"}
             count={secondaryTabCounts.outbound}
             onPress={() => setSecondaryTab("outbound")}
@@ -1427,8 +1433,8 @@ export default function MeetingsScreen({ route }: Props) {
           <RefreshControl
             refreshing={false}
             onRefresh={() => fetchMeetings({ isRefresh: true, force: true })}
-            tintColor="#1BB273"
-            colors={["#1BB273"]}
+            tintColor="#000000"
+            colors={["#000000"]}
           />
         }
       >

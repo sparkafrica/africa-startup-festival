@@ -18,12 +18,13 @@ export type MeetingsListSnapshot = {
 };
 
 let snapshot: MeetingsListSnapshot | null = null;
+let snapshotPostEvent: boolean | null = null;
 let fetchPromise: Promise<MeetingsListSnapshot> | null = null;
 
 const BADGE_STATUSES = new Set(["pending", "accepted"]);
 
 export function getCachedMeetingsList(): MeetingsListSnapshot | null {
-  return snapshot;
+  return snapshotPostEvent === isPostEventMode() ? snapshot : null;
 }
 
 export function getCachedPhysicalMeetings(): Meeting[] {
@@ -35,7 +36,7 @@ export function getCachedVirtualMeetings(): VirtualMeeting[] {
 }
 
 export function isMeetingsListCacheFresh(): boolean {
-  if (!snapshot) return false;
+  if (!snapshot || snapshotPostEvent !== isPostEventMode()) return false;
   return Date.now() - snapshot.fetchedAt < FOCUS_LIST_STALE_MS;
 }
 
@@ -59,10 +60,12 @@ export function setMeetingsListCache(
     virtual,
     fetchedAt: Date.now(),
   };
+  snapshotPostEvent = isPostEventMode();
 }
 
 export function invalidateMeetingsListCache(): void {
   snapshot = null;
+  snapshotPostEvent = null;
   fetchPromise = null;
 }
 
@@ -78,7 +81,7 @@ export function countMeetingsForBadge(
 }
 
 export function countMeetingsForBadgeFromCache(): number {
-  if (!snapshot) return 0;
+  if (!snapshot || snapshotPostEvent !== isPostEventMode()) return 0;
   return countMeetingsForBadge(snapshot.physical, snapshot.virtual);
 }
 
@@ -106,6 +109,7 @@ async function loadMeetingsFromApi(
         meetingService.getVirtualMeetings(),
       ]);
     }
+    if (isPostEventMode()) physical = [];
     setMeetingsListCache(physical, virtual);
     return snapshot!;
   })();

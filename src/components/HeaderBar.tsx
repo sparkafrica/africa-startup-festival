@@ -9,6 +9,7 @@ import {
   MenuIcon,
 } from "./HeaderIcons";
 import { MailIcon } from "./MenuIcons";
+import { useEventFeatures } from "../hooks/useEventFeatures";
 
 interface HeaderBarProps {
   onScanPress?: () => void;
@@ -29,6 +30,7 @@ export default function HeaderBar({
   hasUnreadNotifications = false,
   unreadMessagesCount = 0,
 }: HeaderBarProps) {
+  const postEventMode = useEventFeatures().postEvent;
   const hasUnreadMessages = unreadMessagesCount > 0;
   const messagesBadgeLabel =
     unreadMessagesCount > 99 ? "99+" : String(unreadMessagesCount);
@@ -39,16 +41,18 @@ export default function HeaderBar({
       <View className="flex-row items-center px-3 py-2.5">
         {/* Standalone actions — no borders */}
         <View className="flex-row items-center flex-1 min-w-0 mr-2">
-          <Pressable
-            onPress={onScanPress}
-            className="flex-row items-center h-9 px-2 mr-1 flex-shrink-0"
-            hitSlop={8}
-          >
-            <View className="w-5 h-5 items-center justify-center mr-1.5">
-              <ScanIcon size={18} color="#404040" />
-            </View>
-            <Text className="font-semibold text-[#404040] text-sm">Scan</Text>
-          </Pressable>
+          {!postEventMode && onScanPress ? (
+            <Pressable
+              onPress={onScanPress}
+              className="flex-row items-center h-9 px-2 mr-1 flex-shrink-0"
+              hitSlop={8}
+            >
+              <View className="w-5 h-5 items-center justify-center mr-1.5">
+                <ScanIcon size={18} color="#404040" />
+              </View>
+              <Text className="font-semibold text-[#404040] text-sm">Scan</Text>
+            </Pressable>
+          ) : null}
           {onMyTicketPress ? (
             <Pressable
               onPress={onMyTicketPress}

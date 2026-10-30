@@ -29,6 +29,7 @@ import { useNotifications } from "../context/NotificationsContext";
 import { useToast } from "../hooks/useToast";
 import Toast from "../components/Toast";
 import { EVENT_ID } from "../config/env";
+import { isPostEventMode } from "../config/eventMode";
 
 export default function NotificationsScreen() {
   const navigation =
@@ -254,7 +255,7 @@ export default function NotificationsScreen() {
             } else if (routeName.toLowerCase() === "schedule") {
               navigation.navigate("Schedule");
             } else if (routeName.toLowerCase() === "tag-pickup") {
-              navigation.navigate("TagPickup");
+              navigation.navigate(isPostEventMode() ? "Home" : "TagPickup");
             }
           }
         } else {

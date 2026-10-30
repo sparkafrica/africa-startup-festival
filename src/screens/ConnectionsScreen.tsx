@@ -79,6 +79,7 @@ import {
 import Toast from "../components/Toast";
 import { EVENT_ID } from "../config/env";
 import { isPostEventMode } from "../config/eventMode";
+import { useEventFeatures } from "../hooks/useEventFeatures";
 import { isSpeakerPass } from "../utils/asfTicketClass";
 import EventRoleBadges from "../components/EventRoleBadges";
 import {
@@ -119,7 +120,7 @@ function PersonIcon({
 
 interface ConnectionTag {
   label: string;
-  borderColor: string; // e.g., "#ADD8E6" for light blue, "#90EE90" for light green
+  borderColor: string;
 }
 
 interface SpeakingSession {
@@ -170,21 +171,21 @@ function ConnectionCard({ connection, onPress }: ConnectionCardProps) {
     switch (connection.status) {
       case "pending":
         return {
-          color: "#F59E0B", // Orange/amber for pending
+          color: "#525252",
           text: connection.isFromCurrentUser ? "Sent" : "Pending",
-          bgColor: "#FEF3C7", // Light amber background
+          bgColor: "#F5F5F5",
         };
       case "accepted":
         return {
-          color: "#10B981", // Green for accepted
+          color: "#262626",
           text: "Connected",
-          bgColor: "#D1FAE5", // Light green background
+          bgColor: "#E5E5E5",
         };
       case "rejected":
         return {
-          color: "#EF4444", // Red for rejected
+          color: "#525252",
           text: "Declined",
-          bgColor: "#FEE2E2", // Light red background
+          bgColor: "#F5F5F5",
         };
       case "blocked":
         return {
@@ -401,7 +402,7 @@ export default function ConnectionsScreen() {
         metadata.industry,
     );
     if (sector) {
-      tags.push({ label: sector, borderColor: "#ADD8E6" });
+      tags.push({ label: sector, borderColor: "#D4D4D4" });
     }
     // Note: Interests are displayed separately in the Interests section, not as tags
 
@@ -516,20 +517,22 @@ export default function ConnectionsScreen() {
   //   );
   // });
   const filteredConnections = connections;
-  const postEventMode = isPostEventMode();
+  const postEventMode = useEventFeatures().postEvent;
 
   const handleDownloadConnections = useCallback(async () => {
     if (isExportingConnections) return;
     setIsExportingConnections(true);
     try {
       const { url, count } = await connectionService.exportConnections(EVENT_ID);
-      if (count === 0) {
+      if (!url) {
         showToast("No accepted connections to export yet.", "error");
         return;
       }
       await Linking.openURL(url);
       showToast(
-        `Opening CSV export (${count} connection${count === 1 ? "" : "s"})…`,
+        count > 0
+          ? `Opening CSV export (${count} connection${count === 1 ? "" : "s"})…`
+          : "Opening CSV export…",
         "success",
       );
     } catch (err: unknown) {
@@ -1190,6 +1193,13 @@ export default function ConnectionsScreen() {
           </View>
         </View> */}
 
+        {postEventMode ? (
+          <ConnectionsExportBanner
+            onDownload={() => void handleDownloadConnections()}
+            downloading={isExportingConnections}
+          />
+        ) : null}
+
         {/* Connections List */}
         {isLoading ? (
           <SkeletonListRows count={8} />
@@ -1212,16 +1222,8 @@ export default function ConnectionsScreen() {
             data={filteredConnections}
             renderItem={renderConnectionItem}
             keyExtractor={(item) => item.id}
-            ListHeaderComponent={
-              postEventMode ? (
-                <ConnectionsExportBanner
-                  onDownload={() => void handleDownloadConnections()}
-                  downloading={isExportingConnections}
-                />
-              ) : null
-            }
             contentContainerStyle={{
-              paddingTop: postEventMode ? 8 : 16,
+              paddingTop: 16,
               paddingBottom: FLOATING_NAV_BOTTOM_INSET,
             }}
             onLayout={(e) => {
@@ -1233,8 +1235,8 @@ export default function ConnectionsScreen() {
               <RefreshControl
                 refreshing={false}
                 onRefresh={() => fetchConnections({ force: true })}
-                tintColor="#1BB273"
-                colors={["#1BB273"]}
+                tintColor="#000000"
+                colors={["#000000"]}
               />
             }
             ListEmptyComponent={
@@ -1462,7 +1464,7 @@ export default function ConnectionsScreen() {
                         <Pressable
                           onPress={() => handleAcceptConnection(selectedConnection)}
                           disabled={isProcessingAction}
-                          className="w-full flex-row items-center justify-center bg-[#1BB273] py-3.5 px-4 mb-3" style={{ borderRadius: 0 }}
+                          className="w-full flex-row items-center justify-center bg-black py-3.5 px-4 mb-3" style={{ borderRadius: 0 }}
                         >
                           {isProcessingAction ? (
                             <LoadingSpinner size="small" color="#FFFFFF" />
@@ -1476,12 +1478,12 @@ export default function ConnectionsScreen() {
                           onPress={() => handleRejectConnection(selectedConnection)}
                           disabled={isProcessingAction}
                           className="w-full flex-row items-center justify-center py-3.5 px-4 mb-3"
-                          style={{ borderRadius: 0, backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444" }}
+                          style={{ borderRadius: 0, backgroundColor: "#E5E5E5" }}
                         >
                           {isProcessingAction ? (
-                            <LoadingSpinner size="small" color="#FFFFFF" />
+                            <LoadingSpinner size="small" color="#171717" />
                           ) : (
-                            <Text className="text-base font-semibold text-white">
+                            <Text className="text-base font-semibold text-neutral-900">
                               Decline
                             </Text>
                           )}
@@ -1621,7 +1623,7 @@ export default function ConnectionsScreen() {
                           }
                         }}
                         disabled={isOpeningChat}
-                        className="flex-row items-center justify-center bg-[#1BB273] py-3.5 px-3"
+                        className="flex-row items-center justify-center bg-black py-3.5 px-3"
                         style={{ flex: 1, marginLeft: 6, borderRadius: 0 }}
                       >
                         {isOpeningChat ? (
@@ -1661,13 +1663,13 @@ export default function ConnectionsScreen() {
                       className="w-full flex-row items-center justify-center py-3.5 px-4 mt-3"
                       style={{
                         borderRadius: 0,
-                        backgroundColor: isProcessingAction ? "#FCA5A5" : "#EF4444",
+                        backgroundColor: "#E5E5E5",
                       }}
                     >
                       {isProcessingAction ? (
-                        <LoadingSpinner size="small" color="#FFFFFF" />
+                        <LoadingSpinner size="small" color="#171717" />
                       ) : (
-                        <Text className="text-base font-semibold text-white">
+                        <Text className="text-base font-semibold text-neutral-900">
                           Remove Connection
                         </Text>
                       )}
@@ -1697,7 +1699,7 @@ export default function ConnectionsScreen() {
         attendeeName={meetingConnection?.name}
         requesteeUserId={meetingConnection?.userId}
         eventId={EVENT_ID}
-        virtualOnly={isPostEventMode()}
+        virtualOnly={postEventMode}
       />
 
       {/* Toast */}

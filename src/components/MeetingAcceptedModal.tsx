@@ -36,15 +36,15 @@ interface MeetingAcceptedModalProps {
 function CheckCircleIcon({ size = 80 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      {/* Outer light green circle */}
+      {/* Outer silver circle */}
       <Path
         d="M50 10C28.5 10 10 28.5 10 50C10 71.5 28.5 90 50 90C71.5 90 90 71.5 90 50C90 28.5 71.5 10 50 10Z"
-        fill="#D1FAE5"
+        fill="#E5E5E5"
       />
-      {/* Inner dark green circle */}
+      {/* Inner black circle */}
       <Path
         d="M50 20C33.4 20 20 33.4 20 50C20 66.6 33.4 80 50 80C66.6 80 80 66.6 80 50C80 33.4 66.6 20 50 20Z"
-        fill="#10B981"
+        fill="#171717"
       />
       {/* Checkmark */}
       <Path

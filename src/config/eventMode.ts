@@ -1,17 +1,9 @@
-/**
- * Post-event wind-down — disabled for ASF v1.
- * Re-enable with ASF event dates when post-event virtual networking ships.
- */
+/** Manual ASF Kenya post-event switch while the experience is under review. */
+import { EVENT_ID } from "./env";
 
-/** First calendar day after ASF event (post-event mode starts at midnight EAT). */
-export const EVENT_POST_EVENT_START_ISO = "2099-01-01";
+/** Review the post-event experience now; change only after the UI is vetted. */
+export const ASF_POST_EVENT_MODE_ENABLED = true;
 
-/**
- * Set to true locally to preview post-event UI.
- * Ship OTA with false — production uses the date gate only.
- */
-export const POST_EVENT_MODE_PREVIEW = false;
-
-export function isPostEventMode(_now = Date.now()): boolean {
-  return false;
+export function isPostEventMode(): boolean {
+  return EVENT_ID === 11 && ASF_POST_EVENT_MODE_ENABLED;
 }
